@@ -1,13 +1,17 @@
+// ═══════════════════════════════════════════════════════════
+// Onboarding — game rules + beta context + location permission
+// Feels like entering a league, not reading a manual
+// ═══════════════════════════════════════════════════════════
+
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { requestLocationPermission } from '@/systems/gps';
-
-const { width: SCREEN_W } = Dimensions.get('window');
+import { useBetaFlow } from '@/hooks/useBetaFlow';
 
 interface OnboardingStep {
   tag: string;
@@ -41,31 +45,39 @@ const steps: OnboardingStep[] = [
     body: 'Weak signal? Wrong gate? No problem — ride practice. Your time still matters to you. Just not to the league.',
     icon: '○',
   },
+  {
+    tag: 'CLOSED BETA',
+    title: 'You\'re early.\nHelp us build this.',
+    body: 'This is a closed test build. GPS and verification are still improving. Your runs and feedback shape the league. Ride hard, report issues, own the board.',
+    icon: '🔒',
+  },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { completeOnboarding } = useBetaFlow();
   const [step, setStep] = useState(0);
   const [permissionAsked, setPermissionAsked] = useState(false);
 
-  const isLastStep = step === steps.length - 1;
-  const isPermissionStep = step === steps.length; // step after content
+  const isLastContentStep = step === steps.length - 1;
+  const isPermissionStep = step === steps.length;
+
+  const handleFinish = useCallback(async () => {
+    await completeOnboarding();
+    router.replace('/(tabs)');
+  }, [completeOnboarding, router]);
 
   const handleNext = useCallback(async () => {
     if (isPermissionStep) {
-      // Done — go to home
-      router.replace('/');
+      await handleFinish();
       return;
     }
-
-    if (isLastStep) {
-      // Show permission step
-      setStep(steps.length);
+    if (isLastContentStep) {
+      setStep(steps.length); // permission step
       return;
     }
-
     setStep((s) => s + 1);
-  }, [step, isLastStep, isPermissionStep, router]);
+  }, [step, isLastContentStep, isPermissionStep, handleFinish]);
 
   const handleRequestPermission = useCallback(async () => {
     await requestLocationPermission();
@@ -73,6 +85,7 @@ export default function OnboardingScreen() {
   }, []);
 
   const currentStep = steps[step];
+  const totalSteps = steps.length + 1;
 
   // Permission screen
   if (isPermissionStep) {
@@ -80,10 +93,10 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           <Text style={styles.tag}>LOCATION</Text>
-          <Text style={styles.permIcon}>📍</Text>
+          <Text style={styles.stepIcon}>📍</Text>
           <Text style={styles.title}>We need your{'\n'}location.</Text>
           <Text style={styles.body}>
-            NWD uses GPS to track your runs, verify your route, and detect start/finish gates. Without location access, only practice mode is available.
+            NWD uses GPS to track your runs, verify your route, and detect start/finish gates. Without location, only practice mode works.
           </Text>
 
           {!permissionAsked ? (
@@ -98,12 +111,11 @@ export default function OnboardingScreen() {
 
           <Pressable style={styles.nextBtn} onPress={handleNext}>
             <Text style={styles.nextBtnText}>
-              {permissionAsked ? 'ENTER NWD' : 'SKIP FOR NOW'}
+              {permissionAsked ? 'ENTER THE LEAGUE' : 'SKIP FOR NOW'}
             </Text>
           </Pressable>
         </View>
-
-        <ProgressDots total={steps.length + 1} current={step} />
+        <ProgressDots total={totalSteps} current={step} />
       </SafeAreaView>
     );
   }
@@ -119,17 +131,17 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.footer}>
-        <ProgressDots total={steps.length + 1} current={step} />
+        <ProgressDots total={totalSteps} current={step} />
 
         <Pressable style={styles.nextBtn} onPress={handleNext}>
           <Text style={styles.nextBtnText}>
-            {isLastStep ? 'CONTINUE' : 'NEXT'}
+            {isLastContentStep ? 'ALMOST THERE' : 'NEXT'}
           </Text>
         </Pressable>
 
         {step === 0 && (
-          <Pressable style={styles.skipBtn} onPress={() => router.replace('/')}>
-            <Text style={styles.skipText}>SKIP</Text>
+          <Pressable style={styles.skipBtn} onPress={handleFinish}>
+            <Text style={styles.skipText}>SKIP — I KNOW THE RULES</Text>
           </Pressable>
         )}
       </View>
@@ -172,10 +184,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   stepIcon: {
-    fontSize: 48,
-    marginBottom: spacing.lg,
-  },
-  permIcon: {
     fontSize: 48,
     marginBottom: spacing.lg,
   },

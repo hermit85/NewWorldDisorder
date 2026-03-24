@@ -64,6 +64,10 @@ export default function RootLayout() {
           name="spot/[id]"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="help/index"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
     </AuthProvider>
   );

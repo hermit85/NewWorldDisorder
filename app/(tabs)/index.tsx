@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,10 +13,19 @@ import { copy, formatTimeShort } from '@/content/copy';
 import { spotLore } from '@/data/seed/slotwinyLore';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useUserTrailStats, useChallenges } from '@/hooks/useBackend';
+import { useBetaFlow } from '@/hooks/useBetaFlow';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { profile: authProfile, isAuthenticated } = useAuthContext();
+  const { needsOnboarding, loading: betaLoading } = useBetaFlow();
+
+  // Redirect to onboarding on first launch
+  useEffect(() => {
+    if (!betaLoading && needsOnboarding) {
+      router.replace('/onboarding');
+    }
+  }, [betaLoading, needsOnboarding]);
 
   // Backend-backed hooks with mock fallback
   const { profile: userProfile } = useProfile(authProfile?.id);

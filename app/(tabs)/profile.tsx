@@ -97,9 +97,16 @@ export default function ProfileScreen() {
           <View style={styles.appActions}>
             <Pressable
               style={styles.actionLink}
+              onPress={() => router.push('/help')}
+            >
+              <Text style={styles.actionLinkText}>HELP / FAQ</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.actionLink}
               onPress={() => router.push('/onboarding')}
             >
-              <Text style={styles.actionLinkText}>VIEW GAME RULES</Text>
+              <Text style={styles.actionLinkText}>GAME RULES</Text>
             </Pressable>
 
             {isAuthenticated ? (
