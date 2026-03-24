@@ -33,6 +33,8 @@ export default function ResultScreen() {
     mode: string;
     trailId: string;
     trailName: string;
+    verificationLabel: string;
+    verificationIssues: string;
     saved: string;
     isPb: string;
     rankPosition: string;
@@ -57,7 +59,19 @@ export default function ResultScreen() {
 
   const isRanked = mode === 'ranked';
   const vKey = params.verificationId ?? 'verifiedClean';
-  const vDisplay = VERIFICATION_DISPLAY[vKey] ?? VERIFICATION_DISPLAY.practiceRun;
+  const vDisplayBase = VERIFICATION_DISPLAY[vKey] ?? VERIFICATION_DISPLAY.practiceRun;
+
+  // Use real verification issues from params (exact reasons), fall back to display defaults
+  let realIssues: string[] = [];
+  try {
+    realIssues = params.verificationIssues ? JSON.parse(params.verificationIssues) : [];
+  } catch { /* ignore parse errors */ }
+  const vDisplay = {
+    ...vDisplayBase,
+    label: params.verificationLabel ?? vDisplayBase.label,
+    issues: realIssues.length > 0 ? realIssues : vDisplayBase.issues,
+  };
+
   const isVerified = vKey === 'verifiedClean';
   const showRank = isRanked && isVerified && rankPosition > 0;
 

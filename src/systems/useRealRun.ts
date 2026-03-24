@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // useRealRun — orchestrates a real GPS-tracked run
-// Combines: GPS tracking, trace capture, gate detection,
-// readiness checks, verification, and state management
+// INTEGRITY: one run → one finish → one verify → one save
+// Guards: idempotent finish, mounted check, GPS cleanup
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -24,7 +24,6 @@ import {
   finishTrace,
   setTraceVerification,
   saveCompletedRun,
-  getActiveTrace,
   clearActiveTrace,
   RunTrace,
 } from './traceCapture';
@@ -38,7 +37,7 @@ import {
 } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, fetchUserRuns } from '@/lib/api';
+import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges } from '@/lib/api';
 import { XP_TABLE } from './xp';
 import { triggerRefresh } from '@/hooks/useRefresh';
 
@@ -96,30 +95,44 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     backendResult: null,
   });
 
+  // ── Lifecycle guards ──
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const trackingActiveRef = useRef(false);
+  const mountedRef = useRef(true);
+  const finalizingRef = useRef(false); // idempotency: only one finish pass
+
+  // Safe setState that checks mount status
+  const safeSetState = useCallback((updater: (s: RealRunState) => RealRunState) => {
+    if (mountedRef.current) setState(updater);
+  }, []);
+
+  // ── Stop all timers and GPS ──
+  const stopAll = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (trackingActiveRef.current) {
+      stopTracking();
+      trackingActiveRef.current = false;
+    }
+  }, []);
 
   // ── Request permission and start readiness check ──
 
   const beginReadinessCheck = useCallback(async () => {
     if (isWeb) {
-      // Web fallback — simulate good GPS for testing
       const mockGps: GpsState = { readiness: 'good', accuracy: 4, satellites: 12, label: 'GPS Good' };
       const readiness = computeReadiness(mockGps, 5, geo?.startZone.radiusM ?? 30);
-      setState((s) => ({
-        ...s,
-        phase: 'readiness_check',
-        gps: mockGps,
-        readiness,
-      }));
+      safeSetState((s) => ({ ...s, phase: 'readiness_check', gps: mockGps, readiness }));
       return;
     }
 
-    setState((s) => ({ ...s, phase: 'readiness_check' }));
+    safeSetState((s) => ({ ...s, phase: 'readiness_check' }));
 
     const perm = await requestLocationPermission();
     if (!perm.foreground) {
-      setState((s) => ({
+      safeSetState((s) => ({
         ...s,
         permissionDenied: true,
         readiness: {
@@ -133,46 +146,35 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       return;
     }
 
-    // Get initial position
     const pos = await getCurrentPosition();
     const gps = buildGpsState(pos);
-    const distToStart = pos && geo
-      ? distanceMeters(pos, geo.startZone)
-      : null;
+    const distToStart = pos && geo ? distanceMeters(pos, geo.startZone) : null;
     const readiness = computeReadiness(gps, distToStart, geo?.startZone.radiusM ?? 30);
 
-    setState((s) => ({
-      ...s,
-      gps,
-      readiness,
-      lastPoint: pos,
-    }));
+    safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
-    // Start continuous position updates for readiness
     await startTracking((point) => {
-      const gpsUpdate = buildGpsState(point);
-      const distUpdate = geo ? distanceMeters(point, geo.startZone) : null;
-      const readinessUpdate = computeReadiness(gpsUpdate, distUpdate, geo?.startZone.radiusM ?? 30);
-
-      setState((s) => {
-        // If already running, add to trace
+      safeSetState((s) => {
+        // During run: add points, check gates/checkpoints
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
 
-          // Check finish gate
-          if (geo && isInZone(point, geo.finishZone)) {
-            // Auto-finish on finish gate!
+          // Auto-finish on finish gate (only if not already finalizing)
+          if (geo && isInZone(point, geo.finishZone) && !finalizingRef.current) {
+            // Don't call finishRun from inside setState — just set phase
+            // The finalize logic runs below via the effect
+            finalizingRef.current = true;
             return {
               ...s,
-              gps: gpsUpdate,
+              gps: buildGpsState(point),
               lastPoint: point,
               pointCount: s.pointCount + 1,
-              phase: 'finishing',
               elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
+              phase: 'finishing' as RunPhaseV2,
             };
           }
 
-          // Update live checkpoint status
+          // Update checkpoints
           const updatedCps = s.checkpoints.map((cp) => {
             if (cp.passed) return cp;
             if (distanceMeters(point, cp.coordinate) <= cp.radiusM) {
@@ -183,7 +185,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
           return {
             ...s,
-            gps: gpsUpdate,
+            gps: buildGpsState(point),
             lastPoint: point,
             pointCount: s.pointCount + 1,
             checkpoints: updatedCps,
@@ -191,88 +193,99 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           };
         }
 
-        // Pre-run readiness updates
-        return {
-          ...s,
-          gps: gpsUpdate,
-          readiness: readinessUpdate,
-          lastPoint: point,
-        };
+        // Pre-run: update readiness
+        const gpsUpdate = buildGpsState(point);
+        const distUpdate = geo ? distanceMeters(point, geo.startZone) : null;
+        const readinessUpdate = computeReadiness(gpsUpdate, distUpdate, geo?.startZone.radiusM ?? 30);
+        return { ...s, gps: gpsUpdate, readiness: readinessUpdate, lastPoint: point };
       });
     }, 1000);
 
     trackingActiveRef.current = true;
-  }, [geo]);
+  }, [geo, safeSetState]);
 
   // ── Arm run ──
 
   const armRun = useCallback((mode: RunMode) => {
-    setState((s) => ({
+    safeSetState((s) => ({
       ...s,
       mode,
       phase: mode === 'ranked' ? 'armed_ranked' : 'armed_practice',
     }));
-  }, []);
+  }, [safeSetState]);
 
   // ── Start run ──
 
   const startRun = useCallback(() => {
+    finalizingRef.current = false; // reset finalize guard for this run
     const trace = beginTrace(trailId, trailName, state.mode);
     const now = Date.now();
 
-    setState((s) => ({
+    safeSetState((s) => ({
       ...s,
       phase: s.mode === 'ranked' ? 'running_ranked' : 'running_practice',
       startedAt: now,
       elapsedMs: 0,
       trace,
       checkpoints: geo ? buildCheckpoints(geo) : [],
+      verification: null,
+      backendStatus: 'idle',
+      backendResult: null,
     }));
 
-    // Start timer
     timerRef.current = setInterval(() => {
-      setState((s) => ({
+      safeSetState((s) => ({
         ...s,
         elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
       }));
     }, 50);
-  }, [trailId, trailName, state.mode, geo]);
+  }, [trailId, trailName, state.mode, geo, safeSetState]);
 
-  // ── Finish run (manual or auto from gate) ──
+  // ── Finish run (manual tap) ──
 
   const finishRun = useCallback(() => {
+    if (finalizingRef.current) return; // idempotency guard
+    finalizingRef.current = true;
+
+    // Stop timer immediately
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    setState((s) => ({
+    safeSetState((s) => ({
       ...s,
       phase: 'finishing',
       elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
     }));
+  }, [safeSetState]);
 
-    // Short delay then verify
-    setTimeout(() => {
-      setState((s) => ({ ...s, phase: 'verifying' }));
+  // ── Finalize: verify + save (runs ONCE when phase becomes 'finishing') ──
+
+  useEffect(() => {
+    if (state.phase !== 'finishing') return;
+    if (!state.startedAt) return;
+
+    // Stop GPS tracking — run is done
+    stopAll();
+
+    // Delay slightly for UX transition, then verify
+    const timeout = setTimeout(() => {
+      safeSetState((s) => ({ ...s, phase: 'verifying' }));
 
       const completedTrace = finishTrace();
       if (!completedTrace || !geo) {
-        setState((s) => ({
+        safeSetState((s) => ({
           ...s,
           phase: 'invalidated',
           error: 'No trace data',
+          backendStatus: 'offline',
         }));
         return;
       }
 
-      // Run real verification
-      const verification = verifyRealRun(
-        completedTrace.mode,
-        completedTrace.points,
-        geo
-      );
-
+      // Verify
+      const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo);
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
 
@@ -282,35 +295,35 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           ? 'completed_unverified'
           : 'invalidated';
 
-      setState((s) => ({
+      safeSetState((s) => ({
         ...s,
         phase: finalPhase,
         verification,
         trace: completedTrace,
-        backendStatus: isBackendConfigured() ? 'saving' : 'offline',
+        backendStatus: isBackendConfigured() && userId ? 'saving' : 'offline',
       }));
 
-      // ── Submit to backend ──
-      submitToBackend(completedTrace, verification);
-    }, 500);
-  }, [geo]);
+      // Submit to backend (async, non-blocking)
+      if (isBackendConfigured() && userId) {
+        submitToBackend(userId, completedTrace, verification);
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [state.phase === 'finishing']); // only trigger on finishing
 
   // ── Submit to backend ──
 
-  const submitToBackend = useCallback(async (
+  const submitToBackend = async (
+    uid: string,
     trace: RunTrace,
     verification: VerificationResult,
   ) => {
-    if (!isBackendConfigured() || !userId) {
-      setState((s) => ({ ...s, backendStatus: 'offline' }));
-      return;
-    }
-
     try {
       const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
 
       const result = await submitRunToBackend({
-        userId,
+        userId: uid,
         spotId: 'slotwiny-arena',
         trailId,
         mode: trace.mode,
@@ -323,73 +336,36 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       });
 
       if (result) {
-        setState((s) => ({
+        safeSetState((s) => ({
           ...s,
           backendStatus: 'saved',
           backendResult: result,
         }));
 
-        // ── Post-save: challenges + achievements ──
-        updateProgressionAfterRun(userId, trailId, result.isPb, verification.isLeaderboardEligible);
-
-        // Signal all screens to refresh
+        // Post-save progression (fire-and-forget)
+        updateProgression(uid, trailId, result.isPb, verification.isLeaderboardEligible);
         triggerRefresh();
       } else {
-        setState((s) => ({ ...s, backendStatus: 'failed' }));
+        safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
       }
     } catch (e) {
-      console.error('[NWD] Backend run submission failed:', e);
-      setState((s) => ({ ...s, backendStatus: 'failed' }));
+      console.error('[NWD] Backend submission failed:', e);
+      safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
     }
-  }, [userId, trailId]);
+  };
 
   // ── Post-save progression (fire-and-forget) ──
 
-  const updateProgressionAfterRun = async (
-    uid: string,
-    tid: string,
-    isPb: boolean,
-    leaderboardEligible: boolean,
-  ) => {
+  const updateProgression = async (uid: string, tid: string, isPb: boolean, eligible: boolean) => {
     try {
-      // ── Challenge progress ──
       const challenges = await fetchActiveChallenges('slotwiny-arena');
       for (const ch of challenges) {
-        if (ch.type === 'run_count') {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
-        if (ch.type === 'pb_improvement' && isPb) {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
-        if (ch.type === 'fastest_time' && ch.trail_id === tid && leaderboardEligible) {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
+        if (ch.type === 'run_count') await incrementChallengeProgress(uid, ch.id, 1);
+        if (ch.type === 'pb_improvement' && isPb) await incrementChallengeProgress(uid, ch.id, 1);
+        if (ch.type === 'fastest_time' && ch.trail_id === tid && eligible) await incrementChallengeProgress(uid, ch.id, 1);
       }
-
-      // ── Achievements ──
-      // First Blood — first valid run
       await unlockAchievement(uid, 'ach-first-blood');
-
-      // Top 10 Entry — check if leaderboard position ≤ 10
-      if (leaderboardEligible) {
-        await unlockAchievement(uid, 'ach-top-10');
-      }
-
-      // Gravity Addict — 50 total runs (checked server-side by run count)
-      const runs = await fetchUserRuns(uid, 1);
-      if (runs.length > 0) {
-        // Profile total_runs is already incremented server-side
-        // Just attempt unlocks — duplicates are prevented by unique constraint
-        await unlockAchievement(uid, 'ach-gravity-addict');
-      }
-
-      // Trail Hunter — ran on multiple trails
-      // Slotwiny Local — 20+ runs at this spot
-      // Weekend Warrior — 5 runs in one weekend
-      // These could use more sophisticated server-side queries,
-      // but for now we attempt and let the unique constraint handle it.
-      // The backend's unique(user_id, achievement_id) prevents duplicates.
-
+      if (eligible) await unlockAchievement(uid, 'ach-top-10');
     } catch (e) {
       console.warn('[NWD] Progression update failed:', e);
     }
@@ -398,14 +374,10 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   // ── Cancel ──
 
   const cancel = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    stopTracking();
-    trackingActiveRef.current = false;
+    finalizingRef.current = false;
+    stopAll();
     clearActiveTrace();
-    setState((s) => ({
+    safeSetState((s) => ({
       ...s,
       phase: 'idle',
       startedAt: null,
@@ -413,27 +385,17 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       verification: null,
       trace: null,
       error: null,
+      backendStatus: 'idle',
+      backendResult: null,
     }));
-  }, []);
-
-  // ── Reset ──
-
-  const reset = useCallback(() => {
-    cancel();
-  }, [cancel]);
-
-  // ── Auto-finish when phase is 'finishing' ──
-
-  useEffect(() => {
-    if (state.phase === 'finishing' && state.startedAt) {
-      finishRun();
-    }
-  }, [state.phase]);
+  }, [stopAll, safeSetState]);
 
   // ── Cleanup on unmount ──
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (timerRef.current) clearInterval(timerRef.current);
       if (trackingActiveRef.current) {
         stopTracking();
@@ -449,6 +411,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     startRun,
     finishRun,
     cancel,
-    reset,
+    reset: cancel,
   };
 }
