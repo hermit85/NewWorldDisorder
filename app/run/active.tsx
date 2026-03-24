@@ -11,6 +11,7 @@ import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { getTrailGeo } from '@/data/seed/slotwinyMap';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
+import { useAuthContext } from '@/hooks/AuthContext';
 
 export default function ActiveRunScreen() {
   const { trailId = 'dzida-czerwona', trailName = 'Dzida Czerwona' } =
@@ -20,6 +21,7 @@ export default function ActiveRunScreen() {
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
 
+  const { profile } = useAuthContext();
   const geo = getTrailGeo(trailId) ?? null;
 
   const {
@@ -29,7 +31,7 @@ export default function ActiveRunScreen() {
     startRun,
     finishRun,
     cancel,
-  } = useRealRun(trailId, trailName, geo);
+  } = useRealRun(trailId, trailName, geo, profile?.id);
 
   // Triple-tap trail name to toggle debug
   const handleDebugTap = useCallback(() => {
@@ -84,6 +86,7 @@ export default function ActiveRunScreen() {
 
   const navigateToResult = () => {
     const v = state.verification;
+    const br = state.backendResult;
     router.replace({
       pathname: '/run/result',
       params: {
@@ -96,6 +99,10 @@ export default function ActiveRunScreen() {
                         v?.status === 'shortcut_detected' ? 'shortcutDetected' :
                         'outsideStartGate',
         mode: state.mode,
+        saved: state.backendStatus === 'saved' ? '1' : '0',
+        isPb: br?.isPb ? '1' : '0',
+        rankPosition: br?.leaderboardResult?.position ? String(br.leaderboardResult.position) : '',
+        rankDelta: br?.leaderboardResult?.delta ? String(br.leaderboardResult.delta) : '',
       },
     });
   };

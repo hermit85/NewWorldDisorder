@@ -37,6 +37,11 @@ import {
   Checkpoint,
 } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
+import { SubmitRunResult } from '@/lib/api';
+import { XP_TABLE } from './xp';
+
+export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
 
 export interface RealRunState {
   phase: RunPhaseV2;
@@ -54,11 +59,13 @@ export interface RealRunState {
   trace: RunTrace | null;
   error: string | null;
   permissionDenied: boolean;
+  backendStatus: BackendSaveStatus;
+  backendResult: SubmitRunResult | null;
 }
 
 const isWeb = Platform.OS === 'web';
 
-export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed | null) {
+export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed | null, userId?: string) {
   const [state, setState] = useState<RealRunState>({
     phase: 'idle',
     mode: 'practice',
@@ -84,6 +91,8 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     trace: null,
     error: null,
     permissionDenied: false,
+    backendStatus: 'idle',
+    backendResult: null,
   });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -277,9 +286,55 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         phase: finalPhase,
         verification,
         trace: completedTrace,
+        backendStatus: isBackendConfigured() ? 'saving' : 'offline',
       }));
+
+      // ── Submit to backend ──
+      submitToBackend(completedTrace, verification);
     }, 500);
   }, [geo]);
+
+  // ── Submit to backend ──
+
+  const submitToBackend = useCallback(async (
+    trace: RunTrace,
+    verification: VerificationResult,
+  ) => {
+    if (!isBackendConfigured() || !userId) {
+      setState((s) => ({ ...s, backendStatus: 'offline' }));
+      return;
+    }
+
+    try {
+      const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+
+      const result = await submitRunToBackend({
+        userId,
+        spotId: 'slotwiny-arena',
+        trailId,
+        mode: trace.mode,
+        startedAt: trace.startedAt,
+        finishedAt: trace.finishedAt ?? Date.now(),
+        durationMs: trace.durationMs,
+        verification,
+        trace,
+        xpAwarded,
+      });
+
+      if (result) {
+        setState((s) => ({
+          ...s,
+          backendStatus: 'saved',
+          backendResult: result,
+        }));
+      } else {
+        setState((s) => ({ ...s, backendStatus: 'failed' }));
+      }
+    } catch (e) {
+      console.error('[NWD] Backend run submission failed:', e);
+      setState((s) => ({ ...s, backendStatus: 'failed' }));
+    }
+  }, [userId, trailId]);
 
   // ── Cancel ──
 
