@@ -11,16 +11,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import {
-  verificationScenarios,
-  VerificationScenarioId,
-  buildTruthMapData,
-} from '@/data/mock/verificationScenarios';
 import { getTrailById } from '@/data/seed/slotwinyOfficial';
-import { TruthMap } from '@/components/map/TruthMap';
 import { XP_TABLE } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapHeavy, notifySuccess, notifyWarning } from '@/systems/haptics';
+
+// ── Verification display config (no mock dependency) ──
+const VERIFICATION_DISPLAY: Record<string, { label: string; color: string; bg: string; icon: string; issues: string[] }> = {
+  verifiedClean:     { label: 'VERIFIED',          color: colors.accent, bg: colors.accentDim,             icon: '✓', issues: [] },
+  practiceRun:       { label: 'PRACTICE',           color: colors.blue,   bg: 'rgba(0,122,255,0.15)',      icon: '○', issues: [] },
+  weakSignal:        { label: 'WEAK SIGNAL',        color: colors.orange, bg: 'rgba(255,149,0,0.15)',      icon: '!', issues: ['Weak GPS signal during run'] },
+  missingCheckpoint: { label: 'CHECKPOINT MISSED',  color: colors.orange, bg: 'rgba(255,149,0,0.15)',      icon: '!', issues: ['One or more checkpoints missed'] },
+  shortcutDetected:  { label: 'SHORTCUT DETECTED',  color: colors.red,    bg: 'rgba(255,59,48,0.12)',      icon: '✕', issues: ['Off-route shortcut detected'] },
+  outsideStartGate:  { label: 'NO START GATE',      color: colors.red,    bg: 'rgba(255,59,48,0.12)',      icon: '✕', issues: ['Did not enter start gate'] },
+};
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{
@@ -52,9 +56,9 @@ export default function ResultScreen() {
   const xpAwarded = parseInt(params.xpAwarded ?? '0', 10) || (saved ? XP_TABLE.validRun : 0);
 
   const isRanked = mode === 'ranked';
-  const vKey = (params.verificationId ?? 'verifiedClean') as VerificationScenarioId;
-  const verification = verificationScenarios[vKey] ?? verificationScenarios.verifiedClean;
-  const isVerified = verification.isLeaderboardEligible;
+  const vKey = params.verificationId ?? 'verifiedClean';
+  const vDisplay = VERIFICATION_DISPLAY[vKey] ?? VERIFICATION_DISPLAY.practiceRun;
+  const isVerified = vKey === 'verifiedClean';
   const showRank = isRanked && isVerified && rankPosition > 0;
 
   // ── Entrance animation + haptics ──
@@ -89,12 +93,8 @@ export default function ResultScreen() {
     router.replace('/(tabs)/leaderboard');
   };
 
-  // ── Status config ──
-  const statusConfig = isVerified
-    ? { label: 'VERIFIED', color: colors.accent, bg: colors.accentDim, icon: '✓' }
-    : mode === 'practice'
-    ? { label: 'PRACTICE', color: colors.blue, bg: 'rgba(0,122,255,0.15)', icon: '○' }
-    : { label: verification.label.toUpperCase(), color: colors.orange, bg: 'rgba(255,149,0,0.15)', icon: '!' };
+  // Status display from verification key — no mock dependency
+  const statusConfig = vDisplay;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -171,26 +171,24 @@ export default function ResultScreen() {
           )}
         </View>
 
-        {/* ── Verification detail (expandable) ── */}
-        {verification.issues.length > 0 && (
+        {/* ── Verification issues ── */}
+        {vDisplay.issues.length > 0 && (
           <View style={styles.issuesCard}>
-            {verification.issues.map((issue, i) => (
+            {vDisplay.issues.map((issue, i) => (
               <Text key={i} style={styles.issueText}>• {issue}</Text>
             ))}
           </View>
         )}
 
-        {/* ── Truth map toggle ── */}
-        <Pressable
-          style={styles.truthMapToggle}
-          onPress={() => { tapLight(); setShowTruthMap(!showTruthMap); }}
-        >
-          <Text style={styles.truthMapToggleText}>
-            {showTruthMap ? 'HIDE ROUTE RECAP' : 'VIEW ROUTE RECAP'}
-          </Text>
-        </Pressable>
-
-        {showTruthMap && <TruthMap data={buildTruthMapData(trailId, verification)} />}
+        {/* ── Sync failure explanation ── */}
+        {!saved && isRanked && isVerified && (
+          <View style={styles.syncFailCard}>
+            <Text style={styles.syncFailTitle}>YOUR RUN WAS VALID</Text>
+            <Text style={styles.syncFailBody}>
+              The run passed verification but could not be saved. This may be a connection issue. Your time was real — try again when signal is stable.
+            </Text>
+          </View>
+        )}
 
         {/* ── Divider ── */}
         <View style={styles.divider} />
@@ -376,6 +374,27 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     color: colors.orange,
     letterSpacing: 1,
+  },
+
+  // Sync failure
+  syncFailCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.orange,
+  },
+  syncFailTitle: {
+    ...typography.labelSmall,
+    color: colors.orange,
+    letterSpacing: 2,
+    marginBottom: spacing.sm,
+  },
+  syncFailBody: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 
   // Issues

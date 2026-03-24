@@ -9,8 +9,9 @@ import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
 import { getSpot } from '@/data/mock/spots';
 import { getTrailsForSpot } from '@/data/mock/trails';
-import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { copy, formatTimeShort } from '@/content/copy';
+import { useAuthContext } from '@/hooks/AuthContext';
+import { useUserTrailStats } from '@/hooks/useBackend';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
 
@@ -24,6 +25,8 @@ export default function SpotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
+  const { profile } = useAuthContext();
+  const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
   const spot = getSpot(id);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
 
@@ -57,7 +60,7 @@ export default function SpotScreen() {
   const trails = getTrailsForSpot(spot.id);
   const selectedTrail = trails.find((t) => t.id === selectedTrailId);
   const selectedStats = selectedTrailId
-    ? getUserTrailStats(selectedTrailId)
+    ? trailStatsMap.get(selectedTrailId)
     : undefined;
 
   return (
@@ -73,10 +76,8 @@ export default function SpotScreen() {
             <Text style={styles.spotTitle}>{spot.name}</Text>
           </View>
           <View style={styles.ridersTag}>
-            <Text style={styles.ridersCount}>
-              {spot.activeRidersToday}
-            </Text>
-            <Text style={styles.ridersLabel}>LIVE</Text>
+            <Text style={styles.ridersCount}>S01</Text>
+            <Text style={styles.ridersLabel}>BETA</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -111,7 +112,7 @@ export default function SpotScreen() {
             contentContainerStyle={styles.trailStripContent}
           >
             {trails.map((trail) => {
-              const stats = getUserTrailStats(trail.id);
+              const stats = trailStatsMap.get(trail.id);
               const diffColor = trailLineColors[trail.difficulty];
 
               return (

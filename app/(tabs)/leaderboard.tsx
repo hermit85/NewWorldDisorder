@@ -12,14 +12,11 @@ import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard } from '@/hooks/useBackend';
 
-const periods: { key: PeriodType; label: string }[] = [
-  { key: 'day', label: copy.today },
-  { key: 'weekend', label: copy.weekend },
-  { key: 'all_time', label: copy.allTime },
-];
+// Only all_time is supported by backend in MVP.
+// Day/Weekend will be added when backend supports period-based queries.
 
 export default function LeaderboardScreen() {
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('all_time');
+  const selectedPeriod: PeriodType = 'all_time';
   const [selectedTrailId, setSelectedTrailId] = useState('dzida-czerwona');
   const { profile } = useAuthContext();
 
@@ -70,27 +67,11 @@ export default function LeaderboardScreen() {
           ))}
         </ScrollView>
 
-        {/* Period tabs */}
+        {/* ALL TIME — single period for MVP */}
         <View style={styles.periodTabs}>
-          {periods.map((p) => (
-            <Pressable
-              key={p.key}
-              style={[
-                styles.periodTab,
-                selectedPeriod === p.key && styles.periodTabActive,
-              ]}
-              onPress={() => setSelectedPeriod(p.key)}
-            >
-              <Text
-                style={[
-                  styles.periodTabText,
-                  selectedPeriod === p.key && styles.periodTabTextActive,
-                ]}
-              >
-                {p.label.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
+          <View style={[styles.periodTab, styles.periodTabActive]}>
+            <Text style={[styles.periodTabText, styles.periodTabTextActive]}>ALL TIME</Text>
+          </View>
         </View>
 
         {/* Loading */}

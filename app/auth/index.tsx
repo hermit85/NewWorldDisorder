@@ -130,7 +130,7 @@ export default function AuthScreen() {
             </Pressable>
 
             <Pressable style={styles.skipBtn} onPress={handleSkip}>
-              <Text style={styles.skipText}>SKIP — EXPLORE DEMO</Text>
+              <Text style={styles.skipText}>BROWSE WITHOUT SIGNING IN</Text>
             </Pressable>
           </View>
         )}

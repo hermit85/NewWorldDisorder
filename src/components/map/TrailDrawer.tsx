@@ -5,14 +5,20 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
 import { Trail, Difficulty } from '@/data/types';
-import { UserTrailStats } from '@/data/mock/userTrailStats';
+// Accepts minimal stats from real backend or fuller mock stats
+interface TrailStats {
+  pbMs?: number | null;
+  position?: number | null;
+  nearestRival?: { username: string; position: number; timeMs: number; gapMs: number } | null;
+  top3?: { position: number; username: string; timeMs: number }[];
+}
 import { getActiveChallenges } from '@/data/mock/challenges';
 import { formatTime, formatTimeShort, copy } from '@/content/copy';
 import { tapLight, tapMedium } from '@/systems/haptics';
 
 interface Props {
   trail: Trail;
-  stats: UserTrailStats | undefined;
+  stats: TrailStats | undefined;
   onClose: () => void;
 }
 
