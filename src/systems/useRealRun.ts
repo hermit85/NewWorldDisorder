@@ -40,10 +40,12 @@ import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges } from '@/lib/api';
 import { XP_TABLE } from './xp';
 import { triggerRefresh } from '@/hooks/useRefresh';
+import { createRunSessionId, setFinalizedRun, updateFinalizedRun } from './runStore';
 
 export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
 
 export interface RealRunState {
+  runSessionId: string;
   phase: RunPhaseV2;
   mode: RunMode;
   trailId: string;
@@ -67,6 +69,7 @@ const isWeb = Platform.OS === 'web';
 
 export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed | null, userId?: string) {
   const [state, setState] = useState<RealRunState>({
+    runSessionId: '',
     phase: 'idle',
     mode: 'practice',
     trailId,
@@ -217,12 +220,14 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   // ── Start run ──
 
   const startRun = useCallback(() => {
-    finalizingRef.current = false; // reset finalize guard for this run
+    finalizingRef.current = false;
+    const sessionId = createRunSessionId();
     const trace = beginTrace(trailId, trailName, state.mode);
     const now = Date.now();
 
     safeSetState((s) => ({
       ...s,
+      runSessionId: sessionId,
       phase: s.mode === 'ranked' ? 'running_ranked' : 'running_practice',
       startedAt: now,
       elapsedMs: 0,
@@ -295,17 +300,33 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           ? 'completed_unverified'
           : 'invalidated';
 
+      const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
+
       safeSetState((s) => ({
         ...s,
         phase: finalPhase,
         verification,
         trace: completedTrace,
-        backendStatus: isBackendConfigured() && userId ? 'saving' : 'offline',
+        backendStatus: saveStatus,
       }));
+
+      // Write to shared run store — result screen reads from here
+      setFinalizedRun({
+        sessionId: state.runSessionId,
+        trailId,
+        trailName,
+        mode: completedTrace.mode,
+        durationMs: completedTrace.durationMs,
+        startedAt: completedTrace.startedAt,
+        verification,
+        saveStatus,
+        backendResult: null,
+        updatedAt: Date.now(),
+      });
 
       // Submit to backend (async, non-blocking)
       if (isBackendConfigured() && userId) {
-        submitToBackend(userId, completedTrace, verification);
+        submitToBackend(state.runSessionId, userId, completedTrace, verification);
       }
     }, 400);
 
@@ -315,6 +336,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   // ── Submit to backend ──
 
   const submitToBackend = async (
+    sessionId: string,
     uid: string,
     trace: RunTrace,
     verification: VerificationResult,
@@ -336,21 +358,20 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       });
 
       if (result) {
-        safeSetState((s) => ({
-          ...s,
-          backendStatus: 'saved',
-          backendResult: result,
-        }));
+        safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
+        // Update shared store — result screen will see this
+        updateFinalizedRun(sessionId, { saveStatus: 'saved', backendResult: result });
 
-        // Post-save progression (fire-and-forget)
         updateProgression(uid, trailId, result.isPb, verification.isLeaderboardEligible);
         triggerRefresh();
       } else {
         safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
+        updateFinalizedRun(sessionId, { saveStatus: 'failed' });
       }
     } catch (e) {
       console.error('[NWD] Backend submission failed:', e);
       safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
+      updateFinalizedRun(sessionId, { saveStatus: 'failed' });
     }
   };
 

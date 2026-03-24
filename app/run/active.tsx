@@ -85,37 +85,10 @@ export default function ActiveRunScreen() {
   };
 
   const navigateToResult = () => {
-    const v = state.verification;
-    const br = state.backendResult;
-
-    // Build verification key from actual status
-    const vStatusMap: Record<string, string> = {
-      verified: 'verifiedClean',
-      practice_only: 'practiceRun',
-      weak_signal: 'weakSignal',
-      missing_checkpoint: 'missingCheckpoint',
-      shortcut_detected: 'shortcutDetected',
-      outside_start_gate: 'outsideStartGate',
-      outside_finish_gate: 'outsideStartGate',
-      invalid_route: 'shortcutDetected',
-    };
-
+    // Pass only the session ID — result screen reads truth from the store
     router.replace({
       pathname: '/run/result',
-      params: {
-        trailId,
-        trailName,
-        actualTimeMs: String(state.elapsedMs),
-        verificationId: vStatusMap[v?.status ?? ''] ?? 'practiceRun',
-        verificationLabel: v?.label ?? 'Unknown',
-        verificationIssues: JSON.stringify(v?.issues ?? []),
-        mode: state.mode,
-        saved: state.backendStatus === 'saved' ? '1' : '0',
-        isPb: br?.isPb ? '1' : '0',
-        rankPosition: br?.leaderboardResult?.position ? String(br.leaderboardResult.position) : '',
-        rankDelta: br?.leaderboardResult?.delta ? String(br.leaderboardResult.delta) : '',
-        xpAwarded: String(br?.run?.xp_awarded ?? 0),
-      },
+      params: { runSessionId: state.runSessionId },
     });
   };
 
