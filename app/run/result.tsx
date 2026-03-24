@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════
-// Result Screen — post-run dopamine delivery
-// Now uses REAL run data from params. Mock only as safe fallback.
+// Result Screen — the emotional heart of the product
+// Every run ends here. This screen creates "one more run."
+// Uses REAL backend data. No mock scenarios.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -16,23 +17,13 @@ import {
   buildTruthMapData,
 } from '@/data/mock/verificationScenarios';
 import { getTrailById } from '@/data/seed/slotwinyOfficial';
-import { ResultTimeCard } from '@/components/result/ResultTimeCard';
-import { ResultPBBadge } from '@/components/result/ResultPBBadge';
-import { ResultRankDelta } from '@/components/result/ResultRankDelta';
-import { ResultGapCard } from '@/components/result/ResultGapCard';
-import { ResultXpMeter } from '@/components/result/ResultXpMeter';
-import { ResultAchievementUnlock } from '@/components/result/ResultAchievementUnlock';
-import { ResultChallengeProgress } from '@/components/result/ResultChallengeProgress';
-import { ResultRankUp } from '@/components/result/ResultRankUp';
-import { RunAgainCTA } from '@/components/result/RunAgainCTA';
-import { ResultVerificationStatus } from '@/components/result/ResultVerificationStatus';
 import { TruthMap } from '@/components/map/TruthMap';
 import { XP_TABLE } from '@/systems/xp';
-import { tapLight, notifySuccess } from '@/systems/haptics';
+import { formatTime } from '@/content/copy';
+import { tapLight, tapHeavy, notifySuccess, notifyWarning } from '@/systems/haptics';
 
 export default function ResultScreen() {
   const params = useLocalSearchParams<{
-    scenarioId: string;
     actualTimeMs: string;
     verificationId: string;
     mode: string;
@@ -46,23 +37,11 @@ export default function ResultScreen() {
   }>();
   const router = useRouter();
   const [showTruthMap, setShowTruthMap] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
 
-  // ── Haptic celebration on mount ──
-  useEffect(() => {
-    const isPbVal = params.isPb === '1';
-    const savedVal = params.saved === '1';
-    if (isPbVal) {
-      // Double haptic for PB
-      notifySuccess();
-      setTimeout(() => notifySuccess(), 300);
-    } else if (savedVal) {
-      notifySuccess();
-    }
-  }, []);
-
-  // ── Parse real data from params ──
+  // ── Parse real data ──
   const actualTime = parseInt(params.actualTimeMs ?? '0', 10);
-  const trailId = params.trailId ?? params.scenarioId?.split('-')[0] ?? 'dzida-czerwona';
+  const trailId = params.trailId ?? 'dzida-czerwona';
   const trail = getTrailById(trailId);
   const trailName = params.trailName ?? trail?.officialName ?? 'Unknown Trail';
   const mode = params.mode ?? 'practice';
@@ -72,14 +51,30 @@ export default function ResultScreen() {
   const rankDelta = parseInt(params.rankDelta ?? '0', 10) || 0;
   const xpAwarded = parseInt(params.xpAwarded ?? '0', 10) || (saved ? XP_TABLE.validRun : 0);
 
-  // ── Verification scenario (mock display data for visual treatment) ──
+  const isRanked = mode === 'ranked';
   const vKey = (params.verificationId ?? 'verifiedClean') as VerificationScenarioId;
   const verification = verificationScenarios[vKey] ?? verificationScenarios.verifiedClean;
-  const truthMapData = buildTruthMapData(trailId, verification);
+  const isVerified = verification.isLeaderboardEligible;
+  const showRank = isRanked && isVerified && rankPosition > 0;
 
-  const isRanked = mode === 'ranked';
-  const isVerified = vKey === 'verifiedClean' || verification.isLeaderboardEligible;
-  const showLeaderboardInfo = isRanked && isVerified && rankPosition > 0;
+  // ── Entrance animation + haptics ──
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    if (isPb) {
+      tapHeavy();
+      setTimeout(() => notifySuccess(), 200);
+      setTimeout(() => notifySuccess(), 500);
+    } else if (saved) {
+      notifySuccess();
+    } else if (mode === 'practice') {
+      notifyWarning();
+    }
+  }, []);
 
   const handleRunAgain = () => {
     tapLight();
@@ -94,62 +89,121 @@ export default function ResultScreen() {
     router.replace('/(tabs)/leaderboard');
   };
 
+  // ── Status config ──
+  const statusConfig = isVerified
+    ? { label: 'VERIFIED', color: colors.accent, bg: colors.accentDim, icon: '✓' }
+    : mode === 'practice'
+    ? { label: 'PRACTICE', color: colors.blue, bg: 'rgba(0,122,255,0.15)', icon: '○' }
+    : { label: verification.label.toUpperCase(), color: colors.orange, bg: 'rgba(255,149,0,0.15)', icon: '!' };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        style={{ opacity: fadeAnim }}
       >
-        {/* Time — the hero */}
-        <ResultTimeCard
-          durationMs={actualTime}
-          isPb={isPb}
-          trailName={trailName}
-        />
+        {/* ── Trail + mode header ── */}
+        <View style={styles.header}>
+          <Text style={styles.trailLabel}>{trailName.toUpperCase()}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+            <Text style={[styles.statusIcon, { color: statusConfig.color }]}>{statusConfig.icon}</Text>
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
+          </View>
+        </View>
 
-        {/* PB badge */}
-        <ResultPBBadge
-          isPb={isPb}
-          improvementMs={null}
-        />
+        {/* ── THE TIME — hero element ── */}
+        <View style={styles.timeContainer}>
+          <Text style={[styles.timeHero, isPb && { color: colors.accent }]}>
+            {formatTime(actualTime)}
+          </Text>
+        </View>
 
-        {/* Rank position + delta (real from backend) */}
-        {showLeaderboardInfo && (
-          <ResultRankDelta
-            position={rankPosition}
-            delta={rankDelta}
-          />
+        {/* ── PB celebration ── */}
+        {isPb && (
+          <View style={styles.pbCard}>
+            <Text style={styles.pbLabel}>NEW PERSONAL BEST</Text>
+          </View>
         )}
 
-        {/* XP */}
-        <ResultXpMeter xpGained={xpAwarded} />
+        {/* ── Rank position (real from backend) ── */}
+        {showRank && (
+          <View style={styles.rankCard}>
+            <View style={styles.rankRow}>
+              <Text style={styles.rankPosition}>#{rankPosition}</Text>
+              {rankDelta > 0 && (
+                <View style={styles.deltaUp}>
+                  <Text style={styles.deltaUpText}>↑{rankDelta}</Text>
+                </View>
+              )}
+              {rankDelta < 0 && (
+                <Text style={styles.deltaDown}>↓{Math.abs(rankDelta)}</Text>
+              )}
+              {rankDelta === 0 && rankPosition > 0 && (
+                <Text style={styles.deltaFlat}>NEW ENTRY</Text>
+              )}
+            </View>
+            <Text style={styles.rankLabel}>LEADERBOARD POSITION</Text>
+          </View>
+        )}
 
-        {/* Verification status */}
-        <ResultVerificationStatus
-          verification={verification}
-          onShowTruthMap={() => setShowTruthMap(!showTruthMap)}
-        />
+        {/* ── XP awarded ── */}
+        {xpAwarded > 0 && (
+          <View style={styles.xpRow}>
+            <Text style={styles.xpValue}>+{xpAwarded} XP</Text>
+          </View>
+        )}
 
-        {/* Backend save status */}
-        <View style={styles.saveStatus}>
+        {/* ── Save status ── */}
+        <View style={styles.saveRow}>
           {saved ? (
-            <Text style={styles.saveOk}>✓ RUN SAVED TO LEAGUE</Text>
+            <View style={styles.saveOkBadge}>
+              <Text style={styles.saveOkText}>✓ SAVED TO LEAGUE</Text>
+            </View>
           ) : mode === 'practice' ? (
-            <Text style={styles.savePractice}>PRACTICE — NOT ON BOARD</Text>
+            <View style={styles.savePracticeBadge}>
+              <Text style={styles.savePracticeText}>PRACTICE — NOT ON BOARD</Text>
+            </View>
           ) : (
-            <Text style={styles.saveFail}>RUN NOT SAVED — CHECK CONNECTION</Text>
+            <View style={styles.saveFailBadge}>
+              <Text style={styles.saveFailText}>NOT SAVED — TRY AGAIN</Text>
+            </View>
           )}
         </View>
 
-        {/* Truth map — expandable */}
-        {showTruthMap && <TruthMap data={truthMapData} />}
+        {/* ── Verification detail (expandable) ── */}
+        {verification.issues.length > 0 && (
+          <View style={styles.issuesCard}>
+            {verification.issues.map((issue, i) => (
+              <Text key={i} style={styles.issueText}>• {issue}</Text>
+            ))}
+          </View>
+        )}
 
-        {/* CTAs */}
-        <RunAgainCTA
-          onRunAgain={handleRunAgain}
-          onViewLeaderboard={handleViewLeaderboard}
-        />
-      </ScrollView>
+        {/* ── Truth map toggle ── */}
+        <Pressable
+          style={styles.truthMapToggle}
+          onPress={() => { tapLight(); setShowTruthMap(!showTruthMap); }}
+        >
+          <Text style={styles.truthMapToggleText}>
+            {showTruthMap ? 'HIDE ROUTE RECAP' : 'VIEW ROUTE RECAP'}
+          </Text>
+        </Pressable>
+
+        {showTruthMap && <TruthMap data={buildTruthMapData(trailId, verification)} />}
+
+        {/* ── Divider ── */}
+        <View style={styles.divider} />
+
+        {/* ── CTAs ── */}
+        <Pressable style={styles.runAgainBtn} onPress={handleRunAgain}>
+          <Text style={styles.runAgainText}>RUN AGAIN</Text>
+        </Pressable>
+
+        <Pressable style={styles.leaderboardBtn} onPress={handleViewLeaderboard}>
+          <Text style={styles.leaderboardBtnText}>VIEW LEADERBOARD</Text>
+        </Pressable>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
@@ -161,27 +215,227 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: spacing.xl,
-    paddingTop: spacing.xxxl,
+    paddingTop: spacing.xxl,
     paddingBottom: spacing.huge,
   },
-  saveStatus: {
+
+  // Header
+  header: {
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginVertical: spacing.sm,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  saveOk: {
+  trailLabel: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 4,
+    fontSize: 11,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xxs,
+  },
+  statusIcon: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+  },
+  statusText: {
+    ...typography.labelSmall,
+    letterSpacing: 2,
+    fontSize: 10,
+  },
+
+  // Time — the hero
+  timeContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  timeHero: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 64,
+    color: colors.textPrimary,
+    letterSpacing: 4,
+  },
+
+  // PB
+  pbCard: {
+    alignItems: 'center',
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  pbLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 16,
+    color: colors.accent,
+    letterSpacing: 4,
+  },
+
+  // Rank
+  rankCard: {
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  rankPosition: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 36,
+    color: colors.textPrimary,
+  },
+  deltaUp: {
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+  },
+  deltaUpText: {
+    ...typography.label,
+    color: colors.accent,
+    fontSize: 16,
+  },
+  deltaDown: {
+    ...typography.label,
+    color: colors.red,
+    fontSize: 16,
+  },
+  deltaFlat: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 2,
+  },
+  rankLabel: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 3,
+    marginTop: spacing.sm,
+  },
+
+  // XP
+  xpRow: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  xpValue: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 18,
+    color: colors.gold,
+    letterSpacing: 2,
+  },
+
+  // Save status
+  saveRow: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  saveOkBadge: {
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  saveOkText: {
     ...typography.labelSmall,
     color: colors.accent,
     letterSpacing: 2,
   },
-  savePractice: {
+  savePracticeBadge: {
+    backgroundColor: 'rgba(0,122,255,0.1)',
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  savePracticeText: {
     ...typography.labelSmall,
     color: colors.blue,
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
-  saveFail: {
+  saveFailBadge: {
+    backgroundColor: 'rgba(255,149,0,0.1)',
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  saveFailText: {
     ...typography.labelSmall,
     color: colors.orange,
     letterSpacing: 1,
+  },
+
+  // Issues
+  issuesCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  issueText: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    lineHeight: 20,
+  },
+
+  // Truth map
+  truthMapToggle: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  truthMapToggleText: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 2,
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.lg,
+  },
+
+  // CTAs
+  runAgainBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  runAgainText: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 16,
+    color: colors.bg,
+    letterSpacing: 4,
+  },
+  leaderboardBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  leaderboardBtnText: {
+    ...typography.label,
+    color: colors.textSecondary,
+    letterSpacing: 3,
   },
 });

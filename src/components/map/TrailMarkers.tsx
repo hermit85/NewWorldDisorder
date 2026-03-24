@@ -6,6 +6,7 @@ import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
 import { Trail, Difficulty } from '@/data/types';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { selectionTick } from '@/systems/haptics';
 
 interface Props {
   trails: Trail[];

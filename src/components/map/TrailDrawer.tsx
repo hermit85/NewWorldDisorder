@@ -8,6 +8,7 @@ import { Trail, Difficulty } from '@/data/types';
 import { UserTrailStats } from '@/data/mock/userTrailStats';
 import { getActiveChallenges } from '@/data/mock/challenges';
 import { formatTime, formatTimeShort, copy } from '@/content/copy';
+import { tapLight, tapMedium } from '@/systems/haptics';
 
 interface Props {
   trail: Trail;
@@ -26,6 +27,7 @@ export function TrailDrawer({ trail, stats, onClose }: Props) {
   const activeChallenge = challenges[0];
 
   const handleStartRun = () => {
+    tapMedium();
     router.push({
       pathname: '/run/active',
       params: { trailId: trail.id, trailName: trail.name },
@@ -33,6 +35,7 @@ export function TrailDrawer({ trail, stats, onClose }: Props) {
   };
 
   const handleViewTrail = () => {
+    tapLight();
     router.push(`/trail/${trail.id}`);
   };
 

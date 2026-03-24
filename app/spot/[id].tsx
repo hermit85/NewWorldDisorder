@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import { selectionTick } from '@/systems/haptics';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -35,6 +36,7 @@ export default function SpotScreen() {
   }, [navigation, router]);
 
   const handleTrailSelect = useCallback((trailId: string) => {
+    selectionTick();
     setSelectedTrailId(trailId);
   }, []);
 
