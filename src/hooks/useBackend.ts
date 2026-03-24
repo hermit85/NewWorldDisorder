@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
-// useBackend — bridge between Supabase and mock data
-// Uses REAL backend when configured. Mock ONLY for dev/demo.
-// When backend is live, empty data = real empty, not fake.
+// useBackend — typed result states: loading / data / error / signed-out
+// NEVER collapses backend failure into fake empty state.
+// Mock data ONLY when Supabase is not configured (DEMO_MODE).
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,7 +10,7 @@ import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
 import { useRefreshSignal } from './useRefresh';
 
-// Mock fallback imports — ONLY used when Supabase is NOT configured
+// Mock fallback — ONLY in DEMO_MODE
 import { mockLeaderboard } from '@/data/mock/leaderboard';
 import { mockTrails } from '@/data/mock/trails';
 import { mockChallenges } from '@/data/mock/challenges';
@@ -18,96 +18,104 @@ import { mockUser } from '@/data/mock/user';
 import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { LeaderboardEntry, PeriodType, Challenge, User } from '@/data/types';
 
-/** Returns true if Supabase env vars are configured */
 export function isBackendConfigured(): boolean {
   return isSupabaseConfigured;
 }
 
-// Demo mode = Supabase not configured, use mock data
 const DEMO_MODE = !isSupabaseConfigured;
 
-// ── Leaderboard hook ──
+// ── Typed fetch status ──
+export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';
+
+// ══════════════════════════════════════════════════════════
+// LEADERBOARD
+// ══════════════════════════════════════════════════════════
 
 export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_time', userId?: string) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<FetchStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setStatus('loading');
     setError(null);
 
     if (DEMO_MODE) {
-      setEntries(mockLeaderboardForTrail(trailId));
-      setLoading(false);
+      const data = mockLeaderboardForTrail(trailId);
+      setEntries(data);
+      setStatus(data.length > 0 ? 'ok' : 'empty');
       return;
     }
 
     try {
       const rows = await api.fetchLeaderboard(trailId, periodType, userId);
-      // Real backend: empty = really empty. No fake fill.
       setEntries(rows.map(mapLeaderboardRow));
+      setStatus(rows.length > 0 ? 'ok' : 'empty');
     } catch (e: any) {
       console.warn('[NWD] Leaderboard fetch failed:', e?.message);
       setError('Could not load leaderboard');
       setEntries([]);
+      setStatus('error');
     }
-
-    setLoading(false);
   }, [trailId, periodType, userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { entries, loading, error, refresh };
+  return { entries, status, error, loading: status === 'loading', refresh };
 }
 
-// ── Trail stats hook ──
+// ══════════════════════════════════════════════════════════
+// TRAIL STATS
+// ══════════════════════════════════════════════════════════
 
 export function useUserTrailStats(userId?: string) {
   const [stats, setStats] = useState<Map<string, { pbMs: number | null; position: number | null }>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<FetchStatus>('loading');
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
     if (DEMO_MODE) {
       setStats(buildMockTrailStats());
-      setLoading(false);
+      setStatus('ok');
       return;
     }
 
     if (!userId) {
       setStats(new Map());
-      setLoading(false);
+      setStatus('signed_out');
       return;
     }
 
     try {
       const map = await api.fetchUserTrailStats(userId);
       setStats(map);
-    } catch (e) {
+      setStatus(map.size > 0 ? 'ok' : 'empty');
+    } catch {
       console.warn('[NWD] Trail stats fetch failed');
       setStats(new Map());
+      setStatus('error');
     }
-    setLoading(false);
   }, [userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { stats, loading, refresh };
+  return { stats, status, loading: status === 'loading', refresh };
 }
 
-// ── Challenges hook ──
+// ══════════════════════════════════════════════════════════
+// CHALLENGES
+// ══════════════════════════════════════════════════════════
 
 export function useChallenges(spotId: string, userId?: string) {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<FetchStatus>('loading');
 
   useEffect(() => {
     async function load() {
       if (DEMO_MODE) {
         setChallenges(mockChallenges);
-        setLoading(false);
+        setStatus('ok');
         return;
       }
 
@@ -117,7 +125,7 @@ export function useChallenges(spotId: string, userId?: string) {
           ? await api.fetchChallengeProgress(userId, data.map(c => c.id))
           : new Map();
 
-        setChallenges(data.map(c => ({
+        const mapped = data.map(c => ({
           id: c.id,
           spotId: c.spot_id,
           trailId: c.trail_id,
@@ -130,35 +138,39 @@ export function useChallenges(spotId: string, userId?: string) {
           isActive: c.is_active,
           currentProgress: progressMap.get(c.id)?.current_value ?? 0,
           targetProgress: 3,
-        })));
+        }));
+        setChallenges(mapped);
+        setStatus(mapped.length > 0 ? 'ok' : 'empty');
       } catch {
         setChallenges([]);
+        setStatus('error');
       }
-      setLoading(false);
     }
     load();
   }, [spotId, userId]);
 
-  return { challenges, loading };
+  return { challenges, status, loading: status === 'loading' };
 }
 
-// ── User profile hook ──
+// ══════════════════════════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════════════════════════
 
 export function useProfile(userId?: string) {
   const [profile, setProfile] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<FetchStatus>('loading');
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
     if (DEMO_MODE) {
       setProfile(mockUser);
-      setLoading(false);
+      setStatus('ok');
       return;
     }
 
     if (!userId) {
       setProfile(null);
-      setLoading(false);
+      setStatus('signed_out');
       return;
     }
 
@@ -178,34 +190,37 @@ export function useProfile(userId?: string) {
           joinedAt: p.created_at,
           achievements: [],
         });
+        setStatus('ok');
       } else {
         setProfile(null);
+        setStatus('empty');
       }
     } catch {
       setProfile(null);
+      setStatus('error');
     }
-    setLoading(false);
   }, [userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { profile, loading, refresh };
+  return { profile, status, loading: status === 'loading', refresh };
 }
 
-// ── Run submission ──
+// ══════════════════════════════════════════════════════════
+// RUN SUBMISSION
+// ══════════════════════════════════════════════════════════
 
 export async function submitRunToBackend(params: api.SubmitRunParams): Promise<api.SubmitRunResult | null> {
   if (DEMO_MODE) {
     console.log('[NWD] Demo mode — run saved locally only');
     return null;
   }
-
   return api.submitRun(params);
 }
 
-// ═══════════════════════════════════════════════════════════
-// Mock data mappers — ONLY used in DEMO_MODE
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// Mock mappers — DEMO_MODE only
+// ══════════════════════════════════════════════════════════
 
 function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
   return {
@@ -234,9 +249,7 @@ function buildMockTrailStats(): Map<string, { pbMs: number | null; position: num
   const map = new Map();
   for (const trail of mockTrails) {
     const stats = getUserTrailStats(trail.id);
-    if (stats) {
-      map.set(trail.id, { pbMs: stats.pbMs, position: stats.position });
-    }
+    if (stats) map.set(trail.id, { pbMs: stats.pbMs, position: stats.position });
   }
   return map;
 }

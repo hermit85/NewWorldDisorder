@@ -82,11 +82,19 @@ export default function OnboardingScreen() {
     setStep((s) => s + 1);
   }, [step, isLastContentStep, isPermissionStep, handleFinish]);
 
+  const [permissionGranted, setPermissionGranted] = useState(false);
+
   const handleRequestPermission = useCallback(async () => {
     tapLight();
-    await requestLocationPermission();
+    const result = await requestLocationPermission();
     setPermissionAsked(true);
-    notifySuccess();
+    if (result.foreground) {
+      setPermissionGranted(true);
+      notifySuccess();
+    } else {
+      setPermissionGranted(false);
+      // No success haptic — permission was denied
+    }
   }, []);
 
   const currentStep = steps[step];
@@ -108,9 +116,16 @@ export default function OnboardingScreen() {
             <Pressable style={styles.permBtn} onPress={handleRequestPermission}>
               <Text style={styles.permBtnText}>ALLOW LOCATION</Text>
             </Pressable>
-          ) : (
+          ) : permissionGranted ? (
             <View style={styles.permGranted}>
               <Text style={styles.permGrantedText}>✓ LOCATION ENABLED</Text>
+            </View>
+          ) : (
+            <View style={styles.permDenied}>
+              <Text style={styles.permDeniedText}>LOCATION DENIED</Text>
+              <Text style={styles.permDeniedHint}>
+                Ranked runs need location. You can enable it later in Settings. Practice mode still works.
+              </Text>
             </View>
           )}
 
@@ -271,5 +286,25 @@ const styles = StyleSheet.create({
     ...typography.cta,
     color: colors.accent,
     letterSpacing: 2,
+  },
+  permDenied: {
+    backgroundColor: 'rgba(255,149,0,0.1)',
+    borderRadius: radii.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.xxl,
+  },
+  permDeniedText: {
+    ...typography.cta,
+    color: colors.orange,
+    letterSpacing: 2,
+    marginBottom: spacing.sm,
+  },
+  permDeniedHint: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

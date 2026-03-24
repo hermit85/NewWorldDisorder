@@ -81,11 +81,23 @@ export default function LeaderboardScreen() {
           </View>
         )}
 
-        {/* Empty state */}
-        {!loading && entries.length === 0 && (
+        {/* Error state — backend failed, not just empty */}
+        {!loading && lbError && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyIcon}>🏁</Text>
-            <Text style={styles.emptyTitle}>NO RUNS YET</Text>
+            <Text style={styles.emptyTitle}>COULD NOT LOAD</Text>
+            <Text style={styles.emptyDesc}>
+              Leaderboard data is unavailable right now. Check your connection.
+            </Text>
+            <Pressable style={styles.retryBtn} onPress={refresh}>
+              <Text style={styles.retryText}>RETRY</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Empty state — valid but no runs yet */}
+        {!loading && !lbError && entries.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyTitle}>NO VERIFIED RUNS YET</Text>
             <Text style={styles.emptyDesc}>
               Be the first to set a verified time on {selectedTrail?.name ?? 'this trail'}.
             </Text>
@@ -273,6 +285,19 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'center',
     marginTop: spacing.sm,
+  },
+  retryBtn: {
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
+  },
+  retryText: {
+    ...typography.labelSmall,
+    color: colors.textSecondary,
+    letterSpacing: 2,
   },
   entry: {
     flexDirection: 'row',

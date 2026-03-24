@@ -21,7 +21,7 @@ export default function ActiveRunScreen() {
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
 
-  const { profile } = useAuthContext();
+  const { profile, isAuthenticated } = useAuthContext();
   const geo = getTrailGeo(trailId) ?? null;
 
   const {
@@ -51,9 +51,13 @@ export default function ActiveRunScreen() {
         beginReadinessCheck();
         break;
       case 'readiness_check':
-        if (state.readiness.rankedEligible) {
+        if (state.readiness.rankedEligible && isAuthenticated) {
           tapMedium();
           armRun('ranked');
+        } else if (state.readiness.rankedEligible && !isAuthenticated) {
+          // Ranked eligible but not signed in — gate it
+          tapLight();
+          router.push('/auth');
         } else if (state.readiness.ctaEnabled) {
           tapLight();
           armRun('practice');
