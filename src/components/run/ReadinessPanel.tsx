@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -6,6 +6,9 @@ import { PreRunReadiness } from '@/data/verificationTypes';
 
 interface Props {
   readiness: PreRunReadiness;
+  onStartPractice?: () => void;
+  onRetryGps?: () => void;
+  onBack?: () => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -25,9 +28,13 @@ const gpsLabels: Record<string, { label: string; color: string }> = {
   excellent: { label: 'STRONG', color: colors.accent },
 };
 
-export function ReadinessPanel({ readiness }: Props) {
+export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack }: Props) {
   const statusColor = statusColors[readiness.status] ?? colors.textSecondary;
   const gpsInfo = gpsLabels[readiness.gps.readiness] ?? gpsLabels.locking;
+
+  // Determine if we're in a blocked/degraded state where fallback actions help
+  const showPracticeFallback = !readiness.rankedEligible && readiness.status !== 'gps_locking';
+  const isLocationMismatch = readiness.distanceToStartM !== null && readiness.distanceToStartM > 5000;
 
   return (
     <View style={styles.container}>
@@ -37,7 +44,7 @@ export function ReadinessPanel({ readiness }: Props) {
         <Text style={[styles.gpsLabel, { color: gpsInfo.color }]}>
           GPS {gpsInfo.label}
         </Text>
-        {readiness.gps.accuracy != null && (
+        {readiness.gps.accuracy != null && readiness.gps.readiness !== 'unavailable' && (
           <Text style={styles.gpsAccuracy}>
             ±{Math.round(readiness.gps.accuracy)}m
           </Text>
@@ -49,11 +56,18 @@ export function ReadinessPanel({ readiness }: Props) {
         {readiness.message}
       </Text>
 
+      {/* Location mismatch hint */}
+      {isLocationMismatch && (
+        <Text style={styles.hintText}>
+          Make sure you're at Słotwiny Arena, or start a practice run from anywhere.
+        </Text>
+      )}
+
       {/* Mode indicator */}
       <View style={styles.modeRow}>
         {readiness.rankedEligible ? (
           <View style={styles.rankedBadge}>
-            <Text style={styles.rankedText}>RANKED ELIGIBLE</Text>
+            <Text style={styles.rankedText}>✓ RANKED ELIGIBLE</Text>
           </View>
         ) : (
           <View style={styles.practiceBadge}>
@@ -61,6 +75,22 @@ export function ReadinessPanel({ readiness }: Props) {
           </View>
         )}
       </View>
+
+      {/* Fallback actions — never leave the user trapped */}
+      {showPracticeFallback && (onStartPractice || onBack) && (
+        <View style={styles.fallbackRow}>
+          {onStartPractice && (
+            <Pressable style={styles.fallbackBtn} onPress={onStartPractice}>
+              <Text style={styles.fallbackBtnText}>START PRACTICE</Text>
+            </Pressable>
+          )}
+          {onBack && (
+            <Pressable style={styles.fallbackBtnGhost} onPress={onBack}>
+              <Text style={styles.fallbackGhostText}>BACK TO MAP</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -97,6 +127,12 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontFamily: 'Inter_600SemiBold',
   },
+  hintText: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   modeRow: {
     flexDirection: 'row',
   },
@@ -121,5 +157,35 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     color: colors.blue,
     letterSpacing: 2,
+  },
+  fallbackRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  fallbackBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 122, 255, 0.15)',
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  fallbackBtnText: {
+    ...typography.labelSmall,
+    color: colors.blue,
+    letterSpacing: 1,
+  },
+  fallbackBtnGhost: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  fallbackGhostText: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 1,
   },
 });

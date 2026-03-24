@@ -12,6 +12,7 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { requestLocationPermission } from '@/systems/gps';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
+import { selectionTick, notifySuccess, tapLight } from '@/systems/haptics';
 
 interface OnboardingStep {
   tag: string;
@@ -63,11 +64,13 @@ export default function OnboardingScreen() {
   const isPermissionStep = step === steps.length;
 
   const handleFinish = useCallback(async () => {
+    notifySuccess();
     await completeOnboarding();
     router.replace('/(tabs)');
   }, [completeOnboarding, router]);
 
   const handleNext = useCallback(async () => {
+    selectionTick();
     if (isPermissionStep) {
       await handleFinish();
       return;
@@ -80,8 +83,10 @@ export default function OnboardingScreen() {
   }, [step, isLastContentStep, isPermissionStep, handleFinish]);
 
   const handleRequestPermission = useCallback(async () => {
+    tapLight();
     await requestLocationPermission();
     setPermissionAsked(true);
+    notifySuccess();
   }, []);
 
   const currentStep = steps[step];

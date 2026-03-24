@@ -10,12 +10,14 @@ import {
   GateState,
   Checkpoint,
   RouteCorridor,
-  RouteDeviation,
   GpsReadiness,
   PreRunReadiness,
-  ReadinessStatus,
   GpsState,
 } from '@/data/verificationTypes';
+
+// ── Distance thresholds ──
+const MAX_REASONABLE_DISTANCE_M = 5000; // beyond this = "not near the trail"
+const WALKING_DISTANCE_M = 500; // beyond this = too far to walk easily
 
 // ── Pre-run readiness check ──
 
@@ -29,6 +31,7 @@ export function computeReadiness(
   const gpsWeak = gps.readiness === 'weak';
   const gpsLocking = gps.readiness === 'locking' || gps.readiness === 'unavailable';
 
+  // ── GPS still acquiring ──
   if (gpsLocking) {
     return {
       status: 'gps_locking',
@@ -42,6 +45,21 @@ export function computeReadiness(
     };
   }
 
+  // ── Absurd distance = location mismatch ──
+  if (distanceToStartM !== null && distanceToStartM > MAX_REASONABLE_DISTANCE_M) {
+    return {
+      status: 'move_to_start',
+      gps,
+      inStartGate: false,
+      rankedEligible: false,
+      distanceToStartM,
+      message: 'You don\'t seem to be near this trail',
+      ctaLabel: 'START PRACTICE RUN',
+      ctaEnabled: true,
+    };
+  }
+
+  // ── Weak GPS + not in gate ──
   if (gpsWeak && !inStartGate) {
     return {
       status: 'weak_signal',
@@ -49,25 +67,31 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Weak GPS. Practice runs only.',
+      message: 'Weak GPS signal. Practice mode available.',
       ctaLabel: 'START PRACTICE RUN',
       ctaEnabled: true,
     };
   }
 
+  // ── Not in gate, reasonable distance ──
   if (!inStartGate && distanceToStartM !== null) {
+    const distLabel = distanceToStartM > WALKING_DISTANCE_M
+      ? `~${(distanceToStartM / 1000).toFixed(1)}km to start gate`
+      : `${Math.round(distanceToStartM)}m to start gate`;
+
     return {
       status: 'move_to_start',
       gps,
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: `${Math.round(distanceToStartM)}m to start gate`,
-      ctaLabel: 'MOVE TO START GATE',
-      ctaEnabled: false,
+      message: distLabel,
+      ctaLabel: distanceToStartM > WALKING_DISTANCE_M ? 'START PRACTICE RUN' : 'MOVE TO START GATE',
+      ctaEnabled: distanceToStartM > WALKING_DISTANCE_M, // allow practice if far
     };
   }
 
+  // ── In gate + good GPS = ranked ready ──
   if (inStartGate && gpsGood) {
     return {
       status: 'ranked_ready',
@@ -81,6 +105,7 @@ export function computeReadiness(
     };
   }
 
+  // ── In gate + weak GPS = practice only ──
   if (inStartGate && gpsWeak) {
     return {
       status: 'practice_only',
@@ -94,7 +119,7 @@ export function computeReadiness(
     };
   }
 
-  // Start gate reached but GPS just okay
+  // ── Start gate reached, fallback ──
   return {
     status: 'start_gate_reached',
     gps,
@@ -121,7 +146,6 @@ export function verifyRun(
   const issues: string[] = [];
   let status: VerificationStatus = 'verified';
 
-  // Practice runs skip ranked verification
   if (mode === 'practice') {
     return buildResult({
       status: 'practice_only',
@@ -139,19 +163,16 @@ export function verifyRun(
     });
   }
 
-  // Check start gate
   if (!startGate.entered) {
     issues.push('Did not enter start gate');
     status = 'outside_start_gate';
   }
 
-  // Check finish gate
   if (!finishGate.entered) {
     issues.push('Did not reach finish gate');
     status = status === 'verified' ? 'outside_finish_gate' : status;
   }
 
-  // Check checkpoints
   const passed = checkpoints.filter((c) => c.passed).length;
   const total = checkpoints.length;
   if (passed < total) {
@@ -159,7 +180,6 @@ export function verifyRun(
     if (status === 'verified') status = 'missing_checkpoint';
   }
 
-  // Check route corridor
   const hasShortcut = corridor.deviations.some((d) => d.type === 'shortcut');
   const hasMajorDeviation = corridor.deviations.some((d) => d.type === 'major');
   if (hasShortcut) {
@@ -175,7 +195,6 @@ export function verifyRun(
     if (status === 'verified') status = 'invalid_route';
   }
 
-  // Check GPS quality
   if (gpsQuality === 'weak' || avgAccuracyM > 15) {
     issues.push('Weak GPS signal during run');
     if (status === 'verified') status = 'weak_signal';

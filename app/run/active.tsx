@@ -5,12 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { formatTime, copy } from '@/content/copy';
+import { formatTime } from '@/content/copy';
 import { useRealRun } from '@/systems/useRealRun';
 import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { getTrailGeo } from '@/data/seed/slotwinyMap';
-import { isRunning, isArmed } from '@/systems/runMachine';
+import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 
 export default function ActiveRunScreen() {
   const { trailId = 'dzida-czerwona', trailName = 'Dzida Czerwona' } =
@@ -45,45 +45,59 @@ export default function ActiveRunScreen() {
   const handleTap = () => {
     switch (state.phase) {
       case 'idle':
+        tapLight();
         beginReadinessCheck();
         break;
       case 'readiness_check':
         if (state.readiness.rankedEligible) {
+          tapMedium();
           armRun('ranked');
         } else if (state.readiness.ctaEnabled) {
+          tapLight();
           armRun('practice');
         }
         break;
       case 'armed_ranked':
       case 'armed_practice':
+        tapHeavy();
         startRun();
         break;
       case 'running_ranked':
       case 'running_practice':
+        tapHeavy();
         finishRun();
         break;
       case 'completed_verified':
-      case 'completed_unverified':
-      case 'invalidated': {
-        // Navigate to result
-        const v = state.verification;
-        router.replace({
-          pathname: '/run/result',
-          params: {
-            scenarioId: 'new-pb', // fallback scenario for display
-            actualTimeMs: String(state.elapsedMs),
-            verificationId: v?.status === 'verified' ? 'verifiedClean' :
-                            v?.status === 'practice_only' ? 'practiceRun' :
-                            v?.status === 'weak_signal' ? 'weakSignal' :
-                            v?.status === 'missing_checkpoint' ? 'missingCheckpoint' :
-                            v?.status === 'shortcut_detected' ? 'shortcutDetected' :
-                            'outsideStartGate',
-            mode: state.mode,
-          },
-        });
+        notifySuccess();
+        navigateToResult();
         break;
-      }
+      case 'completed_unverified':
+        notifyWarning();
+        navigateToResult();
+        break;
+      case 'invalidated':
+        notifyError();
+        navigateToResult();
+        break;
     }
+  };
+
+  const navigateToResult = () => {
+    const v = state.verification;
+    router.replace({
+      pathname: '/run/result',
+      params: {
+        scenarioId: 'new-pb',
+        actualTimeMs: String(state.elapsedMs),
+        verificationId: v?.status === 'verified' ? 'verifiedClean' :
+                        v?.status === 'practice_only' ? 'practiceRun' :
+                        v?.status === 'weak_signal' ? 'weakSignal' :
+                        v?.status === 'missing_checkpoint' ? 'missingCheckpoint' :
+                        v?.status === 'shortcut_detected' ? 'shortcutDetected' :
+                        'outsideStartGate',
+        mode: state.mode,
+      },
+    });
   };
 
   const handleCancel = () => {
@@ -95,12 +109,23 @@ export default function ActiveRunScreen() {
     }
   };
 
+  const handleStartPractice = () => {
+    tapLight();
+    armRun('practice');
+  };
+
+  const handleBack = () => {
+    handleCancel();
+  };
+
   // Phase display
   const phaseLabel = (() => {
     switch (state.phase) {
       case 'idle': return 'TAP TO CHECK READINESS';
       case 'readiness_check':
         if (state.permissionDenied) return 'LOCATION REQUIRED';
+        if (state.readiness.rankedEligible) return 'TAP TO ARM RANKED';
+        if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
       case 'armed_ranked': return 'RANKED — TAP TO START';
       case 'armed_practice': return 'PRACTICE — TAP TO START';
@@ -111,7 +136,7 @@ export default function ActiveRunScreen() {
       case 'completed_verified': return 'VERIFIED — TAP TO CONTINUE';
       case 'completed_unverified': return 'PRACTICE COMPLETE — TAP';
       case 'invalidated': return 'NOT VERIFIED — TAP';
-      case 'error': return state.error ?? 'ERROR';
+      case 'error': return state.error ?? 'SOMETHING WENT WRONG';
       default: return '';
     }
   })();
@@ -162,10 +187,14 @@ export default function ActiveRunScreen() {
           </View>
         )}
 
-        {/* Readiness panel */}
+        {/* Readiness panel — with fallback actions */}
         {showReadiness && (
           <View style={styles.readinessContainer}>
-            <ReadinessPanel readiness={state.readiness} />
+            <ReadinessPanel
+              readiness={state.readiness}
+              onStartPractice={!state.readiness.rankedEligible ? handleStartPractice : undefined}
+              onBack={handleBack}
+            />
           </View>
         )}
 
@@ -202,13 +231,8 @@ export default function ActiveRunScreen() {
         )}
 
         {/* Tap instruction */}
-        {!showTimer && (
-          <Text style={styles.instruction}>
-            {state.phase === 'idle' && 'TAP TO BEGIN'}
-            {showReadiness && state.readiness.ctaEnabled && 'TAP TO ARM'}
-            {showReadiness && !state.readiness.ctaEnabled && state.readiness.message}
-            {(state.phase === 'armed_ranked' || state.phase === 'armed_practice') && 'TAP TO START RUN'}
-          </Text>
+        {!showTimer && state.phase === 'idle' && (
+          <Text style={styles.instruction}>TAP TO BEGIN</Text>
         )}
         {running && (
           <Text style={styles.instruction}>TAP TO FINISH · or reach finish gate</Text>
@@ -218,7 +242,7 @@ export default function ActiveRunScreen() {
       {/* Cancel */}
       {showCancel && (
         <Pressable style={styles.cancelBtn} onPress={handleCancel}>
-          <Text style={styles.cancelText}>CANCEL</Text>
+          <Text style={styles.cancelText}>← BACK</Text>
         </Pressable>
       )}
 
