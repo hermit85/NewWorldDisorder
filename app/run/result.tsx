@@ -3,7 +3,7 @@
 // Now uses REAL run data from params. Mock only as safe fallback.
 // ═══════════════════════════════════════════════════════════
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,6 +46,19 @@ export default function ResultScreen() {
   }>();
   const router = useRouter();
   const [showTruthMap, setShowTruthMap] = useState(false);
+
+  // ── Haptic celebration on mount ──
+  useEffect(() => {
+    const isPbVal = params.isPb === '1';
+    const savedVal = params.saved === '1';
+    if (isPbVal) {
+      // Double haptic for PB
+      notifySuccess();
+      setTimeout(() => notifySuccess(), 300);
+    } else if (savedVal) {
+      notifySuccess();
+    }
+  }, []);
 
   // ── Parse real data from params ──
   const actualTime = parseInt(params.actualTimeMs ?? '0', 10);

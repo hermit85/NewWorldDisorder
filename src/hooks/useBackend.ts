@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
+import { useRefreshSignal } from './useRefresh';
 
 // Mock fallback imports — ONLY used when Supabase is NOT configured
 import { mockLeaderboard } from '@/data/mock/leaderboard';
@@ -31,6 +32,7 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -53,7 +55,7 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
     }
 
     setLoading(false);
-  }, [trailId, periodType, userId]);
+  }, [trailId, periodType, userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -65,6 +67,7 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
 export function useUserTrailStats(userId?: string) {
   const [stats, setStats] = useState<Map<string, { pbMs: number | null; position: number | null }>>(new Map());
   const [loading, setLoading] = useState(true);
+  const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
     if (DEMO_MODE) {
@@ -87,7 +90,7 @@ export function useUserTrailStats(userId?: string) {
       setStats(new Map());
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -144,6 +147,7 @@ export function useChallenges(spotId: string, userId?: string) {
 export function useProfile(userId?: string) {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
     if (DEMO_MODE) {
@@ -181,7 +185,7 @@ export function useProfile(userId?: string) {
       setProfile(null);
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
