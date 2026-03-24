@@ -59,6 +59,22 @@ export default function ProfileScreen() {
           <StatBox label={copy.bestPosition} value={user?.bestPosition ? `#${user.bestPosition}` : '—'} />
         </View>
 
+        {/* Sign in prompt */}
+        {!isAuthenticated && (
+          <Pressable
+            style={styles.signInCard}
+            onPress={() => router.push('/auth')}
+          >
+            <Text style={styles.signInTitle}>SIGN IN TO TRACK YOUR STATS</Text>
+            <Text style={styles.signInDesc}>
+              Create a rider tag, save your runs, and enter the league.
+            </Text>
+            <View style={styles.signInBtn}>
+              <Text style={styles.signInBtnText}>ENTER THE LEAGUE</Text>
+            </View>
+          </Pressable>
+        )}
+
         {/* Achievements */}
         <Text style={styles.sectionTitle}>ACHIEVEMENTS</Text>
         <View style={styles.achievementGrid}>
@@ -70,7 +86,11 @@ export default function ProfileScreen() {
                 !a.isUnlocked && styles.achievementLocked,
               ]}
             >
-              <Text style={styles.achievementIcon}>{a.icon}</Text>
+              <View style={[styles.achievementBadge, a.isUnlocked && styles.achievementBadgeUnlocked]}>
+                <Text style={[styles.achievementBadgeText, a.isUnlocked && { color: colors.accent }]}>
+                  {a.icon}
+                </Text>
+              </View>
               <Text
                 style={[
                   styles.achievementName,
@@ -235,11 +255,60 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   achievementLocked: {
-    opacity: 0.4,
+    opacity: 0.35,
   },
-  achievementIcon: {
-    fontSize: 28,
+  achievementBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: spacing.xs,
+  },
+  achievementBadgeUnlocked: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  achievementBadgeText: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  signInCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+  },
+  signInTitle: {
+    ...typography.label,
+    color: colors.textPrimary,
+    letterSpacing: 2,
+    marginBottom: spacing.sm,
+  },
+  signInDesc: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  signInBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxl,
+  },
+  signInBtnText: {
+    ...typography.cta,
+    color: colors.bg,
+    letterSpacing: 3,
+    fontSize: 13,
   },
   achievementName: {
     ...typography.bodySmall,
