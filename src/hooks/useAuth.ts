@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════
 // Auth hook — manages Supabase session + profile
-// Magic link email auth for beta testers
+// Falls back to demo mode when Supabase is not configured
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Profile } from '@/lib/database.types';
 
 export type AuthState =
@@ -15,16 +15,17 @@ export type AuthState =
   | { status: 'authenticated'; user: User; profile: Profile };
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({ status: 'loading' });
+  const [state, setState] = useState<AuthState>(
+    isSupabaseConfigured ? { status: 'loading' } : { status: 'unauthenticated' },
+  );
 
-  // Load session on mount and listen for changes
   useEffect(() => {
-    // Get current session
+    if (!supabase) return; // demo mode — stay unauthenticated
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       handleSession(session);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       handleSession(session);
     });
@@ -33,12 +34,11 @@ export function useAuth() {
   }, []);
 
   const handleSession = async (session: Session | null) => {
-    if (!session?.user) {
+    if (!session?.user || !supabase) {
       setState({ status: 'unauthenticated' });
       return;
     }
 
-    // Try to fetch profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -52,25 +52,24 @@ export function useAuth() {
     }
   };
 
-  // ── Auth actions ──
-
   const signInWithEmail = useCallback(async (email: string) => {
+    if (!supabase) return { error: new Error('Backend not configured') };
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        shouldCreateUser: true,
-      },
+      options: { shouldCreateUser: true },
     });
     return { error };
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setState({ status: 'unauthenticated' });
   }, []);
 
   const createProfile = useCallback(async (username: string, displayName?: string) => {
-    if (state.status !== 'needs_profile') return { error: new Error('Not in needs_profile state') };
+    if (state.status !== 'needs_profile' || !supabase) {
+      return { error: new Error('Not ready') };
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -85,12 +84,11 @@ export function useAuth() {
     if (data && !error) {
       setState({ status: 'authenticated', user: state.user, profile: data });
     }
-
     return { data, error };
   }, [state]);
 
   const refreshProfile = useCallback(async () => {
-    if (state.status !== 'authenticated') return;
+    if (state.status !== 'authenticated' || !supabase) return;
 
     const { data: profile } = await supabase
       .from('profiles')

@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
 
@@ -16,11 +16,9 @@ import { mockUser } from '@/data/mock/user';
 import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { LeaderboardEntry, PeriodType, Challenge, User, Trail } from '@/data/types';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-
 /** Returns true if Supabase env vars are configured */
 export function isBackendConfigured(): boolean {
-  return SUPABASE_URL.length > 0;
+  return isSupabaseConfigured;
 }
 
 // ── Leaderboard hook ──

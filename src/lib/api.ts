@@ -4,6 +4,14 @@
 // ═══════════════════════════════════════════════════════════
 
 import { supabase } from './supabase';
+
+// All functions in this module return empty/null when supabase is null (demo mode).
+// The useBackend hook handles fallback to mock data.
+
+function db() {
+  if (!supabase) throw new Error('Supabase not configured');
+  return supabase;
+}
 import { Profile, DbRun, DbLeaderboardEntry, DbChallenge, DbChallengeProgress } from './database.types';
 import { RunTrace } from '@/systems/traceCapture';
 import { VerificationResult, RunMode } from '@/data/verificationTypes';
@@ -14,7 +22,7 @@ import { getRankForXp } from '@/systems/ranks';
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase
+  const { data } = await db()
     .from('profiles')
     .select('*')
     .eq('id', userId)
@@ -24,7 +32,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
 
 export async function updateProfileXp(userId: string, xpToAdd: number): Promise<Profile | null> {
   // Get current profile
-  const { data: current } = await supabase
+  const { data: current } = await db()
     .from('profiles')
     .select('xp')
     .eq('id', userId)
@@ -35,7 +43,7 @@ export async function updateProfileXp(userId: string, xpToAdd: number): Promise<
   const newXp = current.xp + xpToAdd;
   const newRank = getRankForXp(newXp);
 
-  const { data } = await supabase
+  const { data } = await db()
     .from('profiles')
     .update({
       xp: newXp,
@@ -50,7 +58,7 @@ export async function updateProfileXp(userId: string, xpToAdd: number): Promise<
 }
 
 export async function incrementProfileRuns(userId: string, isPb: boolean): Promise<void> {
-  const { data: current } = await supabase
+  const { data: current } = await db()
     .from('profiles')
     .select('total_runs, total_pbs')
     .eq('id', userId)
@@ -67,7 +75,7 @@ export async function incrementProfileRuns(userId: string, isPb: boolean): Promi
     updates.total_pbs = current.total_pbs + 1;
   }
 
-  await supabase.from('profiles').update(updates).eq('id', userId);
+  await db().from('profiles').update(updates).eq('id', userId);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -109,7 +117,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   // Check if this is a PB
   let isPb = false;
   if (isLeaderboardEligible) {
-    const { data: existingBest } = await supabase
+    const { data: existingBest } = await db()
       .from('runs')
       .select('duration_ms')
       .eq('user_id', userId)
@@ -138,7 +146,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   };
 
   // Insert run
-  const { data: run, error } = await supabase
+  const { data: run, error } = await db()
     .from('runs')
     .insert({
       user_id: userId,
@@ -166,7 +174,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   // Update leaderboard if eligible
   let leaderboardResult = null;
   if (isLeaderboardEligible) {
-    const { data } = await supabase.rpc('upsert_leaderboard_entry', {
+    const { data } = await db().rpc('upsert_leaderboard_entry', {
       p_user_id: userId,
       p_trail_id: trailId,
       p_period_type: 'all_time',
@@ -217,7 +225,7 @@ export async function fetchLeaderboard(
   periodType: string = 'all_time',
   currentUserId?: string,
 ): Promise<LeaderboardRow[]> {
-  const { data: entries } = await supabase
+  const { data: entries } = await db()
     .from('leaderboard_entries')
     .select(`
       *,
@@ -257,7 +265,7 @@ export async function fetchLeaderboard(
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchUserRuns(userId: string, limit: number = 20): Promise<DbRun[]> {
-  const { data } = await supabase
+  const { data } = await db()
     .from('runs')
     .select('*')
     .eq('user_id', userId)
@@ -268,7 +276,7 @@ export async function fetchUserRuns(userId: string, limit: number = 20): Promise
 }
 
 export async function fetchUserPb(userId: string, trailId: string): Promise<number | null> {
-  const { data } = await supabase
+  const { data } = await db()
     .from('runs')
     .select('duration_ms')
     .eq('user_id', userId)
@@ -285,7 +293,7 @@ export async function fetchUserTrailStats(userId: string): Promise<Map<string, {
   const result = new Map<string, { pbMs: number | null; position: number | null }>();
 
   // Get all leaderboard entries for this user
-  const { data: entries } = await supabase
+  const { data: entries } = await db()
     .from('leaderboard_entries')
     .select('trail_id, best_duration_ms, rank_position')
     .eq('user_id', userId)
@@ -308,7 +316,7 @@ export async function fetchUserTrailStats(userId: string): Promise<Map<string, {
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchActiveChallenges(spotId: string): Promise<DbChallenge[]> {
-  const { data } = await supabase
+  const { data } = await db()
     .from('challenges')
     .select('*')
     .eq('spot_id', spotId)
@@ -325,7 +333,7 @@ export async function fetchChallengeProgress(
 ): Promise<Map<string, DbChallengeProgress>> {
   if (challengeIds.length === 0) return new Map();
 
-  const { data } = await supabase
+  const { data } = await db()
     .from('challenge_progress')
     .select('*')
     .eq('user_id', userId)
@@ -346,7 +354,7 @@ export async function incrementChallengeProgress(
   increment: number = 1,
 ): Promise<void> {
   // Upsert challenge progress
-  const { data: existing } = await supabase
+  const { data: existing } = await db()
     .from('challenge_progress')
     .select('*')
     .eq('user_id', userId)
@@ -356,14 +364,14 @@ export async function incrementChallengeProgress(
   if (existing) {
     const newValue = existing.current_value + increment;
     // Check challenge target (we'd need to look it up)
-    await supabase
+    await db()
       .from('challenge_progress')
       .update({
         current_value: newValue,
       })
       .eq('id', existing.id);
   } else {
-    await supabase.from('challenge_progress').insert({
+    await db().from('challenge_progress').insert({
       user_id: userId,
       challenge_id: challengeId,
       current_value: increment,
@@ -376,7 +384,7 @@ export async function incrementChallengeProgress(
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchUserAchievements(userId: string) {
-  const { data } = await supabase
+  const { data } = await db()
     .from('user_achievements')
     .select(`
       *,
@@ -388,7 +396,7 @@ export async function fetchUserAchievements(userId: string) {
 }
 
 export async function unlockAchievement(userId: string, achievementId: string): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await db()
     .from('user_achievements')
     .insert({
       user_id: userId,
@@ -403,7 +411,7 @@ export async function unlockAchievement(userId: string, achievementId: string): 
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchSpots() {
-  const { data } = await supabase
+  const { data } = await db()
     .from('spots')
     .select('*')
     .eq('is_active', true)
@@ -413,7 +421,7 @@ export async function fetchSpots() {
 }
 
 export async function fetchTrails(spotId: string) {
-  const { data } = await supabase
+  const { data } = await db()
     .from('trails')
     .select('*')
     .eq('spot_id', spotId)
