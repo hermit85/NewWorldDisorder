@@ -38,7 +38,7 @@ import {
 } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult } from '@/lib/api';
+import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges } from '@/lib/api';
 import { XP_TABLE } from './xp';
 
 export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
@@ -327,6 +327,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           backendStatus: 'saved',
           backendResult: result,
         }));
+
+        // ── Post-save: challenges + achievements ──
+        updateProgressionAfterRun(userId, trailId, result.isPb, verification.isLeaderboardEligible);
       } else {
         setState((s) => ({ ...s, backendStatus: 'failed' }));
       }
@@ -335,6 +338,43 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       setState((s) => ({ ...s, backendStatus: 'failed' }));
     }
   }, [userId, trailId]);
+
+  // ── Post-save progression (fire-and-forget) ──
+
+  const updateProgressionAfterRun = async (
+    uid: string,
+    tid: string,
+    isPb: boolean,
+    leaderboardEligible: boolean,
+  ) => {
+    try {
+      // Increment run_count challenges for this spot
+      const challenges = await fetchActiveChallenges('slotwiny-arena');
+      for (const ch of challenges) {
+        if (ch.type === 'run_count') {
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
+        if (ch.type === 'pb_improvement' && isPb) {
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
+        if (ch.type === 'fastest_time' && ch.trail_id === tid && leaderboardEligible) {
+          // fastest_time challenges are evaluated by the leaderboard, just mark participation
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
+      }
+
+      // First-blood achievement
+      await unlockAchievement(uid, 'ach-first-blood');
+
+      // PB-based achievement
+      if (isPb) {
+        // Could check for double-pb here with more logic
+      }
+    } catch (e) {
+      // Non-critical — don't block the result flow
+      console.warn('[NWD] Progression update failed:', e);
+    }
+  };
 
   // ── Cancel ──
 

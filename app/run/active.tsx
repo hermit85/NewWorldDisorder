@@ -90,7 +90,8 @@ export default function ActiveRunScreen() {
     router.replace({
       pathname: '/run/result',
       params: {
-        scenarioId: 'new-pb',
+        trailId,
+        trailName,
         actualTimeMs: String(state.elapsedMs),
         verificationId: v?.status === 'verified' ? 'verifiedClean' :
                         v?.status === 'practice_only' ? 'practiceRun' :
@@ -103,6 +104,7 @@ export default function ActiveRunScreen() {
         isPb: br?.isPb ? '1' : '0',
         rankPosition: br?.leaderboardResult?.position ? String(br.leaderboardResult.position) : '',
         rankDelta: br?.leaderboardResult?.delta ? String(br.leaderboardResult.delta) : '',
+        xpAwarded: String(br?.run?.xp_awarded ?? 0),
       },
     });
   };

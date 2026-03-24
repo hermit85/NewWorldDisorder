@@ -1,15 +1,21 @@
+// ═══════════════════════════════════════════════════════════
+// Result Screen — post-run dopamine delivery
+// Now uses REAL run data from params. Mock only as safe fallback.
+// ═══════════════════════════════════════════════════════════
+
 import { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
-import { spacing } from '@/theme/spacing';
-import { getScenario, defaultScenario } from '@/data/mock/resultScenarios';
+import { typography } from '@/theme/typography';
+import { spacing, radii } from '@/theme/spacing';
 import {
   verificationScenarios,
   VerificationScenarioId,
   buildTruthMapData,
 } from '@/data/mock/verificationScenarios';
+import { getTrailById } from '@/data/seed/slotwinyOfficial';
 import { ResultTimeCard } from '@/components/result/ResultTimeCard';
 import { ResultPBBadge } from '@/components/result/ResultPBBadge';
 import { ResultRankDelta } from '@/components/result/ResultRankDelta';
@@ -21,30 +27,57 @@ import { ResultRankUp } from '@/components/result/ResultRankUp';
 import { RunAgainCTA } from '@/components/result/RunAgainCTA';
 import { ResultVerificationStatus } from '@/components/result/ResultVerificationStatus';
 import { TruthMap } from '@/components/map/TruthMap';
+import { XP_TABLE } from '@/systems/xp';
+import { tapLight, notifySuccess } from '@/systems/haptics';
 
 export default function ResultScreen() {
-  const { scenarioId, actualTimeMs, verificationId, mode } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     scenarioId: string;
     actualTimeMs: string;
     verificationId: string;
     mode: string;
+    trailId: string;
+    trailName: string;
+    saved: string;
+    isPb: string;
+    rankPosition: string;
+    rankDelta: string;
+    xpAwarded: string;
   }>();
   const router = useRouter();
   const [showTruthMap, setShowTruthMap] = useState(false);
 
-  const scenario = getScenario(scenarioId) ?? defaultScenario;
-  const vKey = (verificationId ?? 'verifiedClean') as VerificationScenarioId;
+  // ── Parse real data from params ──
+  const actualTime = parseInt(params.actualTimeMs ?? '0', 10);
+  const trailId = params.trailId ?? params.scenarioId?.split('-')[0] ?? 'dzida-czerwona';
+  const trail = getTrailById(trailId);
+  const trailName = params.trailName ?? trail?.officialName ?? 'Unknown Trail';
+  const mode = params.mode ?? 'practice';
+  const saved = params.saved === '1';
+  const isPb = params.isPb === '1';
+  const rankPosition = parseInt(params.rankPosition ?? '0', 10) || 0;
+  const rankDelta = parseInt(params.rankDelta ?? '0', 10) || 0;
+  const xpAwarded = parseInt(params.xpAwarded ?? '0', 10) || (saved ? XP_TABLE.validRun : 0);
+
+  // ── Verification scenario (mock display data for visual treatment) ──
+  const vKey = (params.verificationId ?? 'verifiedClean') as VerificationScenarioId;
   const verification = verificationScenarios[vKey] ?? verificationScenarios.verifiedClean;
-  const truthMapData = buildTruthMapData(scenario.trailId, verification);
+  const truthMapData = buildTruthMapData(trailId, verification);
+
+  const isRanked = mode === 'ranked';
+  const isVerified = vKey === 'verifiedClean' || verification.isLeaderboardEligible;
+  const showLeaderboardInfo = isRanked && isVerified && rankPosition > 0;
 
   const handleRunAgain = () => {
+    tapLight();
     router.replace({
       pathname: '/run/active',
-      params: { trailId: scenario.trailId, trailName: scenario.trailName },
+      params: { trailId, trailName },
     });
   };
 
   const handleViewLeaderboard = () => {
+    tapLight();
     router.replace('/(tabs)/leaderboard');
   };
 
@@ -56,66 +89,47 @@ export default function ResultScreen() {
       >
         {/* Time — the hero */}
         <ResultTimeCard
-          durationMs={scenario.durationMs}
-          isPb={scenario.isPb}
-          trailName={scenario.trailName}
+          durationMs={actualTime}
+          isPb={isPb}
+          trailName={trailName}
         />
 
         {/* PB badge */}
         <ResultPBBadge
-          isPb={scenario.isPb}
-          improvementMs={scenario.pbImprovementMs}
+          isPb={isPb}
+          improvementMs={null}
         />
 
-        {/* Rank position + delta (only for ranked verified) */}
-        {verification.isLeaderboardEligible && (
+        {/* Rank position + delta (real from backend) */}
+        {showLeaderboardInfo && (
           <ResultRankDelta
-            position={scenario.rankPosition}
-            delta={scenario.positionDelta}
+            position={rankPosition}
+            delta={rankDelta}
           />
         )}
-
-        {/* Gap to next target */}
-        {verification.isLeaderboardEligible && scenario.gapToNextMs > 0 && (
-          <ResultGapCard
-            gapMs={scenario.gapToNextMs}
-            targetPosition={scenario.nextTargetPosition}
-            targetUsername={scenario.nextTargetUsername}
-          />
-        )}
-
-        {/* Rank up */}
-        {scenario.rankUp && verification.isLeaderboardEligible && (
-          <ResultRankUp
-            from={scenario.rankUp.from}
-            to={scenario.rankUp.to}
-          />
-        )}
-
-        {/* Achievement */}
-        <ResultAchievementUnlock achievement={scenario.achievementUnlocked} />
 
         {/* XP */}
-        <ResultXpMeter xpGained={scenario.xpGained} />
+        <ResultXpMeter xpGained={xpAwarded} />
 
-        {/* Verification status — NEW */}
+        {/* Verification status */}
         <ResultVerificationStatus
           verification={verification}
           onShowTruthMap={() => setShowTruthMap(!showTruthMap)}
         />
 
+        {/* Backend save status */}
+        <View style={styles.saveStatus}>
+          {saved ? (
+            <Text style={styles.saveOk}>✓ RUN SAVED TO LEAGUE</Text>
+          ) : mode === 'practice' ? (
+            <Text style={styles.savePractice}>PRACTICE — NOT ON BOARD</Text>
+          ) : (
+            <Text style={styles.saveFail}>RUN NOT SAVED — CHECK CONNECTION</Text>
+          )}
+        </View>
+
         {/* Truth map — expandable */}
         {showTruthMap && <TruthMap data={truthMapData} />}
-
-        {/* Challenge progress */}
-        {scenario.challengeProgress && (
-          <ResultChallengeProgress
-            challengeName={scenario.challengeProgress.challengeName}
-            current={scenario.challengeProgress.current}
-            target={scenario.challengeProgress.target}
-            justCompleted={scenario.challengeProgress.justCompleted}
-          />
-        )}
 
         {/* CTAs */}
         <RunAgainCTA
@@ -136,5 +150,25 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.huge,
+  },
+  saveStatus: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    marginVertical: spacing.sm,
+  },
+  saveOk: {
+    ...typography.labelSmall,
+    color: colors.accent,
+    letterSpacing: 2,
+  },
+  savePractice: {
+    ...typography.labelSmall,
+    color: colors.blue,
+    letterSpacing: 2,
+  },
+  saveFail: {
+    ...typography.labelSmall,
+    color: colors.orange,
+    letterSpacing: 1,
   },
 });
