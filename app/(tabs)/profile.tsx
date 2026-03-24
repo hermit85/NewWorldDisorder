@@ -4,16 +4,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { mockUser } from '@/data/mock/user';
 import { mockAchievements } from '@/data/mock/achievements';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { copy } from '@/content/copy';
+import { useAuthContext } from '@/hooks/AuthContext';
+import { useProfile } from '@/hooks/useBackend';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const user = mockUser;
-  const rank = getRank(user.rankId);
-  const xpProgress = getXpToNextRank(user.xp);
+  const { profile: authProfile, user: authUser, isAuthenticated, signOut } = useAuthContext();
+  const { profile: user } = useProfile(authProfile?.id);
+
+  const rank = user ? getRank(user.rankId) : getRank('rookie');
+  const xpProgress = getXpToNextRank(user?.xp ?? 0);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/auth');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -23,7 +31,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>{rank.icon}</Text>
           </View>
-          <Text style={styles.username}>{user.username}</Text>
+          <Text style={styles.username}>{user?.username ?? 'Rider'}</Text>
           <Text style={[styles.rankTitle, { color: rank.color }]}>
             {rank.name}
           </Text>
@@ -39,16 +47,16 @@ export default function ProfileScreen() {
               />
             </View>
             <Text style={styles.xpText}>
-              {user.xp} / {xpProgress.nextRank?.xpThreshold ?? 'MAX'} XP
+              {user?.xp ?? 0} / {xpProgress.nextRank?.xpThreshold ?? 'MAX'} XP
             </Text>
           </View>
         </View>
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          <StatBox label={copy.totalRuns} value={String(user.totalRuns)} />
-          <StatBox label={copy.personalBests} value={String(user.totalPbs)} />
-          <StatBox label={copy.bestPosition} value={`#${user.bestPosition}`} />
+          <StatBox label={copy.totalRuns} value={String(user?.totalRuns ?? 0)} />
+          <StatBox label={copy.personalBests} value={String(user?.totalPbs ?? 0)} />
+          <StatBox label={copy.bestPosition} value={user?.bestPosition ? `#${user.bestPosition}` : '—'} />
         </View>
 
         {/* Achievements */}
@@ -77,14 +85,36 @@ export default function ProfileScreen() {
 
         {/* App info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>New World Disorder v0.1.0-beta</Text>
+          <Text style={styles.appInfoText}>New World Disorder v0.2.0-beta</Text>
           <Text style={styles.appInfoText}>Season 01 · Słotwiny Arena</Text>
-          <Pressable
-            style={styles.onboardingLink}
-            onPress={() => router.push('/onboarding')}
-          >
-            <Text style={styles.onboardingLinkText}>VIEW GAME RULES</Text>
-          </Pressable>
+
+          {isAuthenticated && (
+            <Text style={styles.appInfoText}>
+              {authUser?.email ?? ''}
+            </Text>
+          )}
+
+          <View style={styles.appActions}>
+            <Pressable
+              style={styles.actionLink}
+              onPress={() => router.push('/onboarding')}
+            >
+              <Text style={styles.actionLinkText}>VIEW GAME RULES</Text>
+            </Pressable>
+
+            {isAuthenticated ? (
+              <Pressable style={styles.actionLink} onPress={handleSignOut}>
+                <Text style={[styles.actionLinkText, { color: colors.red }]}>SIGN OUT</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={styles.actionLink}
+                onPress={() => router.push('/auth')}
+              >
+                <Text style={[styles.actionLinkText, { color: colors.accent }]}>SIGN IN</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -225,15 +255,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1,
   },
-  onboardingLink: {
-    marginTop: spacing.md,
+  appActions: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  actionLink: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.sm,
   },
-  onboardingLinkText: {
+  actionLinkText: {
     ...typography.labelSmall,
     color: colors.textSecondary,
     letterSpacing: 2,

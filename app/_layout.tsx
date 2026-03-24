@@ -13,6 +13,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { colors } from '@/theme/colors';
+import { AuthProvider } from '@/hooks/AuthContext';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -29,7 +30,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -39,6 +40,10 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="auth/index"
+          options={{ animation: 'fade', gestureEnabled: false }}
+        />
         <Stack.Screen
           name="onboarding/index"
           options={{ animation: 'fade', gestureEnabled: false }}
@@ -60,6 +65,6 @@ export default function RootLayout() {
           options={{ animation: 'slide_from_right' }}
         />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }

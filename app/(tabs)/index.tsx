@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -7,20 +7,27 @@ import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
 import { mockSpots } from '@/data/mock/spots';
 import { mockTrails } from '@/data/mock/trails';
-import { mockChallenges } from '@/data/mock/challenges';
-import { mockUser } from '@/data/mock/user';
-import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { copy, formatTimeShort } from '@/content/copy';
 import { spotLore } from '@/data/seed/slotwinyLore';
+import { useAuthContext } from '@/hooks/AuthContext';
+import { useProfile, useUserTrailStats, useChallenges } from '@/hooks/useBackend';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { profile: authProfile, isAuthenticated } = useAuthContext();
+
+  // Backend-backed hooks with mock fallback
+  const { profile: userProfile } = useProfile(authProfile?.id);
+  const { stats: trailStats } = useUserTrailStats(authProfile?.id);
+  const { challenges } = useChallenges('slotwiny-arena', authProfile?.id);
+
+  const user = userProfile;
   const spot = mockSpots[0];
   const hotTrail = mockTrails.find((t) => t.id === 'dzida-czerwona') ?? mockTrails[0];
-  const activeChallenge = mockChallenges[0];
-  const rank = getRank(mockUser.rankId);
-  const xpProgress = getXpToNextRank(mockUser.xp);
+  const activeChallenge = challenges[0];
+  const rank = user ? getRank(user.rankId) : getRank('rookie');
+  const xpProgress = getXpToNextRank(user?.xp ?? 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -28,13 +35,22 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>NWD</Text>
-          <View style={styles.rankPill}>
+          <Pressable
+            style={styles.rankPill}
+            onPress={() => {
+              if (!isAuthenticated) router.push('/auth');
+            }}
+          >
             <Text style={[styles.rankIcon, { color: rank.color }]}>{rank.icon}</Text>
-            <Text style={[styles.rankName, { color: rank.color }]}>{rank.name}</Text>
-            <View style={styles.xpMini}>
-              <View style={[styles.xpMiniFill, { width: `${xpProgress.progress * 100}%`, backgroundColor: rank.color }]} />
-            </View>
-          </View>
+            <Text style={[styles.rankName, { color: rank.color }]}>
+              {isAuthenticated ? rank.name : 'SIGN IN'}
+            </Text>
+            {user && (
+              <View style={styles.xpMini}>
+                <View style={[styles.xpMiniFill, { width: `${xpProgress.progress * 100}%`, backgroundColor: rank.color }]} />
+              </View>
+            )}
+          </Pressable>
         </View>
 
         {/* Enter Arena — primary CTA */}
@@ -59,25 +75,27 @@ export default function HomeScreen() {
         </Pressable>
 
         {/* Active challenge */}
-        <View style={styles.challengeCard}>
-          <View style={styles.challengeHeader}>
-            <Text style={styles.challengeIcon}>⚡</Text>
-            <Text style={styles.challengeLabel}>ACTIVE CHALLENGE</Text>
+        {activeChallenge && (
+          <View style={styles.challengeCard}>
+            <View style={styles.challengeHeader}>
+              <Text style={styles.challengeIcon}>⚡</Text>
+              <Text style={styles.challengeLabel}>ACTIVE CHALLENGE</Text>
+            </View>
+            <Text style={styles.challengeName}>{activeChallenge.name}</Text>
+            <Text style={styles.challengeDesc}>{activeChallenge.description}</Text>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${(activeChallenge.currentProgress / Math.max(activeChallenge.targetProgress, 1)) * 100}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>
+              {activeChallenge.currentProgress}/{activeChallenge.targetProgress}
+            </Text>
           </View>
-          <Text style={styles.challengeName}>{activeChallenge.name}</Text>
-          <Text style={styles.challengeDesc}>{activeChallenge.description}</Text>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${(activeChallenge.currentProgress / activeChallenge.targetProgress) * 100}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressLabel}>
-            {activeChallenge.currentProgress}/{activeChallenge.targetProgress}
-          </Text>
-        </View>
+        )}
 
         {/* Hot trail quick-access */}
         <Pressable
@@ -102,7 +120,7 @@ export default function HomeScreen() {
         {/* Quick trail access */}
         <Text style={styles.sectionLabel}>ALL TRAILS</Text>
         {mockTrails.map((trail) => {
-          const stats = getUserTrailStats(trail.id);
+          const stats = trailStats.get(trail.id);
           const diffColor = trailLineColors[trail.difficulty];
           return (
             <Pressable
@@ -144,8 +162,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.huge,
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -186,8 +202,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
-
-  // Arena card — primary CTA
   arenaCard: {
     backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
@@ -253,8 +267,6 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     fontSize: 16,
   },
-
-  // Challenge
   challengeCard: {
     backgroundColor: colors.bgCard,
     borderRadius: radii.lg,
@@ -305,8 +317,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
     fontSize: 9,
   },
-
-  // Hot trail
   hotTrailCard: {
     backgroundColor: colors.bgCard,
     borderRadius: radii.lg,
@@ -344,8 +354,6 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     color: colors.textTertiary,
   },
-
-  // Trail list
   sectionLabel: {
     ...typography.label,
     color: colors.textTertiary,

@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { mockLeaderboard } from '@/data/mock/leaderboard';
 import { mockTrails } from '@/data/mock/trails';
 import { formatTimeShort } from '@/content/copy';
 import { copy } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
 import { PeriodType } from '@/data/types';
+import { useAuthContext } from '@/hooks/AuthContext';
+import { useLeaderboard } from '@/hooks/useBackend';
 
 const periods: { key: PeriodType; label: string }[] = [
   { key: 'day', label: copy.today },
@@ -20,11 +21,13 @@ const periods: { key: PeriodType; label: string }[] = [
 export default function LeaderboardScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('all_time');
   const [selectedTrailId, setSelectedTrailId] = useState('dzida-czerwona');
+  const { profile } = useAuthContext();
 
-  // For prototype, show same data regardless of period
-  const entries = mockLeaderboard
-    .filter((e) => e.trailId === selectedTrailId || selectedTrailId === 'all')
-    .sort((a, b) => a.currentPosition - b.currentPosition);
+  const { entries, loading, refresh } = useLeaderboard(
+    selectedTrailId,
+    selectedPeriod,
+    profile?.id,
+  );
 
   const selectedTrail = mockTrails.find((t) => t.id === selectedTrailId);
 
@@ -90,8 +93,26 @@ export default function LeaderboardScreen() {
           ))}
         </View>
 
+        {/* Loading */}
+        {loading && (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={colors.accent} size="small" />
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!loading && entries.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>🏁</Text>
+            <Text style={styles.emptyTitle}>NO RUNS YET</Text>
+            <Text style={styles.emptyDesc}>
+              Be the first to set a verified time on {selectedTrail?.name ?? 'this trail'}.
+            </Text>
+          </View>
+        )}
+
         {/* Leaderboard entries */}
-        {entries.map((entry, index) => {
+        {entries.map((entry) => {
           const rank = getRank(entry.rankId);
           const isTop3 = entry.currentPosition <= 3;
           const isUser = entry.isCurrentUser;
@@ -105,7 +126,6 @@ export default function LeaderboardScreen() {
                 isTop3 && styles.entryTop3,
               ]}
             >
-              {/* Position */}
               <View style={styles.positionCol}>
                 <Text
                   style={[
@@ -118,7 +138,6 @@ export default function LeaderboardScreen() {
                 </Text>
               </View>
 
-              {/* Delta arrow */}
               <View style={styles.deltaCol}>
                 {entry.delta > 0 && (
                   <Text style={styles.deltaUp}>↑{entry.delta}</Text>
@@ -131,7 +150,6 @@ export default function LeaderboardScreen() {
                 )}
               </View>
 
-              {/* Rider info */}
               <View style={styles.riderCol}>
                 <View style={styles.riderRow}>
                   <Text style={[styles.rankIcon, { color: rank.color }]}>
@@ -148,7 +166,6 @@ export default function LeaderboardScreen() {
                 </View>
               </View>
 
-              {/* Time */}
               <View style={styles.timeCol}>
                 <Text
                   style={[
@@ -252,6 +269,29 @@ const styles = StyleSheet.create({
   },
   periodTabTextActive: {
     color: colors.textPrimary,
+  },
+  loadingWrap: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    ...typography.h3,
+    color: colors.textSecondary,
+    letterSpacing: 2,
+  },
+  emptyDesc: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
   entry: {
     flexDirection: 'row',
