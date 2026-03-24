@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "New World Disorder",
+    "slug": "new-world-disorder",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "nwd",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nwd.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "NWD needs your location to track runs, verify routes, and determine your position on the trail."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.nwd.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "NWD needs your location to track runs and verify routes on the trail."
+        }
+      ]
+    ]
+  }
+}
