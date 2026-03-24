@@ -3,7 +3,7 @@
 // Feels like entering a league, not signing up for SaaS
 // ═══════════════════════════════════════════════════════════
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Pressable,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -27,6 +27,15 @@ export default function AuthScreen() {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // React to auth state changes (e.g., deep link magic link callback)
+  useEffect(() => {
+    if (state.status === 'authenticated') {
+      router.replace('/(tabs)');
+    } else if (state.status === 'needs_profile') {
+      setStep('create_profile');
+    }
+  }, [state.status]);
 
   const handleSendLink = async () => {
     if (!email.trim() || !email.includes('@')) {

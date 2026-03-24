@@ -23,7 +23,7 @@ export default function LeaderboardScreen() {
   const [selectedTrailId, setSelectedTrailId] = useState('dzida-czerwona');
   const { profile } = useAuthContext();
 
-  const { entries, loading, refresh } = useLeaderboard(
+  const { entries, loading, error: lbError, refresh } = useLeaderboard(
     selectedTrailId,
     selectedPeriod,
     profile?.id,

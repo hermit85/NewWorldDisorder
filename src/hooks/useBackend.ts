@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // useBackend — bridge between Supabase and mock data
-// Falls back to mock data when Supabase is not configured
+// Uses REAL backend when configured. Mock ONLY for dev/demo.
+// When backend is live, empty data = real empty, not fake.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,38 +9,47 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
 
-// Mock fallback imports
+// Mock fallback imports — ONLY used when Supabase is NOT configured
 import { mockLeaderboard } from '@/data/mock/leaderboard';
 import { mockTrails } from '@/data/mock/trails';
 import { mockChallenges } from '@/data/mock/challenges';
 import { mockUser } from '@/data/mock/user';
 import { getUserTrailStats } from '@/data/mock/userTrailStats';
-import { LeaderboardEntry, PeriodType, Challenge, User, Trail } from '@/data/types';
+import { LeaderboardEntry, PeriodType, Challenge, User } from '@/data/types';
 
 /** Returns true if Supabase env vars are configured */
 export function isBackendConfigured(): boolean {
   return isSupabaseConfigured;
 }
 
+// Demo mode = Supabase not configured, use mock data
+const DEMO_MODE = !isSupabaseConfigured;
+
 // ── Leaderboard hook ──
 
 export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_time', userId?: string) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
 
-    if (isBackendConfigured() && userId) {
-      try {
-        const rows = await api.fetchLeaderboard(trailId, periodType, userId);
-        setEntries(rows.map(mapLeaderboardRow));
-      } catch (e) {
-        console.warn('[NWD] Leaderboard fetch failed, using mock', e);
-        setEntries(mockLeaderboardForTrail(trailId));
-      }
-    } else {
+    if (DEMO_MODE) {
       setEntries(mockLeaderboardForTrail(trailId));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const rows = await api.fetchLeaderboard(trailId, periodType, userId);
+      // Real backend: empty = really empty. No fake fill.
+      setEntries(rows.map(mapLeaderboardRow));
+    } catch (e: any) {
+      console.warn('[NWD] Leaderboard fetch failed:', e?.message);
+      setError('Could not load leaderboard');
+      setEntries([]);
     }
 
     setLoading(false);
@@ -47,7 +57,7 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { entries, loading, refresh };
+  return { entries, loading, error, refresh };
 }
 
 // ── Trail stats hook ──
@@ -57,16 +67,24 @@ export function useUserTrailStats(userId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (isBackendConfigured() && userId) {
-      try {
-        const map = await api.fetchUserTrailStats(userId);
-        setStats(map);
-      } catch (e) {
-        console.warn('[NWD] Trail stats fetch failed, using mock');
-        setStats(buildMockTrailStats());
-      }
-    } else {
+    if (DEMO_MODE) {
       setStats(buildMockTrailStats());
+      setLoading(false);
+      return;
+    }
+
+    if (!userId) {
+      setStats(new Map());
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const map = await api.fetchUserTrailStats(userId);
+      setStats(map);
+    } catch (e) {
+      console.warn('[NWD] Trail stats fetch failed');
+      setStats(new Map());
     }
     setLoading(false);
   }, [userId]);
@@ -84,32 +102,34 @@ export function useChallenges(spotId: string, userId?: string) {
 
   useEffect(() => {
     async function load() {
-      if (isBackendConfigured()) {
-        try {
-          const data = await api.fetchActiveChallenges(spotId);
-          const progressMap = userId
-            ? await api.fetchChallengeProgress(userId, data.map(c => c.id))
-            : new Map();
-
-          setChallenges(data.map(c => ({
-            id: c.id,
-            spotId: c.spot_id,
-            trailId: c.trail_id,
-            type: c.type as any,
-            name: c.name,
-            description: c.description,
-            startAt: c.starts_at,
-            endAt: c.ends_at,
-            rewardXp: c.reward_xp,
-            isActive: c.is_active,
-            currentProgress: progressMap.get(c.id)?.current_value ?? 0,
-            targetProgress: 3, // default target, could be stored in challenge metadata
-          })));
-        } catch {
-          setChallenges(mockChallenges);
-        }
-      } else {
+      if (DEMO_MODE) {
         setChallenges(mockChallenges);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const data = await api.fetchActiveChallenges(spotId);
+        const progressMap = userId
+          ? await api.fetchChallengeProgress(userId, data.map(c => c.id))
+          : new Map();
+
+        setChallenges(data.map(c => ({
+          id: c.id,
+          spotId: c.spot_id,
+          trailId: c.trail_id,
+          type: c.type as any,
+          name: c.name,
+          description: c.description,
+          startAt: c.starts_at,
+          endAt: c.ends_at,
+          rewardXp: c.reward_xp,
+          isActive: c.is_active,
+          currentProgress: progressMap.get(c.id)?.current_value ?? 0,
+          targetProgress: 3,
+        })));
+      } catch {
+        setChallenges([]);
       }
       setLoading(false);
     }
@@ -126,29 +146,39 @@ export function useProfile(userId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (isBackendConfigured() && userId) {
-      try {
-        const p = await api.fetchProfile(userId);
-        if (p) {
-          setProfile({
-            id: p.id,
-            username: p.display_name || p.username,
-            rankId: p.rank_id as any,
-            xp: p.xp,
-            xpToNextRank: 0, // computed client-side
-            totalRuns: p.total_runs,
-            totalPbs: p.total_pbs,
-            bestPosition: p.best_position ?? 0,
-            favoriteTrailId: p.favorite_trail_id ?? '',
-            joinedAt: p.created_at,
-            achievements: [],
-          });
-        }
-      } catch {
-        setProfile(mockUser);
-      }
-    } else {
+    if (DEMO_MODE) {
       setProfile(mockUser);
+      setLoading(false);
+      return;
+    }
+
+    if (!userId) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const p = await api.fetchProfile(userId);
+      if (p) {
+        setProfile({
+          id: p.id,
+          username: p.display_name || p.username,
+          rankId: p.rank_id as any,
+          xp: p.xp,
+          xpToNextRank: 0,
+          totalRuns: p.total_runs,
+          totalPbs: p.total_pbs,
+          bestPosition: p.best_position ?? 0,
+          favoriteTrailId: p.favorite_trail_id ?? '',
+          joinedAt: p.created_at,
+          achievements: [],
+        });
+      } else {
+        setProfile(null);
+      }
+    } catch {
+      setProfile(null);
     }
     setLoading(false);
   }, [userId]);
@@ -161,8 +191,8 @@ export function useProfile(userId?: string) {
 // ── Run submission ──
 
 export async function submitRunToBackend(params: api.SubmitRunParams): Promise<api.SubmitRunResult | null> {
-  if (!isBackendConfigured()) {
-    console.log('[NWD] Backend not configured, run saved locally only');
+  if (DEMO_MODE) {
+    console.log('[NWD] Demo mode — run saved locally only');
     return null;
   }
 
@@ -170,7 +200,7 @@ export async function submitRunToBackend(params: api.SubmitRunParams): Promise<a
 }
 
 // ═══════════════════════════════════════════════════════════
-// Mock data mappers (fallback when no Supabase)
+// Mock data mappers — ONLY used in DEMO_MODE
 // ═══════════════════════════════════════════════════════════
 
 function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
@@ -184,7 +214,7 @@ function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
     currentPosition: row.rankPosition,
     previousPosition: row.previousPosition ?? row.rankPosition,
     delta: row.delta,
-    gapToNext: 0, // computed on display
+    gapToNext: 0,
     gapToLeader: row.gapToLeader,
     isCurrentUser: row.isCurrentUser,
   };
