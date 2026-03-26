@@ -321,6 +321,13 @@ export default function ResultScreen() {
   const isRanked = run.mode === 'ranked';
   const isPractice = run.mode === 'practice';
   const isPb = run.backendResult?.isPb ?? false;
+  const previousBestMs = run.backendResult?.previousBestMs ?? null;
+  const pbDeltaMs = isPb && previousBestMs ? previousBestMs - run.durationMs : null;
+  const pbDeltaText = pbDeltaMs && pbDeltaMs > 0
+    ? `${(pbDeltaMs / 1000).toFixed(1)}s szybciej`
+    : isPb && !previousBestMs
+      ? 'Pierwszy rekord na tej trasie'
+      : null;
   const rankPosition = run.backendResult?.leaderboardResult?.position ?? 0;
   const rankDelta = run.backendResult?.leaderboardResult?.delta ?? 0;
   const xpAwarded = run.backendResult?.run?.xp_awarded ?? (run.saveStatus === 'saved' ? XP_TABLE.validRun : 0);
@@ -380,6 +387,9 @@ export default function ResultScreen() {
           <View style={styles.pbCard}>
             <Text style={styles.pbIcon}>▲</Text>
             <Text style={styles.pbLabel}>PERSONAL BEST</Text>
+            {pbDeltaText && (
+              <Text style={styles.pbDelta}>{pbDeltaText}</Text>
+            )}
           </View>
         )}
 
@@ -430,6 +440,34 @@ export default function ResultScreen() {
         {xpAwarded > 0 && (
           <View style={styles.xpRow}>
             <Text style={styles.xpValue}>+{xpAwarded} XP</Text>
+          </View>
+        )}
+
+        {/* ═══ QUALITY BADGE ═══ */}
+        {run.qualityTier && isRanked && isVerified && (
+          <View style={styles.qualityRow}>
+            <View style={[
+              styles.qualityBadge,
+              run.qualityTier === 'perfect' && { borderColor: colors.accent + '40' },
+              run.qualityTier === 'rough' && { borderColor: colors.orange + '40' },
+            ]}>
+              <Text style={[
+                styles.qualityDot,
+                { color: run.qualityTier === 'perfect' ? colors.accent
+                  : run.qualityTier === 'valid' ? colors.textSecondary
+                  : colors.orange },
+              ]}>●</Text>
+              <Text style={[
+                styles.qualityText,
+                { color: run.qualityTier === 'perfect' ? colors.accent
+                  : run.qualityTier === 'valid' ? colors.textSecondary
+                  : colors.orange },
+              ]}>
+                {run.qualityTier === 'perfect' ? 'CZYSTY PRZEJAZD'
+                  : run.qualityTier === 'valid' ? 'ZALICZONY'
+                  : 'OGRANICZONA PRECYZJA'}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -602,6 +640,7 @@ const styles = StyleSheet.create({
   },
   pbIcon: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.accent },
   pbLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.accent, letterSpacing: 5 },
+  pbDelta: { fontFamily: 'Orbitron_700Bold', fontSize: 11, color: colors.accent, letterSpacing: 1, marginTop: spacing.xs, opacity: 0.8 },
 
   // Rank card
   rankCard: {
@@ -626,6 +665,12 @@ const styles = StyleSheet.create({
   // XP
   xpRow: { alignItems: 'center', marginBottom: spacing.md },
   xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
+
+  // Quality badge
+  qualityRow: { alignItems: 'center', marginBottom: spacing.md },
+  qualityBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.border },
+  qualityDot: { fontSize: 8 },
+  qualityText: { ...typography.labelSmall, letterSpacing: 2, fontSize: 9 },
 
   // Save status
   saveRow: { alignItems: 'center', marginBottom: spacing.lg },

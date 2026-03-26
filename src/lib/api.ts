@@ -107,6 +107,8 @@ export interface SubmitRunResult {
     isNewBest: boolean;
   } | null;
   isPb: boolean;
+  /** Previous best time in ms — null if first ranked run on this trail */
+  previousBestMs: number | null;
 }
 
 export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResult | null> {
@@ -119,6 +121,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
 
   // Check if this is a PB
   let isPb = false;
+  let previousBestMs: number | null = null;
   if (isLeaderboardEligible) {
     const { data: existingBest } = await db()
       .from('runs')
@@ -130,6 +133,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
       .limit(1)
       .single();
 
+    previousBestMs = existingBest?.duration_ms ?? null;
     isPb = !existingBest || durationMs < existingBest.duration_ms;
   }
 
@@ -201,7 +205,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     await updateProfileXp(userId, xpAwarded);
   }
 
-  return { run, leaderboardResult, isPb };
+  return { run, leaderboardResult, isPb, previousBestMs };
 }
 
 // ═══════════════════════════════════════════════════════════

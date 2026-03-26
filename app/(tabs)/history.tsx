@@ -66,17 +66,14 @@ function getRunStatus(run: FinalizedRun): RunStatusLabel {
   }
 
   if (run.verification?.isLeaderboardEligible) {
-    const tierLabel =
-      run.qualityTier === 'perfect' ? 'OFICJALNY' :
-      run.qualityTier === 'valid' ? 'OFICJALNY' :
-      run.qualityTier === 'rough' ? 'ZAPISANY' :
-      'OFICJALNY';
-    const tierColor =
-      run.qualityTier === 'perfect' ? colors.accent :
-      run.qualityTier === 'valid' ? colors.accent :
-      run.qualityTier === 'rough' ? colors.orange :
-      colors.accent;
-    return { text: tierLabel, color: tierColor, icon: '▲' };
+    if (run.qualityTier === 'perfect') {
+      return { text: 'CZYSTY PRZEJAZD', color: colors.accent, icon: '▲' };
+    }
+    if (run.qualityTier === 'rough') {
+      return { text: 'OGRANICZONA PRECYZJA', color: colors.orange, icon: '▲' };
+    }
+    // valid or default
+    return { text: 'ZALICZONY', color: colors.accent, icon: '▲' };
   }
 
   return { text: 'ZAPISANY', color: colors.textTertiary, icon: '—' };
@@ -102,6 +99,8 @@ function RunItem({ run, onPress }: { run: FinalizedRun; onPress: () => void }) {
   const status = getRunStatus(run);
   const saveIndicator = getSaveIndicator(run.saveStatus);
   const isPb = run.backendResult?.isPb === true;
+  const previousBestMs = run.backendResult?.previousBestMs ?? null;
+  const pbDeltaMs = isPb && previousBestMs ? previousBestMs - run.durationMs : null;
 
   return (
     <Pressable
@@ -111,7 +110,7 @@ function RunItem({ run, onPress }: { run: FinalizedRun; onPress: () => void }) {
         pressed && styles.runItemPressed,
       ]}
     >
-      {/* Left: trail color dot + info */}
+      {/* Left: trail info */}
       <View style={styles.runItemLeft}>
         <View style={styles.runItemHeader}>
           <Text style={styles.runTrailName} numberOfLines={1}>
@@ -120,6 +119,11 @@ function RunItem({ run, onPress }: { run: FinalizedRun; onPress: () => void }) {
           {isPb && (
             <View style={styles.pbBadge}>
               <Text style={styles.pbBadgeText}>PB</Text>
+              {pbDeltaMs && pbDeltaMs > 0 && (
+                <Text style={styles.pbDeltaSmall}>
+                  −{(pbDeltaMs / 1000).toFixed(1)}s
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -140,7 +144,12 @@ function RunItem({ run, onPress }: { run: FinalizedRun; onPress: () => void }) {
 
       {/* Right: time */}
       <View style={styles.runItemRight}>
-        <Text style={styles.runTime}>{formatDuration(run.durationMs)}</Text>
+        <Text style={[
+          styles.runTime,
+          isPb && { color: colors.accent },
+        ]}>
+          {formatDuration(run.durationMs)}
+        </Text>
         {run.backendResult?.leaderboardResult?.position && (
           <Text style={styles.runPosition}>
             #{run.backendResult.leaderboardResult.position}
@@ -315,6 +324,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   pbBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.accentDim,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
@@ -327,6 +338,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.accent,
     letterSpacing: 1,
+  },
+  pbDeltaSmall: {
+    fontFamily: fonts.racing,
+    fontSize: 8,
+    color: colors.accent,
+    opacity: 0.7,
+    marginLeft: 4,
   },
   runItemMeta: {
     flexDirection: 'row',
