@@ -17,7 +17,7 @@ import { useLeaderboard } from '@/hooks/useBackend';
 const SCOPES: { key: PeriodType; label: string }[] = [
   { key: 'day', label: 'DZIŚ' },
   { key: 'weekend', label: 'WEEKEND' },
-  { key: 'all_time', label: 'WSZECHCZASÓW' },
+  { key: 'all_time', label: 'ALL TIME' },
 ];
 
 export default function LeaderboardScreen() {
@@ -381,10 +381,10 @@ const styles = StyleSheet.create({
   },
   // Scope tabs
   scopeTabs: { flexDirection: 'row', gap: spacing.xs },
-  scopeTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border },
-  scopeTabActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  scopeTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: radii.sm, backgroundColor: 'transparent' },
+  scopeTabActive: { backgroundColor: colors.accent },
   scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
-  scopeTabTextActive: { color: colors.accent },
+  scopeTabTextActive: { color: colors.bg, fontFamily: 'Inter_700Bold' },
 
   // Trail selector
   trailSelector: { marginBottom: spacing.xl },
