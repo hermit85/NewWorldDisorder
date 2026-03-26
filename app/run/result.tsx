@@ -19,9 +19,10 @@ import { getTrailById } from '@/data/seed/slotwinyOfficial';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
-import { getFinalizedRun, subscribeFinalizedRun, updateFinalizedRun } from '@/systems/runStore';
+import { getFinalizedRun, subscribeFinalizedRun } from '@/systems/runStore';
+import { retryRunSubmit } from '@/systems/retrySubmit';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useResultImpact, ScopeImpact, submitRunToBackend, useProfile } from '@/hooks/useBackend';
+import { useResultImpact, ScopeImpact, useProfile } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
 
@@ -235,72 +236,19 @@ export default function ResultScreen() {
     }
   }, [run?.saveStatus, hapticFired]);
 
-  // ── Retry save ──
+  // ── Retry save — uses canonical path (same as saveQueue) ──
   const handleRetrySave = async () => {
     if (!run || !authProfile?.id || retrying) return;
     if (run.saveStatus !== 'failed') return;
 
     setRetrying(true);
     selectionTick();
-    logDebugEvent('save', 'retry_start', 'start', { runSessionId: run.sessionId, trailId: run.trailId });
-    updateFinalizedRun(run.sessionId, { saveStatus: 'saving' as any });
-    forceUpdate();
 
-    try {
-      const retryXp = calculateRunXp({
-        isEligible: run.verification?.isLeaderboardEligible ?? false,
-        isPractice: run.mode === 'practice',
-        isPb: false,
-        position: null,
-        previousPosition: null,
-      });
-      const xpAwarded = retryXp.total;
-      const snap = run.traceSnapshot;
-      if (!snap) {
-        logDebugEvent('save', 'retry_no_trace', 'fail', { runSessionId: run.sessionId });
-        updateFinalizedRun(run.sessionId, { saveStatus: 'failed' });
-        notifyWarning();
-        setRetrying(false);
-        return;
-      }
+    const { success } = await retryRunSubmit(run);
 
-      const traceForRetry = {
-        points: snap.sampledPoints.map((p: any) => ({
-          latitude: p.lat, longitude: p.lng, altitude: p.alt, timestamp: p.ts,
-          speed: null, accuracy: null,
-        })),
-        startedAt: snap.startedAt,
-        finishedAt: snap.finishedAt,
-        durationMs: snap.durationMs,
-        mode: snap.mode,
-      };
-
-      const result = await submitRunToBackend({
-        userId: authProfile.id,
-        spotId: 'slotwiny-arena',
-        trailId: run.trailId,
-        mode: run.mode,
-        startedAt: run.startedAt,
-        finishedAt: run.startedAt + run.durationMs,
-        durationMs: run.durationMs,
-        verification: run.verification!,
-        trace: traceForRetry as any,
-        xpAwarded,
-      });
-
-      if (result) {
-        logDebugEvent('save', 'retry_ok', 'ok', { runSessionId: run.sessionId });
-        updateFinalizedRun(run.sessionId, { saveStatus: 'saved', backendResult: result });
-        triggerRefresh();
-        notifySuccess();
-      } else {
-        logDebugEvent('save', 'retry_null', 'fail', { runSessionId: run.sessionId });
-        updateFinalizedRun(run.sessionId, { saveStatus: 'failed' });
-        notifyWarning();
-      }
-    } catch (e) {
-      logDebugEvent('save', 'retry_error', 'fail', { runSessionId: run.sessionId, payload: { error: String(e) } });
-      updateFinalizedRun(run.sessionId, { saveStatus: 'failed' });
+    if (success) {
+      notifySuccess();
+    } else {
       notifyWarning();
     }
     setRetrying(false);

@@ -70,15 +70,28 @@ async function persistToStorage(): Promise<void> {
   }
 }
 
-/** Hydrate in-memory store from AsyncStorage. Call once at app start. */
+/** Hydrate in-memory store from AsyncStorage. Call once at app start.
+ *  Recovers runs stuck in 'saving' status (app was killed mid-save)
+ *  by resetting them to 'queued' for automatic retry.
+ */
 export async function hydrateRunStore(): Promise<void> {
   if (_hydrationComplete) return;
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
       const runs: FinalizedRun[] = JSON.parse(raw);
+      let recoveredCount = 0;
       for (const run of runs) {
+        // Recover stuck 'saving' runs — app was killed mid-submit
+        if (run.saveStatus === 'saving' || run.saveStatus === 'pending') {
+          run.saveStatus = 'queued';
+          recoveredCount++;
+        }
         _runCache.set(run.sessionId, run);
+      }
+      if (recoveredCount > 0) {
+        console.log(`[NWD] Recovered ${recoveredCount} stuck runs → queued for retry`);
+        persistToStorage(); // persist the status fix
       }
     }
     _hydrationComplete = true;

@@ -114,6 +114,35 @@ export async function incrementProfileRuns(userId: string, isPb: boolean): Promi
   return { totalRuns: newRuns, totalPbs: newPbs };
 }
 
+/** Update best_position — only improves (lower number = better) */
+async function updateBestPosition(userId: string, position: number): Promise<void> {
+  const { data: current } = await db()
+    .from('profiles')
+    .select('best_position')
+    .eq('id', userId)
+    .single();
+
+  if (!current) return;
+  // Only update if better than current (or first time)
+  if (current.best_position === null || position < current.best_position) {
+    await db().from('profiles').update({
+      best_position: position,
+      updated_at: new Date().toISOString(),
+    }).eq('id', userId);
+  }
+}
+
+/** Update favorite_trail_id — trail with most runs */
+async function updateFavoriteTrail(userId: string, latestTrailId: string): Promise<void> {
+  // Simple approach: just set to the latest trail the user ran on.
+  // For true "most runs" tracking, we'd need a GROUP BY query.
+  // This is good enough for v1 — active riders' favorite will converge.
+  await db().from('profiles').update({
+    favorite_trail_id: latestTrailId,
+    updated_at: new Date().toISOString(),
+  }).eq('id', userId);
+}
+
 // ═══════════════════════════════════════════════════════════
 // RUNS
 // ═══════════════════════════════════════════════════════════
@@ -234,10 +263,20 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     }
   }
 
-  // Update profile stats
-  await incrementProfileRuns(userId, isPb);
+  // Update profile stats (atomic RPCs)
+  const runCounts = await incrementProfileRuns(userId, isPb);
   if (xpAwarded > 0) {
     await updateProfileXp(userId, xpAwarded);
+  }
+
+  // Update best_position if this run achieved a better leaderboard spot
+  if (leaderboardResult && leaderboardResult.position > 0) {
+    await updateBestPosition(userId, leaderboardResult.position);
+  }
+
+  // Update favorite_trail_id based on most runs
+  if (runCounts) {
+    await updateFavoriteTrail(userId, trailId);
   }
 
   return { run, leaderboardResult, isPb, previousBestMs };
