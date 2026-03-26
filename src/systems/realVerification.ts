@@ -1,9 +1,20 @@
 // ═══════════════════════════════════════════════════════════
-// Real Verification — connects GPS trace to trust engine
-// Uses actual recorded points to evaluate run integrity
+// Route Verification — corridor, checkpoint, GPS quality
+//
+// RESPONSIBILITIES (after gate engine consolidation):
+// - Checkpoint coverage (are checkpoints hit?)
+// - Corridor adherence (is rider on the official line?)
+// - GPS trace quality (average accuracy)
+// - Trace completeness (enough points?)
+//
+// NOT RESPONSIBLE FOR (gate engine owns these):
+// - Start gate crossing
+// - Finish gate crossing
+// - Gate fallbacks
+// - Run quality tiers (PERFECT/VALID/ROUGH)
 // ═══════════════════════════════════════════════════════════
 
-import { GpsPoint, distanceMeters, isInZone } from './gps';
+import { GpsPoint, distanceMeters } from './gps';
 import {
   VerificationResult,
   VerificationStatus,
@@ -18,16 +29,16 @@ import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
 
 // ── Thresholds ──
 
-const CORRIDOR_WIDTH_M = 50; // max distance from official line
-const CORRIDOR_COVERAGE_MIN = 0.70; // 70% must be within corridor
-const CHECKPOINT_RADIUS_M = 40; // checkpoint detection radius
-const GPS_QUALITY_THRESHOLD_M = 20; // accuracy worse than this = weak
+const CORRIDOR_WIDTH_M = 50;
+const CORRIDOR_COVERAGE_MIN = 0.70; // 70%
+const CHECKPOINT_RADIUS_M = 40;
+const GPS_QUALITY_THRESHOLD_M = 20;
 
 // ── Build checkpoints from trail geometry ──
 
 export function buildCheckpoints(geo: TrailGeoSeed): Checkpoint[] {
   const poly = geo.polyline;
-  const count = 3; // 3 checkpoints per trail
+  const count = 3;
   return Array.from({ length: count }, (_, i) => {
     const idx = Math.floor(((i + 1) / (count + 1)) * poly.length);
     const coord = poly[Math.min(idx, poly.length - 1)];
@@ -42,33 +53,9 @@ export function buildCheckpoints(geo: TrailGeoSeed): Checkpoint[] {
   });
 }
 
-// ── Evaluate gate ──
-
-function evaluateGate(
-  points: GpsPoint[],
-  zone: { latitude: number; longitude: number; radiusM: number }
-): GateState {
-  for (const p of points) {
-    if (isInZone(p, zone)) {
-      return {
-        entered: true,
-        enteredAt: p.timestamp,
-        coordinate: zone,
-        radiusM: zone.radiusM,
-      };
-    }
-  }
-  return {
-    entered: false,
-    enteredAt: null,
-    coordinate: zone,
-    radiusM: zone.radiusM,
-  };
-}
-
 // ── Evaluate checkpoints ──
 
-function evaluateCheckpoints(
+export function evaluateCheckpoints(
   points: GpsPoint[],
   checkpoints: Checkpoint[]
 ): Checkpoint[] {
@@ -84,7 +71,7 @@ function evaluateCheckpoints(
 
 // ── Evaluate route corridor ──
 
-function evaluateCorridor(
+export function evaluateCorridor(
   points: GpsPoint[],
   officialLine: { latitude: number; longitude: number }[]
 ): RouteCorridor {
@@ -100,7 +87,6 @@ function evaluateCorridor(
 
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
-    // Find minimum distance to any segment of official line
     let minDist = Infinity;
     for (const linePoint of officialLine) {
       const d = distanceMeters(p, linePoint);
@@ -110,7 +96,6 @@ function evaluateCorridor(
     if (minDist <= CORRIDOR_WIDTH_M) {
       insideCount++;
       if (deviationStart !== null) {
-        // End deviation segment
         deviations.push({
           startIndex: deviationStart,
           endIndex: i - 1,
@@ -127,7 +112,6 @@ function evaluateCorridor(
     maxDev = Math.max(maxDev, minDist);
   }
 
-  // Close any open deviation
   if (deviationStart !== null) {
     deviations.push({
       startIndex: deviationStart,
@@ -146,7 +130,7 @@ function evaluateCorridor(
 
 // ── GPS quality assessment ──
 
-function assessTraceQuality(points: GpsPoint[]): { readiness: GpsReadiness; avgAccuracy: number } {
+export function assessTraceQuality(points: GpsPoint[]): { readiness: GpsReadiness; avgAccuracy: number } {
   if (points.length === 0) return { readiness: 'unavailable', avgAccuracy: 999 };
 
   const accuracies = points
@@ -163,33 +147,62 @@ function assessTraceQuality(points: GpsPoint[]): { readiness: GpsReadiness; avgA
   };
 }
 
+// ── Gate state passed in from gate engine ──
+
+export interface GateTruth {
+  startCrossed: boolean;
+  finishCrossed: boolean;
+  startFallback: boolean;
+  finishFallback: boolean;
+}
+
 // ── Main verification function ──
+// Gate truth comes from gateEngine. This function validates route/corridor/checkpoints.
 
 export function verifyRealRun(
   mode: RunMode,
   points: GpsPoint[],
-  geo: TrailGeoSeed
+  geo: TrailGeoSeed,
+  gateTruth?: GateTruth,
 ): VerificationResult {
   const issues: string[] = [];
 
-  // Practice runs skip ranked verification
-  if (mode === 'practice') {
-    const checkpoints = evaluateCheckpoints(points, buildCheckpoints(geo));
-    const corridor = evaluateCorridor(points, geo.polyline);
-    const { readiness, avgAccuracy } = assessTraceQuality(points);
+  // Evaluate route-level checks (always, for both practice and ranked)
+  const checkpoints = evaluateCheckpoints(points, buildCheckpoints(geo));
+  const corridor = evaluateCorridor(points, geo.polyline);
+  const { readiness: gpsQuality, avgAccuracy } = assessTraceQuality(points);
+  const passed = checkpoints.filter((c) => c.passed).length;
+  const total = checkpoints.length;
 
+  // Build gate state objects for VerificationResult compatibility
+  // Gate truth comes from gateEngine; we just format it for the result interface
+  const startGate: GateState = {
+    entered: gateTruth?.startCrossed ?? false,
+    enteredAt: null,
+    coordinate: geo.startZone,
+    radiusM: geo.startZone.radiusM,
+  };
+  const finishGate: GateState = {
+    entered: gateTruth?.finishCrossed ?? false,
+    enteredAt: null,
+    coordinate: geo.finishZone,
+    radiusM: geo.finishZone.radiusM,
+  };
+
+  // Practice runs — skip ranked checks
+  if (mode === 'practice') {
     return {
       status: 'practice_only',
       runMode: 'practice',
       isLeaderboardEligible: false,
-      startGate: evaluateGate(points, geo.startZone),
-      finishGate: evaluateGate(points, geo.finishZone),
+      startGate,
+      finishGate,
       checkpoints,
-      checkpointsPassed: checkpoints.filter((c) => c.passed).length,
-      checkpointsTotal: checkpoints.length,
+      checkpointsPassed: passed,
+      checkpointsTotal: total,
       corridor,
       routeClean: corridor.deviations.length === 0,
-      gpsQuality: readiness,
+      gpsQuality,
       avgAccuracyM: avgAccuracy,
       label: 'Practice Only',
       explanation: 'Practice run. Not submitted to leaderboard.',
@@ -197,36 +210,28 @@ export function verifyRealRun(
     };
   }
 
-  // Ranked verification
-  const startGate = evaluateGate(points.slice(0, Math.min(20, points.length)), geo.startZone);
-  const finishGate = evaluateGate(points.slice(-Math.min(20, points.length)), geo.finishZone);
-  const checkpoints = evaluateCheckpoints(points, buildCheckpoints(geo));
-  const corridor = evaluateCorridor(points, geo.polyline);
-  const { readiness: gpsQuality, avgAccuracy } = assessTraceQuality(points);
+  // ── Ranked verification ──
+  // Gate crossing is owned by gateEngine — we just check route integrity here
 
   let status: VerificationStatus = 'verified';
 
-  // Check start gate
-  if (!startGate.entered) {
-    issues.push('Start gate not entered');
+  // Gate checks — from gateEngine truth (not re-computed)
+  if (gateTruth && !gateTruth.startCrossed) {
+    issues.push('Start gate not crossed');
     status = 'outside_start_gate';
   }
-
-  // Check finish gate
-  if (!finishGate.entered) {
-    issues.push('Finish gate not reached');
+  if (gateTruth && !gateTruth.finishCrossed) {
+    issues.push('Finish gate not crossed');
     if (status === 'verified') status = 'outside_finish_gate';
   }
 
-  // Check checkpoints
-  const passed = checkpoints.filter((c) => c.passed).length;
-  const total = checkpoints.length;
+  // Checkpoint coverage
   if (passed < total) {
     issues.push(`${total - passed} checkpoint${total - passed > 1 ? 's' : ''} missed`);
     if (status === 'verified') status = 'missing_checkpoint';
   }
 
-  // Check corridor
+  // Corridor adherence
   const hasShortcut = corridor.deviations.some((d) => d.type === 'shortcut');
   const hasMajor = corridor.deviations.some((d) => d.type === 'major');
   if (hasShortcut) {
@@ -242,13 +247,13 @@ export function verifyRealRun(
     if (status === 'verified') status = 'invalid_route';
   }
 
-  // Check GPS quality
+  // GPS quality
   if (gpsQuality === 'weak') {
     issues.push('Weak GPS signal during run');
     if (status === 'verified') status = 'weak_signal';
   }
 
-  // Check trace completeness
+  // Trace completeness
   if (points.length < 10) {
     issues.push('Trace too short');
     if (status === 'verified') status = 'invalid_route';

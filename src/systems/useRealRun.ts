@@ -498,13 +498,28 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         return;
       }
 
-      // Verify (legacy verification + new gate quality assessment)
+      // ── CONSOLIDATED VERIFICATION ──
+      // Gate engine = source of truth for gate crossing
+      // Route verification = source of truth for corridor/checkpoints
+      // Quality assessment = unified eligibility decision
+
+      const gateState = gateEngine.getState();
+
+      // 1. Gate truth — from gateEngine (single source)
+      const gateTruth = {
+        startCrossed: gateState.startCrossing?.crossed ?? false,
+        finishCrossed: gateState.finishCrossing?.crossed ?? false,
+        startFallback: gateState.startCrossing?.flags.includes('soft_crossing') ?? false,
+        finishFallback: gateState.finishCrossing?.flags.includes('fallback_proximity') ?? false,
+      };
+
+      // 2. Route verification — corridor, checkpoints, GPS quality (passes gate truth in)
       logDebugEvent('run', 'verifying', 'start', { trailId, payload: { pointCount: completedTrace.points.length, mode: completedTrace.mode } });
-      const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo);
+      const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo, gateTruth);
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
 
-      // Gate engine quality assessment (v2)
+      // 3. Quality assessment — uses gate crossing results + route verification results
       const qualityAssessment = gateEngine.assessQuality(
         completedTrace.points,
         false, // wasBackgrounded — tracked separately via AppState
@@ -521,44 +536,33 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           quality: qualityAssessment.quality,
           eligible: qualityAssessment.leaderboardEligible,
           reasons: qualityAssessment.degradationReasons,
+          gateTruth,
         },
       });
 
-      // Use gate quality to potentially upgrade leaderboard eligibility
-      // Gate upgrade ONLY allowed when legacy fail was gate-proximity related,
-      // NOT when rider genuinely missed checkpoints or went off-corridor
-      const gateEligible = qualityAssessment.leaderboardEligible;
-      const legacyEligible = verification.isLeaderboardEligible;
-
-      // Gate can upgrade ONLY if legacy verification shows reasonable route completion
-      const canGateUpgrade = gateEligible
-        && completedTrace.mode === 'ranked'
+      // 4. Final eligibility — single decision combining both layers
+      // Route verification covers: corridor, checkpoints, GPS, trace length
+      // Gate engine covers: gate crossings, quality tier, anti-cheat
+      // Both must agree for leaderboard eligibility
+      const routeOk = verification.isLeaderboardEligible;
+      const gateOk = qualityAssessment.leaderboardEligible;
+      const finalEligible = routeOk || (gateOk && completedTrace.mode === 'ranked'
         && verification.checkpointsPassed >= 2
-        && verification.corridor.coveragePercent >= 60;
+        && verification.corridor.coveragePercent >= 60);
 
-      const finalEligible = legacyEligible || canGateUpgrade;
+      // Apply final eligibility to verification result
+      if (finalEligible && !routeOk) {
+        verification.isLeaderboardEligible = true;
+        verification.status = 'verified';
+        verification.label = `Verified (${qualityAssessment.quality})`;
+        verification.explanation = qualityAssessment.summary;
+      }
 
       const finalPhase: RunPhaseV2 = finalEligible
         ? 'completed_verified'
         : verification.status === 'practice_only'
           ? 'completed_unverified'
           : 'invalidated';
-
-      // Override verification eligibility if gate engine upgrade is justified
-      if (finalEligible && !legacyEligible) {
-        verification.isLeaderboardEligible = true;
-        verification.status = 'verified';
-        verification.label = `Verified (${qualityAssessment.quality})`;
-        verification.explanation = qualityAssessment.summary;
-        logDebugEvent('run', 'gate_upgrade_applied', 'info', {
-          trailId,
-          payload: {
-            checkpointsPassed: verification.checkpointsPassed,
-            corridorCoverage: verification.corridor.coveragePercent,
-            gateQuality: qualityAssessment.quality,
-          },
-        });
-      }
 
       const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
 
