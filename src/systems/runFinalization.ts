@@ -9,11 +9,15 @@
 // - Final run phase
 //
 // DOES NOT: save to backend, update UI state, manage GPS
+//
+// FROZEN CORE — changes here affect every run outcome.
+// Do not modify without field test validation.
 // ═══════════════════════════════════════════════════════════
 
+import { GpsPoint } from './gps';
 import { verifyRealRun, type GateTruth } from './realVerification';
 import { RunTrace } from './traceCapture';
-import { VerificationResult, RunPhaseV2 } from '@/data/verificationTypes';
+import { VerificationResult, RunPhaseV2, GpsReadiness } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
 import { type RunQualityAssessment } from '@/features/run';
 import { logDebugEvent } from './debugEvents';
@@ -23,15 +27,18 @@ export interface FinalizationInput {
   geo: TrailGeoSeed;
   trailId: string;
   sessionId: string;
+  /** Gate crossing result from gateEngine — null if gate engine had no config */
   gateStartCrossing: { crossed: boolean; flags: string[] } | null;
+  /** Gate crossing result from gateEngine — null if gate engine had no config */
   gateFinishCrossing: { crossed: boolean; flags: string[] } | null;
+  /** Quality assessment callback from gate engine instance */
   assessQuality: (
-    points: any[],
+    points: GpsPoint[],
     wasBackgrounded: boolean,
     checkpointsPassed: number,
     checkpointsTotal: number,
     corridorCoverage: number,
-    gpsQuality: any,
+    gpsQuality: GpsReadiness,
     avgAccuracy: number,
   ) => RunQualityAssessment;
 }
@@ -46,29 +53,33 @@ export interface FinalizationResult {
 /**
  * Pure finalization logic — no side effects, no UI, no backend.
  * Takes run data in, returns verification + quality + eligibility.
+ *
+ * NOTE: This function mutates the `verification` object when applying
+ * a gate upgrade (lines below). This is safe because the verification
+ * object is freshly created by verifyRealRun() within this function.
  */
 export function finalizeRun(input: FinalizationInput): FinalizationResult {
   const { trace, geo, trailId, sessionId, gateStartCrossing, gateFinishCrossing, assessQuality } = input;
 
-  // 1. Gate truth — from gateEngine (single source)
+  // ── 1. Gate truth — from gateEngine (single source of truth for gate crossings) ──
   const gateTruth: GateTruth = {
     startCrossed: gateStartCrossing?.crossed ?? false,
     finishCrossed: gateFinishCrossing?.crossed ?? false,
-    startFallback: gateStartCrossing?.flags.includes('soft_crossing') ?? false,
-    finishFallback: gateFinishCrossing?.flags.includes('fallback_proximity') ?? false,
+    startFallback: gateStartCrossing?.flags?.includes('soft_crossing') ?? false,
+    finishFallback: gateFinishCrossing?.flags?.includes('fallback_proximity') ?? false,
   };
 
-  // 2. Route verification — corridor, checkpoints, GPS quality
+  // ── 2. Route verification — corridor, checkpoints, GPS quality ──
   logDebugEvent('run', 'verifying', 'start', {
     trailId,
     payload: { pointCount: trace.points.length, mode: trace.mode },
   });
   const verification = verifyRealRun(trace.mode, trace.points, geo, gateTruth);
 
-  // 3. Quality assessment — gate crossing + route verification
+  // ── 3. Quality assessment — gate crossing quality + route verification context ──
   const qualityAssessment = assessQuality(
     trace.points,
-    false,
+    false, // wasBackgrounded — tracked separately via AppState in useRealRun
     verification.checkpointsPassed,
     verification.checkpointsTotal,
     verification.corridor.coveragePercent,
@@ -86,14 +97,27 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
     },
   });
 
-  // 4. Final eligibility — combining route + gate layers
+  // ── 4. Final eligibility — combining two independent layers ──
+  //
+  // GATE UPGRADE POLICY:
+  // If route verification fails but gate engine says the run is eligible,
+  // we can upgrade eligibility ONLY when the rider demonstrably completed
+  // most of the course (≥2 checkpoints, ≥60% corridor coverage).
+  //
+  // This prevents gate engine from "magically" making a shortcut run eligible,
+  // while still rescuing runs where legacy verification was too strict on
+  // gate proximity but the rider clearly rode the full trail.
+  //
   const routeOk = verification.isLeaderboardEligible;
   const gateOk = qualityAssessment.leaderboardEligible;
-  const finalEligible = routeOk || (gateOk && trace.mode === 'ranked'
+  const canGateUpgrade = gateOk
+    && trace.mode === 'ranked'
     && verification.checkpointsPassed >= 2
-    && verification.corridor.coveragePercent >= 60);
+    && verification.corridor.coveragePercent >= 60;
 
-  // Apply gate upgrade to verification result if justified
+  const finalEligible = routeOk || canGateUpgrade;
+
+  // Apply gate upgrade — mutates the freshly-created verification object
   if (finalEligible && !routeOk) {
     verification.isLeaderboardEligible = true;
     verification.status = 'verified';
@@ -101,6 +125,7 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
     verification.explanation = qualityAssessment.summary;
   }
 
+  // ── 5. Map to run phase ──
   const finalPhase: RunPhaseV2 = finalEligible
     ? 'completed_verified'
     : verification.status === 'practice_only'
@@ -115,6 +140,7 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
       verificationStatus: verification.status,
       eligible: verification.isLeaderboardEligible,
       durationMs: trace.durationMs,
+      gateUpgradeApplied: finalEligible && !routeOk,
       issues: verification.issues,
     },
   });

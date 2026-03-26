@@ -42,15 +42,24 @@ export function toSaveStatus(status: BackendSaveStatus): 'pending' | 'saving' | 
  * Submit a finalized run to the backend.
  * Returns the result or null on failure. Updates runStore on success/failure.
  */
+/** Quality tier type — matches gate engine output */
+export type QualityTier = 'perfect' | 'valid' | 'rough';
+
 export async function submitRun(params: {
   sessionId: string;
   userId: string;
   trailId: string;
   trace: RunTrace;
   verification: VerificationResult;
-  qualityTier?: 'perfect' | 'valid' | 'rough';
+  qualityTier?: QualityTier;
 }): Promise<SubmitRunResult | null> {
   const { sessionId, userId, trailId, trace, verification, qualityTier } = params;
+
+  // Guard: userId must be non-empty
+  if (!userId || userId.length === 0) {
+    logDebugEvent('save', 'submit_skip_no_user', 'fail', { runSessionId: sessionId, trailId });
+    return null;
+  }
 
   logDebugEvent('save', 'submit_start', 'start', { runSessionId: sessionId, trailId });
 

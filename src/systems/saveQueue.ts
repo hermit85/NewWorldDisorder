@@ -109,11 +109,20 @@ function handleAppStateChange(state: AppStateStatus): void {
 }
 
 async function retrySubmit(run: FinalizedRun): Promise<boolean> {
-  if (!run.traceSnapshot || !run.verification || !run.userId) {
-    // Can't retry without trace data or userId
+  // Guard: all three are required for retry. Explicit null/empty checks.
+  const userId = run.userId;
+  const snapshot = run.traceSnapshot;
+  const verification = run.verification;
+
+  if (!snapshot || !verification || !userId || userId.length === 0) {
     logDebugEvent('queue', 'retry_skip_no_data', 'info', {
       runSessionId: run.sessionId,
-      payload: { hasTrace: !!run.traceSnapshot, hasVerification: !!run.verification, hasUserId: !!run.userId },
+      payload: {
+        hasTrace: !!snapshot,
+        hasVerification: !!verification,
+        hasUserId: !!userId,
+        userIdEmpty: userId === '',
+      },
     });
     return false;
   }
@@ -122,8 +131,11 @@ async function retrySubmit(run: FinalizedRun): Promise<boolean> {
   updateFinalizedRun(run.sessionId, { saveStatus: 'saving' });
 
   try {
+    // Reconstruct trace from snapshot for backend submission.
+    // TraceSnapshot stores sampled points in compact format (lat/lng/alt/ts).
+    // Backend expects full GpsPoint shape, so we fill speed/accuracy with null.
     const traceForRetry = {
-      points: run.traceSnapshot.sampledPoints.map((p) => ({
+      points: snapshot.sampledPoints.map((p) => ({
         latitude: p.lat,
         longitude: p.lng,
         altitude: p.alt,
@@ -131,23 +143,27 @@ async function retrySubmit(run: FinalizedRun): Promise<boolean> {
         speed: null,
         accuracy: null,
       })),
-      startedAt: run.traceSnapshot.startedAt,
-      finishedAt: run.traceSnapshot.finishedAt,
-      durationMs: run.traceSnapshot.durationMs,
-      mode: run.traceSnapshot.mode,
+      startedAt: snapshot.startedAt,
+      finishedAt: snapshot.finishedAt,
+      durationMs: snapshot.durationMs,
+      mode: snapshot.mode,
     };
 
-    const xpAwarded = run.verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+    const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
 
+    // NOTE: `trace: traceForRetry as any` — the reconstructed trace lacks
+    // full RunTrace type compliance (no trailId, trailName fields).
+    // Backend submitRunToBackend only reads .points, .startedAt, .finishedAt,
+    // .durationMs, .mode from the trace object. This cast is safe for retry.
     const result = await submitRunToBackend({
-      userId: run.userId!,
+      userId,
       spotId: 'slotwiny-arena',
       trailId: run.trailId,
       mode: run.mode,
       startedAt: run.startedAt,
       finishedAt: run.startedAt + run.durationMs,
       durationMs: run.durationMs,
-      verification: run.verification,
+      verification,
       trace: traceForRetry as any,
       xpAwarded,
       qualityTier: run.qualityTier ?? undefined,
