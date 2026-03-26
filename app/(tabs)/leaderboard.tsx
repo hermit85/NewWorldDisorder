@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -48,6 +48,20 @@ export default function LeaderboardScreen() {
     profile?.id,
   );
 
+  const trailScrollRef = useRef<ScrollView>(null);
+  const chipLayoutsRef = useRef<Map<string, { x: number; width: number }>>(new Map());
+
+  const handleTrailSelect = useCallback((trailId: string) => {
+    setSelectedTrailId(trailId);
+    // Auto-scroll to make selected chip visible
+    const layout = chipLayoutsRef.current.get(trailId);
+    if (layout && trailScrollRef.current) {
+      // Scroll so chip is centered-ish in view
+      const scrollTo = Math.max(0, layout.x - 40);
+      trailScrollRef.current.scrollTo({ x: scrollTo, animated: true });
+    }
+  }, []);
+
   const selectedTrail = mockTrails.find((t) => t.id === selectedTrailId);
   const selectedOfficial = slotwinyTrails.find((o) => o.id === selectedTrailId);
   const diffColor = selectedTrail ? getTrailColor(selectedOfficial?.colorClass, selectedTrail.difficulty) : colors.accent;
@@ -86,7 +100,7 @@ export default function LeaderboardScreen() {
         <View style={styles.titleRow}>
           <View>
             <Text style={styles.title}>TABLICA WYNIKÓW</Text>
-            <Text style={styles.subtitle}>TYLKO ZWERYFIKOWANE CZASY</Text>
+            <Text style={styles.subtitle}>OFICJALNE CZASY</Text>
           </View>
           <View style={styles.scopeTabs}>
             {SCOPES.map(s => (
@@ -103,8 +117,9 @@ export default function LeaderboardScreen() {
           </View>
         </View>
 
-        {/* Trail selector with prestige */}
+        {/* Trail selector */}
         <ScrollView
+          ref={trailScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.trailSelector}
@@ -121,7 +136,13 @@ export default function LeaderboardScreen() {
                   styles.trailChip,
                   isActive && { borderColor: tColor, backgroundColor: tColor + '18' },
                 ]}
-                onPress={() => setSelectedTrailId(trail.id)}
+                onPress={() => handleTrailSelect(trail.id)}
+                onLayout={(e) => {
+                  chipLayoutsRef.current.set(trail.id, {
+                    x: e.nativeEvent.layout.x,
+                    width: e.nativeEvent.layout.width,
+                  });
+                }}
               >
                 <View style={[styles.trailChipDot, { backgroundColor: tColor }]} />
                 <Text
@@ -160,9 +181,9 @@ export default function LeaderboardScreen() {
         {/* Empty state */}
         {!loading && !lbError && entries.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>BRAK ZWERYFIKOWANYCH ZJAZDÓW</Text>
+            <Text style={styles.emptyTitle}>TABLICA PUSTA</Text>
             <Text style={styles.emptyDesc}>
-              Bądź pierwszy — ustaw czas na {selectedTrail?.name ?? 'tej trasie'}.
+              Jeszcze nikt nie ustalił czasu na {selectedTrail?.name ?? 'tej trasie'}.{'\n'}Bądź pierwszy.
             </Text>
           </View>
         )}
@@ -397,8 +418,8 @@ const styles = StyleSheet.create({
   scopeTabTextActive: { color: colors.bg, fontFamily: 'Inter_700Bold' },
 
   // Trail selector
-  trailSelector: { marginBottom: spacing.xl },
-  trailSelectorContent: { gap: spacing.sm },
+  trailSelector: { marginBottom: spacing.xl, marginHorizontal: -spacing.lg },
+  trailSelectorContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingRight: spacing.xl },
   trailChip: {
     flexDirection: 'row',
     alignItems: 'center',
