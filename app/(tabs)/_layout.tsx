@@ -47,6 +47,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="history"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="ZJAZDY" icon="📋" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="leaderboard"
         options={{
           tabBarIcon: ({ focused }) => (
