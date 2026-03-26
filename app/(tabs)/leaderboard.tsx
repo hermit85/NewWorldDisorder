@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
@@ -53,11 +53,11 @@ export default function LeaderboardScreen() {
 
   const handleTrailSelect = useCallback((trailId: string) => {
     setSelectedTrailId(trailId);
-    // Auto-scroll to make selected chip visible
+    // Auto-scroll: center selected chip in viewport
     const layout = chipLayoutsRef.current.get(trailId);
     if (layout && trailScrollRef.current) {
-      // Scroll so chip is centered-ish in view
-      const scrollTo = Math.max(0, layout.x - 40);
+      const screenW = Dimensions.get('window').width;
+      const scrollTo = Math.max(0, layout.x - (screenW / 2) + (layout.width / 2));
       trailScrollRef.current.scrollTo({ x: scrollTo, animated: true });
     }
   }, []);
@@ -98,23 +98,23 @@ export default function LeaderboardScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Header */}
         <View style={styles.titleRow}>
-          <View>
-            <Text style={styles.title}>TABLICA WYNIKÓW</Text>
-            <Text style={styles.subtitle}>OFICJALNE CZASY</Text>
-          </View>
-          <View style={styles.scopeTabs}>
-            {SCOPES.map(s => (
-              <Pressable
-                key={s.key}
-                style={[styles.scopeTab, selectedPeriod === s.key && styles.scopeTabActive]}
-                onPress={() => setSelectedPeriod(s.key)}
-              >
-                <Text style={[styles.scopeTabText, selectedPeriod === s.key && styles.scopeTabTextActive]}>
-                  {s.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.title}>TABLICA WYNIKÓW</Text>
+          <Text style={styles.subtitle}>OFICJALNE CZASY</Text>
+        </View>
+
+        {/* Scope tabs — separate row for small-screen safety */}
+        <View style={styles.scopeRow}>
+          {SCOPES.map(s => (
+            <Pressable
+              key={s.key}
+              style={[styles.scopeTab, selectedPeriod === s.key && styles.scopeTabActive]}
+              onPress={() => setSelectedPeriod(s.key)}
+            >
+              <Text style={[styles.scopeTabText, selectedPeriod === s.key && styles.scopeTabTextActive]}>
+                {s.label}
+              </Text>
+            </Pressable>
+          ))}
         </View>
 
         {/* Trail selector */}
@@ -150,6 +150,7 @@ export default function LeaderboardScreen() {
                     styles.trailChipText,
                     isActive && { color: colors.textPrimary },
                   ]}
+                  numberOfLines={1}
                 >
                   {trail.name}
                 </Text>
@@ -392,10 +393,7 @@ const styles = StyleSheet.create({
 
   // Header
   titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   title: {
     fontFamily: 'Orbitron_700Bold',
@@ -411,7 +409,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   // Scope tabs
-  scopeTabs: { flexDirection: 'row', gap: spacing.xs },
+  scopeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.lg },
   scopeTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: radii.sm, backgroundColor: 'transparent' },
   scopeTabActive: { backgroundColor: colors.accent },
   scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
@@ -419,7 +417,7 @@ const styles = StyleSheet.create({
 
   // Trail selector
   trailSelector: { marginBottom: spacing.xl, marginHorizontal: -spacing.lg },
-  trailSelectorContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingRight: spacing.xl },
+  trailSelectorContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingRight: spacing.xxxl },
   trailChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,6 +438,7 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
+    maxWidth: 160,
   },
 
   // Loading / Empty
