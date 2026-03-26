@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
   onboardingDone: 'nwd_onboarding_done',
+  gateCompleted: 'nwd_gate_completed',
   betaVersion: 'nwd_beta_version',
 };
 
@@ -29,13 +30,15 @@ export function useBetaFlow() {
 
   const checkState = async () => {
     try {
-      const [onboardingDone, betaVersion] = await Promise.all([
+      const [onboardingDone, gateCompleted, betaVersion] = await Promise.all([
         AsyncStorage.getItem(KEYS.onboardingDone),
+        AsyncStorage.getItem(KEYS.gateCompleted),
         AsyncStorage.getItem(KEYS.betaVersion),
       ]);
 
       const isFirstLaunch = !betaVersion;
-      const needsOnboarding = !onboardingDone || betaVersion !== CURRENT_BETA;
+      // Both slides AND gate must be completed for onboarding to be done
+      const needsOnboarding = !onboardingDone || !gateCompleted || betaVersion !== CURRENT_BETA;
 
       if (__DEV__) {
         console.log('[NWD:betaFlow]', { onboardingDone, betaVersion, CURRENT_BETA, needsOnboarding, isFirstLaunch });
@@ -47,16 +50,24 @@ export function useBetaFlow() {
     }
   };
 
+  /** Mark slides as viewed (before GPS gate) — NOT full completion */
+  const completeSlidesOnly = useCallback(async () => {
+    await AsyncStorage.setItem(KEYS.onboardingDone, 'true');
+  }, []);
+
+  /** Mark full onboarding done (after GPS gate dismiss/accept) */
   const completeOnboarding = useCallback(async () => {
     await AsyncStorage.setItem(KEYS.onboardingDone, 'true');
+    await AsyncStorage.setItem(KEYS.gateCompleted, 'true');
     await AsyncStorage.setItem(KEYS.betaVersion, CURRENT_BETA);
     setState((s) => ({ ...s, needsOnboarding: false }));
   }, []);
 
   const resetOnboarding = useCallback(async () => {
     await AsyncStorage.removeItem(KEYS.onboardingDone);
+    await AsyncStorage.removeItem(KEYS.gateCompleted);
     setState((s) => ({ ...s, needsOnboarding: true }));
   }, []);
 
-  return { ...state, completeOnboarding, resetOnboarding };
+  return { ...state, completeSlidesOnly, completeOnboarding, resetOnboarding };
 }

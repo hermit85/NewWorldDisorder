@@ -10,6 +10,17 @@ import { SubmitRunResult } from '@/lib/api';
 
 export type SaveStatus = 'pending' | 'saving' | 'saved' | 'failed' | 'offline';
 
+/** Minimal trace data kept for retry — not full GPS points array */
+export interface TraceSnapshot {
+  pointCount: number;
+  startedAt: number;
+  finishedAt: number | null;
+  durationMs: number;
+  mode: RunMode;
+  /** Every 3rd point for backend storage — same as initial submit */
+  sampledPoints: { lat: number; lng: number; alt: number | null; ts: number }[];
+}
+
 export interface FinalizedRun {
   sessionId: string;
   trailId: string;
@@ -20,6 +31,8 @@ export interface FinalizedRun {
   verification: VerificationResult | null;
   saveStatus: SaveStatus;
   backendResult: SubmitRunResult | null;
+  /** Snapshot of trace for retry — created at finalization time */
+  traceSnapshot: TraceSnapshot | null;
   updatedAt: number;
 }
 

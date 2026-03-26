@@ -172,6 +172,27 @@ export default function ResultScreen() {
 
     try {
       const xpAwarded = run.verification?.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+      // Build trace from stored snapshot for retry
+      const snap = run.traceSnapshot;
+      if (!snap) {
+        logDebugEvent('save', 'retry_no_trace', 'fail', { runSessionId: run.sessionId });
+        updateFinalizedRun(run.sessionId, { saveStatus: 'failed' });
+        notifyWarning();
+        setRetrying(false);
+        return;
+      }
+
+      const traceForRetry = {
+        points: snap.sampledPoints.map((p: any) => ({
+          latitude: p.lat, longitude: p.lng, altitude: p.alt, timestamp: p.ts,
+          speed: null, accuracy: null,
+        })),
+        startedAt: snap.startedAt,
+        finishedAt: snap.finishedAt,
+        durationMs: snap.durationMs,
+        mode: snap.mode,
+      };
+
       const result = await submitRunToBackend({
         userId: authProfile.id,
         spotId: 'slotwiny-arena',
@@ -181,7 +202,7 @@ export default function ResultScreen() {
         finishedAt: run.startedAt + run.durationMs,
         durationMs: run.durationMs,
         verification: run.verification!,
-        trace: null as any, // trace not stored in runStore — submit without
+        trace: traceForRetry as any,
         xpAwarded,
       });
 

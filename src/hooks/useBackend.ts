@@ -25,7 +25,11 @@ export function isBackendConfigured(): boolean {
   return isSupabaseConfigured;
 }
 
-const DEMO_MODE = !isSupabaseConfigured;
+/** True when production build has no backend — app should show blocking error */
+export const isProductionMisconfigured = !isSupabaseConfigured && !__DEV__;
+
+// DEMO_MODE: only in dev. Production without env vars = hard fail, not mock league.
+const DEMO_MODE = !isSupabaseConfigured && __DEV__;
 
 // ── Typed fetch status ──
 export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';

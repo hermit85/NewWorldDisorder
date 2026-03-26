@@ -645,13 +645,17 @@ export async function fetchUserAchievements(userId: string) {
 }
 
 export async function unlockAchievement(userId: string, achievementId: string): Promise<boolean> {
+  // Upsert: safe to call on every run — won't duplicate, won't fail on re-unlock
   const { error } = await db()
     .from('user_achievements')
-    .insert({
-      user_id: userId,
-      achievement_id: achievementId,
-    });
+    .upsert(
+      { user_id: userId, achievement_id: achievementId },
+      { onConflict: 'user_id,achievement_id', ignoreDuplicates: true },
+    );
 
+  if (error && __DEV__) {
+    console.warn('[NWD] Achievement unlock failed:', achievementId, error.message);
+  }
   return !error;
 }
 

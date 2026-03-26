@@ -234,7 +234,7 @@ function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPre
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { completeOnboarding } = useBetaFlow();
+  const { completeSlidesOnly, completeOnboarding } = useBetaFlow();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
@@ -255,16 +255,17 @@ export default function OnboardingScreen() {
 
   const handleFinish = useCallback(async () => {
     notifySuccess();
-    await completeOnboarding();
+    await completeSlidesOnly(); // slides done, but gate not yet
     fadeAnim.setValue(0);
     setShowLocationPrompt(true);
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-  }, [completeOnboarding, fadeAnim]);
+  }, [completeSlidesOnly, fadeAnim]);
 
-  const handleEnterApp = useCallback(() => {
+  const handleEnterApp = useCallback(async () => {
     notifySuccess();
+    await completeOnboarding(); // full gate completed — now safe to mark done
     router.replace('/(tabs)');
-  }, [router]);
+  }, [router, completeOnboarding]);
 
   const handleCta = useCallback(() => {
     selectionTick();

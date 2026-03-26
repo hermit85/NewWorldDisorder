@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -31,6 +31,16 @@ export default function LeaderboardScreen() {
       : 'dzida-czerwona',
   );
   const { profile } = useAuthContext();
+
+  // Re-sync local state when navigating to leaderboard with new params
+  useEffect(() => {
+    if (params.trailId && mockTrails.some(t => t.id === params.trailId)) {
+      setSelectedTrailId(params.trailId);
+    }
+    if (params.scope && ['day', 'weekend', 'all_time'].includes(params.scope)) {
+      setSelectedPeriod(params.scope as PeriodType);
+    }
+  }, [params.trailId, params.scope]);
 
   const { entries, loading, error: lbError, refresh } = useLeaderboard(
     selectedTrailId,

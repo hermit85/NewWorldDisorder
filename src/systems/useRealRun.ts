@@ -341,6 +341,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           verification: null,
           saveStatus: 'offline',
           backendResult: null,
+          traceSnapshot: null,
           updatedAt: Date.now(),
         });
         return;
@@ -381,6 +382,18 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         backendStatus: saveStatus,
       }));
 
+      // Build trace snapshot for retry (same slim format as initial submit)
+      const traceSnapshot = {
+        pointCount: completedTrace.points.length,
+        startedAt: completedTrace.startedAt,
+        finishedAt: completedTrace.finishedAt,
+        durationMs: completedTrace.durationMs,
+        mode: completedTrace.mode,
+        sampledPoints: completedTrace.points.filter((_: any, i: number) => i % 3 === 0).map((p: any) => ({
+          lat: p.latitude, lng: p.longitude, alt: p.altitude ?? null, ts: p.timestamp,
+        })),
+      };
+
       // Write to shared run store — result screen reads from here
       setFinalizedRun({
         sessionId: currentSessionId,
@@ -392,6 +405,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         verification,
         saveStatus,
         backendResult: null,
+        traceSnapshot,
         updatedAt: Date.now(),
       });
 
