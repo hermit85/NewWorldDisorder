@@ -63,6 +63,7 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="+not-found" options={{ animation: 'fade' }} />
           <Stack.Screen
             name="auth/index"
             options={{ animation: 'fade', gestureEnabled: false }}
