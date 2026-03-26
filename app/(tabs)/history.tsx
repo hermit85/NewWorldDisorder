@@ -166,9 +166,9 @@ function EmptyState() {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyIcon}>⛰️</Text>
-      <Text style={styles.emptyTitle}>Brak zjazdów</Text>
+      <Text style={styles.emptyTitle}>Jeszcze bez zjazdów</Text>
       <Text style={styles.emptyBody}>
-        Twoje przejazdy pojawią się tutaj po pierwszym runie.
+        Wybierz trasę i jedź. Twoje wyniki pojawią się tutaj.
       </Text>
     </View>
   );
@@ -217,7 +217,7 @@ export default function HistoryScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>MOJE ZJAZDY</Text>
         <Text style={styles.headerCount}>
-          {runs.length > 0 ? `${runs.length} ${runs.length === 1 ? 'run' : 'runów'}` : ''}
+          {runs.length > 0 ? `${runs.length} ${runs.length === 1 ? 'zjazd' : runs.length < 5 ? 'zjazdy' : 'zjazdów'}` : ''}
         </Text>
       </View>
 

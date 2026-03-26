@@ -138,20 +138,20 @@ export default function ActiveRunScreen() {
     switch (state.phase) {
       case 'idle': return 'DOTKNIJ — SPRAWDŹ GOTOWOŚĆ';
       case 'readiness_check':
-        if (state.permissionDenied) return 'WYMAGANA LOKALIZACJA';
-        if (state.readiness.rankedEligible) return 'DOTKNIJ — TRYB RANKINGOWY';
+        if (state.permissionDenied) return 'WŁĄCZ LOKALIZACJĘ';
+        if (state.readiness.rankedEligible) return state.readiness.ctaLabel;
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
-      case 'armed_ranked': return 'RANKING — GOTOWY DO STARTU';
-      case 'armed_practice': return 'TRENING — GOTOWY';
-      case 'running_ranked': return 'OFICJALNY ZJAZD';
-      case 'running_practice': return 'TRENING';
-      case 'finishing': return 'META...';
-      case 'verifying': return 'WERYFIKACJA...';
-      case 'completed_verified': return 'ZALICZONY — DOTKNIJ';
-      case 'completed_unverified': return 'ZAPISANY — DOTKNIJ';
-      case 'invalidated': return 'NIE ZALICZONY — DOTKNIJ';
-      case 'error': return state.error ?? 'COŚ POSZŁO NIE TAK';
+      case 'armed_ranked': return 'UZBROJONY — CZEKAM NA DROP';
+      case 'armed_practice': return 'TRENING — CZEKAM NA START';
+      case 'running_ranked': return 'ZJAZD RANKINGOWY';
+      case 'running_practice': return 'ZJAZD TRENINGOWY';
+      case 'finishing': return 'META…';
+      case 'verifying': return 'SPRAWDZAM…';
+      case 'completed_verified': return '✓ ZALICZONY';
+      case 'completed_unverified': return 'ZAPISANY';
+      case 'invalidated': return 'NIE ZALICZONY';
+      case 'error': return state.error ?? 'BŁĄD';
       default: return '';
     }
   })();
@@ -252,13 +252,16 @@ export default function ActiveRunScreen() {
 
         {/* Tap instruction */}
         {!showTimer && state.phase === 'idle' && (
-          <Text style={styles.instruction}>DOTKNIJ ABY ROZPOCZĄĆ</Text>
+          <Text style={styles.instruction}>DOTKNIJ EKRAN</Text>
         )}
         {(state.phase === 'armed_ranked' || state.phase === 'armed_practice') && (
-          <Text style={styles.instruction}>PRZEJEDŹ PRZEZ BRAMKĘ STARTOWĄ · lub dotknij aby ruszyć</Text>
+          <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer startuje na bramce</Text>
         )}
         {running && (
-          <Text style={styles.instruction}>DOJEDŹ DO METY · lub dotknij aby zakończyć</Text>
+          <Text style={styles.instruction}>META KOŃCZY AUTOMATYCZNIE</Text>
+        )}
+        {(state.phase === 'completed_verified' || state.phase === 'completed_unverified' || state.phase === 'invalidated') && (
+          <Text style={styles.instruction}>DOTKNIJ — WYNIK</Text>
         )}
       </Pressable>
 
@@ -266,7 +269,7 @@ export default function ActiveRunScreen() {
       {bgWarning && (
         <Pressable style={styles.bgWarning} onPress={() => setBgWarning(false)}>
           <Text style={styles.bgWarningText}>
-            ⚠ Aplikacja była w tle — GPS mógł stracić punkty. Wynik może nie przejść weryfikacji.
+            Appka była w tle — GPS mógł zgubić punkty. Wynik może nie przejść weryfikacji.
           </Text>
           <Text style={styles.bgWarningDismiss}>ZAMKNIJ</Text>
         </Pressable>

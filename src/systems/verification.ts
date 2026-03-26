@@ -39,8 +39,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Łączenie z GPS...',
-      ctaLabel: 'CZEKAM NA GPS',
+      message: 'Szukam satelitów…',
+      ctaLabel: 'ŁĄCZĘ GPS',
       ctaEnabled: false,
     };
   }
@@ -53,8 +53,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Nie jesteś w pobliżu trasy',
-      ctaLabel: 'TRENING',
+      message: 'Jesteś daleko od areny',
+      ctaLabel: 'JEDŹ TRENING',
       ctaEnabled: true,
     };
   }
@@ -67,8 +67,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Słaby sygnał GPS. Dostępny trening.',
-      ctaLabel: 'TRENING',
+      message: 'Słaby sygnał. Ranking wymaga lepszego GPS.',
+      ctaLabel: 'JEDŹ TRENING',
       ctaEnabled: true,
     };
   }
@@ -76,8 +76,8 @@ export function computeReadiness(
   // ── Not in gate, reasonable distance ──
   if (!inStartGate && distanceToStartM !== null) {
     const distLabel = distanceToStartM > WALKING_DISTANCE_M
-      ? `~${(distanceToStartM / 1000).toFixed(1)}km do startu`
-      : `${Math.round(distanceToStartM)}m do bramki startowej`;
+      ? `${(distanceToStartM / 1000).toFixed(1)} km do bramki`
+      : `${Math.round(distanceToStartM)}m do startu`;
 
     return {
       status: 'move_to_start',
@@ -86,7 +86,7 @@ export function computeReadiness(
       rankedEligible: false,
       distanceToStartM,
       message: distLabel,
-      ctaLabel: distanceToStartM > WALKING_DISTANCE_M ? 'TRENING' : 'IDŹ DO STARTU',
+      ctaLabel: distanceToStartM > WALKING_DISTANCE_M ? 'JEDŹ TRENING' : 'PODEJDŹ DO BRAMKI',
       ctaEnabled: distanceToStartM > WALKING_DISTANCE_M,
     };
   }
@@ -99,8 +99,8 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: true,
       distanceToStartM,
-      message: 'Bramka startowa. Ranking gotowy.',
-      ctaLabel: 'UZBROJENIE RANKINGU',
+      message: 'W bramce. Gotowy do zjazdu.',
+      ctaLabel: 'UZBRÓJ RANKING',
       ctaEnabled: true,
     };
   }
@@ -113,8 +113,8 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Przy bramce. Słaby sygnał — tylko trening.',
-      ctaLabel: 'TRENING',
+      message: 'W bramce, ale sygnał za słaby na ranking.',
+      ctaLabel: 'JEDŹ TRENING',
       ctaEnabled: true,
     };
   }
@@ -126,8 +126,8 @@ export function computeReadiness(
     inStartGate: true,
     rankedEligible: gpsGood,
     distanceToStartM,
-    message: 'Bramka startowa.',
-    ctaLabel: gpsGood ? 'UZBROJENIE RANKINGU' : 'TRENING',
+    message: 'W bramce startowej.',
+    ctaLabel: gpsGood ? 'UZBRÓJ RANKING' : 'JEDŹ TRENING',
     ctaEnabled: true,
   };
 }

@@ -20,12 +20,12 @@ const statusColors: Record<string, string> = {
   start_gate_reached: colors.accent,
 };
 
-const gpsLabels: Record<string, { label: string; color: string }> = {
-  unavailable: { label: 'BRAK GPS', color: colors.red },
-  locking: { label: 'ŁĄCZENIE', color: colors.textTertiary },
-  weak: { label: 'SŁABY', color: colors.orange },
-  good: { label: 'DOBRY', color: colors.accent },
-  excellent: { label: 'SILNY', color: colors.accent },
+const gpsLabels: Record<string, { label: string; color: string; bars: string }> = {
+  unavailable: { label: 'BRAK SYGNAŁU', color: colors.red, bars: '○○○' },
+  locking: { label: 'SZUKAM…', color: colors.textTertiary, bars: '◐○○' },
+  weak: { label: 'SŁABY', color: colors.orange, bars: '●○○' },
+  good: { label: 'GOTOWY', color: colors.accent, bars: '●●○' },
+  excellent: { label: 'SILNY', color: colors.accent, bars: '●●●' },
 };
 
 export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack }: Props) {
@@ -40,9 +40,9 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
     <View style={styles.container}>
       {/* GPS indicator */}
       <View style={styles.gpsRow}>
-        <View style={[styles.gpsDot, { backgroundColor: gpsInfo.color }]} />
+        <Text style={[styles.gpsBars, { color: gpsInfo.color }]}>{gpsInfo.bars}</Text>
         <Text style={[styles.gpsLabel, { color: gpsInfo.color }]}>
-          GPS {gpsInfo.label}
+          {gpsInfo.label}
         </Text>
         {readiness.gps.accuracy != null && readiness.gps.readiness !== 'unavailable' && (
           <Text style={styles.gpsAccuracy}>
@@ -59,7 +59,7 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
       {/* Location mismatch hint */}
       {isLocationMismatch && (
         <Text style={styles.hintText}>
-          Upewnij się, że jesteś na Słotwiny Arena, lub zacznij trening z dowolnego miejsca.
+          Ranking wymaga startu z bramki na arenie. Trening możesz jechać z dowolnego miejsca.
         </Text>
       )}
 
@@ -67,13 +67,13 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
       <View style={styles.modeRow}>
         {readiness.rankedEligible ? (
           <View style={styles.rankedBadge}>
-            <Text style={styles.rankedText}>✓ GOTOWY DO RANKINGU</Text>
+            <Text style={styles.rankedText}>✓ RANKING DOSTĘPNY</Text>
           </View>
-        ) : (
+        ) : readiness.status !== 'gps_locking' ? (
           <View style={styles.practiceBadge}>
-            <Text style={styles.practiceText}>TRYB TRENINGOWY</Text>
+            <Text style={styles.practiceText}>TYLKO TRENING</Text>
           </View>
-        )}
+        ) : null}
       </View>
 
       {/* Fallback actions — never leave the user trapped */}
@@ -81,12 +81,12 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
         <View style={styles.fallbackRow}>
           {onStartPractice && (
             <Pressable style={styles.fallbackBtn} onPress={onStartPractice}>
-              <Text style={styles.fallbackBtnText}>ZACZNIJ TRENING</Text>
+              <Text style={styles.fallbackBtnText}>JEDŹ TRENING</Text>
             </Pressable>
           )}
           {onBack && (
             <Pressable style={styles.fallbackBtnGhost} onPress={onBack}>
-              <Text style={styles.fallbackGhostText}>WRÓĆ DO MAPY</Text>
+              <Text style={styles.fallbackGhostText}>WRÓĆ</Text>
             </Pressable>
           )}
         </View>
@@ -109,10 +109,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
-  gpsDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  gpsBars: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2,
   },
   gpsLabel: {
     ...typography.labelSmall,
