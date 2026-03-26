@@ -6,6 +6,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
+import { getLevel, getLevelProgress } from '@/systems/xp';
 import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
@@ -135,24 +136,36 @@ export default function ProfileScreen() {
               </Pressable>
 
               <Text style={styles.username}>{user?.username ?? 'Rider'}</Text>
-              <Text style={[styles.rankTitle, { color: rank.color }]}>
-                {rank.name}
-              </Text>
 
-              {/* XP bar */}
-              <View style={styles.xpSection}>
-                <View style={styles.xpBarBg}>
-                  <View
-                    style={[
-                      styles.xpBarFill,
-                      { width: `${xpProgress.progress * 100}%`, backgroundColor: rank.color },
-                    ]}
-                  />
+              {/* Level + Rank */}
+              <View style={styles.levelRow}>
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelNumber}>{getLevel(user?.xp ?? 0)}</Text>
                 </View>
-                <Text style={styles.xpText}>
-                  {user?.xp ?? 0} / {xpProgress.nextRank?.xpThreshold ?? 'MAX'} XP
+                <Text style={[styles.rankTitle, { color: rank.color }]}>
+                  {rank.name}
                 </Text>
               </View>
+
+              {/* XP bar — shows progress to next level */}
+              {(() => {
+                const lp = getLevelProgress(user?.xp ?? 0);
+                return (
+                  <View style={styles.xpSection}>
+                    <View style={styles.xpBarBg}>
+                      <View
+                        style={[
+                          styles.xpBarFill,
+                          { width: `${lp.progress * 100}%`, backgroundColor: colors.accent },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.xpText}>
+                      LVL {lp.level} · {lp.currentXp}/{lp.nextLevelXp} XP
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Stats */}
@@ -246,7 +259,13 @@ const styles = StyleSheet.create({
   },
 
   username: { ...typography.h1, color: colors.textPrimary },
-  rankTitle: { ...typography.label, marginTop: spacing.xs },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  levelBadge: {
+    backgroundColor: colors.accent, borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: 2, minWidth: 28, alignItems: 'center',
+  },
+  levelNumber: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.bg, letterSpacing: 0 },
+  rankTitle: { ...typography.label },
   xpSection: { width: '100%', marginTop: spacing.xl },
   xpBarBg: { height: 6, backgroundColor: colors.bgElevated, borderRadius: 3, overflow: 'hidden' },
   xpBarFill: { height: '100%', borderRadius: 3 },

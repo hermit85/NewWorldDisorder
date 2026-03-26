@@ -13,8 +13,8 @@
 import { RunTrace } from './traceCapture';
 import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges } from '@/lib/api';
-import { XP_TABLE } from './xp';
+import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp as updateProfileXpDirect } from '@/lib/api';
+import { calculateRunXp, type XpBreakdown } from './xp';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';
 import { logDebugEvent } from './debugEvents';
@@ -78,7 +78,17 @@ export async function submitRun(params: {
   }
 
   try {
-    const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+    // Calculate real XP based on run outcome (not hardcoded)
+    // Note: position bonuses require the result, so we do two passes:
+    // 1. Submit with base XP
+    // 2. After result, award bonus XP if position improved
+    const baseXp = calculateRunXp({
+      isEligible: verification.isLeaderboardEligible,
+      isPractice: trace.mode === 'practice',
+      isPb: false, // don't know yet — backend determines this
+      position: null,
+      previousPosition: null,
+    });
 
     const result = await submitRunToBackend({
       userId,
@@ -90,15 +100,37 @@ export async function submitRun(params: {
       durationMs: trace.durationMs,
       verification,
       trace,
-      xpAwarded,
+      xpAwarded: baseXp.total,
       qualityTier,
     });
 
     if (result) {
+      // Calculate bonus XP now that we know PB + position
+      const fullXp = calculateRunXp({
+        isEligible: verification.isLeaderboardEligible,
+        isPractice: trace.mode === 'practice',
+        isPb: result.isPb,
+        position: result.leaderboardResult?.position ?? null,
+        previousPosition: result.leaderboardResult?.previousPosition ?? null,
+      });
+
+      // Award bonus XP difference if any
+      const bonusXp = fullXp.total - baseXp.total;
+      if (bonusXp > 0) {
+        await updateProfileXpDirect(userId, bonusXp);
+      }
+
       logDebugEvent('save', 'submit_ok', 'ok', {
         runSessionId: sessionId,
         trailId,
-        payload: { isPb: result.isPb, position: result.leaderboardResult?.position },
+        payload: {
+          isPb: result.isPb,
+          position: result.leaderboardResult?.position,
+          xpBase: baseXp.total,
+          xpBonus: bonusXp,
+          xpTotal: fullXp.total,
+          xpReasons: fullXp.reasons,
+        },
       });
       updateFinalizedRun(sessionId, { saveStatus: 'saved', backendResult: result });
       triggerRefresh();
@@ -127,8 +159,11 @@ export async function updateProgression(
   trailId: string,
   isPb: boolean,
   eligible: boolean,
+  position?: number | null,
+  totalRuns?: number,
 ): Promise<void> {
   try {
+    // ── Challenges ──
     const challenges = await fetchActiveChallenges('slotwiny-arena');
     const now = new Date();
 
@@ -147,7 +182,24 @@ export async function updateProgression(
       }
     }
 
+    // ── Achievements (fire-and-forget, idempotent) ──
+    // First Blood — always fire (upsert is safe)
     await unlockAchievement(userId, 'first-blood');
+
+    // Top 10 Entry — if rider entered top 10 on this run
+    if (position != null && position <= 10) {
+      await unlockAchievement(userId, 'top-10-entry');
+    }
+
+    // Słotwiny Local — 20+ total runs
+    if (totalRuns != null && totalRuns >= 20) {
+      await unlockAchievement(userId, 'slotwiny-local');
+    }
+
+    // Gravity Addict — 50+ total runs
+    if (totalRuns != null && totalRuns >= 50) {
+      await unlockAchievement(userId, 'gravity-addict');
+    }
   } catch (e) {
     console.warn('[NWD] Progression update failed:', e);
   }

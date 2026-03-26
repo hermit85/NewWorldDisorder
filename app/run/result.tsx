@@ -16,7 +16,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailById } from '@/data/seed/slotwinyOfficial';
-import { XP_TABLE } from '@/systems/xp';
+import { calculateRunXp } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
 import { getFinalizedRun, subscribeFinalizedRun, updateFinalizedRun } from '@/systems/runStore';
@@ -241,7 +241,14 @@ export default function ResultScreen() {
     forceUpdate();
 
     try {
-      const xpAwarded = run.verification?.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+      const retryXp = calculateRunXp({
+        isEligible: run.verification?.isLeaderboardEligible ?? false,
+        isPractice: run.mode === 'practice',
+        isPb: false,
+        position: null,
+        previousPosition: null,
+      });
+      const xpAwarded = retryXp.total;
       const snap = run.traceSnapshot;
       if (!snap) {
         logDebugEvent('save', 'retry_no_trace', 'fail', { runSessionId: run.sessionId });
@@ -330,7 +337,14 @@ export default function ResultScreen() {
       : null;
   const rankPosition = run.backendResult?.leaderboardResult?.position ?? 0;
   const rankDelta = run.backendResult?.leaderboardResult?.delta ?? 0;
-  const xpAwarded = run.backendResult?.run?.xp_awarded ?? (run.saveStatus === 'saved' ? XP_TABLE.validRun : 0);
+  const xpBreakdown = calculateRunXp({
+    isEligible: v?.isLeaderboardEligible ?? false,
+    isPractice,
+    isPb,
+    position: rankPosition || null,
+    previousPosition: run.backendResult?.leaderboardResult?.previousPosition ?? null,
+  });
+  const xpAwarded = run.backendResult?.run?.xp_awarded ?? xpBreakdown.total;
   const showRank = isRanked && isVerified && rankPosition > 0;
   const isSaving = run.saveStatus === 'saving' || run.saveStatus === 'pending';
   const isSaved = run.saveStatus === 'saved';
@@ -436,10 +450,15 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ═══ XP ═══ */}
+        {/* ═══ XP REWARD ═══ */}
         {xpAwarded > 0 && (
           <View style={styles.xpRow}>
             <Text style={styles.xpValue}>+{xpAwarded} XP</Text>
+            {xpBreakdown.reasons.length > 1 && (
+              <Text style={styles.xpReasons}>
+                {xpBreakdown.reasons.join(' · ')}
+              </Text>
+            )}
           </View>
         )}
 
@@ -663,8 +682,9 @@ const styles = StyleSheet.create({
   ambitionText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm },
 
   // XP
-  xpRow: { alignItems: 'center', marginBottom: spacing.md },
+  xpRow: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xxs },
   xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
+  xpReasons: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
 
   // Quality badge
   qualityRow: { alignItems: 'center', marginBottom: spacing.md },

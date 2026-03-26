@@ -586,7 +586,10 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         }).then((result) => {
           if (result) {
             safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
-            updateProgression(userId, trailId, result.isPb, verification.isLeaderboardEligible);
+            updateProgression(
+              userId, trailId, result.isPb, verification.isLeaderboardEligible,
+              result.leaderboardResult?.position ?? null,
+            );
           } else {
             safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
           }
