@@ -175,3 +175,94 @@ export const trailGeoSeeds: TrailGeoSeed[] = [
 
 export const getTrailGeo = (trailId: string) =>
   trailGeoSeeds.find((t) => t.trailId === trailId);
+
+// ═══════════════════════════════════════════════════════════
+// TERRAIN ZONES — stylized polygon overlays for branded map
+// These are presentation-only, not used for GPS logic.
+// Approximate shapes based on the official trail map photo.
+// ═══════════════════════════════════════════════════════════
+
+export interface TerrainZone {
+  id: string;
+  type: 'forest' | 'openSlope' | 'summit' | 'base';
+  polygon: { latitude: number; longitude: number }[];
+}
+
+export const terrainZones: TerrainZone[] = [
+  // Summit plateau — open area around the tower and start gates
+  {
+    id: 'summit-plateau',
+    type: 'summit',
+    polygon: [
+      { latitude: 49.4255, longitude: 20.9545 },
+      { latitude: 49.4255, longitude: 20.9605 },
+      { latitude: 49.4240, longitude: 20.9610 },
+      { latitude: 49.4235, longitude: 20.9540 },
+    ],
+  },
+  // Western forest — dense trees on the left side
+  {
+    id: 'west-forest',
+    type: 'forest',
+    polygon: [
+      { latitude: 49.4235, longitude: 20.9480 },
+      { latitude: 49.4235, longitude: 20.9530 },
+      { latitude: 49.4195, longitude: 20.9540 },
+      { latitude: 49.4170, longitude: 20.9520 },
+      { latitude: 49.4155, longitude: 20.9535 },
+      { latitude: 49.4140, longitude: 20.9555 },
+      { latitude: 49.4130, longitude: 20.9480 },
+    ],
+  },
+  // Central forest band — trees between trails
+  {
+    id: 'central-forest',
+    type: 'forest',
+    polygon: [
+      { latitude: 49.4230, longitude: 20.9555 },
+      { latitude: 49.4230, longitude: 20.9580 },
+      { latitude: 49.4200, longitude: 20.9585 },
+      { latitude: 49.4180, longitude: 20.9570 },
+      { latitude: 49.4165, longitude: 20.9575 },
+      { latitude: 49.4165, longitude: 20.9555 },
+      { latitude: 49.4195, longitude: 20.9548 },
+    ],
+  },
+  // Eastern forest — trees on the right (Dzida corridor)
+  {
+    id: 'east-forest',
+    type: 'forest',
+    polygon: [
+      { latitude: 49.4240, longitude: 20.9600 },
+      { latitude: 49.4240, longitude: 20.9620 },
+      { latitude: 49.4130, longitude: 20.9620 },
+      { latitude: 49.4130, longitude: 20.9590 },
+      { latitude: 49.4160, longitude: 20.9590 },
+      { latitude: 49.4200, longitude: 20.9595 },
+    ],
+  },
+  // Open western slope — meadow where Gałgan and Dookoła Świata curve
+  {
+    id: 'west-meadow',
+    type: 'openSlope',
+    polygon: [
+      { latitude: 49.4240, longitude: 20.9530 },
+      { latitude: 49.4240, longitude: 20.9555 },
+      { latitude: 49.4210, longitude: 20.9548 },
+      { latitude: 49.4195, longitude: 20.9540 },
+      { latitude: 49.4195, longitude: 20.9520 },
+      { latitude: 49.4220, longitude: 20.9515 },
+    ],
+  },
+  // Base area — finish zone, parking, facilities
+  {
+    id: 'base-area',
+    type: 'base',
+    polygon: [
+      { latitude: 49.4140, longitude: 20.9550 },
+      { latitude: 49.4140, longitude: 20.9600 },
+      { latitude: 49.4120, longitude: 20.9600 },
+      { latitude: 49.4120, longitude: 20.9550 },
+    ],
+  },
+];
