@@ -23,6 +23,6 @@ export default function BootstrapScreen() {
     router.replace(target);
   }, [loading, needsOnboarding]);
 
-  // Dark blank screen while resolving — no flash
-  return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+  // Dark blank screen while resolving — hardcoded color to prevent white flash
+  return <View style={{ flex: 1, backgroundColor: '#0A0A0F' }} />;
 }

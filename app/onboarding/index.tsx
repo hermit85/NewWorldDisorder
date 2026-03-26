@@ -568,7 +568,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: '#0A0A0F',
   },
 
   // Slide counter (top-right)

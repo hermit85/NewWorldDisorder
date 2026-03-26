@@ -62,7 +62,7 @@ export default function RootLayout() {
             animation: 'fade',
           }}
         >
-          <Stack.Screen name="index" options={{ animation: 'fade' }} />
+          <Stack.Screen name="index" options={{ animation: 'none', contentStyle: { backgroundColor: '#0A0A0F' } }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" options={{ animation: 'fade' }} />
           <Stack.Screen
@@ -71,7 +71,11 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="onboarding/index"
-            options={{ animation: 'fade', gestureEnabled: false }}
+            options={{
+              animation: 'none',
+              gestureEnabled: false,
+              contentStyle: { backgroundColor: '#0A0A0F' },
+            }}
           />
           <Stack.Screen
             name="trail/[id]"
