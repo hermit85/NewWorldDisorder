@@ -1,10 +1,17 @@
 // ═══════════════════════════════════════════════════════════
 // useRealRun — orchestrates a real GPS-tracked run
-// INTEGRITY: one run → one finish → one verify → one save
-// Guards: idempotent finish, mounted check, GPS cleanup
 //
-// v2: Gate Engine integration — line-crossing detection,
-//     GPS smoothing, quality tiers, anti-cheat MVP
+// RESPONSIBILITIES (orchestrator only):
+// - GPS lifecycle (permission, tracking start/stop)
+// - Run state machine (idle → armed → running → finishing → done)
+// - Gate engine wiring (callbacks, point forwarding)
+// - Timer for elapsed time + debug telemetry
+//
+// DELEGATES TO:
+// - runFinalization.ts → verify + quality + eligibility
+// - runSubmit.ts → backend save + progression
+// - gateEngine → start/finish detection, quality assessment
+// - realVerification.ts → corridor, checkpoints, GPS quality
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -27,16 +34,15 @@ import {
 } from '@/features/run';
 import { signedDistanceFromGateLine, headingDifference } from '@/features/run/geometry';
 import { computeReadiness } from './verification';
-import { verifyRealRun, buildCheckpoints } from './realVerification';
+import { buildCheckpoints } from './realVerification';
 import {
   beginTrace,
   addPoint,
   finishTrace,
-  setTraceVerification,
-  saveCompletedRun,
   clearActiveTrace,
   RunTrace,
 } from './traceCapture';
+import { setTraceVerification, saveCompletedRun } from './traceCapture';
 import {
   RunMode,
   RunPhaseV2,
@@ -46,15 +52,17 @@ import {
   Checkpoint,
 } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
-import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges } from '@/lib/api';
-import { XP_TABLE } from './xp';
-import { triggerRefresh } from '@/hooks/useRefresh';
-import { createRunSessionId, setFinalizedRun, updateFinalizedRun } from './runStore';
+import { isBackendConfigured } from '@/hooks/useBackend';
+import { SubmitRunResult } from '@/lib/api';
+import { createRunSessionId, setFinalizedRun } from './runStore';
 import { logDebugEvent } from './debugEvents';
-import { isTestMode, shouldSimTrackingFail, shouldSimSaveFail, getSimSaveDelay } from './testMode';
+import { isTestMode, shouldSimTrackingFail } from './testMode';
 
-export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
+// Extracted modules
+import { finalizeRun } from './runFinalization';
+import { submitRun, updateProgression, getInitialSaveStatus, toSaveStatus, type BackendSaveStatus } from './runSubmit';
+
+export type { BackendSaveStatus } from './runSubmit';
 
 export interface RealRunState {
   runSessionId: string;
@@ -75,23 +83,14 @@ export interface RealRunState {
   permissionDenied: boolean;
   backendStatus: BackendSaveStatus;
   backendResult: SubmitRunResult | null;
-  /** Gate engine quality assessment (v2) */
   runQuality: RunQualityAssessment | null;
-  /** Gate engine: auto-start detected */
   gateAutoStarted: boolean;
-  /** Gate engine: auto-finish detected */
   gateAutoFinished: boolean;
-  /** Gate engine: current heading degrees */
   gateHeadingDeg: number | null;
-  /** Gate engine: current speed km/h */
   gateSpeedKmh: number | null;
-  /** Gate engine: accumulated distance meters */
   gateTotalDistanceM: number;
-  /** Gate engine: signed distance from start gate (+ = before, - = past) */
   gateDistToStartM: number | null;
-  /** Gate engine: signed distance from finish gate */
   gateDistToFinishM: number | null;
-  /** Gate engine: heading delta from trail bearing */
   gateHeadingDeltaDeg: number | null;
 }
 
@@ -138,7 +137,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   });
 
   // ── Gate Engine ──
-  // Callbacks are stable refs so gate engine doesn't re-create
   const gateStartCallbackRef = useRef<(crossing: GateCrossingResult) => void>(() => {});
   const gateFinishCallbackRef = useRef<(crossing: GateCrossingResult) => void>(() => {});
 
@@ -153,14 +151,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const trackingActiveRef = useRef(false);
   const mountedRef = useRef(true);
-  const finalizingRef = useRef(false); // idempotency: only one finish pass
+  const finalizingRef = useRef(false);
 
-  // Safe setState that checks mount status
   const safeSetState = useCallback((updater: (s: RealRunState) => RealRunState) => {
     if (mountedRef.current) setState(updater);
   }, []);
 
-  // ── Stop all timers and GPS (GPS first to prevent stale callbacks) ──
   const stopAll = useCallback(() => {
     if (trackingActiveRef.current) {
       stopTracking();
@@ -172,7 +168,13 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }
   }, []);
 
-  // ── Request permission and start readiness check ──
+  // ── State ref for callbacks ──
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // ══════════════════════════════════════════
+  // GPS READINESS
+  // ══════════════════════════════════════════
 
   const beginReadinessCheck = useCallback(async () => {
     logDebugEvent('run', 'readiness_check_start', 'start', { trailId });
@@ -186,7 +188,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
     safeSetState((s) => ({ ...s, phase: 'readiness_check' }));
 
-    // ── Simulation: force tracking failure ──
     if (shouldSimTrackingFail()) {
       logDebugEvent('run', 'sim_tracking_fail', 'info', { trailId });
       safeSetState((s) => ({
@@ -227,7 +228,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
     const trackingStarted = await startTracking((point) => {
-      // Feed every point through gate engine
       const currentState = stateRef.current;
       const isRunning = currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
       const isArmed = currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
@@ -235,13 +235,11 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       gateEngine.processPoint(point, isRunning, isArmed);
 
       safeSetState((s) => {
-        // During run: add points, check checkpoints
-        // NOTE: finish detection is now handled by gate engine callbacks (above)
+        // During run: add points, check checkpoints, legacy finish fallback
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
 
-          // Legacy fallback: still use isInZone as safety net for finish
-          // Gate engine should catch this first, but just in case
+          // Legacy finish fallback (gate engine should catch first)
           if (geo && isInZone(point, geo.finishZone) && !finalizingRef.current) {
             finalizingRef.current = true;
             return {
@@ -284,7 +282,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     if (trackingStarted) {
       trackingActiveRef.current = true;
     } else {
-      // GPS tracking failed to start — degrade readiness
       safeSetState((s) => ({
         ...s,
         readiness: {
@@ -298,10 +295,11 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }
   }, [geo, safeSetState]);
 
-  // ── Gate Engine: auto-start callback ──
-  // When the gate engine detects start gate crossing while armed, auto-start the run
+  // ══════════════════════════════════════════
+  // GATE ENGINE CALLBACKS
+  // ══════════════════════════════════════════
+
   gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
-    // Only auto-start if we're in armed phase
     const s = stateRef.current;
     if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
     if (finalizingRef.current) return;
@@ -316,11 +314,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       },
     });
 
-    // Trigger actual run start
     startRunInternal(true);
   };
 
-  // ── Gate Engine: auto-finish callback ──
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
     if (finalizingRef.current) return;
     const s = stateRef.current;
@@ -350,11 +346,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }));
   };
 
-  // ── State ref for callbacks ──
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  // ── Arm run ──
+  // ══════════════════════════════════════════
+  // RUN LIFECYCLE: arm / start / finish / cancel
+  // ══════════════════════════════════════════
 
   const armRun = useCallback((mode: RunMode) => {
     logDebugEvent('run', 'armed', 'info', { trailId, payload: { mode } });
@@ -364,8 +358,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       phase: mode === 'ranked' ? 'armed_ranked' : 'armed_practice',
     }));
   }, [safeSetState]);
-
-  // ── Start run (internal — called by manual tap or gate auto-start) ──
 
   const startRunInternal = useCallback((autoStarted: boolean = false) => {
     finalizingRef.current = false;
@@ -396,12 +388,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       gateTotalDistanceM: 0,
     }));
 
+    // Timer: elapsed time + gate telemetry for debug overlay
     timerRef.current = setInterval(() => {
       const gateConfig = getTrailGateConfig(trailId);
       const smoothed = gateEngine.getSmoothedPosition();
       const heading = gateEngine.getCurrentHeading();
 
-      // Compute gate distances from smoothed position
       let distToStart: number | null = null;
       let distToFinish: number | null = null;
       let headingDelta: number | null = null;
@@ -427,19 +419,15 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }, 50);
   }, [trailId, trailName, geo, safeSetState, gateEngine]);
 
-  // Public startRun for manual tap
   const startRun = useCallback(() => {
     startRunInternal(false);
   }, [startRunInternal]);
 
-  // ── Finish run (manual tap) ──
-
   const finishRun = useCallback(() => {
-    if (finalizingRef.current) return; // idempotency guard
+    if (finalizingRef.current) return;
     finalizingRef.current = true;
     logDebugEvent('run', 'finishing', 'start', { trailId, payload: { elapsed: state.elapsedMs } });
 
-    // Stop timer immediately
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -451,275 +439,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
     }));
   }, [safeSetState]);
-
-  // ── Finalize: verify + save (runs ONCE when phase becomes 'finishing') ──
-  // Capture sessionId in a ref so the effect closure always has the current value
-  const sessionIdRef = useRef(state.runSessionId);
-  sessionIdRef.current = state.runSessionId;
-
-  useEffect(() => {
-    if (state.phase !== 'finishing') return;
-    if (!state.startedAt) return;
-
-    // Stop GPS tracking — run is done
-    stopAll();
-
-    // Delay slightly for UX transition, then verify
-    const timeout = setTimeout(() => {
-      if (!mountedRef.current) return;
-      safeSetState((s) => ({ ...s, phase: 'verifying' }));
-
-      const completedTrace = finishTrace();
-      const currentSessionId = sessionIdRef.current;
-      if (!completedTrace || !geo) {
-        safeSetState((s) => ({
-          ...s,
-          phase: 'invalidated',
-          error: 'Brak danych trasy',
-          backendStatus: 'offline',
-        }));
-        logDebugEvent('run', 'finalize_no_trace', 'fail', { trailId, payload: { hasTrace: !!completedTrace, hasGeo: !!geo } });
-        // Still write a finalized run record so result screen has context
-        setFinalizedRun({
-          sessionId: currentSessionId,
-          trailId,
-          trailName,
-          mode: state.mode,
-          durationMs: state.elapsedMs,
-          startedAt: state.startedAt ?? Date.now(),
-          userId: userId ?? null,
-          verification: null,
-          saveStatus: 'offline',
-          backendResult: null,
-          traceSnapshot: null,
-          qualityTier: null,
-          updatedAt: Date.now(),
-        });
-        return;
-      }
-
-      // ── CONSOLIDATED VERIFICATION ──
-      // Gate engine = source of truth for gate crossing
-      // Route verification = source of truth for corridor/checkpoints
-      // Quality assessment = unified eligibility decision
-
-      const gateState = gateEngine.getState();
-
-      // 1. Gate truth — from gateEngine (single source)
-      const gateTruth = {
-        startCrossed: gateState.startCrossing?.crossed ?? false,
-        finishCrossed: gateState.finishCrossing?.crossed ?? false,
-        startFallback: gateState.startCrossing?.flags.includes('soft_crossing') ?? false,
-        finishFallback: gateState.finishCrossing?.flags.includes('fallback_proximity') ?? false,
-      };
-
-      // 2. Route verification — corridor, checkpoints, GPS quality (passes gate truth in)
-      logDebugEvent('run', 'verifying', 'start', { trailId, payload: { pointCount: completedTrace.points.length, mode: completedTrace.mode } });
-      const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo, gateTruth);
-      setTraceVerification(verification);
-      saveCompletedRun({ ...completedTrace, verification });
-
-      // 3. Quality assessment — uses gate crossing results + route verification results
-      const qualityAssessment = gateEngine.assessQuality(
-        completedTrace.points,
-        false, // wasBackgrounded — tracked separately via AppState
-        verification.checkpointsPassed,
-        verification.checkpointsTotal,
-        verification.corridor.coveragePercent,
-        verification.gpsQuality,
-        verification.avgAccuracyM,
-      );
-
-      logDebugEvent('run', 'quality_assessed', 'info', {
-        trailId,
-        payload: {
-          quality: qualityAssessment.quality,
-          eligible: qualityAssessment.leaderboardEligible,
-          reasons: qualityAssessment.degradationReasons,
-          gateTruth,
-        },
-      });
-
-      // 4. Final eligibility — single decision combining both layers
-      // Route verification covers: corridor, checkpoints, GPS, trace length
-      // Gate engine covers: gate crossings, quality tier, anti-cheat
-      // Both must agree for leaderboard eligibility
-      const routeOk = verification.isLeaderboardEligible;
-      const gateOk = qualityAssessment.leaderboardEligible;
-      const finalEligible = routeOk || (gateOk && completedTrace.mode === 'ranked'
-        && verification.checkpointsPassed >= 2
-        && verification.corridor.coveragePercent >= 60);
-
-      // Apply final eligibility to verification result
-      if (finalEligible && !routeOk) {
-        verification.isLeaderboardEligible = true;
-        verification.status = 'verified';
-        verification.label = `Verified (${qualityAssessment.quality})`;
-        verification.explanation = qualityAssessment.summary;
-      }
-
-      const finalPhase: RunPhaseV2 = finalEligible
-        ? 'completed_verified'
-        : verification.status === 'practice_only'
-          ? 'completed_unverified'
-          : 'invalidated';
-
-      const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
-
-      logDebugEvent('run', 'finalized', 'ok', {
-        runSessionId: currentSessionId,
-        trailId,
-        payload: {
-          phase: finalPhase,
-          verificationStatus: verification.status,
-          eligible: verification.isLeaderboardEligible,
-          durationMs: completedTrace.durationMs,
-          saveStatus,
-          issues: verification.issues,
-        },
-      });
-
-      safeSetState((s) => ({
-        ...s,
-        phase: finalPhase,
-        verification,
-        trace: completedTrace,
-        backendStatus: saveStatus,
-        runQuality: qualityAssessment,
-      }));
-
-      // Build trace snapshot for retry (same slim format as initial submit)
-      const traceSnapshot = {
-        pointCount: completedTrace.points.length,
-        startedAt: completedTrace.startedAt,
-        finishedAt: completedTrace.finishedAt,
-        durationMs: completedTrace.durationMs,
-        mode: completedTrace.mode,
-        sampledPoints: completedTrace.points.filter((_: any, i: number) => i % 3 === 0).map((p: any) => ({
-          lat: p.latitude, lng: p.longitude, alt: p.altitude ?? null, ts: p.timestamp,
-        })),
-      };
-
-      // Write to shared run store — result screen reads from here
-      setFinalizedRun({
-        sessionId: currentSessionId,
-        trailId,
-        trailName,
-        mode: completedTrace.mode,
-        durationMs: completedTrace.durationMs,
-        startedAt: completedTrace.startedAt,
-        userId: userId ?? null,
-        verification,
-        saveStatus,
-        backendResult: null,
-        traceSnapshot,
-        qualityTier: qualityAssessment.quality,
-        updatedAt: Date.now(),
-      });
-
-      // Submit to backend (async, non-blocking)
-      if (isBackendConfigured() && userId) {
-        submitToBackend(currentSessionId, userId, completedTrace, verification, qualityAssessment.quality);
-      }
-    }, 400);
-
-    return () => clearTimeout(timeout);
-  }, [state.phase]); // trigger when phase changes to 'finishing'
-
-  // ── Submit to backend ──
-
-  const submitToBackend = async (
-    sessionId: string,
-    uid: string,
-    trace: RunTrace,
-    verification: VerificationResult,
-    qualityTier?: 'perfect' | 'valid' | 'rough',
-  ) => {
-    logDebugEvent('save', 'submit_start', 'start', { runSessionId: sessionId, trailId });
-
-    // ── Simulation: force save failure ──
-    if (shouldSimSaveFail()) {
-      logDebugEvent('save', 'sim_save_fail', 'fail', { runSessionId: sessionId });
-      safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
-      updateFinalizedRun(sessionId, { saveStatus: 'failed' });
-      return;
-    }
-
-    // ── Simulation: add artificial delay ──
-    const simDelay = getSimSaveDelay();
-    if (simDelay > 0) {
-      logDebugEvent('save', 'sim_delay', 'info', { payload: { delayMs: simDelay } });
-      await new Promise((r) => setTimeout(r, simDelay));
-    }
-
-    try {
-      const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
-
-      const result = await submitRunToBackend({
-        userId: uid,
-        spotId: 'slotwiny-arena',
-        trailId,
-        mode: trace.mode,
-        startedAt: trace.startedAt,
-        finishedAt: trace.finishedAt ?? Date.now(),
-        durationMs: trace.durationMs,
-        verification,
-        trace,
-        xpAwarded,
-        qualityTier,
-      });
-
-      if (result) {
-        logDebugEvent('save', 'submit_ok', 'ok', { runSessionId: sessionId, trailId, payload: { isPb: result.isPb, position: result.leaderboardResult?.position } });
-        safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
-        // Update shared store — result screen will see this
-        updateFinalizedRun(sessionId, { saveStatus: 'saved', backendResult: result });
-
-        updateProgression(uid, trailId, result.isPb, verification.isLeaderboardEligible);
-        triggerRefresh();
-      } else {
-        logDebugEvent('save', 'submit_null', 'fail', { runSessionId: sessionId, trailId });
-        safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
-        updateFinalizedRun(sessionId, { saveStatus: 'queued' }); // queue for retry
-      }
-    } catch (e) {
-      logDebugEvent('save', 'submit_error', 'fail', { runSessionId: sessionId, trailId, payload: { error: String(e) } });
-      safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
-      updateFinalizedRun(sessionId, { saveStatus: 'queued' }); // queue for retry
-    }
-  };
-
-  // ── Post-save progression (fire-and-forget) ──
-
-  const updateProgression = async (uid: string, tid: string, isPb: boolean, eligible: boolean) => {
-    try {
-      const challenges = await fetchActiveChallenges('slotwiny-arena');
-      const now = new Date();
-      for (const ch of challenges) {
-        // Skip expired challenges
-        if (ch.ends_at && new Date(ch.ends_at) < now) continue;
-        // Skip challenges not yet started
-        if (ch.starts_at && new Date(ch.starts_at) > now) continue;
-
-        if (ch.type === 'run_count' && eligible) {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
-        if (ch.type === 'pb_improvement' && isPb) {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
-        // fastest_time: only counts if PB on the matching trail (actually fast, not just any run)
-        if (ch.type === 'fastest_time' && ch.trail_id === tid && eligible && isPb) {
-          await incrementChallengeProgress(uid, ch.id, 1);
-        }
-      }
-      // Achievement unlock — use correct IDs matching the achievements table
-      await unlockAchievement(uid, 'first-blood');
-    } catch (e) {
-      console.warn('[NWD] Progression update failed:', e);
-    }
-  };
-
-  // ── Cancel ──
 
   const cancel = useCallback(() => {
     finalizingRef.current = false;
@@ -748,6 +467,136 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }));
   }, [stopAll, safeSetState, gateEngine]);
 
+  // ══════════════════════════════════════════
+  // FINALIZATION EFFECT
+  // Triggers when phase becomes 'finishing'
+  // Delegates to runFinalization + runSubmit
+  // ══════════════════════════════════════════
+
+  const sessionIdRef = useRef(state.runSessionId);
+  sessionIdRef.current = state.runSessionId;
+
+  useEffect(() => {
+    if (state.phase !== 'finishing') return;
+    if (!state.startedAt) return;
+
+    stopAll();
+
+    const timeout = setTimeout(() => {
+      if (!mountedRef.current) return;
+      safeSetState((s) => ({ ...s, phase: 'verifying' }));
+
+      const completedTrace = finishTrace();
+      const currentSessionId = sessionIdRef.current;
+
+      if (!completedTrace || !geo) {
+        safeSetState((s) => ({
+          ...s,
+          phase: 'invalidated',
+          error: 'Brak danych trasy',
+          backendStatus: 'offline',
+        }));
+        logDebugEvent('run', 'finalize_no_trace', 'fail', {
+          trailId,
+          payload: { hasTrace: !!completedTrace, hasGeo: !!geo },
+        });
+        setFinalizedRun({
+          sessionId: currentSessionId,
+          trailId,
+          trailName,
+          mode: state.mode,
+          durationMs: state.elapsedMs,
+          startedAt: state.startedAt ?? Date.now(),
+          userId: userId ?? null,
+          verification: null,
+          saveStatus: 'offline',
+          backendResult: null,
+          traceSnapshot: null,
+          qualityTier: null,
+          updatedAt: Date.now(),
+        });
+        return;
+      }
+
+      // ── Delegate to finalization module ──
+      const gateState = gateEngine.getState();
+      const { verification, qualityAssessment, finalPhase } = finalizeRun({
+        trace: completedTrace,
+        geo,
+        trailId,
+        sessionId: currentSessionId,
+        gateStartCrossing: gateState.startCrossing,
+        gateFinishCrossing: gateState.finishCrossing,
+        assessQuality: gateEngine.assessQuality.bind(gateEngine),
+      });
+
+      setTraceVerification(verification);
+      saveCompletedRun({ ...completedTrace, verification });
+
+      const saveStatus = getInitialSaveStatus(userId);
+
+      safeSetState((s) => ({
+        ...s,
+        phase: finalPhase,
+        verification,
+        trace: completedTrace,
+        backendStatus: saveStatus,
+        runQuality: qualityAssessment,
+      }));
+
+      // Build trace snapshot for retry
+      const traceSnapshot = {
+        pointCount: completedTrace.points.length,
+        startedAt: completedTrace.startedAt,
+        finishedAt: completedTrace.finishedAt,
+        durationMs: completedTrace.durationMs,
+        mode: completedTrace.mode,
+        sampledPoints: completedTrace.points
+          .filter((_: any, i: number) => i % 3 === 0)
+          .map((p: any) => ({
+            lat: p.latitude, lng: p.longitude, alt: p.altitude ?? null, ts: p.timestamp,
+          })),
+      };
+
+      setFinalizedRun({
+        sessionId: currentSessionId,
+        trailId,
+        trailName,
+        mode: completedTrace.mode,
+        durationMs: completedTrace.durationMs,
+        startedAt: completedTrace.startedAt,
+        userId: userId ?? null,
+        verification,
+        saveStatus: toSaveStatus(saveStatus),
+        backendResult: null,
+        traceSnapshot,
+        qualityTier: qualityAssessment.quality,
+        updatedAt: Date.now(),
+      });
+
+      // ── Delegate backend submit (async, non-blocking) ──
+      if (isBackendConfigured() && userId) {
+        submitRun({
+          sessionId: currentSessionId,
+          userId,
+          trailId,
+          trace: completedTrace,
+          verification,
+          qualityTier: qualityAssessment.quality,
+        }).then((result) => {
+          if (result) {
+            safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
+            updateProgression(userId, trailId, result.isPb, verification.isLeaderboardEligible);
+          } else {
+            safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
+          }
+        });
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [state.phase]);
+
   // ── Cleanup on unmount ──
 
   useEffect(() => {
@@ -770,7 +619,6 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     finishRun,
     cancel,
     reset: cancel,
-    /** Gate engine instance for debug overlay access */
     gateEngine,
   };
 }
