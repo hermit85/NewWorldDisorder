@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions, Animated, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
@@ -56,6 +56,14 @@ export default function LeaderboardScreen() {
     selectedPeriod,
     profile?.id,
   );
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refresh();
+    // Clear refreshing after a short delay (refresh is sync trigger, data updates via hook)
+    setTimeout(() => setRefreshing(false), 800);
+  }, [refresh]);
 
   // Animate board in when data loads
   useEffect(() => {
@@ -111,11 +119,20 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
+        }
+      >
         {/* Header */}
         <View style={styles.titleRow}>
-          <Text style={styles.title}>TABLICA WYNIKÓW</Text>
-          <Text style={styles.subtitle}>OFICJALNE CZASY</Text>
+          <View style={styles.titleMain}>
+            <Text style={styles.title}>TABLICA WYNIKÓW</Text>
+            <View style={styles.trustDot} />
+          </View>
+          <Text style={styles.subtitle}>TYLKO ZWERYFIKOWANE ZJAZDY</Text>
         </View>
 
         {/* Scope tabs */}
@@ -374,6 +391,7 @@ export default function LeaderboardScreen() {
                           </Text>
                           {isUser && <Text style={styles.youTag}>TY</Text>}
                           {isRivalAbove && <Text style={styles.rivalTag}>CEL</Text>}
+                          {isRivalBelow && <Text style={styles.chaserTag}>GONI</Text>}
                         </View>
                       </View>
 
@@ -410,7 +428,9 @@ const styles = StyleSheet.create({
 
   // Header
   titleRow: { marginBottom: spacing.sm },
+  titleMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   title: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.textPrimary, letterSpacing: 4 },
+  trustDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, marginTop: spacing.xxs, fontSize: 9 },
 
   // Scope tabs
@@ -518,6 +538,11 @@ const styles = StyleSheet.create({
   rivalTag: {
     ...typography.labelSmall, color: colors.orange,
     fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
+  },
+  chaserTag: {
+    ...typography.labelSmall, color: colors.red,
+    fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
+    opacity: 0.7,
   },
   timeCol: { alignItems: 'flex-end' },
   time: { ...typography.timeSmall, color: colors.textSecondary, fontSize: 15 },
