@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// Catch-all for unmatched routes (e.g. nwd:/// on cold launch)
-// Redirects to the main tab screen instead of showing an error
+// Catch-all for unmatched routes (e.g. nwd://random)
+// Redirects to root bootstrap which handles onboarding gate
 // ═══════════════════════════════════════════════════════════
 
 import { useEffect } from 'react';
@@ -10,8 +10,7 @@ export default function NotFoundScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to tabs — don't show a broken screen
-    router.replace('/(tabs)');
+    router.replace('/');
   }, []);
 
   return null;

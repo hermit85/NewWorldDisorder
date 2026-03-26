@@ -21,19 +21,11 @@ import { spotLore } from '@/data/seed/slotwinyLore';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement } from '@/hooks/useBackend';
 import { LeagueSignal } from '@/systems/leagueMovement';
-import { useBetaFlow } from '@/hooks/useBetaFlow';
 import { useVenueContext } from '@/hooks/useVenueContext';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { profile: authProfile, isAuthenticated } = useAuthContext();
-  const { needsOnboarding, loading: betaLoading } = useBetaFlow();
-
-  useEffect(() => {
-    if (!betaLoading && needsOnboarding) {
-      router.replace('/onboarding');
-    }
-  }, [betaLoading, needsOnboarding]);
 
   const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
   const { stats: trailStats, status: trailStatsStatus } = useUserTrailStats(authProfile?.id);
