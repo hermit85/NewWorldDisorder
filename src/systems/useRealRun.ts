@@ -21,9 +21,11 @@ import {
 } from './gps';
 import {
   useRunGateEngine,
+  getTrailGateConfig,
   type GateCrossingResult,
   type RunQualityAssessment,
 } from '@/features/run';
+import { signedDistanceFromGateLine, headingDifference } from '@/features/run/geometry';
 import { computeReadiness } from './verification';
 import { verifyRealRun, buildCheckpoints } from './realVerification';
 import {
@@ -85,6 +87,12 @@ export interface RealRunState {
   gateSpeedKmh: number | null;
   /** Gate engine: accumulated distance meters */
   gateTotalDistanceM: number;
+  /** Gate engine: signed distance from start gate (+ = before, - = past) */
+  gateDistToStartM: number | null;
+  /** Gate engine: signed distance from finish gate */
+  gateDistToFinishM: number | null;
+  /** Gate engine: heading delta from trail bearing */
+  gateHeadingDeltaDeg: number | null;
 }
 
 const isWeb = Platform.OS === 'web';
@@ -124,6 +132,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     gateHeadingDeg: null,
     gateSpeedKmh: null,
     gateTotalDistanceM: 0,
+    gateDistToStartM: null,
+    gateDistToFinishM: null,
+    gateHeadingDeltaDeg: null,
   });
 
   // ── Gate Engine ──
@@ -386,12 +397,32 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }));
 
     timerRef.current = setInterval(() => {
+      const gateConfig = getTrailGateConfig(trailId);
+      const smoothed = gateEngine.getSmoothedPosition();
+      const heading = gateEngine.getCurrentHeading();
+
+      // Compute gate distances from smoothed position
+      let distToStart: number | null = null;
+      let distToFinish: number | null = null;
+      let headingDelta: number | null = null;
+
+      if (smoothed && gateConfig) {
+        distToStart = signedDistanceFromGateLine(smoothed, gateConfig.startGate);
+        distToFinish = signedDistanceFromGateLine(smoothed, gateConfig.finishGate);
+        if (heading !== null) {
+          headingDelta = headingDifference(heading, gateConfig.startGate.trailBearing);
+        }
+      }
+
       safeSetState((s) => ({
         ...s,
         elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
-        gateHeadingDeg: gateEngine.getCurrentHeading(),
+        gateHeadingDeg: heading,
         gateSpeedKmh: gateEngine.getCurrentSpeedKmh(),
         gateTotalDistanceM: gateEngine.getTotalDistanceM(),
+        gateDistToStartM: distToStart,
+        gateDistToFinishM: distToFinish,
+        gateHeadingDeltaDeg: headingDelta,
       }));
     }, 50);
   }, [trailId, trailName, geo, safeSetState, gateEngine]);
@@ -492,11 +523,18 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       });
 
       // Use gate quality to potentially upgrade leaderboard eligibility
-      // If legacy verification says not eligible but gate quality says eligible,
-      // prefer the more forgiving assessment (anti-frustration first)
+      // Gate upgrade ONLY allowed when legacy fail was gate-proximity related,
+      // NOT when rider genuinely missed checkpoints or went off-corridor
       const gateEligible = qualityAssessment.leaderboardEligible;
       const legacyEligible = verification.isLeaderboardEligible;
-      const finalEligible = legacyEligible || (gateEligible && completedTrace.mode === 'ranked');
+
+      // Gate can upgrade ONLY if legacy verification shows reasonable route completion
+      const canGateUpgrade = gateEligible
+        && completedTrace.mode === 'ranked'
+        && verification.checkpointsPassed >= 2
+        && verification.corridor.coveragePercent >= 60;
+
+      const finalEligible = legacyEligible || canGateUpgrade;
 
       const finalPhase: RunPhaseV2 = finalEligible
         ? 'completed_verified'
@@ -504,12 +542,20 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           ? 'completed_unverified'
           : 'invalidated';
 
-      // Override verification eligibility if gate engine is more forgiving
+      // Override verification eligibility if gate engine upgrade is justified
       if (finalEligible && !legacyEligible) {
         verification.isLeaderboardEligible = true;
         verification.status = 'verified';
         verification.label = `Verified (${qualityAssessment.quality})`;
         verification.explanation = qualityAssessment.summary;
+        logDebugEvent('run', 'gate_upgrade_applied', 'info', {
+          trailId,
+          payload: {
+            checkpointsPassed: verification.checkpointsPassed,
+            corridorCoverage: verification.corridor.coveragePercent,
+            gateQuality: qualityAssessment.quality,
+          },
+        });
       }
 
       const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
@@ -686,6 +732,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       gateHeadingDeg: null,
       gateSpeedKmh: null,
       gateTotalDistanceM: 0,
+      gateDistToStartM: null,
+      gateDistToFinishM: null,
+      gateHeadingDeltaDeg: null,
     }));
   }, [stopAll, safeSetState, gateEngine]);
 

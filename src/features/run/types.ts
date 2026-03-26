@@ -108,7 +108,8 @@ export type AntiCheatFlag =
   | 'too_fast_finish'       // finished in impossibly short time
   | 'too_short_distance'    // didn't cover enough trail
   | 'stationary_run'        // barely moved
-  | 'time_travel';          // timestamps going backwards
+  | 'time_travel'           // timestamps going backwards
+  | 'too_few_points';       // <10 GPS points — unreliable data
 
 // ── Gate Engine State ──
 

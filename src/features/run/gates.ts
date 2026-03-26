@@ -28,7 +28,7 @@ const DEFAULT_FINISH_GATE: Omit<GateDefinition, 'center' | 'trailBearing'> = {
   lineWidthM: 25,
   zoneDepthM: 25,
   entryRadiusM: 40,
-  headingToleranceDeg: 90, // finish is more forgiving
+  headingToleranceDeg: 75, // forgiving but not wide open
   minTriggerSpeedKmh: 2,   // slower trigger for finish
 };
 
@@ -80,7 +80,7 @@ const trailMeta: TrailMeta[] = [
     trailId: 'dzida-czerwona',
     trailName: 'Dzida Czerwona',
     expectedLengthM: 1500,
-    minDurationSec: 25,       // short steep trail
+    minDurationSec: 30,       // short steep trail — 30s minimum
     minDistanceFraction: 0.65,
   },
 ];

@@ -53,8 +53,14 @@ export function DebugOverlay({ state }: Props) {
       <Row label="Auto-start" value={state.gateAutoStarted ? '✓ YES' : '○ manual'} color={state.gateAutoStarted ? colors.accent : colors.textTertiary} />
       <Row label="Auto-finish" value={state.gateAutoFinished ? '✓ YES' : '○ no'} color={state.gateAutoFinished ? colors.accent : colors.textTertiary} />
       <Row label="Heading" value={state.gateHeadingDeg !== null ? `${Math.round(state.gateHeadingDeg)}°` : 'n/a'} />
+      <Row label="Δ heading" value={state.gateHeadingDeltaDeg !== null ? `${Math.round(state.gateHeadingDeltaDeg)}° off trail` : 'n/a'}
+        color={state.gateHeadingDeltaDeg !== null ? (state.gateHeadingDeltaDeg < 60 ? colors.accent : state.gateHeadingDeltaDeg < 90 ? colors.orange : colors.red) : undefined} />
       <Row label="Speed" value={state.gateSpeedKmh !== null ? `${state.gateSpeedKmh.toFixed(1)} km/h` : 'n/a'} />
       <Row label="Distance" value={`${Math.round(state.gateTotalDistanceM)}m`} />
+      <Row label="→ Start" value={state.gateDistToStartM !== null ? `${state.gateDistToStartM.toFixed(0)}m ${state.gateDistToStartM > 0 ? 'BEFORE' : 'PAST'}` : 'n/a'}
+        color={state.gateDistToStartM !== null ? (Math.abs(state.gateDistToStartM) < 15 ? colors.accent : colors.textTertiary) : undefined} />
+      <Row label="→ Finish" value={state.gateDistToFinishM !== null ? `${state.gateDistToFinishM.toFixed(0)}m ${state.gateDistToFinishM > 0 ? 'BEFORE' : 'PAST'}` : 'n/a'}
+        color={state.gateDistToFinishM !== null ? (Math.abs(state.gateDistToFinishM) < 25 ? colors.accent : colors.textTertiary) : undefined} />
       {state.runQuality && (
         <>
           <Row label="Quality" value={state.runQuality.quality.toUpperCase()} color={

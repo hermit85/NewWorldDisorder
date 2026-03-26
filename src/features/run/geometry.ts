@@ -280,7 +280,7 @@ export function detectGateCrossing(
     if (dist <= gate.zoneDepthM) {
       const heading = i > 0 ? computeHeading(points[i - 1], p) : null;
       const headingOk = heading !== null
-        ? headingDifference(heading, gate.trailBearing) < 90
+        ? headingDifference(heading, gate.trailBearing) < 70
         : true; // no heading info = benefit of doubt
 
       if (headingOk) {
@@ -338,12 +338,12 @@ function detectFinishFallback(
     flags: [],
   };
 
-  // Don't allow finish fallback if too short
+  // Don't allow finish fallback if too short — require FULL min duration (not half)
   if (durationSec < minDurationSec) return noCrossing;
 
-  // Check distance requirement
+  // Check distance requirement — must have covered at least 70% of trail
   const distanceFraction = expectedLengthM > 0 ? totalDistanceM / expectedLengthM : 0;
-  if (distanceFraction < 0.5) return noCrossing; // must have covered at least 50%
+  if (distanceFraction < 0.7) return noCrossing;
 
   // Look for closest approach to finish in the tail portion
   const start = Math.max(searchStartIndex, Math.floor(points.length * 0.6)); // only check last 40%
@@ -360,8 +360,8 @@ function detectFinishFallback(
     }
   }
 
-  // Fallback radius: more generous than normal gate
-  const fallbackRadius = gate.entryRadiusM * 1.5;
+  // Fallback radius: slightly generous but not excessive (1.2x normal)
+  const fallbackRadius = gate.entryRadiusM * 1.2;
 
   if (closestDist <= fallbackRadius && closestIdx >= 0) {
     const p = points[closestIdx];

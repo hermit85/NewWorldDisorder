@@ -52,10 +52,18 @@ export function assessRunQuality(params: {
     };
   }
 
+  // Too few GPS points — anti-cheat passed but data is unreliable
+  const tooFewPoints = antiCheat.flags.includes('too_few_points' as any);
+  if (tooFewPoints) {
+    reasons.push('weak_gps_accuracy');
+  }
+
   // ── Start crossing quality ──
+  // Soft-crossing start = max VALID, never PERFECT
   if (startCrossing.flags.includes('soft_crossing')) {
     reasons.push('low_start_speed');
   }
+  const startWasSoftCrossing = startCrossing.flags.includes('soft_crossing');
   if (startCrossing.flags.includes('wrong_side')) {
     reasons.push('wrong_start_side');
   }
@@ -100,7 +108,7 @@ export function assessRunQuality(params: {
   // ── Determine quality tier ──
   let quality: RunQuality;
 
-  if (uniqueReasons.length === 0) {
+  if (uniqueReasons.length === 0 && !startWasSoftCrossing) {
     quality = 'perfect';
   } else if (
     uniqueReasons.includes('wrong_start_side') ||
@@ -113,17 +121,44 @@ export function assessRunQuality(params: {
     quality = 'valid';
   }
 
+  // Soft-crossing start caps quality at VALID (never PERFECT)
+  if (startWasSoftCrossing && quality === 'perfect') {
+    quality = 'valid';
+  }
+
   // ── Leaderboard eligibility ──
-  // ROUGH runs ARE eligible unless anti-cheat failed
-  // We want to save the ride, not punish the rider
-  const leaderboardEligible = antiCheat.passed && startCrossing.crossed && finishCrossing.crossed;
+  // Base requirement: anti-cheat passed + both gates crossed
+  const baseCrossed = antiCheat.passed && startCrossing.crossed && finishCrossing.crossed;
+
+  // PERFECT and VALID: eligible if base requirements met
+  // ROUGH: eligible ONLY with additional conditions
+  let leaderboardEligible: boolean;
+  if (!baseCrossed) {
+    leaderboardEligible = false;
+  } else if (quality === 'rough') {
+    // ROUGH runs must additionally prove trail completion:
+    // - at least 2/3 checkpoints passed
+    // - at least 60% corridor coverage
+    // - finish was NOT a fallback
+    const minCheckpoints = checkpointsTotal > 0
+      ? checkpointsPassed >= Math.ceil(checkpointsTotal * 2 / 3)
+      : true;
+    const minCorridor = corridorCoveragePercent >= 60;
+    const noFinishFallback = !finishCrossing.flags.includes('fallback_proximity');
+    leaderboardEligible = minCheckpoints && minCorridor && noFinishFallback;
+  } else {
+    // PERFECT or VALID
+    leaderboardEligible = true;
+  }
 
   // ── Summary ──
   const summary = quality === 'perfect'
     ? 'Idealny przejazd. Start i meta czyste.'
     : quality === 'valid'
       ? 'Przejazd zaliczony. ' + (uniqueReasons.length === 1 ? summarizeReason(uniqueReasons[0]) : `${uniqueReasons.length} drobne uwagi.`)
-      : 'Przejazd zapisany z uwagami. ' + summarizeReason(uniqueReasons[0]);
+      : leaderboardEligible
+        ? 'Przejazd zapisany z uwagami. ' + summarizeReason(uniqueReasons[0])
+        : 'Przejazd zapisany, ale nie kwalifikuje się do rankingu. ' + summarizeReason(uniqueReasons[0]);
 
   return {
     quality,

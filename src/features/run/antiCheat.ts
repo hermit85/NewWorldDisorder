@@ -25,9 +25,12 @@ export function runAntiCheat(
 ): AntiCheatResult {
   const flags: AntiCheatFlag[] = [];
 
-  if (points.length < 5) {
-    // Not enough data to evaluate — pass by default
-    return { passed: true, flags: [] };
+  if (points.length < 10) {
+    // Not enough data to evaluate reliably — flag it
+    flags.push('too_few_points');
+    // Still pass anti-cheat (anti-frustration), but the flag degrades
+    // leaderboard confidence via quality assessment
+    return { passed: true, flags };
   }
 
   // ── Check 1: Minimum duration ──
