@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Onboarding — Racing game intro · 3 slides + GPS gate
-// Reanimated motion · topo atmosphere · league energy
+// Uses RN Animated API only (no Reanimated — Expo Go compat)
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -11,23 +11,11 @@ import {
   Pressable,
   FlatList,
   Dimensions,
+  Animated,
+  Easing,
   type ViewToken,
   type ListRenderItemInfo,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  withDelay,
-  withSequence,
-  withRepeat,
-  interpolate,
-  Easing,
-  FadeIn,
-  SlideInUp,
-  runOnJS,
-} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -38,8 +26,6 @@ import { useBetaFlow } from '@/hooks/useBetaFlow';
 import { selectionTick, notifySuccess, tapLight } from '@/systems/haptics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // ── Content ──────────────────────────────────────────────
 
@@ -78,25 +64,21 @@ const slides: OnboardingSlide[] = [
 // ── Topo Grid Background ─────────────────────────────────
 
 function TopoBackground({ slideIndex }: { slideIndex: number }) {
-  const drift = useSharedValue(0);
+  const drift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    drift.value = withRepeat(
-      withTiming(1, { duration: 20000, easing: Easing.linear }),
-      -1,
-      true
-    );
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(drift, { toValue: 1, duration: 20000, easing: Easing.linear, useNativeDriver: true }),
+        Animated.timing(drift, { toValue: 0, duration: 20000, easing: Easing.linear, useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(drift.value, [0, 1], [0, -30]) },
-      { translateX: interpolate(drift.value, [0, 1], [-10, 10]) },
-    ],
-    opacity: interpolate(drift.value, [0, 0.5, 1], [0.04, 0.07, 0.04]),
-  }));
+  const translateY = drift.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
+  const translateX = drift.interpolate({ inputRange: [0, 1], outputRange: [-10, 10] });
+  const opacity = drift.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.04, 0.07, 0.04] });
 
-  // Generate topo contour lines
   const lines = [];
   for (let i = 0; i < 12; i++) {
     const y = 80 + i * 65;
@@ -106,35 +88,24 @@ function TopoBackground({ slideIndex }: { slideIndex: number }) {
         key={`topo-${i}`}
         style={[
           topoStyles.contourLine,
-          {
-            top: y,
-            left: -20 + curveOffset,
-            right: -20 - curveOffset,
-            transform: [{ rotate: `${-2 + i * 0.4}deg` }],
-          },
+          { top: y, left: -20 + curveOffset, right: -20 - curveOffset, transform: [{ rotate: `${-2 + i * 0.4}deg` }] },
         ]}
       />
     );
   }
 
-  // Grid crosshairs
   const gridLines = [];
   for (let i = 0; i < 8; i++) {
-    gridLines.push(
-      <View key={`hgrid-${i}`} style={[topoStyles.gridLine, { top: i * (SCREEN_HEIGHT / 7) }]} />,
-    );
+    gridLines.push(<View key={`hgrid-${i}`} style={[topoStyles.gridLine, { top: i * (SCREEN_HEIGHT / 7) }]} />);
   }
   for (let i = 0; i < 5; i++) {
-    gridLines.push(
-      <View key={`vgrid-${i}`} style={[topoStyles.gridLineV, { left: i * (SCREEN_WIDTH / 4) }]} />,
-    );
+    gridLines.push(<View key={`vgrid-${i}`} style={[topoStyles.gridLineV, { left: i * (SCREEN_WIDTH / 4) }]} />);
   }
 
   return (
-    <Animated.View style={[topoStyles.container, animatedStyle]} pointerEvents="none">
+    <Animated.View style={[topoStyles.container, { opacity, transform: [{ translateY }, { translateX }] }]} pointerEvents="none">
       {gridLines}
       {lines}
-      {/* Corner telemetry marks */}
       <View style={[topoStyles.cornerMark, { top: 60, right: 20 }]}>
         <Text style={topoStyles.telemetryText}>ALT 1247m</Text>
       </View>
@@ -146,115 +117,48 @@ function TopoBackground({ slideIndex }: { slideIndex: number }) {
 }
 
 const topoStyles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-  },
-  contourLine: {
-    position: 'absolute',
-    height: 1,
-    backgroundColor: colors.accent,
-    opacity: 0.5,
-    borderRadius: 100,
-  },
-  gridLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.textTertiary,
-    opacity: 0.15,
-  },
-  gridLineV: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: colors.textTertiary,
-    opacity: 0.1,
-  },
-  cornerMark: {
-    position: 'absolute',
-  },
-  telemetryText: {
-    fontFamily: fonts.racingLight,
-    fontSize: 9,
-    color: colors.textTertiary,
-    letterSpacing: 2,
-    opacity: 0.5,
-  },
-});
-
-// ── Noise / Grain Overlay ────────────────────────────────
-
-function GrainOverlay() {
-  return <View style={grainStyles.overlay} pointerEvents="none" />;
-}
-
-const grainStyles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    opacity: 0.03,
-    // RN doesn't have CSS noise, but a subtle border effect
-    // creates micro-texture on dark backgrounds
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.02)',
-  },
+  container: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  contourLine: { position: 'absolute', height: 1, backgroundColor: colors.accent, opacity: 0.5, borderRadius: 100 },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.textTertiary, opacity: 0.15 },
+  gridLineV: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: colors.textTertiary, opacity: 0.1 },
+  cornerMark: { position: 'absolute' },
+  telemetryText: { fontFamily: fonts.racingLight, fontSize: 9, color: colors.textTertiary, letterSpacing: 2, opacity: 0.5 },
 });
 
 // ── Animated Slide ───────────────────────────────────────
 
 function SlideContent({ item, isActive }: { item: OnboardingSlide; isActive: boolean }) {
-  const tagOpacity = useSharedValue(0);
-  const tagTranslateY = useSharedValue(20);
-  const titleOpacity = useSharedValue(0);
-  const titleTranslateY = useSharedValue(30);
-  const bodyOpacity = useSharedValue(0);
-  const bodyTranslateY = useSharedValue(25);
+  const tagAnim = useRef(new Animated.Value(0)).current;
+  const titleAnim = useRef(new Animated.Value(0)).current;
+  const bodyAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isActive) {
-      // Staggered entrance
-      tagOpacity.value = withDelay(100, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
-      tagTranslateY.value = withDelay(100, withSpring(0, { damping: 20, stiffness: 200 }));
-
-      titleOpacity.value = withDelay(250, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
-      titleTranslateY.value = withDelay(250, withSpring(0, { damping: 18, stiffness: 180 }));
-
-      bodyOpacity.value = withDelay(450, withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }));
-      bodyTranslateY.value = withDelay(450, withSpring(0, { damping: 20, stiffness: 200 }));
+      tagAnim.setValue(0);
+      titleAnim.setValue(0);
+      bodyAnim.setValue(0);
+      Animated.stagger(150, [
+        Animated.spring(tagAnim, { toValue: 1, damping: 20, stiffness: 200, mass: 0.8, useNativeDriver: true }),
+        Animated.spring(titleAnim, { toValue: 1, damping: 18, stiffness: 180, mass: 0.8, useNativeDriver: true }),
+        Animated.spring(bodyAnim, { toValue: 1, damping: 20, stiffness: 200, mass: 0.8, useNativeDriver: true }),
+      ]).start();
     } else {
-      // Reset for next entrance
-      tagOpacity.value = 0;
-      tagTranslateY.value = 20;
-      titleOpacity.value = 0;
-      titleTranslateY.value = 30;
-      bodyOpacity.value = 0;
-      bodyTranslateY.value = 25;
+      tagAnim.setValue(0);
+      titleAnim.setValue(0);
+      bodyAnim.setValue(0);
     }
   }, [isActive]);
 
-  const tagStyle = useAnimatedStyle(() => ({
-    opacity: tagOpacity.value,
-    transform: [{ translateY: tagTranslateY.value }],
-  }));
-
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity: titleOpacity.value,
-    transform: [{ translateY: titleTranslateY.value }],
-  }));
-
-  const bodyStyle = useAnimatedStyle(() => ({
-    opacity: bodyOpacity.value,
-    transform: [{ translateY: bodyTranslateY.value }],
-  }));
+  const makeStyle = (anim: Animated.Value, offset: number) => ({
+    opacity: anim,
+    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [offset, 0] }) }],
+  });
 
   return (
     <View style={styles.slideContent}>
-      <Animated.Text style={[styles.tag, tagStyle]}>{item.tag}</Animated.Text>
-      <Animated.Text style={[styles.title, titleStyle]}>{item.title}</Animated.Text>
-      <Animated.Text style={[styles.body, bodyStyle]}>{item.body}</Animated.Text>
+      <Animated.Text style={[styles.tag, makeStyle(tagAnim, 20)]}>{item.tag}</Animated.Text>
+      <Animated.Text style={[styles.title, makeStyle(titleAnim, 30)]}>{item.title}</Animated.Text>
+      <Animated.Text style={[styles.body, makeStyle(bodyAnim, 25)]}>{item.body}</Animated.Text>
     </View>
   );
 }
@@ -272,47 +176,24 @@ function RaceIndicator({ total, current }: { total: number; current: number }) {
 }
 
 function IndicatorSegment({ isActive, isDone }: { isActive: boolean; isDone: boolean }) {
-  const width = useSharedValue(isActive ? 32 : 8);
-  const opacity = useSharedValue(isActive ? 1 : isDone ? 0.5 : 0.2);
-  const glowOpacity = useSharedValue(0);
+  const widthAnim = useRef(new Animated.Value(isActive ? 32 : 8)).current;
+  const opacityAnim = useRef(new Animated.Value(isActive ? 1 : isDone ? 0.5 : 0.2)).current;
 
   useEffect(() => {
-    width.value = withSpring(isActive ? 32 : 8, { damping: 18, stiffness: 250 });
-    opacity.value = withTiming(isActive ? 1 : isDone ? 0.5 : 0.2, { duration: 300 });
-    if (isActive) {
-      glowOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.6, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.2, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        true
-      );
-    } else {
-      glowOpacity.value = withTiming(0, { duration: 200 });
-    }
+    Animated.parallel([
+      Animated.spring(widthAnim, { toValue: isActive ? 32 : 8, damping: 18, stiffness: 250, mass: 0.8, useNativeDriver: false }),
+      Animated.timing(opacityAnim, { toValue: isActive ? 1 : isDone ? 0.5 : 0.2, duration: 300, useNativeDriver: false }),
+    ]).start();
   }, [isActive, isDone]);
-
-  const segmentStyle = useAnimatedStyle(() => ({
-    width: width.value,
-    opacity: opacity.value,
-  }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
 
   return (
     <View style={styles.segmentWrapper}>
-      {isActive && (
-        <Animated.View style={[styles.segmentGlow, glowStyle]} />
-      )}
       <Animated.View
         style={[
           styles.segment,
           isActive && styles.segmentActive,
           isDone && styles.segmentDone,
-          segmentStyle,
+          { width: widthAnim, opacity: opacityAnim },
         ]}
       />
     </View>
@@ -322,70 +203,30 @@ function IndicatorSegment({ isActive, isDone }: { isActive: boolean; isDone: boo
 // ── CTA Button ───────────────────────────────────────────
 
 function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'gps' }) {
-  const scale = useSharedValue(1);
-  const glowIntensity = useSharedValue(0);
-
-  useEffect(() => {
-    if (variant === 'primary' || variant === 'gps') {
-      glowIntensity.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-        true
-      );
-    }
-  }, [variant]);
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(glowIntensity.value, [0, 1], [0, 0.3]),
-    transform: [{ scale: interpolate(glowIntensity.value, [0, 1], [1, 1.05]) }],
-  }));
+  const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+    Animated.spring(scale, { toValue: 0.96, damping: 15, stiffness: 400, mass: 0.6, useNativeDriver: true }).start();
   };
-
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 12, stiffness: 300 });
+    Animated.spring(scale, { toValue: 1, damping: 12, stiffness: 300, mass: 0.8, useNativeDriver: true }).start();
   };
 
   const bgColor = variant === 'gps' ? colors.blue : variant === 'secondary' ? 'transparent' : colors.accent;
-  const textColor = variant === 'secondary' ? colors.textSecondary : colors.bg;
+  const textColor = variant === 'secondary' ? colors.textSecondary : '#0A0A0F';
   const borderStyle = variant === 'secondary' ? { borderWidth: 1, borderColor: colors.border } : {};
-  const glowColor = variant === 'gps' ? 'rgba(0, 122, 255, 0.4)' : colors.accentGlow;
 
   return (
-    <View>
-      {(variant === 'primary' || variant === 'gps') && (
-        <Animated.View
-          style={[
-            styles.ctaGlow,
-            glowStyle,
-            { backgroundColor: glowColor },
-          ]}
-          pointerEvents="none"
-        />
-      )}
-      <AnimatedPressable
-        style={[
-          styles.ctaBtn,
-          { backgroundColor: bgColor },
-          borderStyle,
-          buttonStyle,
-        ]}
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        style={[styles.ctaBtn, { backgroundColor: bgColor }, borderStyle]}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
         <Text style={[styles.ctaBtnText, { color: textColor }]}>{label}</Text>
-      </AnimatedPressable>
-    </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -398,10 +239,10 @@ export default function OnboardingScreen() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const listRef = useRef<FlatList<OnboardingSlide>>(null);
 
-  // Track page changes from swipe
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (viewableItems.length > 0 && viewableItems[0].index != null) {
@@ -412,20 +253,19 @@ export default function OnboardingScreen() {
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
-  // Finish onboarding -> show GPS gate
   const handleFinish = useCallback(async () => {
     notifySuccess();
     await completeOnboarding();
+    fadeAnim.setValue(0);
     setShowLocationPrompt(true);
-  }, [completeOnboarding]);
+    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+  }, [completeOnboarding, fadeAnim]);
 
-  // Enter the app
   const handleEnterApp = useCallback(() => {
     notifySuccess();
     router.replace('/(tabs)');
   }, [router]);
 
-  // CTA press — advance or finish
   const handleCta = useCallback(() => {
     selectionTick();
     if (currentIndex < slides.length - 1) {
@@ -435,7 +275,6 @@ export default function OnboardingScreen() {
     }
   }, [currentIndex, handleFinish]);
 
-  // Location permission
   const handleRequestPermission = useCallback(async () => {
     tapLight();
     const result = await requestLocationPermission();
@@ -446,43 +285,22 @@ export default function OnboardingScreen() {
     }
   }, []);
 
-  // ── GPS Gate (post-onboarding) ─────────────────────────
+  // ── GPS Gate ───────────────────────────────────────────
 
   if (showLocationPrompt) {
     return (
       <SafeAreaView style={styles.container}>
         <TopoBackground slideIndex={3} />
-        <GrainOverlay />
-
-        <Animated.View
-          style={styles.gpsContent}
-          entering={FadeIn.duration(400)}
-        >
-          <Animated.Text
-            style={styles.gpsTag}
-            entering={FadeIn.delay(100).duration(400)}
-          >
-            WERYFIKACJA
-          </Animated.Text>
-
-          <Animated.Text
-            style={styles.gpsTitle}
-            entering={SlideInUp.delay(200).duration(500).springify().damping(18)}
-          >
+        <Animated.View style={[styles.gpsContent, { opacity: fadeAnim }]}>
+          <Text style={styles.gpsTag}>WERYFIKACJA</Text>
+          <Text style={styles.gpsTitle}>
             Ranking działa{'\n'}tylko z aktywnym GPS.
-          </Animated.Text>
-
-          <Animated.Text
-            style={styles.gpsBody}
-            entering={FadeIn.delay(400).duration(500)}
-          >
+          </Text>
+          <Text style={styles.gpsBody}>
             Bez lokalizacji możesz jechać trening, ale zweryfikowany zjazd wymaga GPS.
-          </Animated.Text>
+          </Text>
 
-          <Animated.View
-            entering={FadeIn.delay(600).duration(400)}
-            style={styles.gpsActions}
-          >
+          <View style={styles.gpsActions}>
             {!permissionAsked ? (
               <RaceCTA label="AKTYWUJ GPS" onPress={handleRequestPermission} variant="gps" />
             ) : permissionGranted ? (
@@ -492,9 +310,7 @@ export default function OnboardingScreen() {
               </View>
             ) : (
               <View style={styles.gpsDenied}>
-                <Text style={styles.gpsDeniedText}>
-                  Możesz włączyć później w Ustawieniach.
-                </Text>
+                <Text style={styles.gpsDeniedText}>Możesz włączyć później w Ustawieniach.</Text>
               </View>
             )}
 
@@ -503,7 +319,7 @@ export default function OnboardingScreen() {
               onPress={handleEnterApp}
               variant={permissionGranted ? 'primary' : 'secondary'}
             />
-          </Animated.View>
+          </View>
         </Animated.View>
       </SafeAreaView>
     );
@@ -520,19 +336,14 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TopoBackground slideIndex={currentIndex} />
-      <GrainOverlay />
 
-      {/* Top-right slide counter */}
-      <Animated.View
-        style={styles.slideCounter}
-        entering={FadeIn.delay(600).duration(400)}
-      >
+      <View style={styles.slideCounter}>
         <Text style={styles.slideCounterText}>
           <Text style={styles.slideCounterCurrent}>{String(currentIndex + 1).padStart(2, '0')}</Text>
           <Text style={styles.slideCounterSep}> / </Text>
           <Text style={styles.slideCounterTotal}>{String(slides.length).padStart(2, '0')}</Text>
         </Text>
-      </Animated.View>
+      </View>
 
       <FlatList
         ref={listRef}
@@ -545,20 +356,13 @@ export default function OnboardingScreen() {
         bounces={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
-          index,
-        })}
+        getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
       />
 
-      <Animated.View
-        style={styles.footer}
-        entering={FadeIn.delay(500).duration(400)}
-      >
+      <View style={styles.footer}>
         <RaceIndicator total={slides.length} current={currentIndex} />
         <RaceCTA label={slides[currentIndex].cta} onPress={handleCta} />
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -566,186 +370,33 @@ export default function OnboardingScreen() {
 // ── Styles ───────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0F',
-  },
-
-  // Slide counter (top-right)
-  slideCounter: {
-    position: 'absolute',
-    top: 70,
-    right: spacing.xxl,
-    zIndex: 10,
-  },
-  slideCounterText: {
-    fontFamily: fonts.racingLight,
-    fontSize: 12,
-  },
-  slideCounterCurrent: {
-    color: colors.accent,
-    fontFamily: fonts.racing,
-    fontSize: 14,
-  },
-  slideCounterSep: {
-    color: colors.textTertiary,
-  },
-  slideCounterTotal: {
-    color: colors.textTertiary,
-    fontFamily: fonts.racingLight,
-    fontSize: 12,
-  },
-
-  // Slide
-  slide: {
-    width: SCREEN_WIDTH,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  slideContent: {
-    paddingHorizontal: spacing.xxl,
-  },
-  tag: {
-    ...typography.labelSmall,
-    color: colors.accent,
-    letterSpacing: 6,
-    marginBottom: spacing.xl,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.textPrimary,
-    fontSize: 30,
-    lineHeight: 38,
-    marginBottom: spacing.lg,
-    letterSpacing: -0.3,
-  },
-  body: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    maxWidth: 300,
-  },
-
-  // Footer
-  footer: {
-    paddingHorizontal: spacing.xxl,
-    paddingBottom: spacing.xxl,
-    gap: spacing.lg,
-  },
-
-  // Race indicator
-  indicatorRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    height: 16,
-  },
-  segmentWrapper: {
-    height: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  segment: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.bgElevated,
-  },
-  segmentActive: {
-    backgroundColor: colors.accent,
-    height: 4,
-    borderRadius: 2,
-  },
-  segmentDone: {
-    backgroundColor: colors.textTertiary,
-  },
-  segmentGlow: {
-    position: 'absolute',
-    width: 40,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accentGlow,
-  },
-
-  // CTA button
-  ctaBtn: {
-    borderRadius: radii.lg,
-    paddingVertical: spacing.lg + 2,
-    alignItems: 'center',
-  },
-  ctaBtnText: {
-    ...typography.cta,
-    letterSpacing: 3,
-    fontFamily: fonts.bodySemiBold,
-  },
-  ctaGlow: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    top: 4,
-    bottom: 4,
-    borderRadius: radii.lg + 4,
-    backgroundColor: colors.accentGlow,
-  },
-
-  // GPS gate screen
-  gpsContent: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxl,
-  },
-  gpsTag: {
-    ...typography.labelSmall,
-    color: colors.blue,
-    letterSpacing: 6,
-    marginBottom: spacing.xl,
-  },
-  gpsTitle: {
-    ...typography.h1,
-    color: colors.textPrimary,
-    fontSize: 28,
-    lineHeight: 36,
-    marginBottom: spacing.lg,
-    letterSpacing: -0.3,
-  },
-  gpsBody: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: spacing.xxl + spacing.lg,
-    maxWidth: 300,
-  },
-  gpsActions: {
-    gap: spacing.md,
-  },
-  gpsGranted: {
-    flexDirection: 'row',
-    backgroundColor: colors.accentDim,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.lg + 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  gpsGrantedText: {
-    ...typography.cta,
-    color: colors.accent,
-    letterSpacing: 3,
-    fontFamily: fonts.bodySemiBold,
-  },
-  gpsGrantedDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.accent,
-  },
-  gpsDenied: {
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  gpsDeniedText: {
-    ...typography.bodySmall,
-    color: colors.textTertiary,
-    textAlign: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#0A0A0F' },
+  slideCounter: { position: 'absolute', top: 70, right: spacing.xxl, zIndex: 10 },
+  slideCounterText: { fontFamily: fonts.racingLight, fontSize: 12 },
+  slideCounterCurrent: { color: colors.accent, fontFamily: fonts.racing, fontSize: 14 },
+  slideCounterSep: { color: colors.textTertiary },
+  slideCounterTotal: { color: colors.textTertiary, fontFamily: fonts.racingLight, fontSize: 12 },
+  slide: { width: SCREEN_WIDTH, flex: 1, justifyContent: 'center' },
+  slideContent: { paddingHorizontal: spacing.xxl },
+  tag: { ...typography.labelSmall, color: colors.accent, letterSpacing: 6, marginBottom: spacing.xl },
+  title: { ...typography.h1, color: colors.textPrimary, fontSize: 30, lineHeight: 38, marginBottom: spacing.lg, letterSpacing: -0.3 },
+  body: { ...typography.body, color: colors.textSecondary, lineHeight: 24, maxWidth: 300 },
+  footer: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxl, gap: spacing.lg },
+  indicatorRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, height: 16 },
+  segmentWrapper: { height: 4, justifyContent: 'center', alignItems: 'center' },
+  segment: { height: 3, borderRadius: 2, backgroundColor: colors.bgElevated },
+  segmentActive: { backgroundColor: colors.accent, height: 4, borderRadius: 2 },
+  segmentDone: { backgroundColor: colors.textTertiary },
+  ctaBtn: { borderRadius: radii.lg, paddingVertical: spacing.lg + 2, alignItems: 'center' },
+  ctaBtnText: { ...typography.cta, letterSpacing: 3, fontFamily: fonts.bodySemiBold },
+  gpsContent: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xxl },
+  gpsTag: { ...typography.labelSmall, color: colors.blue, letterSpacing: 6, marginBottom: spacing.xl },
+  gpsTitle: { ...typography.h1, color: colors.textPrimary, fontSize: 28, lineHeight: 36, marginBottom: spacing.lg, letterSpacing: -0.3 },
+  gpsBody: { ...typography.body, color: colors.textSecondary, lineHeight: 24, marginBottom: spacing.xxl + spacing.lg, maxWidth: 300 },
+  gpsActions: { gap: spacing.md },
+  gpsGranted: { flexDirection: 'row', backgroundColor: colors.accentDim, borderRadius: radii.lg, paddingVertical: spacing.lg + 2, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  gpsGrantedText: { ...typography.cta, color: colors.accent, letterSpacing: 3, fontFamily: fonts.bodySemiBold },
+  gpsGrantedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  gpsDenied: { paddingVertical: spacing.md, alignItems: 'center' },
+  gpsDeniedText: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
 });
