@@ -626,11 +626,31 @@ export async function fetchChallengeProgress(
   return map;
 }
 
+/**
+ * Increment challenge progress and check for completion.
+ * If challenge is completed, awards reward_xp to profile (atomic via RPC).
+ * Returns whether the challenge was just completed by this increment.
+ */
 export async function incrementChallengeProgress(
   userId: string,
   challengeId: string,
   increment: number = 1,
-): Promise<void> {
+): Promise<{ justCompleted: boolean; rewardXp: number }> {
+  // Get challenge metadata for reward and target
+  const { data: challenge } = await db()
+    .from('challenges')
+    .select('type, reward_xp')
+    .eq('id', challengeId)
+    .single();
+
+  // Target value based on challenge type (no explicit target column in schema)
+  const targetForType: Record<string, number> = {
+    run_count: 3,
+    pb_improvement: 1,
+    fastest_time: 1,
+  };
+  const target = targetForType[challenge?.type ?? ''] ?? 1;
+
   // Upsert challenge progress
   const { data: existing } = await db()
     .from('challenge_progress')
@@ -639,14 +659,13 @@ export async function incrementChallengeProgress(
     .eq('challenge_id', challengeId)
     .single();
 
+  const wasCompleted = existing ? existing.current_value >= target : false;
+  const newValue = (existing?.current_value ?? 0) + increment;
+
   if (existing) {
-    const newValue = existing.current_value + increment;
-    // Check challenge target (we'd need to look it up)
     await db()
       .from('challenge_progress')
-      .update({
-        current_value: newValue,
-      })
+      .update({ current_value: newValue })
       .eq('id', existing.id);
   } else {
     await db().from('challenge_progress').insert({
@@ -655,6 +674,18 @@ export async function incrementChallengeProgress(
       current_value: increment,
     });
   }
+
+  // Check if just completed (wasn't complete before, is now)
+  const justCompleted = !wasCompleted && newValue >= target;
+  let rewardXp = 0;
+
+  if (justCompleted && challenge?.reward_xp && challenge.reward_xp > 0) {
+    rewardXp = challenge.reward_xp;
+    // Award challenge XP atomically
+    await updateProfileXp(userId, rewardXp);
+  }
+
+  return { justCompleted, rewardXp };
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -16,12 +16,12 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailById } from '@/data/seed/slotwinyOfficial';
-import { calculateRunXp } from '@/systems/xp';
+import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
 import { getFinalizedRun, subscribeFinalizedRun, updateFinalizedRun } from '@/systems/runStore';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useResultImpact, ScopeImpact, submitRunToBackend } from '@/hooks/useBackend';
+import { useResultImpact, ScopeImpact, submitRunToBackend, useProfile } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
 
@@ -178,6 +178,8 @@ export default function ResultScreen() {
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
+  const { profile: currentProfile } = useProfile(authProfile?.id);
+
   const { impact: scopedImpact } = useResultImpact(
     authProfile?.id,
     run?.trailId,
@@ -221,6 +223,10 @@ export default function ResultScreen() {
       } else {
         tapMedium();
         setTimeout(() => notifySuccess(), 200);
+      }
+      // Extra haptic for level up
+      if (isLevelUp) {
+        setTimeout(() => tapHeavy(), 800);
       }
       setHapticFired(true);
     } else if (run.saveStatus === 'failed' || run.saveStatus === 'offline') {
@@ -351,6 +357,13 @@ export default function ResultScreen() {
   const isFailed = run.saveStatus === 'failed';
   const isQueued = run.saveStatus === 'queued';
 
+  // Level-up detection: compare current profile XP with XP before this run
+  const currentXp = currentProfile?.xp ?? 0;
+  const xpBeforeRun = Math.max(0, currentXp - xpAwarded);
+  const levelBefore = getLevel(xpBeforeRun);
+  const levelAfter = getLevel(currentXp);
+  const isLevelUp = isSaved && xpAwarded > 0 && levelAfter > levelBefore;
+
   // Quality-based status for saved ranked runs
   const isOfficialRankedResult = showRank && isSaved;
   const isSavedButNotRanked = isSaved && !showRank && isRanked;
@@ -459,6 +472,14 @@ export default function ResultScreen() {
                 {xpBreakdown.reasons.join(' · ')}
               </Text>
             )}
+          </View>
+        )}
+
+        {/* ═══ LEVEL UP ═══ */}
+        {isLevelUp && (
+          <View style={styles.levelUpCard}>
+            <Text style={styles.levelUpLabel}>LEVEL UP</Text>
+            <Text style={styles.levelUpNumber}>{levelAfter}</Text>
           </View>
         )}
 
@@ -685,6 +706,15 @@ const styles = StyleSheet.create({
   xpRow: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xxs },
   xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
   xpReasons: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
+
+  // Level up
+  levelUpCard: {
+    alignItems: 'center', backgroundColor: colors.accentDim,
+    borderRadius: radii.md, paddingVertical: spacing.md, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: colors.accent + '50', gap: spacing.xxs,
+  },
+  levelUpLabel: { ...typography.labelSmall, color: colors.accent, letterSpacing: 4, fontSize: 10 },
+  levelUpNumber: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.accent, letterSpacing: 2 },
 
   // Quality badge
   qualityRow: { alignItems: 'center', marginBottom: spacing.md },
