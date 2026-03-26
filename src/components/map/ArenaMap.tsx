@@ -2,9 +2,10 @@ import { useRef, useCallback } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { colors } from '@/theme/colors';
-import { trailLineColors, trailLineWidth, trailLineOpacity, darkMapStyle } from '@/theme/map';
-import { Trail, Difficulty } from '@/data/types';
+import { trailLineWidth, trailLineOpacity, darkMapStyle, getTrailColor } from '@/theme/map';
+import { Trail } from '@/data/types';
 import { trailGeoSeeds, SLOTWINY_REGION, TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { TrailMarkers } from './TrailMarkers';
 
 interface Props {
@@ -78,12 +79,14 @@ export function ArenaMap({
 
           const isSelected = selectedTrailId === geo.trailId;
           const isDimmed = selectedTrailId !== null && !isSelected;
+          const official = slotwinyTrails.find((o) => o.id === geo.trailId);
+          const lineColor = getTrailColor(official?.colorClass, trail.difficulty);
 
           return (
             <Polyline
               key={geo.trailId}
               coordinates={geo.polyline}
-              strokeColor={trailLineColors[trail.difficulty]}
+              strokeColor={lineColor}
               strokeWidth={
                 isSelected
                   ? trailLineWidth.selected

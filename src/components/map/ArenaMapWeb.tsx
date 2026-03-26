@@ -6,7 +6,7 @@ import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
+import { getTrailColor } from '@/theme/map';
 import { Trail } from '@/data/types';
 import { formatTimeShort } from '@/content/copy';
 import { slotwinyTrails, OfficialTrail } from '@/data/seed/slotwinyOfficial';
@@ -67,7 +67,7 @@ export function ArenaMapWeb({
         {trails.map((trail, index) => {
           const isSelected = selectedTrailId === trail.id;
           const isDimmed = selectedTrailId !== null && !isSelected;
-          const diffColor = trailLineColors[trail.difficulty];
+          const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
           const isHot = hotTrailId === trail.id;
           const hasChallenge = challengeTrailId === trail.id;
           const official = getOfficialTrail(trail.id);

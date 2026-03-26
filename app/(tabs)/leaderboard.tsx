@@ -5,7 +5,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
+import { getTrailColor } from '@/theme/map';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { mockTrails } from '@/data/mock/trails';
 import { formatTimeShort } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
@@ -38,7 +39,8 @@ export default function LeaderboardScreen() {
   );
 
   const selectedTrail = mockTrails.find((t) => t.id === selectedTrailId);
-  const diffColor = selectedTrail ? trailLineColors[selectedTrail.difficulty] : colors.accent;
+  const selectedOfficial = slotwinyTrails.find((o) => o.id === selectedTrailId);
+  const diffColor = selectedTrail ? getTrailColor(selectedOfficial?.colorClass, selectedTrail.difficulty) : colors.accent;
 
   // Derive rider context
   const myEntry = entries.find((e) => e.isCurrentUser);
@@ -100,7 +102,8 @@ export default function LeaderboardScreen() {
         >
           {mockTrails.map((trail) => {
             const isActive = selectedTrailId === trail.id;
-            const tColor = trailLineColors[trail.difficulty];
+            const tOfficial = slotwinyTrails.find((o) => o.id === trail.id);
+            const tColor = getTrailColor(tOfficial?.colorClass, trail.difficulty);
             return (
               <Pressable
                 key={trail.id}

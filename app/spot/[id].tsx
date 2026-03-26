@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
+import { getTrailColor } from '@/theme/map';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { getSpot } from '@/data/mock/spots';
 import { getTrailsForSpot } from '@/data/mock/trails';
 import { copy, formatTimeShort } from '@/content/copy';
@@ -115,7 +116,8 @@ export default function SpotScreen() {
           >
             {trails.map((trail) => {
               const stats = trailStatsMap.get(trail.id);
-              const diffColor = trailLineColors[trail.difficulty];
+              const official = slotwinyTrails.find((o) => o.id === trail.id);
+              const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
 
               return (
                 <Pressable

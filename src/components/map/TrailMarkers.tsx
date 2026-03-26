@@ -3,9 +3,10 @@ import { Marker } from 'react-native-maps';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
-import { Trail, Difficulty } from '@/data/types';
+import { getTrailColor } from '@/theme/map';
+import { Trail } from '@/data/types';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { selectionTick } from '@/systems/haptics';
 
 interface Props {
@@ -35,7 +36,8 @@ export function TrailMarkers({
         const isDimmed = selectedTrailId !== null && !isSelected;
         const isHot = hotTrailId === geo.trailId;
         const hasChallenge = challengeTrailId === geo.trailId;
-        const diffColor = trailLineColors[trail.difficulty];
+        const official = slotwinyTrails.find((o) => o.id === geo.trailId);
+        const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
 
         // Show start gate marker
         return (

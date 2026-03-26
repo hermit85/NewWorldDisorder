@@ -3,8 +3,9 @@ import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
+import { getTrailColor } from '@/theme/map';
 import { Trail, Challenge } from '@/data/types';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 
 // Trail stats from the real backend hook — only what the backend actually provides
 interface TrailStats {
@@ -26,7 +27,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export function TrailDrawer({ trail, stats, challenges = [], onClose }: Props) {
   const router = useRouter();
-  const diffColor = trailLineColors[trail.difficulty];
+  const official = slotwinyTrails.find((o) => o.id === trail.id);
+  const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
   // Filter to challenges relevant to this trail (or spot-wide), and still active
   const trailChallenges = challenges.filter(
     (c) => (c.trailId === trail.id || c.trailId === null) && isChallengeActive(c)

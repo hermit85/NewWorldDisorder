@@ -11,7 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { trailLineColors } from '@/theme/map';
+import { getTrailColor } from '@/theme/map';
+import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { mockSpots } from '@/data/mock/spots';
 import { mockTrails } from '@/data/mock/trails';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
@@ -314,7 +315,8 @@ export default function HomeScreen() {
         <Text style={styles.sectionLabel}>TRASY · {spot.name.toUpperCase()}</Text>
         {mockTrails.map((trail) => {
           const stats = trailStats.get(trail.id);
-          const diffColor = trailLineColors[trail.difficulty];
+          const official = slotwinyTrails.find((o) => o.id === trail.id);
+          const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
           const hasResult = !!stats?.pbMs;
           return (
             <Pressable

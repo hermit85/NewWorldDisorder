@@ -1,7 +1,7 @@
 import { colors } from './colors';
 import { Difficulty } from '@/data/types';
 
-// Trail line styling by difficulty
+// Trail line styling by difficulty (fallback)
 export const trailLineColors: Record<Difficulty, string> = {
   easy: colors.diffEasy,
   medium: colors.diffMedium,
@@ -9,6 +9,26 @@ export const trailLineColors: Record<Difficulty, string> = {
   expert: colors.diffExpert,
   pro: colors.diffPro,
 };
+
+// Official trail colors — use colorClass from seed data, not difficulty
+// This ensures blue trails render blue, not green/orange
+export const officialTrailColors: Record<string, string> = {
+  green: '#00FF88',  // Dookoła Świata
+  blue: '#4A9EFF',   // Gałgan, Kometa
+  red: '#FF3B30',    // Dzida
+  black: '#FFFFFF',  // future expert trails
+};
+
+// Get the correct display color for a trail
+export function getTrailColor(colorClass?: string, difficulty?: Difficulty): string {
+  if (colorClass && officialTrailColors[colorClass]) {
+    return officialTrailColors[colorClass];
+  }
+  if (difficulty) {
+    return trailLineColors[difficulty];
+  }
+  return colors.textTertiary;
+}
 
 export const trailLineWidth = {
   default: 3,
