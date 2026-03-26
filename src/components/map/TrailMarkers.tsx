@@ -7,7 +7,6 @@ import { getTrailColor } from '@/theme/map';
 import { Trail } from '@/data/types';
 import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
 import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
-import { selectionTick } from '@/systems/haptics';
 
 interface Props {
   trails: Trail[];
@@ -39,10 +38,12 @@ export function TrailMarkers({
         const official = slotwinyTrails.find((o) => o.id === geo.trailId);
         const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
 
-        // Show start gate marker
+        // Use dedicated label anchor if available, else midpoint
+        const labelCoord = geo.labelAnchor ?? getMidpoint(geo.polyline);
+
         return (
           <View key={geo.trailId}>
-            {/* Start gate marker */}
+            {/* Start gate marker — colored circle with S text */}
             <Marker
               coordinate={geo.startZone}
               onPress={() => onTrailPress(geo.trailId)}
@@ -50,27 +51,27 @@ export function TrailMarkers({
               tracksViewChanges={false}
               opacity={isDimmed ? 0.3 : 1}
             >
-              <View style={[styles.startMarker, { borderColor: diffColor }]}>
-                <Text style={styles.startFlag}>🏁</Text>
+              <View style={[styles.startMarker, { borderColor: diffColor, backgroundColor: diffColor + '20' }]}>
+                <Text style={[styles.startText, { color: diffColor }]}>S</Text>
               </View>
             </Marker>
 
-            {/* Finish gate marker */}
+            {/* Finish gate marker — small square */}
             <Marker
               coordinate={geo.finishZone}
               anchor={{ x: 0.5, y: 0.5 }}
               tracksViewChanges={false}
               opacity={isDimmed ? 0.2 : isSelected ? 0.9 : 0.5}
             >
-              <View style={styles.finishMarker}>
-                <Text style={styles.finishIcon}>🔻</Text>
+              <View style={[styles.finishMarker, { borderColor: diffColor }]}>
+                <View style={[styles.finishDot, { backgroundColor: diffColor }]} />
               </View>
             </Marker>
 
-            {/* Trail name label — on the midpoint of the trail */}
+            {/* Trail name label — at dedicated anchor position */}
             {!isDimmed && (
               <Marker
-                coordinate={getMidpoint(geo.polyline)}
+                coordinate={labelCoord}
                 anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={false}
                 onPress={() => onTrailPress(geo.trailId)}
@@ -79,18 +80,20 @@ export function TrailMarkers({
                   style={[
                     styles.trailLabel,
                     isSelected && { backgroundColor: diffColor, borderColor: diffColor },
+                    !isSelected && { borderColor: diffColor + '40' },
                   ]}
                 >
+                  <View style={[styles.trailDot, { backgroundColor: diffColor }]} />
                   <Text
                     style={[
                       styles.trailLabelText,
                       isSelected && { color: colors.bg },
                     ]}
                   >
-                    {trail.name}
+                    {official?.shortName ?? trail.name}
                   </Text>
-                  {isHot && <Text style={styles.hotBadge}>🔥</Text>}
-                  {hasChallenge && !isHot && <Text style={styles.hotBadge}>⚡</Text>}
+                  {isHot && <Text style={styles.badge}>HOT</Text>}
+                  {hasChallenge && !isHot && <Text style={styles.badge}>!</Text>}
                 </View>
               </Marker>
             )}
@@ -110,29 +113,32 @@ function getMidpoint(
 
 const styles = StyleSheet.create({
   startMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.bgCard,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  startFlag: {
-    fontSize: 14,
+  startText: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 11,
+    letterSpacing: 0,
   },
   finishMarker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 4,
     backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  finishIcon: {
-    fontSize: 10,
+  finishDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   trailLabel: {
     flexDirection: 'row',
@@ -140,17 +146,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgOverlay,
     borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    paddingVertical: spacing.xxs + 1,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: spacing.xxs,
+    gap: spacing.xs,
+  },
+  trailDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   trailLabelText: {
     ...typography.labelSmall,
     color: colors.textPrimary,
     fontSize: 10,
+    letterSpacing: 1,
   },
-  hotBadge: {
-    fontSize: 10,
+  badge: {
+    ...typography.labelSmall,
+    fontSize: 8,
+    color: colors.orange,
+    letterSpacing: 0,
   },
 });

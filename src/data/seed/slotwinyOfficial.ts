@@ -122,9 +122,9 @@ export const slotwinyTrails: OfficialTrail[] = [
     colorClass: 'blue',
     gameDifficulty: 'easy',
     trailType: 'flow',
-    distanceM: 2700,
+    distanceM: 2400,
     avgGradePct: 7.5,
-    elevationDropM: 203, // 2700 × 0.075
+    elevationDropM: 180, // 2400 × 0.075
     officialDescription: 'Machine-built blue trail with tables, berms, rollers and wood features. Safe progression for all levels.',
     gameFlavor: 'Smooth berms. Big tables. Build your speed.',
     features: ['tables', 'berms', 'rollers', 'wood features'],
