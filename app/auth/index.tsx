@@ -29,7 +29,9 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [sendCooldown, setSendCooldown] = useState(0); // initial send cooldown (after first send)
   const cooldownRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const sendCooldownRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // React to auth state changes
   useEffect(() => {
@@ -42,15 +44,12 @@ export default function AuthScreen() {
     }
   }, [state.status]);
 
-  // Cooldown timer
+  // Cooldown timers
   useEffect(() => {
     if (resendCooldown > 0) {
       cooldownRef.current = setInterval(() => {
         setResendCooldown((c) => {
-          if (c <= 1) {
-            clearInterval(cooldownRef.current);
-            return 0;
-          }
+          if (c <= 1) { clearInterval(cooldownRef.current); return 0; }
           return c - 1;
         });
       }, 1000);
@@ -58,12 +57,36 @@ export default function AuthScreen() {
     }
   }, [resendCooldown]);
 
+  useEffect(() => {
+    if (sendCooldown > 0) {
+      sendCooldownRef.current = setInterval(() => {
+        setSendCooldown((c) => {
+          if (c <= 1) { clearInterval(sendCooldownRef.current); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+      return () => clearInterval(sendCooldownRef.current);
+    }
+  }, [sendCooldown]);
+
+  /** Detect rate limit from Supabase error */
+  const isRateLimited = (err: any): boolean => {
+    const msg = (err?.message ?? '').toLowerCase();
+    return msg.includes('rate limit') ||
+      msg.includes('too many') ||
+      msg.includes('429') ||
+      err?.status === 429;
+  };
+
   const handleSendCode = async () => {
     const trimmed = email.trim();
     if (!trimmed || !trimmed.includes('@')) {
       setError('Podaj prawidłowy adres email');
       return;
     }
+    // Block spam clicks during cooldown
+    if (sendCooldown > 0) return;
+
     setLoading(true);
     setError('');
 
@@ -71,10 +94,16 @@ export default function AuthScreen() {
 
     setLoading(false);
     if (authError) {
-      setError(authError.message ?? 'Nie udało się wysłać kodu');
+      if (isRateLimited(authError)) {
+        setError('Za dużo prób. Spróbuj ponownie za chwilę.');
+        setSendCooldown(60);
+      } else {
+        setError(authError.message ?? 'Nie udało się wysłać kodu');
+      }
     } else {
       setStep('verify_code');
       setResendCooldown(60);
+      setSendCooldown(30); // prevent rapid re-entry to email step + resend
     }
   };
 
@@ -103,7 +132,12 @@ export default function AuthScreen() {
     const { error: authError } = await signInWithEmail(email.trim());
     setLoading(false);
     if (authError) {
-      setError('Nie udało się wysłać kodu');
+      if (isRateLimited(authError)) {
+        setError('Za dużo prób. Spróbuj ponownie za chwilę.');
+        setResendCooldown(60);
+      } else {
+        setError('Nie udało się wysłać kodu');
+      }
     } else {
       setResendCooldown(60);
       setError('');
@@ -172,12 +206,14 @@ export default function AuthScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <Pressable
-              style={[styles.cta, loading && styles.ctaDisabled]}
+              style={[styles.cta, (loading || sendCooldown > 0) && styles.ctaDisabled]}
               onPress={handleSendCode}
-              disabled={loading}
+              disabled={loading || sendCooldown > 0}
             >
               {loading ? (
                 <ActivityIndicator color={colors.bg} />
+              ) : sendCooldown > 0 ? (
+                <Text style={styles.ctaText}>WYŚLIJ PONOWNIE ({sendCooldown}s)</Text>
               ) : (
                 <Text style={styles.ctaText}>WYŚLIJ KOD</Text>
               )}
