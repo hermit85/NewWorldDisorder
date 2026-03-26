@@ -13,4 +13,5 @@ export const mockUser: User = {
   favoriteTrailId: 'dzida-czerwona',
   joinedAt: '2025-06-15',
   achievements: mockAchievements.filter((a) => a.isUnlocked),
+  avatarUrl: null,
 };

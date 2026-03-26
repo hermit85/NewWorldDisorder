@@ -81,6 +81,8 @@ export interface LeaderboardEntry {
   gapToNext: number; // ms gap to next position above
   gapToLeader: number; // ms gap to #1
   isCurrentUser: boolean;
+  /** Avatar URL — null if rider has no photo */
+  avatarUrl: string | null;
 }
 
 // ── Challenge ──
@@ -138,6 +140,8 @@ export interface User {
   favoriteTrailId: string;
   joinedAt: string;
   achievements: Achievement[];
+  /** Avatar URL from Supabase Storage — null if not set */
+  avatarUrl: string | null;
 }
 
 // ── Result scenario (for testing result screen) ──

@@ -230,6 +230,7 @@ export function useProfile(userId?: string) {
           favoriteTrailId: p.favorite_trail_id || '',
           joinedAt: p.created_at,
           achievements: [],
+          avatarUrl: p.avatar_url ?? null,
         });
         setStatus('ok');
       } else {
@@ -486,6 +487,7 @@ function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
     gapToNext: 0,
     gapToLeader: row.gapToLeader,
     isCurrentUser: row.isCurrentUser,
+    avatarUrl: (row as any).avatarUrl ?? null,
   };
 }
 

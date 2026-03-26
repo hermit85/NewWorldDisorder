@@ -10,6 +10,7 @@ import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { mockTrails } from '@/data/mock/trails';
 import { formatTimeShort } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
+import { RiderAvatar } from '@/components/RiderAvatar';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard } from '@/hooks/useBackend';
@@ -238,7 +239,7 @@ export default function LeaderboardScreen() {
                         isUser && styles.podiumUser,
                       ]}
                     >
-                      {/* Position + medal */}
+                      {/* Position */}
                       <View style={styles.podiumPosRow}>
                         <Text style={[
                           styles.podiumPos,
@@ -248,6 +249,14 @@ export default function LeaderboardScreen() {
                           {pos}
                         </Text>
                       </View>
+
+                      {/* Avatar */}
+                      <RiderAvatar
+                        avatarUrl={entry.avatarUrl}
+                        username={entry.username}
+                        size={pos === 1 ? 44 : 36}
+                        borderColor={medal?.color ?? colors.border}
+                      />
 
                       {/* Info */}
                       <View style={styles.podiumInfo}>
@@ -368,6 +377,15 @@ export default function LeaderboardScreen() {
                         ]}>
                           {entry.currentPosition}
                         </Text>
+                      </View>
+
+                      <View style={styles.avatarCol}>
+                        <RiderAvatar
+                          avatarUrl={entry.avatarUrl}
+                          username={entry.username}
+                          size={28}
+                          borderColor={isUser ? colors.accent : undefined}
+                        />
                       </View>
 
                       <View style={styles.deltaCol}>
@@ -520,7 +538,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent, borderTopLeftRadius: radii.sm, borderBottomLeftRadius: radii.sm,
   },
   entryRival: { backgroundColor: 'rgba(255, 149, 0, 0.06)' },
-  positionCol: { width: 36 },
+  positionCol: { width: 32 },
+  avatarCol: { width: 34, alignItems: 'center' as const },
   position: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textTertiary },
   deltaCol: { width: 36, alignItems: 'center' },
   deltaUp: { ...typography.labelSmall, color: colors.accent },

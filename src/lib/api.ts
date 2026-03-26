@@ -225,6 +225,7 @@ export interface LeaderboardRow {
   delta: number;
   gapToLeader: number;
   isCurrentUser: boolean;
+  avatarUrl: string | null;
 }
 
 export async function fetchLeaderboard(
@@ -239,7 +240,8 @@ export async function fetchLeaderboard(
       profiles!inner (
         username,
         display_name,
-        rank_id
+        rank_id,
+        avatar_url
       )
     `)
     .eq('trail_id', trailId)
@@ -265,6 +267,7 @@ export async function fetchLeaderboard(
     delta: e.previous_position ? e.previous_position - e.rank_position : 0,
     gapToLeader: e.best_duration_ms - leaderTime,
     isCurrentUser: e.user_id === currentUserId,
+    avatarUrl: e.profiles.avatar_url ?? null,
   }));
 }
 
@@ -305,7 +308,8 @@ export async function fetchScopedLeaderboard(
       profiles!inner (
         username,
         display_name,
-        rank_id
+        rank_id,
+        avatar_url
       )
     `)
     .eq('trail_id', trailId)
@@ -340,6 +344,7 @@ export async function fetchScopedLeaderboard(
     delta: 0,
     gapToLeader: e.duration_ms - leaderTime,
     isCurrentUser: e.user_id === currentUserId,
+    avatarUrl: (e.profiles as any).avatar_url ?? null,
   }));
 }
 

@@ -48,6 +48,7 @@ function entry(
     gapToNext: 0, // computed after array is built
     gapToLeader,
     isCurrentUser,
+    avatarUrl: null,
   };
 }
 

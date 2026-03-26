@@ -13,7 +13,8 @@ export type DebugCategory =
   | 'auth'        // session/auth
   | 'nav'         // navigation context
   | 'sim'         // simulation events
-  | 'queue';      // offline save queue
+  | 'queue'       // offline save queue
+  | 'avatar';     // profile photo upload
 
 export type DebugStatus = 'start' | 'ok' | 'fail' | 'skip' | 'info' | 'warn';
 
