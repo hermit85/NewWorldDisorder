@@ -21,8 +21,18 @@
     },
     "production": {
       "environment": "production",
+      "autoIncrement": true,
       "ios": {
         "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "darek@cybirdconsulting.com",
+        "ascAppId": "6761112863",
+        "appleTeamId": "TQ83SMV649"
       }
     }
   }
