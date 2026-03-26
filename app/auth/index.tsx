@@ -81,7 +81,7 @@ export default function AuthScreen() {
   const handleVerifyCode = async () => {
     const code = otpCode.trim();
     if (code.length < 6) {
-      setError('Wpisz 6-cyfrowy kod z maila');
+      setError('Wpisz kod z maila');
       return;
     }
     setLoading(true);
@@ -195,7 +195,7 @@ export default function AuthScreen() {
               <Text style={styles.inboxIcon}>📧</Text>
               <Text style={styles.inboxTitle}>SPRAWDŹ SKRZYNKĘ</Text>
               <Text style={styles.inboxDesc}>
-                Wysłaliśmy 6-cyfrowy kod na{'\n'}{email}
+                Wysłaliśmy kod logowania na{'\n'}{email}
               </Text>
               <Text style={styles.inboxHint}>
                 Wpisz kod poniżej. Nie klikaj linku w mailu.
@@ -205,12 +205,12 @@ export default function AuthScreen() {
             <Text style={styles.label}>KOD Z MAILA</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
-              placeholder="000000"
+              placeholder="00000000"
               placeholderTextColor={colors.textTertiary}
               value={otpCode}
               onChangeText={setOtpCode}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={8}
               editable={!loading}
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   formDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.md },
   label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.xxs },
   input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, fontFamily: 'Inter_500Medium', fontSize: 16 },
-  codeInput: { textAlign: 'center', fontSize: 24, fontFamily: 'Orbitron_700Bold', letterSpacing: 8 },
+  codeInput: { textAlign: 'center', fontSize: 22, fontFamily: 'Orbitron_700Bold', letterSpacing: 6 },
   error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
   ctaDisabled: { opacity: 0.5 },
