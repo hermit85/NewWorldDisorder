@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { selectionTick } from '@/systems/haptics';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,12 +14,10 @@ import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useUserTrailStats, useChallenges } from '@/hooks/useBackend';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
-import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
+// ArenaMapWeb kept for reference but no longer used in spot view
 
-// Only import native map on native platforms
-const ArenaMap = Platform.OS !== 'web'
-  ? require('@/components/map/ArenaMap').ArenaMap
-  : null;
+// ArenaMap is a custom canvas — no map SDK dependency, works everywhere
+import { ArenaMap } from '@/components/map/ArenaMap';
 import { Difficulty } from '@/data/types';
 
 export default function SpotScreen() {
@@ -84,27 +82,15 @@ export default function SpotScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Full-screen map */}
-      {Platform.OS !== 'web' && ArenaMap ? (
-        <ArenaMap
-          trails={trails}
-          selectedTrailId={selectedTrailId}
-          hotTrailId="dzida-czerwona"
-          challengeTrailId="dzida-czerwona"
-          onTrailSelect={handleTrailSelect}
-          onMapPress={handleMapPress}
-        />
-      ) : (
-        <ArenaMapWeb
-          trails={trails}
-          selectedTrailId={selectedTrailId}
-          hotTrailId="dzida-czerwona"
-          challengeTrailId="dzida-czerwona"
-          trailStats={trailStatsMap}
-          onTrailSelect={handleTrailSelect}
-          onMapPress={handleMapPress}
-        />
-      )}
+      {/* Full-screen arena map */}
+      <ArenaMap
+        trails={trails}
+        selectedTrailId={selectedTrailId}
+        hotTrailId="dzida-czerwona"
+        challengeTrailId="dzida-czerwona"
+        onTrailSelect={handleTrailSelect}
+        onMapPress={handleMapPress}
+      />
 
       {/* Trail list strip at bottom (when no trail selected) */}
       {!selectedTrail && (
