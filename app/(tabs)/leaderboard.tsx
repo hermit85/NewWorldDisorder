@@ -134,7 +134,7 @@ export default function LeaderboardScreen() {
                 key={trail.id}
                 style={[
                   styles.trailChip,
-                  isActive && { borderColor: tColor, backgroundColor: tColor + '18' },
+                  isActive && { borderColor: tColor, backgroundColor: tColor + '20', borderWidth: 1.5 },
                 ]}
                 onPress={() => handleTrailSelect(trail.id)}
                 onLayout={(e) => {
@@ -182,10 +182,9 @@ export default function LeaderboardScreen() {
         {/* Empty state */}
         {!loading && !lbError && entries.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>TABLICA PUSTA</Text>
-            <Text style={styles.emptyDesc}>
-              Jeszcze nikt nie ustalił czasu na {selectedTrail?.name ?? 'tej trasie'}.{'\n'}Bądź pierwszy.
-            </Text>
+            <Text style={styles.emptyLine}>—</Text>
+            <Text style={styles.emptyTitle}>BRAK CZASÓW</Text>
+            <Text style={styles.emptyDesc}>Bądź pierwszy na {selectedTrail?.name ?? 'tej trasie'}.</Text>
           </View>
         )}
 
@@ -443,9 +442,10 @@ const styles = StyleSheet.create({
 
   // Loading / Empty
   loadingWrap: { paddingVertical: spacing.xxl, alignItems: 'center' },
-  emptyWrap: { alignItems: 'center', paddingVertical: spacing.xxl },
-  emptyTitle: { ...typography.h3, color: colors.textSecondary, letterSpacing: 2 },
-  emptyDesc: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.sm },
+  emptyWrap: { alignItems: 'center', paddingVertical: spacing.huge, gap: spacing.sm },
+  emptyLine: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textTertiary, letterSpacing: 8, marginBottom: spacing.xs },
+  emptyTitle: { ...typography.label, color: colors.textTertiary, letterSpacing: 4, fontSize: 12 },
+  emptyDesc: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
   retryBtn: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
   retryText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2 },
 
