@@ -67,10 +67,10 @@ export function ArenaMapWeb({
         {trails.map((trail, index) => {
           const isSelected = selectedTrailId === trail.id;
           const isDimmed = selectedTrailId !== null && !isSelected;
+          const official = getOfficialTrail(trail.id);
           const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
           const isHot = hotTrailId === trail.id;
           const hasChallenge = challengeTrailId === trail.id;
-          const official = getOfficialTrail(trail.id);
           const stats = trailStats?.get(trail.id);
 
           // Spread trails across horizontal space

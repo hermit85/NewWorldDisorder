@@ -5,24 +5,39 @@
 
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { colors } from '@/theme/colors';
+import { useRouter, useNavigationContainerRef } from 'expo-router';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
 
 export default function BootstrapScreen() {
   const router = useRouter();
+  const rootNav = useNavigationContainerRef();
   const { needsOnboarding, loading } = useBetaFlow();
 
   useEffect(() => {
     if (loading) return;
 
-    const target = needsOnboarding ? '/onboarding' : '/(tabs)';
-    if (__DEV__) {
-      console.log('[NWD:bootstrap]', { needsOnboarding, target });
+    // Wait for navigation container to be ready before routing
+    const navigate = () => {
+      const target = needsOnboarding ? '/onboarding' : '/(tabs)';
+      if (__DEV__) {
+        console.log('[NWD:bootstrap]', { needsOnboarding, target, navReady: rootNav?.isReady() });
+      }
+      router.replace(target);
+    };
+
+    if (rootNav?.isReady()) {
+      navigate();
+    } else {
+      // Poll until ready (usually resolves in <100ms)
+      const interval = setInterval(() => {
+        if (rootNav?.isReady()) {
+          clearInterval(interval);
+          navigate();
+        }
+      }, 50);
+      return () => clearInterval(interval);
     }
-    router.replace(target);
   }, [loading, needsOnboarding]);
 
-  // Dark blank screen while resolving — hardcoded color to prevent white flash
   return <View style={{ flex: 1, backgroundColor: '#0A0A0F' }} />;
 }
