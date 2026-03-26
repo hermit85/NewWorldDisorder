@@ -1,11 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// Result Screen — reads from shared run store
+// Result Screen — post-run experience
 // Source of truth: runStore (not route params)
 // Subscribes to store updates so backend save resolves live
+//
+// PRODUCT TONE: gravity racing game finish screen
+// Not a fitness tracker. Not a GPS debug panel.
+// Clean, premium, emotional — official race result.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useReducer } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -14,41 +18,115 @@ import { spacing, radii } from '@/theme/spacing';
 import { getTrailById } from '@/data/seed/slotwinyOfficial';
 import { XP_TABLE } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
-import { tapLight, tapHeavy, notifySuccess, notifyWarning } from '@/systems/haptics';
-import { getFinalizedRun, subscribeFinalizedRun, updateFinalizedRun, FinalizedRun } from '@/systems/runStore';
+import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
+import { getFinalizedRun, subscribeFinalizedRun, updateFinalizedRun } from '@/systems/runStore';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useResultImpact, ScopeImpact, submitRunToBackend } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
 
-// ── Verification display config ──
-const V_DISPLAY: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  verified:              { label: 'ZWERYFIKOWANO',        color: colors.accent, bg: colors.accentDim,         icon: '✓' },
-  practice_only:         { label: 'TRENING',              color: colors.blue,   bg: 'rgba(0,122,255,0.15)',  icon: '○' },
-  weak_signal:           { label: 'SŁABY SYGNAŁ',        color: colors.orange, bg: 'rgba(255,149,0,0.15)',  icon: '!' },
-  missing_checkpoint:    { label: 'POMINIĘTY CHECKPOINT', color: colors.orange, bg: 'rgba(255,149,0,0.15)',  icon: '!' },
-  shortcut_detected:     { label: 'WYKRYTO SKRÓT',       color: colors.red,    bg: 'rgba(255,59,48,0.12)',  icon: '✕' },
-  outside_start_gate:    { label: 'BRAK BRAMKI STARTU',  color: colors.red,    bg: 'rgba(255,59,48,0.12)',  icon: '✕' },
-  outside_finish_gate:   { label: 'BRAK BRAMKI METY',    color: colors.red,    bg: 'rgba(255,59,48,0.12)',  icon: '✕' },
-  invalid_route:         { label: 'BŁĘDNA TRASA',        color: colors.red,    bg: 'rgba(255,59,48,0.12)',  icon: '✕' },
-  pending:               { label: 'WERYFIKACJA',         color: colors.gold,   bg: 'rgba(255,204,0,0.12)',  icon: '…' },
+// ═══════════════════════════════════════════════════════════
+// PRODUCT COPY — human, premium, gravity racing tone
+// No tech jargon user-facing. No "GPS error". No "invalid".
+// ═══════════════════════════════════════════════════════════
+
+/** Maps verification status to user-facing presentation */
+const STATUS_DISPLAY: Record<string, {
+  eyebrow: string;
+  label: string;
+  color: string;
+  bg: string;
+  icon: string;
+  description: string;
+}> = {
+  verified: {
+    eyebrow: 'OFICJALNY',
+    label: 'ZALICZONY',
+    color: colors.accent,
+    bg: colors.accentDim,
+    icon: '✓',
+    description: 'Zjazd zweryfikowany i zapisany w lidze.',
+  },
+  practice_only: {
+    eyebrow: 'TRENING',
+    label: 'ZAPISANY',
+    color: colors.blue,
+    bg: 'rgba(0,122,255,0.15)',
+    icon: '○',
+    description: 'Trening zapisany. Nie wpływa na ranking.',
+  },
+  weak_signal: {
+    eyebrow: 'OGRANICZONE ZAUFANIE',
+    label: 'ZAPISANY',
+    color: colors.orange,
+    bg: 'rgba(255,149,0,0.12)',
+    icon: '!',
+    description: 'Sygnał GPS był niestabilny. Zjazd zapisany, ale ranking ograniczony.',
+  },
+  missing_checkpoint: {
+    eyebrow: 'NIEKOMPLETNY',
+    label: 'ZAPISANY',
+    color: colors.orange,
+    bg: 'rgba(255,149,0,0.12)',
+    icon: '!',
+    description: 'Nie wszystkie punkty kontrolne zostały zaliczone.',
+  },
+  shortcut_detected: {
+    eyebrow: 'POZA TRASĄ',
+    label: 'NIE ZALICZONY',
+    color: colors.red,
+    bg: 'rgba(255,59,48,0.08)',
+    icon: '✕',
+    description: 'Wykryto odchylenie od oficjalnej trasy.',
+  },
+  outside_start_gate: {
+    eyebrow: 'BEZ BRAMKI',
+    label: 'NIE ZALICZONY',
+    color: colors.red,
+    bg: 'rgba(255,59,48,0.08)',
+    icon: '✕',
+    description: 'Bramka startowa nie została wykryta.',
+  },
+  outside_finish_gate: {
+    eyebrow: 'BEZ METY',
+    label: 'NIE ZALICZONY',
+    color: colors.red,
+    bg: 'rgba(255,59,48,0.08)',
+    icon: '✕',
+    description: 'Meta nie została wykryta. Spróbuj ponownie.',
+  },
+  invalid_route: {
+    eyebrow: 'POZA TRASĄ',
+    label: 'NIE ZALICZONY',
+    color: colors.red,
+    bg: 'rgba(255,59,48,0.08)',
+    icon: '✕',
+    description: 'Trasa przejazdu nie pasuje do oficjalnego przebiegu.',
+  },
+  pending: {
+    eyebrow: 'WERYFIKACJA',
+    label: 'SPRAWDZAM',
+    color: colors.gold,
+    bg: 'rgba(255,204,0,0.08)',
+    icon: '…',
+    description: 'Trwa weryfikacja zjazdu.',
+  },
 };
 
 const SCOPE_LABELS: Record<string, string> = {
   today: 'DZIŚ',
   weekend: 'WEEKEND',
-  all_time: 'WSZECHCZASÓW',
+  all_time: 'ALL TIME',
 };
+
+// ═══════════════════════════════════════════════════════════
 
 function ScopeImpactChip({ impact }: { impact: ScopeImpact }) {
   const label = SCOPE_LABELS[impact.scope] ?? impact.scope;
   const hasPos = impact.position !== null && impact.position > 0;
 
   return (
-    <View style={[
-      chipStyles.chip,
-      hasPos && chipStyles.chipActive,
-    ]}>
+    <View style={[chipStyles.chip, hasPos && chipStyles.chipActive]}>
       <Text style={chipStyles.chipLabel}>{label}</Text>
       {hasPos ? (
         <>
@@ -62,7 +140,7 @@ function ScopeImpactChip({ impact }: { impact: ScopeImpact }) {
           <Text style={chipStyles.chipTotal}>/ {impact.totalRiders}</Text>
         </>
       ) : (
-        <Text style={chipStyles.chipOff}>POZA TABLICĄ</Text>
+        <Text style={chipStyles.chipOff}>—</Text>
       )}
     </View>
   );
@@ -78,47 +156,28 @@ const chipStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: {
-    borderColor: colors.accent + '40',
-  },
-  chipLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    letterSpacing: 2,
-    fontSize: 8,
-    marginBottom: spacing.xs,
-  },
-  chipPos: {
-    fontFamily: 'Orbitron_700Bold',
-    fontSize: 20,
-    color: colors.textPrimary,
-  },
-  chipTotal: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 9,
-    marginTop: 2,
-  },
-  chipOff: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 9,
-    marginTop: spacing.xs,
-  },
+  chipActive: { borderColor: colors.accent + '30' },
+  chipLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginBottom: spacing.xs },
+  chipPos: { fontFamily: 'Orbitron_700Bold', fontSize: 20, color: colors.textPrimary },
+  chipTotal: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, marginTop: 2 },
+  chipOff: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 14, marginTop: spacing.xs },
 });
+
+// ═══════════════════════════════════════════════════════════
+// MAIN SCREEN
+// ═══════════════════════════════════════════════════════════
 
 export default function ResultScreen() {
   const { runSessionId } = useLocalSearchParams<{ runSessionId: string }>();
   const router = useRouter();
   const { profile: authProfile } = useAuthContext();
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [timeScaleAnim] = useState(new Animated.Value(0.8));
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   const [retrying, setRetrying] = useState(false);
 
-  // ── Read from store + subscribe for live updates ──
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
-  // ── Scoped board impact — fetched after save completes ──
   const { impact: scopedImpact } = useResultImpact(
     authProfile?.id,
     run?.trailId,
@@ -131,27 +190,37 @@ export default function ResultScreen() {
     return unsub;
   }, [runSessionId]);
 
-  // ── Entrance animation + haptics (once) ──
-  const [hapticFired, setHapticFired] = useState(false);
+  // ── Entrance animation — time punches in ──
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(timeScaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  // Fire haptics when save status resolves
+  // ── Haptics on save resolution ──
+  const [hapticFired, setHapticFired] = useState(false);
   useEffect(() => {
     if (hapticFired || !run) return;
     if (run.saveStatus === 'saved') {
       const isPb = run.backendResult?.isPb;
       if (isPb) {
         tapHeavy();
-        setTimeout(() => notifySuccess(), 200);
-        setTimeout(() => notifySuccess(), 500);
+        setTimeout(() => notifySuccess(), 150);
+        setTimeout(() => tapMedium(), 400);
+        setTimeout(() => notifySuccess(), 600);
       } else {
-        notifySuccess();
+        tapMedium();
+        setTimeout(() => notifySuccess(), 200);
       }
       setHapticFired(true);
     } else if (run.saveStatus === 'failed' || run.saveStatus === 'offline') {
@@ -166,13 +235,13 @@ export default function ResultScreen() {
     if (run.saveStatus !== 'failed') return;
 
     setRetrying(true);
+    selectionTick();
     logDebugEvent('save', 'retry_start', 'start', { runSessionId: run.sessionId, trailId: run.trailId });
     updateFinalizedRun(run.sessionId, { saveStatus: 'saving' as any });
     forceUpdate();
 
     try {
       const xpAwarded = run.verification?.isLeaderboardEligible ? XP_TABLE.validRun : 0;
-      // Build trace from stored snapshot for retry
       const snap = run.traceSnapshot;
       if (!snap) {
         logDebugEvent('save', 'retry_no_trace', 'fail', { runSessionId: run.sessionId });
@@ -225,37 +294,46 @@ export default function ResultScreen() {
     forceUpdate();
   };
 
-  // ── Fallback if no run in store ──
+  // ── Fallback ──
   if (!run) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.fallback}>
           <Text style={styles.fallbackText}>Brak danych zjazdu</Text>
           <Pressable style={styles.fallbackBtn} onPress={() => router.replace('/(tabs)')}>
-            <Text style={styles.fallbackBtnText}>STRONA GŁÓWNA</Text>
+            <Text style={styles.fallbackBtnText}>WRÓĆ</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Derive display state from store ──
+  // ═══════════════════════════════════════════════════════════
+  // DERIVE DISPLAY STATE
+  // ═══════════════════════════════════════════════════════════
+
   const trail = getTrailById(run.trailId);
   const trailName = run.trailName || trail?.officialName || 'Unknown Trail';
   const v = run.verification;
   const vStatus = v?.status ?? 'pending';
-  const vd = V_DISPLAY[vStatus] ?? V_DISPLAY.pending;
-  const issues = v?.issues ?? [];
+  const sd = STATUS_DISPLAY[vStatus] ?? STATUS_DISPLAY.pending;
   const isVerified = vStatus === 'verified';
   const isRanked = run.mode === 'ranked';
+  const isPractice = run.mode === 'practice';
   const isPb = run.backendResult?.isPb ?? false;
   const rankPosition = run.backendResult?.leaderboardResult?.position ?? 0;
   const rankDelta = run.backendResult?.leaderboardResult?.delta ?? 0;
   const xpAwarded = run.backendResult?.run?.xp_awarded ?? (run.saveStatus === 'saved' ? XP_TABLE.validRun : 0);
   const showRank = isRanked && isVerified && rankPosition > 0;
   const isSaving = run.saveStatus === 'saving' || run.saveStatus === 'pending';
+  const isSaved = run.saveStatus === 'saved';
+  const isFailed = run.saveStatus === 'failed';
 
-  // Tier context for rank
+  // Quality-based status for saved ranked runs
+  const isOfficialRankedResult = showRank && isSaved;
+  const isSavedButNotRanked = isSaved && !showRank && isRanked;
+
+  // Tier context
   const tierLabel = rankPosition <= 3 && rankPosition > 0 ? 'PODIUM'
     : rankPosition <= 10 && rankPosition > 0 ? 'TOP 10'
     : null;
@@ -275,34 +353,40 @@ export default function ResultScreen() {
         showsVerticalScrollIndicator={false}
         style={{ opacity: fadeAnim }}
       >
-        {/* ── Trail + mode header ── */}
+        {/* ═══ HEADER — trail + status eyebrow ═══ */}
         <View style={styles.header}>
           <Text style={styles.trailLabel}>{trailName.toUpperCase()}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: vd.bg }]}>
-            <Text style={[styles.statusIcon, { color: vd.color }]}>{vd.icon}</Text>
-            <Text style={[styles.statusText, { color: vd.color }]}>{vd.label}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: sd.bg }]}>
+            <Text style={[styles.statusIcon, { color: sd.color }]}>{sd.icon}</Text>
+            <Text style={[styles.statusText, { color: sd.color }]}>{sd.eyebrow}</Text>
           </View>
         </View>
 
-        {/* ── THE TIME ── */}
-        <View style={styles.timeContainer}>
-          <Text style={[styles.timeHero, isPb && { color: colors.accent }]}>
+        {/* ═══ THE TIME — hero element ═══ */}
+        <Animated.View style={[styles.timeContainer, { transform: [{ scale: timeScaleAnim }] }]}>
+          <Text style={[
+            styles.timeHero,
+            isPb && { color: colors.accent },
+            isOfficialRankedResult && !isPb && { color: colors.textPrimary },
+            !isVerified && !isPractice && { color: colors.textSecondary },
+          ]}>
             {formatTime(run.durationMs)}
           </Text>
-        </View>
+        </Animated.View>
 
-        {/* ── PB ── */}
+        {/* ═══ PB CELEBRATION ═══ */}
         {isPb && (
           <View style={styles.pbCard}>
-            <Text style={styles.pbLabel}>NOWY REKORD</Text>
+            <Text style={styles.pbIcon}>▲</Text>
+            <Text style={styles.pbLabel}>PERSONAL BEST</Text>
           </View>
         )}
 
-        {/* ── Rank position with tier context ── */}
+        {/* ═══ RANK CARD — only for official ranked results ═══ */}
         {showRank && (
           <View style={[
             styles.rankCard,
-            movedIntoTier && { borderColor: colors.gold },
+            movedIntoTier && { borderColor: colors.gold + '60' },
           ]}>
             <View style={styles.rankRow}>
               <Text style={[
@@ -317,11 +401,10 @@ export default function ResultScreen() {
                 </View>
               )}
               {rankDelta === 0 && rankPosition > 0 && (
-                <Text style={styles.deltaFlat}>NOWY WPIS</Text>
+                <Text style={styles.deltaNew}>NOWY</Text>
               )}
             </View>
 
-            {/* Tier label */}
             {tierLabel && (
               <Text style={[
                 styles.tierLabel,
@@ -332,60 +415,72 @@ export default function ResultScreen() {
               </Text>
             )}
 
-            {/* Ambition cue — what's next */}
             {!tierLabel && placesToNextTier > 0 && placesToNextTier <= 7 && (
               <Text style={styles.ambitionText}>
                 {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do TOP 10
               </Text>
             )}
 
-            <Text style={styles.rankLabel}>TABLICA WYNIKÓW</Text>
+            <Text style={styles.rankSublabel}>OFICJALNY RANKING</Text>
           </View>
         )}
 
-        {/* ── XP ── */}
+        {/* ═══ XP ═══ */}
         {xpAwarded > 0 && (
           <View style={styles.xpRow}>
             <Text style={styles.xpValue}>+{xpAwarded} XP</Text>
           </View>
         )}
 
-        {/* ── Save status ── */}
+        {/* ═══ SAVE STATUS — league sync ═══ */}
         <View style={styles.saveRow}>
           {isSaving && (
             <View style={styles.savingBadge}>
               <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.savingText}>ZAPISUJĘ DO LIGI...</Text>
+              <Text style={styles.savingText}>SYNCHRONIZUJĘ Z LIGĄ...</Text>
             </View>
           )}
-          {run.saveStatus === 'saved' && (
-            <View style={styles.saveOkBadge}>
-              <Text style={styles.saveOkText}>✓ ZAPISANO W LIDZE</Text>
+          {isSaved && isVerified && (
+            <View style={styles.saveOfficialBadge}>
+              <Text style={styles.saveOfficialText}>✓ OFICJALNY WYNIK LIGI</Text>
             </View>
           )}
-          {run.saveStatus === 'failed' && (
-            <View style={styles.saveFailBadge}>
-              <Text style={styles.saveFailText}>ZAPIS NIE POWIÓDŁ SIĘ</Text>
+          {isSaved && !isVerified && isRanked && (
+            <View style={styles.saveSavedBadge}>
+              <Text style={styles.saveSavedText}>ZAPISANY · POZA OFICJALNYM RANKINGIEM</Text>
             </View>
           )}
-          {run.saveStatus === 'offline' && run.mode === 'practice' && (
+          {isPractice && (
             <View style={styles.savePracticeBadge}>
-              <Text style={styles.savePracticeText}>TRENING — POZA TABLICĄ</Text>
+              <Text style={styles.savePracticeText}>TRENING · POZA RANKINGIEM</Text>
             </View>
           )}
-          {run.saveStatus === 'offline' && run.mode !== 'practice' && (
+          {isFailed && (
             <View style={styles.saveFailBadge}>
-              <Text style={styles.saveFailText}>OFFLINE — NIE ZAPISANO</Text>
+              <Text style={styles.saveFailText}>NIE UDAŁO SIĘ ZAPISAĆ</Text>
+            </View>
+          )}
+          {run.saveStatus === 'offline' && !isPractice && (
+            <View style={styles.saveFailBadge}>
+              <Text style={styles.saveFailText}>BRAK POŁĄCZENIA</Text>
             </View>
           )}
         </View>
 
-        {/* ── Sync failure explanation + retry ── */}
-        {run.saveStatus === 'failed' && isRanked && isVerified && (
-          <View style={styles.syncFailCard}>
-            <Text style={styles.syncFailTitle}>TWÓJ ZJAZD BYŁ PRAWIDŁOWY</Text>
-            <Text style={styles.syncFailBody}>
-              Zjazd przeszedł weryfikację, ale nie udało się go zapisać. To może być problem z połączeniem.
+        {/* ═══ STATUS CONTEXT — soft human explanation ═══ */}
+        {!isVerified && !isPractice && vStatus !== 'pending' && (
+          <View style={styles.statusContextCard}>
+            <Text style={[styles.statusContextLabel, { color: sd.color }]}>{sd.label}</Text>
+            <Text style={styles.statusContextBody}>{sd.description}</Text>
+          </View>
+        )}
+
+        {/* ═══ RETRY CARD — verified but sync failed ═══ */}
+        {isFailed && isRanked && isVerified && (
+          <View style={styles.retryCard}>
+            <Text style={styles.retryTitle}>ZJAZD BYŁ CZYSTY</Text>
+            <Text style={styles.retryBody}>
+              Weryfikacja przeszła, ale zapis do ligi nie powiódł się. Spróbuj ponownie.
             </Text>
             <Pressable
               style={[styles.retryBtn, retrying && { opacity: 0.5 }]}
@@ -393,26 +488,16 @@ export default function ResultScreen() {
               disabled={retrying}
             >
               <Text style={styles.retryBtnText}>
-                {retrying ? 'ZAPISUJĘ...' : 'SPRÓBUJ ZAPISAĆ PONOWNIE'}
+                {retrying ? 'ZAPISUJĘ...' : 'PONÓW ZAPIS'}
               </Text>
             </Pressable>
           </View>
         )}
 
-        {/* ── Verification issues ── */}
-        {issues.length > 0 && (
-          <View style={styles.issuesCard}>
-            {issues.map((issue, i) => (
-              <Text key={i} style={styles.issueText}>• {issue}</Text>
-            ))}
-          </View>
-        )}
-
-        {/* ═══ LEAGUE IMPACT — scoped board consequence ═══ */}
-        {scopedImpact.length > 0 && run.saveStatus === 'saved' && (
+        {/* ═══ LEAGUE IMPACT — scoped positions ═══ */}
+        {scopedImpact.length > 0 && isSaved && (
           <View style={styles.impactSection}>
-            <Text style={styles.impactTitle}>WPŁYW NA LIGĘ</Text>
-            <Text style={styles.impactTrail}>{trailName}</Text>
+            <Text style={styles.impactTitle}>POZYCJA W LIDZE</Text>
             <View style={styles.impactGrid}>
               {scopedImpact.map((s) => (
                 <ScopeImpactChip key={s.scope} impact={s} />
@@ -421,41 +506,53 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ── Divider ── */}
+        {/* ═══ DIVIDER ═══ */}
         <View style={styles.divider} />
 
-        {/* ── CTAs — Run Again is primary, Leaderboard gains context ── */}
-        <Pressable style={styles.runAgainBtn} onPress={() => {
-          tapLight();
-          router.replace({ pathname: '/run/active', params: { trailId: run.trailId, trailName } });
-        }}>
+        {/* ═══ CTAs ═══ */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.runAgainBtn,
+            pressed && styles.runAgainBtnPressed,
+          ]}
+          onPress={() => {
+            tapMedium();
+            router.replace({ pathname: '/run/active', params: { trailId: run.trailId, trailName } });
+          }}
+        >
           <Text style={styles.runAgainText}>JEDŹ PONOWNIE</Text>
         </Pressable>
 
         <View style={styles.secondaryCtaRow}>
-          <Pressable style={[
-            styles.leaderboardBtn,
-            showRank && { borderColor: colors.accent },
-          ]} onPress={() => {
-            tapLight();
-            router.replace({
-              pathname: '/(tabs)/leaderboard',
-              params: { trailId: run.trailId, scope: 'all_time' },
-            });
-          }}>
+          <Pressable
+            style={[
+              styles.secondaryBtn,
+              showRank && { borderColor: colors.accent + '60' },
+            ]}
+            onPress={() => {
+              tapLight();
+              router.replace({
+                pathname: '/(tabs)/leaderboard',
+                params: { trailId: run.trailId, scope: 'all_time' },
+              });
+            }}
+          >
             <Text style={[
-              styles.leaderboardBtnText,
+              styles.secondaryBtnText,
               showRank && { color: colors.accent },
             ]}>
-              {showRank ? `TABLICA · #${rankPosition}` : 'TABLICA'}
+              {showRank ? `RANKING · #${rankPosition}` : 'RANKING'}
             </Text>
           </Pressable>
 
-          <Pressable style={styles.trailBtn} onPress={() => {
-            tapLight();
-            router.replace(`/trail/${run.trailId}`);
-          }}>
-            <Text style={styles.trailBtnText}>TRASA</Text>
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => {
+              tapLight();
+              router.replace(`/trail/${run.trailId}`);
+            }}
+          >
+            <Text style={styles.secondaryBtnText}>TRASA</Text>
           </Pressable>
         </View>
       </Animated.ScrollView>
@@ -463,91 +560,131 @@ export default function ResultScreen() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.xl, paddingTop: spacing.xxl, paddingBottom: spacing.huge },
+  scroll: { padding: spacing.xl, paddingTop: spacing.xxxl, paddingBottom: spacing.huge },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
   fallbackText: { ...typography.body, color: colors.textSecondary },
-  fallbackBtn: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
-  fallbackBtnText: { ...typography.cta, color: colors.bg, letterSpacing: 2 },
+  fallbackBtn: { backgroundColor: colors.bgElevated, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderWidth: 1, borderColor: colors.border },
+  fallbackBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
 
-  header: { alignItems: 'center', marginBottom: spacing.lg, gap: spacing.sm },
+  // Header
+  header: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.sm },
   trailLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 11 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs },
-  statusIcon: { fontFamily: 'Inter_700Bold', fontSize: 12 },
-  statusText: { ...typography.labelSmall, letterSpacing: 2, fontSize: 10 },
+  statusIcon: { fontFamily: 'Inter_700Bold', fontSize: 11 },
+  statusText: { ...typography.labelSmall, letterSpacing: 3, fontSize: 9 },
 
-  timeContainer: { alignItems: 'center', paddingVertical: spacing.xl },
-  timeHero: { fontFamily: 'Orbitron_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 4 },
+  // Time — hero
+  timeContainer: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.sm },
+  timeHero: { fontFamily: 'Orbitron_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 3 },
 
-  pbCard: { alignItems: 'center', backgroundColor: colors.accentDim, borderRadius: radii.md, paddingVertical: spacing.md, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent },
-  pbLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.accent, letterSpacing: 4 },
+  // PB celebration
+  pbCard: {
+    alignItems: 'center',
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.accent + '40',
+    gap: spacing.xxs,
+  },
+  pbIcon: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.accent },
+  pbLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.accent, letterSpacing: 5 },
 
+  // Rank card
   rankCard: {
     alignItems: 'center',
     backgroundColor: colors.bgCard,
     borderRadius: radii.lg,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.xl,
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  rankPosition: { fontFamily: 'Orbitron_700Bold', fontSize: 36, color: colors.textPrimary },
+  rankPosition: { fontFamily: 'Orbitron_700Bold', fontSize: 40, color: colors.textPrimary },
   rankDeltaBadge: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
-  rankDeltaText: { ...typography.label, color: colors.accent, fontSize: 16 },
-  deltaFlat: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
-  rankLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginTop: spacing.sm },
+  rankDeltaText: { fontFamily: 'Orbitron_700Bold', color: colors.accent, fontSize: 16 },
+  deltaNew: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3 },
+  rankSublabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.md, fontSize: 8 },
+  tierLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 11, color: colors.textSecondary, letterSpacing: 4, marginTop: spacing.sm },
+  ambitionText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm },
 
-  tierLabel: {
-    fontFamily: 'Orbitron_700Bold',
-    fontSize: 11,
-    color: colors.textSecondary,
-    letterSpacing: 4,
-    marginTop: spacing.sm,
-  },
-  ambitionText: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    letterSpacing: 1,
-    marginTop: spacing.sm,
-  },
-
+  // XP
   xpRow: { alignItems: 'center', marginBottom: spacing.md },
-  xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 18, color: colors.gold, letterSpacing: 2 },
+  xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
 
+  // Save status
   saveRow: { alignItems: 'center', marginBottom: spacing.lg },
   savingBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   savingText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1 },
-  saveOkBadge: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  saveOkText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 2 },
-  savePracticeBadge: { backgroundColor: 'rgba(0,122,255,0.1)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  savePracticeText: { ...typography.labelSmall, color: colors.blue, letterSpacing: 1 },
-  saveFailBadge: { backgroundColor: 'rgba(255,149,0,0.1)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  saveFailText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1 },
+  saveOfficialBadge: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  saveOfficialText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 2, fontSize: 10 },
+  saveSavedBadge: { backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  saveSavedText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
+  savePracticeBadge: { backgroundColor: 'rgba(0,122,255,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  savePracticeText: { ...typography.labelSmall, color: colors.blue, letterSpacing: 1, fontSize: 10 },
+  saveFailBadge: { backgroundColor: 'rgba(255,149,0,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  saveFailText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1, fontSize: 10 },
 
-  syncFailCard: { backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.orange },
-  syncFailTitle: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, marginBottom: spacing.sm },
-  syncFailBody: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
-  retryBtn: { borderWidth: 1, borderColor: colors.orange, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: 'center' },
-  retryBtnText: { ...typography.label, color: colors.orange, letterSpacing: 2, fontSize: 12 },
+  // Status context card (non-verified explanation)
+  statusContextCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  statusContextLabel: { ...typography.labelSmall, letterSpacing: 3, fontSize: 10 },
+  statusContextBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20 },
 
-  issuesCard: { backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
-  issueText: { ...typography.bodySmall, color: colors.textTertiary, lineHeight: 20 },
+  // Retry card
+  retryCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.orange + '30',
+    alignItems: 'center',
+  },
+  retryTitle: { ...typography.labelSmall, color: colors.orange, letterSpacing: 3, marginBottom: spacing.sm, fontSize: 10 },
+  retryBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
+  retryBtn: { borderWidth: 1, borderColor: colors.orange + '60', borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, alignItems: 'center' },
+  retryBtnText: { ...typography.label, color: colors.orange, letterSpacing: 2, fontSize: 11 },
 
+  // League impact
   impactSection: { marginBottom: spacing.lg },
-  impactTitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 9, textAlign: 'center', marginBottom: spacing.xxs },
-  impactTrail: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2, fontSize: 10, textAlign: 'center', marginBottom: spacing.md },
+  impactTitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 8, textAlign: 'center', marginBottom: spacing.md },
   impactGrid: { flexDirection: 'row', gap: spacing.sm },
 
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.lg },
+  // Divider
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xl },
 
-  runAgainBtn: { backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center', marginBottom: spacing.md },
-  runAgainText: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.bg, letterSpacing: 4 },
+  // CTAs
+  runAgainBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  runAgainBtnPressed: {
+    backgroundColor: colors.accentGlow,
+    transform: [{ scale: 0.98 }],
+  },
+  runAgainText: { fontFamily: 'Orbitron_700Bold', fontSize: 15, color: colors.bg, letterSpacing: 5 },
   secondaryCtaRow: { flexDirection: 'row', gap: spacing.sm },
-  leaderboardBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
-  leaderboardBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
-  trailBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
-  trailBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
+  secondaryBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  secondaryBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
 });

@@ -142,15 +142,15 @@ export default function ActiveRunScreen() {
         if (state.readiness.rankedEligible) return 'DOTKNIJ — TRYB RANKINGOWY';
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
-      case 'armed_ranked': return 'RANKING — DOTKNIJ ABY RUSZYĆ';
-      case 'armed_practice': return 'TRENING — DOTKNIJ ABY RUSZYĆ';
-      case 'running_ranked': return 'ZJAZD RANKINGOWY';
+      case 'armed_ranked': return 'RANKING — GOTOWY DO STARTU';
+      case 'armed_practice': return 'TRENING — GOTOWY';
+      case 'running_ranked': return 'OFICJALNY ZJAZD';
       case 'running_practice': return 'TRENING';
-      case 'finishing': return 'KOŃCZENIE...';
+      case 'finishing': return 'META...';
       case 'verifying': return 'WERYFIKACJA...';
-      case 'completed_verified': return 'ZWERYFIKOWANO — DOTKNIJ';
-      case 'completed_unverified': return 'TRENING ZAKOŃCZONY — DOTKNIJ';
-      case 'invalidated': return 'NIE ZWERYFIKOWANO — DOTKNIJ';
+      case 'completed_verified': return 'ZALICZONY — DOTKNIJ';
+      case 'completed_unverified': return 'ZAPISANY — DOTKNIJ';
+      case 'invalidated': return 'NIE ZALICZONY — DOTKNIJ';
       case 'error': return state.error ?? 'COŚ POSZŁO NIE TAK';
       default: return '';
     }
