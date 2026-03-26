@@ -25,7 +25,7 @@ export const copy = {
 
   // Run screen
   armed: 'GOTOWY',
-  ready: 'READY',
+  ready: 'GOTOWY',
   go: 'START',
   running: 'JAZDA',
   finishing: 'KOŃCZENIE',
@@ -50,6 +50,7 @@ export const copy = {
   activeChallenge: 'Aktywne wyzwanie',
   hotTrail: 'Popularna trasa',
   ridersToday: (n: number) => `${n} ${n === 1 ? 'rider' : 'riderów'} dziś`,
+  // Polish plurals: 1 = singular, 2-4 = paucal, 5+ = genitive plural
   weekendHeat: 'Weekend w pełni',
   yourRank: 'Twoja ranga',
 

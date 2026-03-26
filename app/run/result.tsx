@@ -61,7 +61,7 @@ const STATUS_DISPLAY: Record<string, {
     color: colors.orange,
     bg: 'rgba(255,149,0,0.12)',
     icon: '!',
-    description: 'Sygnał GPS był niestabilny. Zjazd zapisany, ale ranking ograniczony.',
+    description: 'Słaby GPS. Wynik zapisany, ale poza oficjalnym rankingiem.',
   },
   missing_checkpoint: {
     eyebrow: 'NIEKOMPLETNY',
@@ -77,7 +77,7 @@ const STATUS_DISPLAY: Record<string, {
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
     icon: '✕',
-    description: 'Wykryto odchylenie od oficjalnej trasy.',
+    description: 'Zjechałeś poza oficjalną trasę. Spróbuj ponownie.',
   },
   outside_start_gate: {
     eyebrow: 'BEZ BRAMKI',
@@ -85,7 +85,7 @@ const STATUS_DISPLAY: Record<string, {
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
     icon: '✕',
-    description: 'Bramka startowa nie została wykryta.',
+    description: 'Nie wykryto przejazdu przez bramkę startową.',
   },
   outside_finish_gate: {
     eyebrow: 'BEZ METY',
@@ -101,7 +101,7 @@ const STATUS_DISPLAY: Record<string, {
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
     icon: '✕',
-    description: 'Trasa przejazdu nie pasuje do oficjalnego przebiegu.',
+    description: 'Przejazd nie pokrywa się z oficjalną trasą.',
   },
   pending: {
     eyebrow: 'WERYFIKACJA',
@@ -116,7 +116,7 @@ const STATUS_DISPLAY: Record<string, {
 const SCOPE_LABELS: Record<string, string> = {
   today: 'DZIŚ',
   weekend: 'WEEKEND',
-  all_time: 'ALL TIME',
+  all_time: 'SEZON',
 };
 
 // ═══════════════════════════════════════════════════════════

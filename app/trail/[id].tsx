@@ -157,7 +157,7 @@ export default function TrailDetailScreen() {
           <View style={styles.boardHeader}>
             <Text style={styles.sectionLabel}>TABLICA</Text>
             <View style={styles.scopeTabs}>
-              {([['day', 'DZIŚ'], ['weekend', 'WKND'], ['all_time', '∞']] as [PeriodType, string][]).map(([key, label]) => (
+              {([['day', 'DZIŚ'], ['weekend', 'WEEKEND'], ['all_time', 'SEZON']] as [PeriodType, string][]).map(([key, label]) => (
                 <Pressable
                   key={key}
                   style={[styles.scopeTab, boardScope === key && styles.scopeTabActive]}
@@ -173,8 +173,8 @@ export default function TrailDetailScreen() {
 
           {!lbLoading && top5.length === 0 && (
             <View style={styles.emptyLb}>
-              <Text style={styles.emptyText}>Brak zweryfikowanych zjazdów</Text>
-              <Text style={styles.emptyHint}>Bądź pierwszy — ustaw czas</Text>
+              <Text style={styles.emptyText}>Tablica pusta</Text>
+              <Text style={styles.emptyHint}>Postaw pierwszy czas</Text>
             </View>
           )}
 

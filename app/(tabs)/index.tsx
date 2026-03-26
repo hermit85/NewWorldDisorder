@@ -215,7 +215,7 @@ export default function HomeScreen() {
                 <Text style={[styles.riderStatValue, bestPos > 0 ? { color: colors.accent } : {}]}>
                   {bestPos > 0 ? `#${bestPos}` : '—'}
                 </Text>
-                <Text style={styles.riderStatLabel}>NAJLEPSZA POZ.</Text>
+                <Text style={styles.riderStatLabel}>POZYCJA</Text>
               </View>
             </View>
             {myBoardEntry && (
@@ -332,7 +332,7 @@ export default function HomeScreen() {
                     )}
                   </>
                 ) : (
-                  <Text style={styles.trailRowNoPb}>Bez wyniku</Text>
+                  <Text style={styles.trailRowNoPb}>Brak czasu</Text>
                 )}
               </View>
             </Pressable>

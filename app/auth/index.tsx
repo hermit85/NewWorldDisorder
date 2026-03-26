@@ -194,7 +194,7 @@ export default function AuthScreen() {
             <Text style={styles.label}>EMAIL</Text>
             <TextInput
               style={styles.input}
-              placeholder="rider@email.com"
+              placeholder="twoj@email.com"
               placeholderTextColor={colors.textTertiary}
               value={email}
               onChangeText={setEmail}
@@ -234,11 +234,11 @@ export default function AuthScreen() {
                 Wysłaliśmy kod logowania na{'\n'}{email}
               </Text>
               <Text style={styles.inboxHint}>
-                Wpisz kod poniżej. Nie klikaj linku w mailu.
+                Skopiuj kod z maila i wklej poniżej.
               </Text>
             </View>
 
-            <Text style={styles.label}>KOD Z MAILA</Text>
+            <Text style={styles.label}>TWÓJ KOD</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholder="00000000"
@@ -283,9 +283,9 @@ export default function AuthScreen() {
 
         {step === 'create_profile' && (
           <View style={styles.form}>
-            <Text style={styles.formTitle}>WYBIERZ RIDER TAG</Text>
+            <Text style={styles.formTitle}>TWOJA NAZWA W LIDZE</Text>
             <Text style={styles.formDesc}>
-              Twoja nazwa na tablicy wyników. Wybierz mądrze.
+              Tak będziesz widoczny na tablicy wyników.
             </Text>
 
             <Text style={styles.label}>RIDER TAG</Text>

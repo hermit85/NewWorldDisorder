@@ -17,7 +17,7 @@ import { useLeaderboard } from '@/hooks/useBackend';
 const SCOPES: { key: PeriodType; label: string }[] = [
   { key: 'day', label: 'DZIŚ' },
   { key: 'weekend', label: 'WEEKEND' },
-  { key: 'all_time', label: 'ALL TIME' },
+  { key: 'all_time', label: 'SEZON' },
 ];
 
 export default function LeaderboardScreen() {
@@ -183,8 +183,8 @@ export default function LeaderboardScreen() {
         {!loading && !lbError && entries.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>BRAK CZASÓW</Text>
-            <Text style={styles.emptyDesc}>Bądź pierwszy na {selectedTrail?.name ?? 'tej trasie'}.</Text>
+            <Text style={styles.emptyTitle}>TABLICA PUSTA</Text>
+            <Text style={styles.emptyDesc}>Postaw pierwszy czas na {selectedTrail?.name ?? 'tej trasie'}.</Text>
           </View>
         )}
 
@@ -258,11 +258,11 @@ export default function LeaderboardScreen() {
                   </Text>
                 )}
                 {myEntry.delta > 0 && (
-                  <Text style={styles.riderStatusDelta}>↑{myEntry.delta} POZYCJI</Text>
+                  <Text style={styles.riderStatusDelta}>↑{myEntry.delta} {myEntry.delta === 1 ? 'POZYCJA' : myEntry.delta < 5 ? 'POZYCJE' : 'POZYCJI'}</Text>
                 )}
                 {myEntry.delta < 0 && (
                   <Text style={[styles.riderStatusDelta, { color: colors.red }]}>
-                    ↓{Math.abs(myEntry.delta)} POZYCJI
+                    ↓{Math.abs(myEntry.delta)} {Math.abs(myEntry.delta) === 1 ? 'POZYCJA' : Math.abs(myEntry.delta) < 5 ? 'POZYCJE' : 'POZYCJI'}
                   </Text>
                 )}
               </View>

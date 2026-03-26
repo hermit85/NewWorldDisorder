@@ -311,7 +311,7 @@ export default function OnboardingScreen() {
               </View>
             ) : (
               <View style={styles.gpsDenied}>
-                <Text style={styles.gpsDeniedText}>Możesz włączyć później w Ustawieniach.</Text>
+                <Text style={styles.gpsDeniedText}>Włącz GPS w Ustawieniach aby jechać rankingowo.</Text>
               </View>
             )}
 
