@@ -2,9 +2,12 @@
 // useRealRun — orchestrates a real GPS-tracked run
 // INTEGRITY: one run → one finish → one verify → one save
 // Guards: idempotent finish, mounted check, GPS cleanup
+//
+// v2: Gate Engine integration — line-crossing detection,
+//     GPS smoothing, quality tiers, anti-cheat MVP
 // ═══════════════════════════════════════════════════════════
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import {
   GpsPoint,
@@ -16,6 +19,11 @@ import {
   isInZone,
   distanceMeters,
 } from './gps';
+import {
+  useRunGateEngine,
+  type GateCrossingResult,
+  type RunQualityAssessment,
+} from '@/features/run';
 import { computeReadiness } from './verification';
 import { verifyRealRun, buildCheckpoints } from './realVerification';
 import {
@@ -65,6 +73,18 @@ export interface RealRunState {
   permissionDenied: boolean;
   backendStatus: BackendSaveStatus;
   backendResult: SubmitRunResult | null;
+  /** Gate engine quality assessment (v2) */
+  runQuality: RunQualityAssessment | null;
+  /** Gate engine: auto-start detected */
+  gateAutoStarted: boolean;
+  /** Gate engine: auto-finish detected */
+  gateAutoFinished: boolean;
+  /** Gate engine: current heading degrees */
+  gateHeadingDeg: number | null;
+  /** Gate engine: current speed km/h */
+  gateSpeedKmh: number | null;
+  /** Gate engine: accumulated distance meters */
+  gateTotalDistanceM: number;
 }
 
 const isWeb = Platform.OS === 'web';
@@ -98,7 +118,25 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     permissionDenied: false,
     backendStatus: 'idle',
     backendResult: null,
+    runQuality: null,
+    gateAutoStarted: false,
+    gateAutoFinished: false,
+    gateHeadingDeg: null,
+    gateSpeedKmh: null,
+    gateTotalDistanceM: 0,
   });
+
+  // ── Gate Engine ──
+  // Callbacks are stable refs so gate engine doesn't re-create
+  const gateStartCallbackRef = useRef<(crossing: GateCrossingResult) => void>(() => {});
+  const gateFinishCallbackRef = useRef<(crossing: GateCrossingResult) => void>(() => {});
+
+  const gateCallbacks = useMemo(() => ({
+    onStartCrossing: (c: GateCrossingResult) => gateStartCallbackRef.current(c),
+    onFinishCrossing: (c: GateCrossingResult) => gateFinishCallbackRef.current(c),
+  }), []);
+
+  const gateEngine = useRunGateEngine(trailId, gateCallbacks);
 
   // ── Lifecycle guards ──
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -178,15 +216,22 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
     const trackingStarted = await startTracking((point) => {
+      // Feed every point through gate engine
+      const currentState = stateRef.current;
+      const isRunning = currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
+      const isArmed = currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
+
+      gateEngine.processPoint(point, isRunning, isArmed);
+
       safeSetState((s) => {
-        // During run: add points, check gates/checkpoints
+        // During run: add points, check checkpoints
+        // NOTE: finish detection is now handled by gate engine callbacks (above)
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
 
-          // Auto-finish on finish gate (only if not already finalizing)
+          // Legacy fallback: still use isInZone as safety net for finish
+          // Gate engine should catch this first, but just in case
           if (geo && isInZone(point, geo.finishZone) && !finalizingRef.current) {
-            // Don't call finishRun from inside setState — just set phase
-            // The finalize logic runs below via the effect
             finalizingRef.current = true;
             return {
               ...s,
@@ -242,6 +287,62 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }
   }, [geo, safeSetState]);
 
+  // ── Gate Engine: auto-start callback ──
+  // When the gate engine detects start gate crossing while armed, auto-start the run
+  gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
+    // Only auto-start if we're in armed phase
+    const s = stateRef.current;
+    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    if (finalizingRef.current) return;
+
+    logDebugEvent('run', 'gate_auto_start', 'ok', {
+      trailId,
+      payload: {
+        flags: crossing.flags,
+        distance: crossing.distanceFromCenterM,
+        heading: crossing.riderHeadingDeg,
+        speed: crossing.speedAtCrossingKmh,
+      },
+    });
+
+    // Trigger actual run start
+    startRunInternal(true);
+  };
+
+  // ── Gate Engine: auto-finish callback ──
+  gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
+    if (finalizingRef.current) return;
+    const s = stateRef.current;
+    if (s.phase !== 'running_ranked' && s.phase !== 'running_practice') return;
+
+    logDebugEvent('run', 'gate_auto_finish', 'ok', {
+      trailId,
+      payload: {
+        flags: crossing.flags,
+        distance: crossing.distanceFromCenterM,
+        heading: crossing.riderHeadingDeg,
+        speed: crossing.speedAtCrossingKmh,
+        totalDistanceM: gateEngine.getTotalDistanceM(),
+      },
+    });
+
+    finalizingRef.current = true;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    safeSetState((prev) => ({
+      ...prev,
+      phase: 'finishing' as RunPhaseV2,
+      elapsedMs: prev.startedAt ? Date.now() - prev.startedAt : prev.elapsedMs,
+      gateAutoFinished: true,
+    }));
+  };
+
+  // ── State ref for callbacks ──
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // ── Arm run ──
 
   const armRun = useCallback((mode: RunMode) => {
@@ -253,13 +354,18 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     }));
   }, [safeSetState]);
 
-  // ── Start run ──
+  // ── Start run (internal — called by manual tap or gate auto-start) ──
 
-  const startRun = useCallback(() => {
+  const startRunInternal = useCallback((autoStarted: boolean = false) => {
     finalizingRef.current = false;
     const sessionId = createRunSessionId();
-    logDebugEvent('run', 'started', 'ok', { runSessionId: sessionId, trailId, payload: { mode: state.mode } });
-    const trace = beginTrace(trailId, trailName, state.mode);
+    const currentMode = stateRef.current.mode;
+    logDebugEvent('run', 'started', 'ok', {
+      runSessionId: sessionId,
+      trailId,
+      payload: { mode: currentMode, autoStarted },
+    });
+    const trace = beginTrace(trailId, trailName, currentMode);
     const now = Date.now();
 
     safeSetState((s) => ({
@@ -273,15 +379,27 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       verification: null,
       backendStatus: 'idle',
       backendResult: null,
+      runQuality: null,
+      gateAutoStarted: autoStarted,
+      gateAutoFinished: false,
+      gateTotalDistanceM: 0,
     }));
 
     timerRef.current = setInterval(() => {
       safeSetState((s) => ({
         ...s,
         elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
+        gateHeadingDeg: gateEngine.getCurrentHeading(),
+        gateSpeedKmh: gateEngine.getCurrentSpeedKmh(),
+        gateTotalDistanceM: gateEngine.getTotalDistanceM(),
       }));
     }, 50);
-  }, [trailId, trailName, state.mode, geo, safeSetState]);
+  }, [trailId, trailName, geo, safeSetState, gateEngine]);
+
+  // Public startRun for manual tap
+  const startRun = useCallback(() => {
+    startRunInternal(false);
+  }, [startRunInternal]);
 
   // ── Finish run (manual tap) ──
 
@@ -347,17 +465,52 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         return;
       }
 
-      // Verify
+      // Verify (legacy verification + new gate quality assessment)
       logDebugEvent('run', 'verifying', 'start', { trailId, payload: { pointCount: completedTrace.points.length, mode: completedTrace.mode } });
       const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo);
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
 
-      const finalPhase: RunPhaseV2 = verification.isLeaderboardEligible
+      // Gate engine quality assessment (v2)
+      const qualityAssessment = gateEngine.assessQuality(
+        completedTrace.points,
+        false, // wasBackgrounded — tracked separately via AppState
+        verification.checkpointsPassed,
+        verification.checkpointsTotal,
+        verification.corridor.coveragePercent,
+        verification.gpsQuality,
+        verification.avgAccuracyM,
+      );
+
+      logDebugEvent('run', 'quality_assessed', 'info', {
+        trailId,
+        payload: {
+          quality: qualityAssessment.quality,
+          eligible: qualityAssessment.leaderboardEligible,
+          reasons: qualityAssessment.degradationReasons,
+        },
+      });
+
+      // Use gate quality to potentially upgrade leaderboard eligibility
+      // If legacy verification says not eligible but gate quality says eligible,
+      // prefer the more forgiving assessment (anti-frustration first)
+      const gateEligible = qualityAssessment.leaderboardEligible;
+      const legacyEligible = verification.isLeaderboardEligible;
+      const finalEligible = legacyEligible || (gateEligible && completedTrace.mode === 'ranked');
+
+      const finalPhase: RunPhaseV2 = finalEligible
         ? 'completed_verified'
         : verification.status === 'practice_only'
           ? 'completed_unverified'
           : 'invalidated';
+
+      // Override verification eligibility if gate engine is more forgiving
+      if (finalEligible && !legacyEligible) {
+        verification.isLeaderboardEligible = true;
+        verification.status = 'verified';
+        verification.label = `Verified (${qualityAssessment.quality})`;
+        verification.explanation = qualityAssessment.summary;
+      }
 
       const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
 
@@ -380,6 +533,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         verification,
         trace: completedTrace,
         backendStatus: saveStatus,
+        runQuality: qualityAssessment,
       }));
 
       // Build trace snapshot for retry (same slim format as initial submit)
@@ -515,6 +669,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     finalizingRef.current = false;
     stopAll();
     clearActiveTrace();
+    gateEngine.reset();
     safeSetState((s) => ({
       ...s,
       phase: 'idle',
@@ -525,8 +680,14 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       error: null,
       backendStatus: 'idle',
       backendResult: null,
+      runQuality: null,
+      gateAutoStarted: false,
+      gateAutoFinished: false,
+      gateHeadingDeg: null,
+      gateSpeedKmh: null,
+      gateTotalDistanceM: 0,
     }));
-  }, [stopAll, safeSetState]);
+  }, [stopAll, safeSetState, gateEngine]);
 
   // ── Cleanup on unmount ──
 
@@ -550,5 +711,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     finishRun,
     cancel,
     reset: cancel,
+    /** Gate engine instance for debug overlay access */
+    gateEngine,
   };
 }

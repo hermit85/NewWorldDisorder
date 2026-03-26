@@ -48,6 +48,26 @@ export function DebugOverlay({ state }: Props) {
         />
       ))}
 
+      {/* Gate Engine v2 */}
+      <Text style={styles.subHeader}>GATE ENGINE</Text>
+      <Row label="Auto-start" value={state.gateAutoStarted ? '✓ YES' : '○ manual'} color={state.gateAutoStarted ? colors.accent : colors.textTertiary} />
+      <Row label="Auto-finish" value={state.gateAutoFinished ? '✓ YES' : '○ no'} color={state.gateAutoFinished ? colors.accent : colors.textTertiary} />
+      <Row label="Heading" value={state.gateHeadingDeg !== null ? `${Math.round(state.gateHeadingDeg)}°` : 'n/a'} />
+      <Row label="Speed" value={state.gateSpeedKmh !== null ? `${state.gateSpeedKmh.toFixed(1)} km/h` : 'n/a'} />
+      <Row label="Distance" value={`${Math.round(state.gateTotalDistanceM)}m`} />
+      {state.runQuality && (
+        <>
+          <Row label="Quality" value={state.runQuality.quality.toUpperCase()} color={
+            state.runQuality.quality === 'perfect' ? colors.accent :
+            state.runQuality.quality === 'valid' ? colors.blue : colors.orange
+          } />
+          <Row label="Eligible" value={state.runQuality.leaderboardEligible ? 'YES' : 'NO'} />
+          {state.runQuality.degradationReasons.map((r, i) => (
+            <Row key={`qr-${i}`} label={`Reason`} value={r} color={colors.orange} />
+          ))}
+        </>
+      )}
+
       {/* Verification */}
       {state.verification && (
         <>

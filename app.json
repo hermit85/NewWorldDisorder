@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "NWD needs your location to track runs, verify routes, and determine your position on the trail.",
         "ITSAppUsesNonExemptEncryption": false,

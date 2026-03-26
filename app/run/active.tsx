@@ -31,6 +31,7 @@ export default function ActiveRunScreen() {
     startRun,
     finishRun,
     cancel,
+    gateEngine,
   } = useRealRun(trailId, trailName, geo, profile?.id);
 
   // ── Background detection: warn rider if GPS may have gaps ──
@@ -231,7 +232,7 @@ export default function ActiveRunScreen() {
               {state.checkpoints.filter((c) => c.passed).length}/{state.checkpoints.length} CP
             </Text>
             <Text style={styles.liveStat}>
-              {state.pointCount} pts
+              {state.gateTotalDistanceM > 0 ? `${Math.round(state.gateTotalDistanceM)}m` : `${state.pointCount} pts`}
             </Text>
             <Text style={[styles.liveStat, {
               color: state.gps.readiness === 'good' || state.gps.readiness === 'excellent'
@@ -241,6 +242,11 @@ export default function ActiveRunScreen() {
                    state.gps.readiness === 'good' ? '●●○' :
                    state.gps.readiness === 'weak' ? '●○○' : '○○○'}
             </Text>
+            {state.gateSpeedKmh !== null && state.gateSpeedKmh > 0.5 && (
+              <Text style={styles.liveStat}>
+                {Math.round(state.gateSpeedKmh)} km/h
+              </Text>
+            )}
           </View>
         )}
 
@@ -248,8 +254,11 @@ export default function ActiveRunScreen() {
         {!showTimer && state.phase === 'idle' && (
           <Text style={styles.instruction}>DOTKNIJ ABY ROZPOCZĄĆ</Text>
         )}
+        {(state.phase === 'armed_ranked' || state.phase === 'armed_practice') && (
+          <Text style={styles.instruction}>PRZEJEDŹ PRZEZ BRAMKĘ STARTOWĄ · lub dotknij aby ruszyć</Text>
+        )}
         {running && (
-          <Text style={styles.instruction}>DOTKNIJ ABY ZAKOŃCZYĆ · lub dojedź do mety</Text>
+          <Text style={styles.instruction}>DOJEDŹ DO METY · lub dotknij aby zakończyć</Text>
         )}
       </Pressable>
 
