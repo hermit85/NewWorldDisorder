@@ -267,7 +267,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
             lastPoint: point,
             pointCount: s.pointCount + 1,
             checkpoints: updatedCps,
-            elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
+            elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
           };
         }
 

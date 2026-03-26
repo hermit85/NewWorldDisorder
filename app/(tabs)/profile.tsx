@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { getRank, getXpToNextRank } from '@/systems/ranks';
+import { getRank } from '@/systems/ranks';
 import { getLevel, getLevelProgress } from '@/systems/xp';
 import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -19,11 +19,10 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { profile: authProfile, user: authUser, isAuthenticated, signOut } = useAuthContext();
   const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
-  const { achievements, status: achStatus } = useAchievements(authProfile?.id);
+  const { achievements } = useAchievements(authProfile?.id);
   const [avatarLoading, setAvatarLoading] = useState(false);
 
   const rank = user ? getRank(user.rankId) : getRank('rookie');
-  const xpProgress = getXpToNextRank(user?.xp ?? 0);
 
   const handleSignOut = async () => {
     await signOut();

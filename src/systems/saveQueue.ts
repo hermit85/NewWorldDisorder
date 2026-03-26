@@ -18,8 +18,9 @@ import {
   getPendingSaveCount,
 } from './runStore';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { XP_TABLE } from './xp';
+import { calculateRunXp } from './xp';
 import { logDebugEvent } from './debugEvents';
+import { DEFAULT_SPOT_ID } from '@/constants';
 import { triggerRefresh } from '@/hooks/useRefresh';
 
 // ── State ──
@@ -149,7 +150,15 @@ async function retrySubmit(run: FinalizedRun): Promise<boolean> {
       mode: snapshot.mode,
     };
 
-    const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
+    // Use real XP calculation (not hardcoded) — same logic as initial submit
+    const xpCalc = calculateRunXp({
+      isEligible: verification.isLeaderboardEligible,
+      isPractice: run.mode === 'practice',
+      isPb: false, // unknown on retry — backend will determine
+      position: null,
+      previousPosition: null,
+    });
+    const xpAwarded = xpCalc.total;
 
     // NOTE: `trace: traceForRetry as any` — the reconstructed trace lacks
     // full RunTrace type compliance (no trailId, trailName fields).
@@ -157,7 +166,7 @@ async function retrySubmit(run: FinalizedRun): Promise<boolean> {
     // .durationMs, .mode from the trace object. This cast is safe for retry.
     const result = await submitRunToBackend({
       userId,
-      spotId: 'slotwiny-arena',
+      spotId: DEFAULT_SPOT_ID,
       trailId: run.trailId,
       mode: run.mode,
       startedAt: run.startedAt,

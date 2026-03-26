@@ -204,7 +204,7 @@ export default function HistoryScreen() {
     router.push({
       pathname: '/run/result',
       params: {
-        sessionId: run.sessionId,
+        runSessionId: run.sessionId,
         trailId: run.trailId,
         trailName: run.trailName,
       },

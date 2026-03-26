@@ -15,6 +15,7 @@ import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp } from '@/lib/api';
 import { calculateRunXp, type XpBreakdown } from './xp';
+import { DEFAULT_SPOT_ID } from '@/constants';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';
 import { logDebugEvent } from './debugEvents';
@@ -92,7 +93,7 @@ export async function submitRun(params: {
 
     const result = await submitRunToBackend({
       userId,
-      spotId: 'slotwiny-arena',
+      spotId: DEFAULT_SPOT_ID,
       trailId,
       mode: trace.mode,
       startedAt: trace.startedAt,
@@ -170,7 +171,7 @@ export async function updateProgression(
 ): Promise<void> {
   try {
     // ── Challenges ──
-    const challenges = await fetchActiveChallenges('slotwiny-arena');
+    const challenges = await fetchActiveChallenges(DEFAULT_SPOT_ID);
     const now = new Date();
 
     for (const ch of challenges) {

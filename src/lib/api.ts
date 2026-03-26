@@ -77,25 +77,41 @@ async function updateProfileXpFallback(userId: string, xpToAdd: number): Promise
   return { xp: newXp, rankId: newRank.id };
 }
 
-export async function incrementProfileRuns(userId: string, isPb: boolean): Promise<void> {
+/**
+ * Atomically increment profile run counters using database RPC.
+ * Returns new totals or falls back to non-atomic for pre-migration environments.
+ */
+export async function incrementProfileRuns(userId: string, isPb: boolean): Promise<{ totalRuns: number; totalPbs: number } | null> {
+  // Try atomic RPC first
+  const { data, error } = await db().rpc('increment_profile_runs', {
+    p_user_id: userId,
+    p_is_pb: isPb,
+  });
+
+  if (!error && data) {
+    const result = data as { total_runs: number; total_pbs: number };
+    return { totalRuns: result.total_runs, totalPbs: result.total_pbs };
+  }
+
+  // Fallback: non-atomic (pre-migration environments)
   const { data: current } = await db()
     .from('profiles')
     .select('total_runs, total_pbs')
     .eq('id', userId)
     .single();
 
-  if (!current) return;
+  if (!current) return null;
 
-  const updates: Record<string, any> = {
-    total_runs: current.total_runs + 1,
+  const newRuns = current.total_runs + 1;
+  const newPbs = isPb ? current.total_pbs + 1 : current.total_pbs;
+
+  await db().from('profiles').update({
+    total_runs: newRuns,
+    total_pbs: newPbs,
     updated_at: new Date().toISOString(),
-  };
+  }).eq('id', userId);
 
-  if (isPb) {
-    updates.total_pbs = current.total_pbs + 1;
-  }
-
-  await db().from('profiles').update(updates).eq('id', userId);
+  return { totalRuns: newRuns, totalPbs: newPbs };
 }
 
 // ═══════════════════════════════════════════════════════════

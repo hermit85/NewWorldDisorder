@@ -136,11 +136,13 @@ export function useRunGateEngine(
           state.startCrossing = crossing;
           state.autoStartTimestamp = crossing.crossingTimestamp;
           state.phase = 'running';
-          // Reset run tracking
+          // Reset run tracking — including position buffer to avoid
+          // pre-run points affecting smoothing after auto-start
           allRunPointsRef.current = [];
           lastRunPointRef.current = null;
           state.totalDistanceM = 0;
           state.runPointCount = 0;
+          state.positionBuffer = [point];
           callbacks.onStartCrossing(crossing);
         }
       }
