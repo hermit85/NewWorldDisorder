@@ -16,7 +16,10 @@ import { mockTrails } from '@/data/mock/trails';
 import { mockChallenges } from '@/data/mock/challenges';
 import { mockUser } from '@/data/mock/user';
 import { getUserTrailStats } from '@/data/mock/userTrailStats';
-import { LeaderboardEntry, PeriodType, Challenge, User } from '@/data/types';
+import { LeaderboardEntry, PeriodType, Challenge, User, Achievement } from '@/data/types';
+
+import { logDebugEvent } from '@/systems/debugEvents';
+import { shouldSimFetchFail, shouldSimFetchEmpty } from '@/systems/testMode';
 
 export function isBackendConfigured(): boolean {
   return isSupabaseConfigured;
@@ -40,6 +43,7 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
   const refresh = useCallback(async () => {
     setStatus('loading');
     setError(null);
+    logDebugEvent('fetch', 'leaderboard_start', 'start', { trailId, payload: { periodType } });
 
     if (DEMO_MODE) {
       const data = mockLeaderboardForTrail(trailId);
@@ -48,12 +52,33 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
       return;
     }
 
+    // ── Simulation override ──
+    if (shouldSimFetchFail('leaderboard')) {
+      logDebugEvent('fetch', 'leaderboard_sim_fail', 'fail', { trailId });
+      setError('Could not load leaderboard');
+      setEntries([]);
+      setStatus('error');
+      return;
+    }
+    if (shouldSimFetchEmpty('leaderboard')) {
+      setEntries([]);
+      setStatus('empty');
+      return;
+    }
+
     try {
-      const rows = await api.fetchLeaderboard(trailId, periodType, userId);
+      let rows: api.LeaderboardRow[];
+      if (periodType === 'day' || periodType === 'weekend') {
+        const scope = periodType === 'day' ? 'today' : 'weekend';
+        rows = await api.fetchScopedLeaderboard(trailId, scope as any, userId);
+      } else {
+        rows = await api.fetchLeaderboard(trailId, periodType, userId);
+      }
       setEntries(rows.map(mapLeaderboardRow));
       setStatus(rows.length > 0 ? 'ok' : 'empty');
+      logDebugEvent('fetch', 'leaderboard_ok', 'ok', { trailId, payload: { count: rows.length, periodType } });
     } catch (e: any) {
-      console.warn('[NWD] Leaderboard fetch failed:', e?.message);
+      logDebugEvent('fetch', 'leaderboard_fail', 'fail', { trailId, payload: { error: e?.message } });
       setError('Could not load leaderboard');
       setEntries([]);
       setStatus('error');
@@ -110,44 +135,44 @@ export function useUserTrailStats(userId?: string) {
 export function useChallenges(spotId: string, userId?: string) {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
 
-  useEffect(() => {
-    async function load() {
-      if (DEMO_MODE) {
-        setChallenges(mockChallenges);
-        setStatus('ok');
-        return;
-      }
-
-      try {
-        const data = await api.fetchActiveChallenges(spotId);
-        const progressMap = userId
-          ? await api.fetchChallengeProgress(userId, data.map(c => c.id))
-          : new Map();
-
-        const mapped = data.map(c => ({
-          id: c.id,
-          spotId: c.spot_id,
-          trailId: c.trail_id,
-          type: c.type as any,
-          name: c.name,
-          description: c.description,
-          startAt: c.starts_at,
-          endAt: c.ends_at,
-          rewardXp: c.reward_xp,
-          isActive: c.is_active,
-          currentProgress: progressMap.get(c.id)?.current_value ?? 0,
-          targetProgress: 3,
-        }));
-        setChallenges(mapped);
-        setStatus(mapped.length > 0 ? 'ok' : 'empty');
-      } catch {
-        setChallenges([]);
-        setStatus('error');
-      }
+  const refresh = useCallback(async () => {
+    if (DEMO_MODE) {
+      setChallenges(mockChallenges);
+      setStatus('ok');
+      return;
     }
-    load();
-  }, [spotId, userId]);
+
+    try {
+      const data = await api.fetchActiveChallenges(spotId);
+      const progressMap = userId
+        ? await api.fetchChallengeProgress(userId, data.map(c => c.id))
+        : new Map();
+
+      const mapped = data.map(c => ({
+        id: c.id,
+        spotId: c.spot_id,
+        trailId: c.trail_id,
+        type: c.type as any,
+        name: c.name,
+        description: c.description,
+        startAt: c.starts_at,
+        endAt: c.ends_at,
+        rewardXp: c.reward_xp,
+        isActive: c.is_active,
+        currentProgress: progressMap.get(c.id)?.current_value ?? 0,
+        targetProgress: (c as any).target_value ?? 1,
+      }));
+      setChallenges(mapped);
+      setStatus(mapped.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setChallenges([]);
+      setStatus('error');
+    }
+  }, [spotId, userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
 
   return { challenges, status, loading: status === 'loading' };
 }
@@ -162,6 +187,8 @@ export function useProfile(userId?: string) {
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
+    logDebugEvent('fetch', 'profile_start', 'start', { sessionId: userId });
+
     if (DEMO_MODE) {
       setProfile(mockUser);
       setStatus('ok');
@@ -174,9 +201,17 @@ export function useProfile(userId?: string) {
       return;
     }
 
+    if (shouldSimFetchFail('profile')) {
+      logDebugEvent('fetch', 'profile_sim_fail', 'fail');
+      setProfile(null);
+      setStatus('error');
+      return;
+    }
+
     try {
       const p = await api.fetchProfile(userId);
       if (p) {
+        logDebugEvent('fetch', 'profile_ok', 'ok', { payload: { xp: p.xp, runs: p.total_runs } });
         setProfile({
           id: p.id,
           username: p.display_name || p.username,
@@ -185,8 +220,10 @@ export function useProfile(userId?: string) {
           xpToNextRank: 0,
           totalRuns: p.total_runs,
           totalPbs: p.total_pbs,
-          bestPosition: p.best_position ?? 0,
-          favoriteTrailId: p.favorite_trail_id ?? '',
+          // bestPosition: only show if real (> 0), otherwise hide
+          bestPosition: (p.best_position && p.best_position > 0) ? p.best_position : 0,
+          // favoriteTrailId: only show if non-empty
+          favoriteTrailId: p.favorite_trail_id || '',
           joinedAt: p.created_at,
           achievements: [],
         });
@@ -204,6 +241,215 @@ export function useProfile(userId?: string) {
   useEffect(() => { refresh(); }, [refresh]);
 
   return { profile, status, loading: status === 'loading', refresh };
+}
+
+// ══════════════════════════════════════════════════════════
+// LEAGUE MOVEMENT — re-engagement signals
+// ══════════════════════════════════════════════════════════
+
+import {
+  deriveSignals,
+  getTopSignals,
+  LeagueSignal,
+  RiderBoardContext,
+  VenueActivityContext,
+} from '@/systems/leagueMovement';
+
+export function useLeagueMovement(userId?: string, venueActivity?: VenueActivity | null) {
+  const [signals, setSignals] = useState<LeagueSignal[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (DEMO_MODE || !userId) {
+      setSignals([]);
+      setStatus(userId ? 'empty' : 'signed_out');
+      return;
+    }
+
+    try {
+      const trailIds = mockTrails.map(t => t.id);
+      const boardData = await api.fetchRiderBoardContext(userId, trailIds);
+
+      const trailNames: Record<string, string> = {};
+      for (const t of mockTrails) trailNames[t.id] = t.name;
+
+      const riderBoards: RiderBoardContext[] = boardData.map(b => ({
+        ...b,
+        trailName: trailNames[b.trailId] ?? b.trailId,
+      }));
+
+      const venueCtx: VenueActivityContext | null = venueActivity ? {
+        venueId: 'slotwiny-arena',
+        venueName: 'Słotwiny Arena',
+        verifiedRunsToday: venueActivity.verifiedRunsToday,
+        activeRidersToday: venueActivity.activeRidersToday,
+        hotTrailId: venueActivity.hotTrailId,
+        hotTrailName: venueActivity.hotTrailId ? (trailNames[venueActivity.hotTrailId] ?? null) : null,
+        hotTrailRuns: venueActivity.hotTrailRuns,
+      } : null;
+
+      const all = deriveSignals(riderBoards, venueCtx);
+      const top = getTopSignals(all, 3);
+
+      setSignals(top);
+      setStatus(top.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setSignals([]);
+      setStatus('error');
+    }
+  }, [userId, venueActivity, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { signals, status, loading: status === 'loading' };
+}
+
+// ══════════════════════════════════════════════════════════
+// RESULT IMPACT — scoped board positions after a run
+// ══════════════════════════════════════════════════════════
+
+export interface ScopeImpact {
+  scope: 'today' | 'weekend' | 'all_time';
+  position: number | null;
+  totalRiders: number;
+}
+
+export function useResultImpact(userId?: string, trailId?: string, saved?: boolean) {
+  const [impact, setImpact] = useState<ScopeImpact[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+
+  useEffect(() => {
+    if (!userId || !trailId || !saved || DEMO_MODE) {
+      setImpact([]);
+      setStatus('empty');
+      return;
+    }
+
+    let mounted = true;
+    logDebugEvent('fetch', 'result_impact_start', 'start', { trailId });
+
+    if (shouldSimFetchFail('resultImpact')) {
+      logDebugEvent('fetch', 'result_impact_sim_fail', 'fail', { trailId });
+      setStatus('error');
+      return;
+    }
+
+    async function load() {
+      try {
+        const data = await api.fetchResultImpact(userId!, trailId!);
+        if (mounted) {
+          setImpact(data);
+          setStatus(data.length > 0 ? 'ok' : 'empty');
+          logDebugEvent('fetch', 'result_impact_ok', 'ok', { trailId, payload: { scopes: data.length } });
+        }
+      } catch {
+        logDebugEvent('fetch', 'result_impact_fail', 'fail', { trailId });
+        if (mounted) setStatus('error');
+      }
+    }
+    load();
+    return () => { mounted = false; };
+  }, [userId, trailId, saved]);
+
+  return { impact, status, loading: status === 'loading' };
+}
+
+// ══════════════════════════════════════════════════════════
+// VENUE ACTIVITY — today's live stats
+// ══════════════════════════════════════════════════════════
+
+export interface VenueActivity {
+  verifiedRunsToday: number;
+  activeRidersToday: number;
+  hotTrailId: string | null;
+  hotTrailRuns: number;
+}
+
+export function useVenueActivity(spotId: string) {
+  const [activity, setActivity] = useState<VenueActivity | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    logDebugEvent('fetch', 'venue_activity_start', 'start', { venueId: spotId });
+
+    if (DEMO_MODE) {
+      setActivity(null);
+      setStatus('empty');
+      return;
+    }
+
+    if (shouldSimFetchFail('venueActivity')) {
+      logDebugEvent('fetch', 'venue_activity_sim_fail', 'fail', { venueId: spotId });
+      setActivity(null);
+      setStatus('error');
+      return;
+    }
+
+    try {
+      const data = await api.fetchVenueActivity(spotId);
+      setActivity(data);
+      setStatus(data.verifiedRunsToday > 0 ? 'ok' : 'empty');
+      logDebugEvent('fetch', 'venue_activity_ok', 'ok', { venueId: spotId, payload: { runs: data.verifiedRunsToday, riders: data.activeRidersToday } });
+    } catch {
+      logDebugEvent('fetch', 'venue_activity_fail', 'fail', { venueId: spotId });
+      setActivity(null);
+      setStatus('error');
+    }
+  }, [spotId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { activity, status, loading: status === 'loading' };
+}
+
+// ══════════════════════════════════════════════════════════
+// ACHIEVEMENTS — real unlocked achievements from backend
+// ══════════════════════════════════════════════════════════
+
+export function useAchievements(userId?: string) {
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (DEMO_MODE) {
+      // Demo mode: no fake achievements — show empty
+      setAchievements([]);
+      setStatus('empty');
+      return;
+    }
+
+    if (!userId) {
+      setAchievements([]);
+      setStatus('signed_out');
+      return;
+    }
+
+    try {
+      const data = await api.fetchUserAchievements(userId);
+      const mapped: Achievement[] = data.map((row: any) => ({
+        id: row.achievement_id,
+        slug: row.achievements?.slug ?? row.achievement_id,
+        name: row.achievements?.name ?? row.achievement_id,
+        description: row.achievements?.description ?? '',
+        icon: row.achievements?.icon ?? '?',
+        xpReward: row.achievements?.xp_reward ?? 0,
+        isUnlocked: true,
+        unlockedAt: row.created_at,
+      }));
+      setAchievements(mapped);
+      setStatus(mapped.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setAchievements([]);
+      setStatus('error');
+    }
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { achievements, status, loading: status === 'loading' };
 }
 
 // ══════════════════════════════════════════════════════════

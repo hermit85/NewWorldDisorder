@@ -8,7 +8,6 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
 import { Trail } from '@/data/types';
-import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { formatTimeShort } from '@/content/copy';
 import { slotwinyTrails, OfficialTrail } from '@/data/seed/slotwinyOfficial';
 
@@ -19,6 +18,7 @@ interface Props {
   selectedTrailId: string | null;
   hotTrailId?: string;
   challengeTrailId?: string | null;
+  trailStats?: Map<string, { pbMs: number | null; position: number | null }>;
   onTrailSelect: (trailId: string) => void;
   onMapPress: () => void;
 }
@@ -33,6 +33,7 @@ export function ArenaMapWeb({
   selectedTrailId,
   hotTrailId,
   challengeTrailId,
+  trailStats,
   onTrailSelect,
 }: Props) {
   return (
@@ -70,7 +71,7 @@ export function ArenaMapWeb({
           const isHot = hotTrailId === trail.id;
           const hasChallenge = challengeTrailId === trail.id;
           const official = getOfficialTrail(trail.id);
-          const stats = getUserTrailStats(trail.id);
+          const stats = trailStats?.get(trail.id);
 
           // Spread trails across horizontal space
           const xOffset = 12 + (index * 76) / (trails.length - 1);

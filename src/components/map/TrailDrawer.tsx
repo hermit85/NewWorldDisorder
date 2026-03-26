@@ -4,33 +4,34 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { trailLineColors } from '@/theme/map';
-import { Trail, Difficulty } from '@/data/types';
-// Accepts minimal stats from real backend or fuller mock stats
+import { Trail, Challenge } from '@/data/types';
+
+// Trail stats from the real backend hook — only what the backend actually provides
 interface TrailStats {
   pbMs?: number | null;
   position?: number | null;
-  nearestRival?: { username: string; position: number; timeMs: number; gapMs: number } | null;
-  top3?: { position: number; username: string; timeMs: number }[];
 }
-import { getActiveChallenges } from '@/data/mock/challenges';
-import { formatTime, formatTimeShort, copy } from '@/content/copy';
+import { isChallengeActive } from '@/systems/challenges';
+import { formatTimeShort, copy } from '@/content/copy';
 import { tapLight, tapMedium } from '@/systems/haptics';
 
 interface Props {
   trail: Trail;
   stats: TrailStats | undefined;
+  challenges?: Challenge[];
   onClose: () => void;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export function TrailDrawer({ trail, stats, onClose }: Props) {
+export function TrailDrawer({ trail, stats, challenges = [], onClose }: Props) {
   const router = useRouter();
   const diffColor = trailLineColors[trail.difficulty];
-  const challenges = getActiveChallenges(trail.spotId).filter(
-    (c) => c.trailId === trail.id || c.trailId === null
+  // Filter to challenges relevant to this trail (or spot-wide), and still active
+  const trailChallenges = challenges.filter(
+    (c) => (c.trailId === trail.id || c.trailId === null) && isChallengeActive(c)
   );
-  const activeChallenge = challenges[0];
+  const activeChallenge = trailChallenges[0];
 
   const handleStartRun = () => {
     tapMedium();
@@ -83,7 +84,7 @@ export function TrailDrawer({ trail, stats, onClose }: Props) {
           <Text style={[styles.statValue, stats?.pbMs ? { color: colors.accent } : {}]}>
             {stats?.pbMs ? formatTimeShort(stats.pbMs) : '—'}
           </Text>
-          <Text style={styles.statLabel}>YOUR PB</Text>
+          <Text style={styles.statLabel}>TWOJE PB</Text>
         </View>
         {stats?.position && (
           <>
@@ -95,42 +96,6 @@ export function TrailDrawer({ trail, stats, onClose }: Props) {
           </>
         )}
       </View>
-
-      {/* Nearest rival */}
-      {stats?.nearestRival && (
-        <View style={styles.rivalRow}>
-          <Text style={styles.rivalLabel}>NEAREST RIVAL</Text>
-          <Text style={styles.rivalInfo}>
-            #{stats.nearestRival.position} {stats.nearestRival.username}
-            <Text style={styles.rivalGap}>
-              {' '}
-              · {(stats.nearestRival.gapMs / 1000).toFixed(1)}s ahead
-            </Text>
-          </Text>
-        </View>
-      )}
-
-      {/* Top 3 mini-leaderboard */}
-      {stats?.top3 && stats.top3.length > 0 && (
-        <View style={styles.top3Row}>
-          {stats.top3.map((entry) => (
-            <View key={entry.position} style={styles.top3Item}>
-              <Text
-                style={[
-                  styles.top3Position,
-                  entry.position === 1 && { color: colors.gold },
-                ]}
-              >
-                #{entry.position}
-              </Text>
-              <Text style={styles.top3Name} numberOfLines={1}>
-                {entry.username}
-              </Text>
-              <Text style={styles.top3Time}>{formatTimeShort(entry.timeMs)}</Text>
-            </View>
-          ))}
-        </View>
-      )}
 
       {/* Active challenge */}
       {activeChallenge && (
@@ -243,56 +208,6 @@ const styles = StyleSheet.create({
     width: 1,
     height: 24,
     backgroundColor: colors.border,
-  },
-  rivalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.xs,
-  },
-  rivalLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-  },
-  rivalInfo: {
-    ...typography.bodySmall,
-    color: colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  rivalGap: {
-    color: colors.orange,
-    fontFamily: 'Inter_400Regular',
-  },
-  top3Row: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  top3Item: {
-    flex: 1,
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.sm,
-    padding: spacing.sm,
-    alignItems: 'center',
-  },
-  top3Position: {
-    ...typography.labelSmall,
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  top3Name: {
-    ...typography.bodySmall,
-    color: colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  top3Time: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 10,
-    marginTop: 2,
   },
   challengeRow: {
     flexDirection: 'row',

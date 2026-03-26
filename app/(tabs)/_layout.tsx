@@ -42,7 +42,7 @@ export default function TabLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="HOME" icon="⛰️" focused={focused} />
+            <TabIcon label="START" icon="⛰️" focused={focused} />
           ),
         }}
       />
@@ -50,7 +50,7 @@ export default function TabLayout() {
         name="leaderboard"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon label="RANKS" icon="🏆" focused={focused} />
+            <TabIcon label="TABLICA" icon="🏆" focused={focused} />
           ),
         }}
       />

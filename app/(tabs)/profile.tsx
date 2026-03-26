@@ -4,16 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { mockAchievements } from '@/data/mock/achievements';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useProfile } from '@/hooks/useBackend';
+import { useProfile, useAchievements } from '@/hooks/useBackend';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { profile: authProfile, user: authUser, isAuthenticated, signOut } = useAuthContext();
-  const { profile: user } = useProfile(authProfile?.id);
+  const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
+  const { achievements, status: achStatus } = useAchievements(authProfile?.id);
 
   const rank = user ? getRank(user.rankId) : getRank('rookie');
   const xpProgress = getXpToNextRank(user?.xp ?? 0);
@@ -26,87 +26,82 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Player card */}
-        <View style={styles.playerCard}>
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>{rank.icon}</Text>
-          </View>
-          <Text style={styles.username}>{user?.username ?? 'Rider'}</Text>
-          <Text style={[styles.rankTitle, { color: rank.color }]}>
-            {rank.name}
-          </Text>
-
-          {/* XP bar */}
-          <View style={styles.xpSection}>
-            <View style={styles.xpBarBg}>
-              <View
-                style={[
-                  styles.xpBarFill,
-                  { width: `${xpProgress.progress * 100}%`, backgroundColor: rank.color },
-                ]}
-              />
-            </View>
-            <Text style={styles.xpText}>
-              {user?.xp ?? 0} / {xpProgress.nextRank?.xpThreshold ?? 'MAX'} XP
-            </Text>
-          </View>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <StatBox label={copy.totalRuns} value={String(user?.totalRuns ?? 0)} />
-          <StatBox label={copy.personalBests} value={String(user?.totalPbs ?? 0)} />
-          <StatBox label={copy.bestPosition} value={user?.bestPosition ? `#${user.bestPosition}` : '—'} />
-        </View>
-
-        {/* Sign in prompt */}
-        {!isAuthenticated && (
+        {/* Sign in prompt — shown instead of player card when signed out */}
+        {!isAuthenticated ? (
           <Pressable
             style={styles.signInCard}
             onPress={() => router.push('/auth')}
           >
-            <Text style={styles.signInTitle}>SIGN IN TO TRACK YOUR STATS</Text>
+            <Text style={styles.signInTitle}>ZALOGUJ SIĘ</Text>
             <Text style={styles.signInDesc}>
-              Create a rider tag, save your runs, and enter the league.
+              Stwórz rider tag, zapisuj zjazdy i dołącz do ligi.
             </Text>
             <View style={styles.signInBtn}>
-              <Text style={styles.signInBtnText}>ENTER THE LEAGUE</Text>
+              <Text style={styles.signInBtnText}>DOŁĄCZ DO LIGI</Text>
             </View>
           </Pressable>
-        )}
+        ) : (
+          <>
+            {/* Player card — only when signed in with real data */}
+            <View style={styles.playerCard}>
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>{rank.icon}</Text>
+              </View>
+              <Text style={styles.username}>{user?.username ?? 'Rider'}</Text>
+              <Text style={[styles.rankTitle, { color: rank.color }]}>
+                {rank.name}
+              </Text>
 
-        {/* Achievements */}
-        <Text style={styles.sectionTitle}>ACHIEVEMENTS</Text>
-        <View style={styles.achievementGrid}>
-          {mockAchievements.map((a) => (
-            <View
-              key={a.id}
-              style={[
-                styles.achievementItem,
-                !a.isUnlocked && styles.achievementLocked,
-              ]}
-            >
-              <View style={[styles.achievementBadge, a.isUnlocked && styles.achievementBadgeUnlocked]}>
-                <Text style={[styles.achievementBadgeText, a.isUnlocked && { color: colors.accent }]}>
-                  {a.icon}
+              {/* XP bar */}
+              <View style={styles.xpSection}>
+                <View style={styles.xpBarBg}>
+                  <View
+                    style={[
+                      styles.xpBarFill,
+                      { width: `${xpProgress.progress * 100}%`, backgroundColor: rank.color },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.xpText}>
+                  {user?.xp ?? 0} / {xpProgress.nextRank?.xpThreshold ?? 'MAX'} XP
                 </Text>
               </View>
-              <Text
-                style={[
-                  styles.achievementName,
-                  !a.isUnlocked && { color: colors.textTertiary },
-                ]}
-              >
-                {a.name}
-              </Text>
             </View>
-          ))}
-        </View>
+
+            {/* Stats — real backend data */}
+            <View style={styles.statsRow}>
+              <StatBox label={copy.totalRuns} value={profileStatus === 'ok' ? String(user?.totalRuns ?? 0) : '—'} />
+              <StatBox label={copy.personalBests} value={profileStatus === 'ok' ? String(user?.totalPbs ?? 0) : '—'} />
+              <StatBox label={copy.bestPosition} value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'} />
+            </View>
+
+            {/* Achievements — only real unlocked achievements */}
+            {achievements.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>OSIĄGNIĘCIA</Text>
+                <View style={styles.achievementGrid}>
+                  {achievements.map((a) => (
+                    <View key={a.id} style={styles.achievementItem}>
+                      <View style={[styles.achievementBadge, styles.achievementBadgeUnlocked]}>
+                        <Text style={[styles.achievementBadgeText, { color: colors.accent }]}>
+                          {a.icon}
+                        </Text>
+                      </View>
+                      <Text style={styles.achievementName}>
+                        {a.name}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        )}
 
         {/* App info */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>New World Disorder v0.2.0-beta</Text>
-          <Text style={styles.appInfoText}>Season 01 · Słotwiny Arena</Text>
+          <Text style={styles.appInfoText}>Sezon 01 · Słotwiny Arena</Text>
 
           {isAuthenticated && (
             <Text style={styles.appInfoText}>
@@ -119,26 +114,26 @@ export default function ProfileScreen() {
               style={styles.actionLink}
               onPress={() => router.push('/help')}
             >
-              <Text style={styles.actionLinkText}>HELP / FAQ</Text>
+              <Text style={styles.actionLinkText}>POMOC</Text>
             </Pressable>
 
             <Pressable
               style={styles.actionLink}
               onPress={() => router.push('/onboarding')}
             >
-              <Text style={styles.actionLinkText}>GAME RULES</Text>
+              <Text style={styles.actionLinkText}>ZASADY</Text>
             </Pressable>
 
             {isAuthenticated ? (
               <Pressable style={styles.actionLink} onPress={handleSignOut}>
-                <Text style={[styles.actionLinkText, { color: colors.red }]}>SIGN OUT</Text>
+                <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
               </Pressable>
             ) : (
               <Pressable
                 style={styles.actionLink}
                 onPress={() => router.push('/auth')}
               >
-                <Text style={[styles.actionLinkText, { color: colors.accent }]}>SIGN IN</Text>
+                <Text style={[styles.actionLinkText, { color: colors.accent }]}>ZALOGUJ</Text>
               </Pressable>
             )}
           </View>
@@ -253,9 +248,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  achievementLocked: {
-    opacity: 0.35,
   },
   achievementBadge: {
     width: 44,

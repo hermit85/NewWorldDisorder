@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, AppState } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -32,6 +32,24 @@ export default function ActiveRunScreen() {
     finishRun,
     cancel,
   } = useRealRun(trailId, trailName, geo, profile?.id);
+
+  // ── Background detection: warn rider if GPS may have gaps ──
+  const [bgWarning, setBgWarning] = useState(false);
+  const wasBackgroundedRef = useRef(false);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const running = state.phase === 'running_ranked' || state.phase === 'running_practice';
+      if (nextState !== 'active' && running) {
+        wasBackgroundedRef.current = true;
+      }
+      if (nextState === 'active' && wasBackgroundedRef.current && running) {
+        setBgWarning(true);
+        wasBackgroundedRef.current = false;
+      }
+    });
+    return () => subscription.remove();
+  }, [state.phase]);
 
   // Triple-tap trail name to toggle debug
   const handleDebugTap = useCallback(() => {
@@ -117,22 +135,22 @@ export default function ActiveRunScreen() {
   // Phase display
   const phaseLabel = (() => {
     switch (state.phase) {
-      case 'idle': return 'TAP TO CHECK READINESS';
+      case 'idle': return 'DOTKNIJ — SPRAWDŹ GOTOWOŚĆ';
       case 'readiness_check':
-        if (state.permissionDenied) return 'LOCATION REQUIRED';
-        if (state.readiness.rankedEligible) return 'TAP TO ARM RANKED';
+        if (state.permissionDenied) return 'WYMAGANA LOKALIZACJA';
+        if (state.readiness.rankedEligible) return 'DOTKNIJ — TRYB RANKINGOWY';
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
-      case 'armed_ranked': return 'RANKED — TAP TO START';
-      case 'armed_practice': return 'PRACTICE — TAP TO START';
-      case 'running_ranked': return 'RANKED RUN';
-      case 'running_practice': return 'PRACTICE RUN';
-      case 'finishing': return 'FINISHING...';
-      case 'verifying': return 'VERIFYING...';
-      case 'completed_verified': return 'VERIFIED — TAP TO CONTINUE';
-      case 'completed_unverified': return 'PRACTICE COMPLETE — TAP';
-      case 'invalidated': return 'NOT VERIFIED — TAP';
-      case 'error': return state.error ?? 'SOMETHING WENT WRONG';
+      case 'armed_ranked': return 'RANKING — DOTKNIJ ABY RUSZYĆ';
+      case 'armed_practice': return 'TRENING — DOTKNIJ ABY RUSZYĆ';
+      case 'running_ranked': return 'ZJAZD RANKINGOWY';
+      case 'running_practice': return 'TRENING';
+      case 'finishing': return 'KOŃCZENIE...';
+      case 'verifying': return 'WERYFIKACJA...';
+      case 'completed_verified': return 'ZWERYFIKOWANO — DOTKNIJ';
+      case 'completed_unverified': return 'TRENING ZAKOŃCZONY — DOTKNIJ';
+      case 'invalidated': return 'NIE ZWERYFIKOWANO — DOTKNIJ';
+      case 'error': return state.error ?? 'COŚ POSZŁO NIE TAK';
       default: return '';
     }
   })();
@@ -163,8 +181,8 @@ export default function ActiveRunScreen() {
   const showReadiness = state.phase === 'readiness_check';
 
   const modeBadge = state.mode === 'ranked'
-    ? { label: 'RANKED', color: colors.accent, bg: colors.accentDim }
-    : { label: 'PRACTICE', color: colors.blue, bg: 'rgba(0, 122, 255, 0.15)' };
+    ? { label: 'RANKING', color: colors.accent, bg: colors.accentDim }
+    : { label: 'TRENING', color: colors.blue, bg: 'rgba(0, 122, 255, 0.15)' };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -228,17 +246,27 @@ export default function ActiveRunScreen() {
 
         {/* Tap instruction */}
         {!showTimer && state.phase === 'idle' && (
-          <Text style={styles.instruction}>TAP TO BEGIN</Text>
+          <Text style={styles.instruction}>DOTKNIJ ABY ROZPOCZĄĆ</Text>
         )}
         {running && (
-          <Text style={styles.instruction}>TAP TO FINISH · or reach finish gate</Text>
+          <Text style={styles.instruction}>DOTKNIJ ABY ZAKOŃCZYĆ · lub dojedź do mety</Text>
         )}
       </Pressable>
+
+      {/* Background warning */}
+      {bgWarning && (
+        <Pressable style={styles.bgWarning} onPress={() => setBgWarning(false)}>
+          <Text style={styles.bgWarningText}>
+            ⚠ Aplikacja była w tle — GPS mógł stracić punkty. Wynik może nie przejść weryfikacji.
+          </Text>
+          <Text style={styles.bgWarningDismiss}>ZAMKNIJ</Text>
+        </Pressable>
+      )}
 
       {/* Cancel */}
       {showCancel && (
         <Pressable style={styles.cancelBtn} onPress={handleCancel}>
-          <Text style={styles.cancelText}>← BACK</Text>
+          <Text style={styles.cancelText}>← WRÓĆ</Text>
         </Pressable>
       )}
 
@@ -326,5 +354,30 @@ const styles = StyleSheet.create({
   cancelText: {
     ...typography.label,
     color: colors.textTertiary,
+  },
+  bgWarning: {
+    position: 'absolute',
+    top: 50,
+    left: spacing.lg,
+    right: spacing.lg,
+    backgroundColor: 'rgba(255, 149, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.orange,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  bgWarningText: {
+    ...typography.bodySmall,
+    color: colors.orange,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.xs,
+  },
+  bgWarningDismiss: {
+    ...typography.labelSmall,
+    color: colors.orange,
+    letterSpacing: 2,
   },
 });

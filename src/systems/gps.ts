@@ -2,6 +2,7 @@
 // GPS Tracking Service
 // Real location capture using expo-location
 // Foreground tracking for MVP — background later
+// Field-test hardened: guards, cleanup, error logging
 // ═══════════════════════════════════════════════════════════
 
 import * as Location from 'expo-location';
@@ -33,7 +34,8 @@ export async function requestLocationPermission(): Promise<GpsPermissionState> {
       denied: status === 'denied',
       restricted: status !== 'granted' && status !== 'denied',
     };
-  } catch {
+  } catch (e) {
+    console.warn('[NWD] Location permission request failed:', e);
     return { foreground: false, denied: false, restricted: true };
   }
 }
@@ -46,7 +48,8 @@ export async function checkLocationPermission(): Promise<GpsPermissionState> {
       denied: status === 'denied',
       restricted: status !== 'granted' && status !== 'denied',
     };
-  } catch {
+  } catch (e) {
+    console.warn('[NWD] Location permission check failed:', e);
     return { foreground: false, denied: false, restricted: true };
   }
 }
@@ -66,7 +69,8 @@ export async function getCurrentPosition(): Promise<GpsPoint | null> {
       speed: loc.coords.speed,
       timestamp: loc.timestamp,
     };
-  } catch {
+  } catch (e) {
+    console.warn('[NWD] getCurrentPosition failed:', e);
     return null;
   }
 }
@@ -86,7 +90,7 @@ export function buildGpsState(point: GpsPoint | null): GpsState {
       readiness: 'unavailable',
       accuracy: null,
       satellites: 0,
-      label: 'No GPS',
+      label: 'Brak GPS',
     };
   }
   const readiness = assessGpsReadiness(point.accuracy);
@@ -94,9 +98,9 @@ export function buildGpsState(point: GpsPoint | null): GpsState {
     readiness,
     accuracy: point.accuracy,
     satellites: 0, // not exposed by expo-location
-    label: readiness === 'excellent' ? 'Strong signal' :
-           readiness === 'good' ? 'Good signal' :
-           readiness === 'weak' ? 'Weak signal' : 'No GPS',
+    label: readiness === 'excellent' ? 'Silny sygnał' :
+           readiness === 'good' ? 'Dobry sygnał' :
+           readiness === 'weak' ? 'Słaby sygnał' : 'Brak GPS',
   };
 }
 
@@ -127,6 +131,12 @@ export async function startTracking(
   callback: LocationCallback,
   intervalMs: number = 1000
 ): Promise<boolean> {
+  // Guard: stop existing tracking if already active (prevent orphaned subscription)
+  if (_subscription) {
+    console.warn('[NWD] startTracking called while already tracking — stopping previous');
+    stopTracking();
+  }
+
   try {
     const perm = await checkLocationPermission();
     if (!perm.foreground) return false;
@@ -135,21 +145,26 @@ export async function startTracking(
       {
         accuracy: Location.Accuracy.BestForNavigation,
         timeInterval: intervalMs,
-        distanceInterval: 2, // min 2m between points
+        distanceInterval: 5, // 5m min between points — better for mountain trails
       },
       (loc) => {
-        callback({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          altitude: loc.coords.altitude,
-          accuracy: loc.coords.accuracy,
-          speed: loc.coords.speed,
-          timestamp: loc.timestamp,
-        });
+        try {
+          callback({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            altitude: loc.coords.altitude,
+            accuracy: loc.coords.accuracy,
+            speed: loc.coords.speed,
+            timestamp: loc.timestamp,
+          });
+        } catch (e) {
+          console.error('[NWD] GPS tracking callback error:', e);
+        }
       }
     );
     return true;
-  } catch {
+  } catch (e) {
+    console.error('[NWD] startTracking failed:', e);
     return false;
   }
 }

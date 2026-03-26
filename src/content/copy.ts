@@ -1,65 +1,67 @@
-// Centralized product copy — no generic fitness language allowed here
-// Every string should feel like arcade racing, not sports tracking
+// ═══════════════════════════════════════════════════════════
+// Polish-first product copy — liga grawitacyjna, nie fitness app
+// Brand terms kept in English: NWD, PB, XP, GPS, TOP 10
+// ═══════════════════════════════════════════════════════════
 
 export const copy = {
   // Result screen
-  newPb: 'NEW PB',
-  noPb: 'NO PB',
-  movedUp: (n: number) => `Moved up ${n} place${n > 1 ? 's' : ''}`,
-  movedDown: (n: number) => `Dropped ${n} place${n > 1 ? 's' : ''}`,
-  holdingPosition: 'Holding position',
+  newPb: 'NOWE PB',
+  noPb: 'BRAK PB',
+  movedUp: (n: number) => `Awans o ${n} ${n === 1 ? 'miejsce' : n < 5 ? 'miejsca' : 'miejsc'}`,
+  movedDown: (n: number) => `Spadek o ${n} ${n === 1 ? 'miejsce' : n < 5 ? 'miejsca' : 'miejsc'}`,
+  holdingPosition: 'Pozycja utrzymana',
   gapToNext: (ms: number, pos: number, name: string) =>
-    `${formatGap(ms)} to #${pos} ${name}`,
-  gapToTop10: (ms: number) => `${formatGap(ms)} to Top 10`,
+    `${formatGap(ms)} do #${pos} ${name}`,
+  gapToTop10: (ms: number) => `${formatGap(ms)} do TOP 10`,
   xpGained: (xp: number) => `+${xp} XP`,
-  achievementUnlocked: 'Achievement unlocked',
+  achievementUnlocked: 'Osiągnięcie odblokowane',
   challengeProgress: (current: number, target: number) =>
     `${current}/${target}`,
-  challengeComplete: 'Challenge complete',
-  rankUp: (rankName: string) => `Ranked up to ${rankName}`,
-  runAgain: 'Run again',
-  viewLeaderboard: 'View leaderboard',
-  shareResult: 'Share',
+  challengeComplete: 'Wyzwanie ukończone',
+  rankUp: (rankName: string) => `Awans na ${rankName}`,
+  runAgain: 'Jedź ponownie',
+  viewLeaderboard: 'Tablica wyników',
+  shareResult: 'Udostępnij',
 
   // Run screen
-  armed: 'ARMED',
+  armed: 'GOTOWY',
   ready: 'READY',
-  go: 'GO',
-  running: 'RUNNING',
-  finishing: 'FINISHING',
-  tapToStart: 'Tap when ready',
-  tapToFinish: 'Tap to finish',
+  go: 'START',
+  running: 'JAZDA',
+  finishing: 'KOŃCZENIE',
+  tapToStart: 'Dotknij gdy gotowy',
+  tapToFinish: 'Dotknij aby zakończyć',
 
   // Trail detail
-  startRun: 'Start run',
-  yourPb: 'Your PB',
-  noPbYet: 'No PB yet',
-  nearestRival: 'Nearest rival',
-  topRiders: 'Top riders',
+  startRun: 'Rozpocznij zjazd',
+  yourPb: 'Twoje PB',
+  noPbYet: 'Brak PB',
+  nearestRival: 'Najbliższy rywal',
+  topRiders: 'Najlepsi riderzy',
 
   // Leaderboard
-  today: 'Today',
+  today: 'Dziś',
   weekend: 'Weekend',
-  allTime: 'All time',
+  allTime: 'Wszechczasów',
   position: '#',
   timeDelta: (ms: number) => `+${formatGap(ms)}`,
 
   // Home
-  activeChallenge: 'Active challenge',
-  hotTrail: 'Hot trail',
-  ridersToday: (n: number) => `${n} rider${n > 1 ? 's' : ''} today`,
-  weekendHeat: 'Weekend heat is on',
-  yourRank: 'Your rank',
+  activeChallenge: 'Aktywne wyzwanie',
+  hotTrail: 'Popularna trasa',
+  ridersToday: (n: number) => `${n} ${n === 1 ? 'rider' : 'riderów'} dziś`,
+  weekendHeat: 'Weekend w pełni',
+  yourRank: 'Twoja ranga',
 
   // Profile
-  totalRuns: 'Total runs',
-  personalBests: 'Personal bests',
-  bestPosition: 'Best position',
-  favoriteTrail: 'Favorite trail',
+  totalRuns: 'Zjazdy',
+  personalBests: 'Rekordy',
+  bestPosition: 'Najlepsza pozycja',
+  favoriteTrail: 'Ulubiona trasa',
 
   // Spot
-  trails: 'Trails',
-  challenges: 'Challenges',
+  trails: 'Trasy',
+  challenges: 'Wyzwania',
 } as const;
 
 // Format milliseconds as readable gap

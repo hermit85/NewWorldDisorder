@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Verification Engine v1
-// MVP route-trust system — mock-ready, GPS-ready architecture
+// MVP route-trust system — Polish-first field-test ready
 // ═══════════════════════════════════════════════════════════
 
 import {
@@ -16,8 +16,8 @@ import {
 } from '@/data/verificationTypes';
 
 // ── Distance thresholds ──
-const MAX_REASONABLE_DISTANCE_M = 5000; // beyond this = "not near the trail"
-const WALKING_DISTANCE_M = 500; // beyond this = too far to walk easily
+const MAX_REASONABLE_DISTANCE_M = 5000;
+const WALKING_DISTANCE_M = 500;
 
 // ── Pre-run readiness check ──
 
@@ -39,8 +39,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Acquiring GPS signal...',
-      ctaLabel: 'WAITING FOR GPS',
+      message: 'Łączenie z GPS...',
+      ctaLabel: 'CZEKAM NA GPS',
       ctaEnabled: false,
     };
   }
@@ -53,8 +53,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'You don\'t seem to be near this trail',
-      ctaLabel: 'START PRACTICE RUN',
+      message: 'Nie jesteś w pobliżu trasy',
+      ctaLabel: 'TRENING',
       ctaEnabled: true,
     };
   }
@@ -67,8 +67,8 @@ export function computeReadiness(
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM,
-      message: 'Weak GPS signal. Practice mode available.',
-      ctaLabel: 'START PRACTICE RUN',
+      message: 'Słaby sygnał GPS. Dostępny trening.',
+      ctaLabel: 'TRENING',
       ctaEnabled: true,
     };
   }
@@ -76,8 +76,8 @@ export function computeReadiness(
   // ── Not in gate, reasonable distance ──
   if (!inStartGate && distanceToStartM !== null) {
     const distLabel = distanceToStartM > WALKING_DISTANCE_M
-      ? `~${(distanceToStartM / 1000).toFixed(1)}km to start gate`
-      : `${Math.round(distanceToStartM)}m to start gate`;
+      ? `~${(distanceToStartM / 1000).toFixed(1)}km do startu`
+      : `${Math.round(distanceToStartM)}m do bramki startowej`;
 
     return {
       status: 'move_to_start',
@@ -86,8 +86,8 @@ export function computeReadiness(
       rankedEligible: false,
       distanceToStartM,
       message: distLabel,
-      ctaLabel: distanceToStartM > WALKING_DISTANCE_M ? 'START PRACTICE RUN' : 'MOVE TO START GATE',
-      ctaEnabled: distanceToStartM > WALKING_DISTANCE_M, // allow practice if far
+      ctaLabel: distanceToStartM > WALKING_DISTANCE_M ? 'TRENING' : 'IDŹ DO STARTU',
+      ctaEnabled: distanceToStartM > WALKING_DISTANCE_M,
     };
   }
 
@@ -99,8 +99,8 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: true,
       distanceToStartM,
-      message: 'Start gate reached. Ranked run ready.',
-      ctaLabel: 'ARM RANKED RUN',
+      message: 'Bramka startowa. Ranking gotowy.',
+      ctaLabel: 'UZBROJENIE RANKINGU',
       ctaEnabled: true,
     };
   }
@@ -113,8 +113,8 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: false,
       distanceToStartM,
-      message: 'In start gate. Weak signal — practice only.',
-      ctaLabel: 'START PRACTICE RUN',
+      message: 'Przy bramce. Słaby sygnał — tylko trening.',
+      ctaLabel: 'TRENING',
       ctaEnabled: true,
     };
   }
@@ -126,8 +126,8 @@ export function computeReadiness(
     inStartGate: true,
     rankedEligible: gpsGood,
     distanceToStartM,
-    message: 'Start gate reached.',
-    ctaLabel: gpsGood ? 'ARM RANKED RUN' : 'START PRACTICE RUN',
+    message: 'Bramka startowa.',
+    ctaLabel: gpsGood ? 'UZBROJENIE RANKINGU' : 'TRENING',
     ctaEnabled: true,
   };
 }
@@ -157,53 +157,53 @@ export function verifyRun(
       gpsQuality,
       avgAccuracyM,
       issues: [],
-      label: 'Practice Only',
-      explanation: 'Practice run. Not submitted to leaderboard.',
+      label: 'Trening',
+      explanation: 'Zjazd treningowy. Nie zapisany na tablicę.',
       isLeaderboardEligible: false,
     });
   }
 
   if (!startGate.entered) {
-    issues.push('Did not enter start gate');
+    issues.push('Brak startu z bramki');
     status = 'outside_start_gate';
   }
 
   if (!finishGate.entered) {
-    issues.push('Did not reach finish gate');
+    issues.push('Nie dotarłeś do mety');
     status = status === 'verified' ? 'outside_finish_gate' : status;
   }
 
   const passed = checkpoints.filter((c) => c.passed).length;
   const total = checkpoints.length;
   if (passed < total) {
-    issues.push(`${total - passed} checkpoint${total - passed > 1 ? 's' : ''} missed`);
+    issues.push(`Pominięto ${total - passed} ${total - passed === 1 ? 'checkpoint' : 'checkpointy'}`);
     if (status === 'verified') status = 'missing_checkpoint';
   }
 
   const hasShortcut = corridor.deviations.some((d) => d.type === 'shortcut');
   const hasMajorDeviation = corridor.deviations.some((d) => d.type === 'major');
   if (hasShortcut) {
-    issues.push('Shortcut detected');
+    issues.push('Wykryto skrót');
     if (status === 'verified') status = 'shortcut_detected';
   } else if (hasMajorDeviation) {
-    issues.push('Off-route section detected');
+    issues.push('Zjechanie z trasy');
     if (status === 'verified') status = 'invalid_route';
   }
 
   if (corridor.coveragePercent < 80) {
-    issues.push(`Only ${Math.round(corridor.coveragePercent)}% route coverage`);
+    issues.push(`Tylko ${Math.round(corridor.coveragePercent)}% pokrycia trasy`);
     if (status === 'verified') status = 'invalid_route';
   }
 
   if (gpsQuality === 'weak' || avgAccuracyM > 15) {
-    issues.push('Weak GPS signal during run');
+    issues.push('Słaby sygnał GPS podczas zjazdu');
     if (status === 'verified') status = 'weak_signal';
   }
 
   const isVerified = status === 'verified';
-  const label = isVerified ? 'Verified' : statusToLabel(status);
+  const label = isVerified ? 'Zweryfikowano' : statusToLabel(status);
   const explanation = isVerified
-    ? `Clean line. ${passed}/${total} checkpoints.`
+    ? `Czysta linia. ${passed}/${total} checkpointów.`
     : issues.join('. ') + '.';
 
   return buildResult({
@@ -224,16 +224,16 @@ export function verifyRun(
 
 function statusToLabel(status: VerificationStatus): string {
   switch (status) {
-    case 'verified': return 'Verified';
-    case 'practice_only': return 'Practice Only';
-    case 'invalid_route': return 'Route Broken';
-    case 'weak_signal': return 'Weak Signal';
-    case 'missing_checkpoint': return 'Checkpoint Missed';
-    case 'outside_start_gate': return 'No Start Gate';
-    case 'outside_finish_gate': return 'No Finish Gate';
-    case 'shortcut_detected': return 'Shortcut Detected';
-    case 'pending': return 'Verifying...';
-    default: return 'Unknown';
+    case 'verified': return 'Zweryfikowano';
+    case 'practice_only': return 'Trening';
+    case 'invalid_route': return 'Błędna trasa';
+    case 'weak_signal': return 'Słaby sygnał';
+    case 'missing_checkpoint': return 'Pominięty checkpoint';
+    case 'outside_start_gate': return 'Brak bramki startu';
+    case 'outside_finish_gate': return 'Brak bramki mety';
+    case 'shortcut_detected': return 'Wykryto skrót';
+    case 'pending': return 'Weryfikacja...';
+    default: return 'Nieznany';
   }
 }
 

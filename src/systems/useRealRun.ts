@@ -41,6 +41,8 @@ import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchAc
 import { XP_TABLE } from './xp';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { createRunSessionId, setFinalizedRun, updateFinalizedRun } from './runStore';
+import { logDebugEvent } from './debugEvents';
+import { isTestMode, shouldSimTrackingFail, shouldSimSaveFail, getSimSaveDelay } from './testMode';
 
 export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
 
@@ -76,15 +78,15 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     trailName,
     startedAt: null,
     elapsedMs: 0,
-    gps: { readiness: 'unavailable', accuracy: null, satellites: 0, label: 'No GPS' },
+    gps: { readiness: 'unavailable', accuracy: null, satellites: 0, label: 'Brak GPS' },
     readiness: {
       status: 'gps_locking',
-      gps: { readiness: 'unavailable', accuracy: null, satellites: 0, label: 'No GPS' },
+      gps: { readiness: 'unavailable', accuracy: null, satellites: 0, label: 'Brak GPS' },
       inStartGate: false,
       rankedEligible: false,
       distanceToStartM: null,
-      message: 'Initializing...',
-      ctaLabel: 'WAITING',
+      message: 'Łączenie z GPS...',
+      ctaLabel: 'CZEKAJ',
       ctaEnabled: false,
     },
     lastPoint: null,
@@ -109,21 +111,23 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     if (mountedRef.current) setState(updater);
   }, []);
 
-  // ── Stop all timers and GPS ──
+  // ── Stop all timers and GPS (GPS first to prevent stale callbacks) ──
   const stopAll = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
     if (trackingActiveRef.current) {
       stopTracking();
       trackingActiveRef.current = false;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
 
   // ── Request permission and start readiness check ──
 
   const beginReadinessCheck = useCallback(async () => {
+    logDebugEvent('run', 'readiness_check_start', 'start', { trailId });
+
     if (isWeb) {
       const mockGps: GpsState = { readiness: 'good', accuracy: 4, satellites: 12, label: 'GPS Good' };
       const readiness = computeReadiness(mockGps, 5, geo?.startZone.radiusM ?? 30);
@@ -133,6 +137,23 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
     safeSetState((s) => ({ ...s, phase: 'readiness_check' }));
 
+    // ── Simulation: force tracking failure ──
+    if (shouldSimTrackingFail()) {
+      logDebugEvent('run', 'sim_tracking_fail', 'info', { trailId });
+      safeSetState((s) => ({
+        ...s,
+        phase: 'readiness_check',
+        readiness: {
+          ...s.readiness,
+          status: 'gps_locking',
+          message: '[SIM] GPS tracking failure',
+          ctaLabel: 'TRENING',
+          ctaEnabled: true,
+        },
+      }));
+      return;
+    }
+
     const perm = await requestLocationPermission();
     if (!perm.foreground) {
       safeSetState((s) => ({
@@ -141,8 +162,8 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         readiness: {
           ...s.readiness,
           status: 'gps_locking',
-          message: 'Location permission required',
-          ctaLabel: 'ALLOW LOCATION',
+          message: 'Wymagane uprawnienia lokalizacji',
+          ctaLabel: 'ZEZWÓL',
           ctaEnabled: false,
         },
       }));
@@ -156,7 +177,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
     safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
-    await startTracking((point) => {
+    const trackingStarted = await startTracking((point) => {
       safeSetState((s) => {
         // During run: add points, check gates/checkpoints
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
@@ -204,12 +225,27 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       });
     }, 1000);
 
-    trackingActiveRef.current = true;
+    if (trackingStarted) {
+      trackingActiveRef.current = true;
+    } else {
+      // GPS tracking failed to start — degrade readiness
+      safeSetState((s) => ({
+        ...s,
+        readiness: {
+          ...s.readiness,
+          status: 'gps_locking',
+          message: 'Nie udało się uruchomić GPS',
+          ctaLabel: 'TRENING',
+          ctaEnabled: true,
+        },
+      }));
+    }
   }, [geo, safeSetState]);
 
   // ── Arm run ──
 
   const armRun = useCallback((mode: RunMode) => {
+    logDebugEvent('run', 'armed', 'info', { trailId, payload: { mode } });
     safeSetState((s) => ({
       ...s,
       mode,
@@ -222,6 +258,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   const startRun = useCallback(() => {
     finalizingRef.current = false;
     const sessionId = createRunSessionId();
+    logDebugEvent('run', 'started', 'ok', { runSessionId: sessionId, trailId, payload: { mode: state.mode } });
     const trace = beginTrace(trailId, trailName, state.mode);
     const now = Date.now();
 
@@ -251,6 +288,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   const finishRun = useCallback(() => {
     if (finalizingRef.current) return; // idempotency guard
     finalizingRef.current = true;
+    logDebugEvent('run', 'finishing', 'start', { trailId, payload: { elapsed: state.elapsedMs } });
 
     // Stop timer immediately
     if (timerRef.current) {
@@ -266,6 +304,9 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   }, [safeSetState]);
 
   // ── Finalize: verify + save (runs ONCE when phase becomes 'finishing') ──
+  // Capture sessionId in a ref so the effect closure always has the current value
+  const sessionIdRef = useRef(state.runSessionId);
+  sessionIdRef.current = state.runSessionId;
 
   useEffect(() => {
     if (state.phase !== 'finishing') return;
@@ -276,20 +317,37 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
     // Delay slightly for UX transition, then verify
     const timeout = setTimeout(() => {
+      if (!mountedRef.current) return;
       safeSetState((s) => ({ ...s, phase: 'verifying' }));
 
       const completedTrace = finishTrace();
+      const currentSessionId = sessionIdRef.current;
       if (!completedTrace || !geo) {
         safeSetState((s) => ({
           ...s,
           phase: 'invalidated',
-          error: 'No trace data',
+          error: 'Brak danych trasy',
           backendStatus: 'offline',
         }));
+        logDebugEvent('run', 'finalize_no_trace', 'fail', { trailId, payload: { hasTrace: !!completedTrace, hasGeo: !!geo } });
+        // Still write a finalized run record so result screen has context
+        setFinalizedRun({
+          sessionId: currentSessionId,
+          trailId,
+          trailName,
+          mode: state.mode,
+          durationMs: state.elapsedMs,
+          startedAt: state.startedAt ?? Date.now(),
+          verification: null,
+          saveStatus: 'offline',
+          backendResult: null,
+          updatedAt: Date.now(),
+        });
         return;
       }
 
       // Verify
+      logDebugEvent('run', 'verifying', 'start', { trailId, payload: { pointCount: completedTrace.points.length, mode: completedTrace.mode } });
       const verification = verifyRealRun(completedTrace.mode, completedTrace.points, geo);
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
@@ -302,6 +360,19 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
       const saveStatus = isBackendConfigured() && userId ? 'saving' as const : 'offline' as const;
 
+      logDebugEvent('run', 'finalized', 'ok', {
+        runSessionId: currentSessionId,
+        trailId,
+        payload: {
+          phase: finalPhase,
+          verificationStatus: verification.status,
+          eligible: verification.isLeaderboardEligible,
+          durationMs: completedTrace.durationMs,
+          saveStatus,
+          issues: verification.issues,
+        },
+      });
+
       safeSetState((s) => ({
         ...s,
         phase: finalPhase,
@@ -312,7 +383,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
       // Write to shared run store — result screen reads from here
       setFinalizedRun({
-        sessionId: state.runSessionId,
+        sessionId: currentSessionId,
         trailId,
         trailName,
         mode: completedTrace.mode,
@@ -326,12 +397,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
 
       // Submit to backend (async, non-blocking)
       if (isBackendConfigured() && userId) {
-        submitToBackend(state.runSessionId, userId, completedTrace, verification);
+        submitToBackend(currentSessionId, userId, completedTrace, verification);
       }
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [state.phase === 'finishing']); // only trigger on finishing
+  }, [state.phase]); // trigger when phase changes to 'finishing'
 
   // ── Submit to backend ──
 
@@ -341,6 +412,23 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     trace: RunTrace,
     verification: VerificationResult,
   ) => {
+    logDebugEvent('save', 'submit_start', 'start', { runSessionId: sessionId, trailId });
+
+    // ── Simulation: force save failure ──
+    if (shouldSimSaveFail()) {
+      logDebugEvent('save', 'sim_save_fail', 'fail', { runSessionId: sessionId });
+      safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
+      updateFinalizedRun(sessionId, { saveStatus: 'failed' });
+      return;
+    }
+
+    // ── Simulation: add artificial delay ──
+    const simDelay = getSimSaveDelay();
+    if (simDelay > 0) {
+      logDebugEvent('save', 'sim_delay', 'info', { payload: { delayMs: simDelay } });
+      await new Promise((r) => setTimeout(r, simDelay));
+    }
+
     try {
       const xpAwarded = verification.isLeaderboardEligible ? XP_TABLE.validRun : 0;
 
@@ -358,6 +446,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       });
 
       if (result) {
+        logDebugEvent('save', 'submit_ok', 'ok', { runSessionId: sessionId, trailId, payload: { isPb: result.isPb, position: result.leaderboardResult?.position } });
         safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
         // Update shared store — result screen will see this
         updateFinalizedRun(sessionId, { saveStatus: 'saved', backendResult: result });
@@ -365,11 +454,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         updateProgression(uid, trailId, result.isPb, verification.isLeaderboardEligible);
         triggerRefresh();
       } else {
+        logDebugEvent('save', 'submit_null', 'fail', { runSessionId: sessionId, trailId });
         safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
         updateFinalizedRun(sessionId, { saveStatus: 'failed' });
       }
     } catch (e) {
-      console.error('[NWD] Backend submission failed:', e);
+      logDebugEvent('save', 'submit_error', 'fail', { runSessionId: sessionId, trailId, payload: { error: String(e) } });
       safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
       updateFinalizedRun(sessionId, { saveStatus: 'failed' });
     }
@@ -380,13 +470,26 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
   const updateProgression = async (uid: string, tid: string, isPb: boolean, eligible: boolean) => {
     try {
       const challenges = await fetchActiveChallenges('slotwiny-arena');
+      const now = new Date();
       for (const ch of challenges) {
-        if (ch.type === 'run_count') await incrementChallengeProgress(uid, ch.id, 1);
-        if (ch.type === 'pb_improvement' && isPb) await incrementChallengeProgress(uid, ch.id, 1);
-        if (ch.type === 'fastest_time' && ch.trail_id === tid && eligible) await incrementChallengeProgress(uid, ch.id, 1);
+        // Skip expired challenges
+        if (ch.ends_at && new Date(ch.ends_at) < now) continue;
+        // Skip challenges not yet started
+        if (ch.starts_at && new Date(ch.starts_at) > now) continue;
+
+        if (ch.type === 'run_count' && eligible) {
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
+        if (ch.type === 'pb_improvement' && isPb) {
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
+        // fastest_time: only counts if PB on the matching trail (actually fast, not just any run)
+        if (ch.type === 'fastest_time' && ch.trail_id === tid && eligible && isPb) {
+          await incrementChallengeProgress(uid, ch.id, 1);
+        }
       }
-      await unlockAchievement(uid, 'ach-first-blood');
-      if (eligible) await unlockAchievement(uid, 'ach-top-10');
+      // Achievement unlock — use correct IDs matching the achievements table
+      await unlockAchievement(uid, 'first-blood');
     } catch (e) {
       console.warn('[NWD] Progression update failed:', e);
     }

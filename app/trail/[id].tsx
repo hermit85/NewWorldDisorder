@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Trail Detail — event page for a single trail
-// Uses real backend data where available, honest empty states
+// Trail — pole bitwy, nie opis trasy
+// Board-first: pokaż pozycję, rywala, cel
 // ═══════════════════════════════════════════════════════════
 
+import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,11 +11,11 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrail } from '@/data/mock/trails';
-import { copy, formatTime, formatTimeShort } from '@/content/copy';
-import { Difficulty } from '@/data/types';
+import { formatTime, formatTimeShort } from '@/content/copy';
+import { Difficulty, PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard, useUserTrailStats } from '@/hooks/useBackend';
-import { tapMedium } from '@/systems/haptics';
+import { tapMedium, tapLight } from '@/systems/haptics';
 
 const difficultyColors: Record<Difficulty, string> = {
   easy: colors.diffEasy,
@@ -28,25 +29,22 @@ export default function TrailDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
-  const { profile } = useAuthContext();
+  const { profile, isAuthenticated } = useAuthContext();
   const trail = getTrail(id);
 
-  // Real backend data
-  const { entries: leaderboard, loading: lbLoading } = useLeaderboard(id ?? '', 'all_time', profile?.id);
+  const [boardScope, setBoardScope] = useState<PeriodType>('all_time');
+  const { entries: leaderboard, loading: lbLoading } = useLeaderboard(id ?? '', boardScope, profile?.id);
   const { stats: trailStats } = useUserTrailStats(profile?.id);
 
   const goBack = () => {
-    if (navigation.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/');
-    }
+    if (navigation.canGoBack()) router.back();
+    else router.replace('/');
   };
 
   if (!trail) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>Trail not found</Text>
+        <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>Trasa nie znaleziona</Text>
       </SafeAreaView>
     );
   }
@@ -57,97 +55,138 @@ export default function TrailDetailScreen() {
   const nearestRival = myEntry
     ? leaderboard.find((e) => e.currentPosition === myEntry.currentPosition - 1)
     : null;
-
   const diffColor = difficultyColors[trail.difficulty];
+  const myPos = myEntry?.currentPosition ?? 0;
+  const tierLabel = myPos > 0 && myPos <= 3 ? 'PODIUM'
+    : myPos > 0 && myPos <= 10 ? 'TOP 10'
+    : null;
+  const placesToNextTier = myPos === 0 ? 0
+    : myPos <= 3 ? 0
+    : myPos <= 10 ? myPos - 3
+    : myPos - 10;
+
+  const handleStartRanked = () => {
+    tapMedium();
+    router.push({ pathname: '/run/active', params: { trailId: trail.id, trailName: trail.name } });
+  };
+
+  const handleStartPractice = () => {
+    tapLight();
+    router.push({ pathname: '/run/active', params: { trailId: trail.id, trailName: trail.name } });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Pressable onPress={goBack} style={styles.backBtn}>
-          <Text style={styles.backText}>← BACK</Text>
+          <Text style={styles.backText}>← WRÓĆ</Text>
         </Pressable>
 
-        {/* Trail header */}
-        <View style={styles.header}>
+        {/* ═══ TRAIL HERO ═══ */}
+        <View style={styles.hero}>
+          <Text style={styles.venueLabel}>SŁOTWINY ARENA</Text>
           <View style={styles.badges}>
             <View style={[styles.badge, { borderColor: diffColor }]}>
-              <Text style={[styles.badgeText, { color: diffColor }]}>
-                {trail.difficulty.toUpperCase()}
-              </Text>
+              <Text style={[styles.badgeText, { color: diffColor }]}>{trail.difficulty.toUpperCase()}</Text>
             </View>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{trail.trailType.toUpperCase()}</Text>
             </View>
           </View>
           <Text style={styles.trailName}>{trail.name}</Text>
-          <Text style={styles.trailDesc}>{trail.description}</Text>
-
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statValue}>{trail.distanceM}m</Text>
-              <Text style={styles.statLabel}>DISTANCE</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statValue}>{trail.elevationDropM}m</Text>
-              <Text style={styles.statLabel}>DROP</Text>
-            </View>
+          <View style={styles.trailMeta}>
+            <Text style={styles.metaText}>{trail.distanceM}m</Text>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.metaText}>↓{trail.elevationDropM}m</Text>
           </View>
         </View>
 
-        {/* Your PB — real data */}
-        <View style={styles.pbCard}>
-          <Text style={styles.label}>YOUR PB</Text>
-          <Text style={styles.pbTime}>
-            {myStats?.pbMs ? formatTime(myStats.pbMs) : 'No PB yet'}
-          </Text>
-          {myStats?.position && (
-            <Text style={styles.pbPosition}>#{myStats.position}</Text>
-          )}
-          {!profile && (
-            <Text style={styles.signInHint}>Sign in to track your PB</Text>
-          )}
-        </View>
-
-        {/* Nearest rival — real data */}
-        {nearestRival && myEntry && (
-          <View style={styles.rivalCard}>
-            <Text style={styles.label}>NEAREST RIVAL</Text>
-            <View style={styles.rivalRow}>
-              <Text style={styles.rivalName}>
-                #{nearestRival.currentPosition} {nearestRival.username}
-              </Text>
-              <Text style={styles.rivalGap}>
-                {formatTimeShort(nearestRival.bestDurationMs)}
-              </Text>
-            </View>
-            <Text style={styles.rivalDelta}>
-              {((myEntry.bestDurationMs - nearestRival.bestDurationMs) / 1000).toFixed(1)}s ahead of you
-            </Text>
+        {/* ═══ BOARD STATUS — where you stand ═══ */}
+        {isAuthenticated ? (
+          <View style={[styles.statusCard, myEntry && { borderColor: colors.accent }]}>
+            {myEntry ? (
+              <>
+                <View style={styles.statusMain}>
+                  <View>
+                    <Text style={styles.statusPos}>#{myPos}</Text>
+                    <Text style={[styles.statusTier, { color: colors.textTertiary }]}>
+                      {boardScope === 'day' ? 'POZYCJA · DZIŚ' : boardScope === 'weekend' ? 'POZYCJA · WEEKEND' : 'POZYCJA · WSZECHCZASÓW'}
+                    </Text>
+                    {tierLabel && (
+                      <Text style={[styles.statusTier,
+                        tierLabel === 'PODIUM' && { color: colors.gold },
+                        tierLabel === 'TOP 10' && { color: colors.accent },
+                      ]}>{tierLabel}</Text>
+                    )}
+                  </View>
+                  <View style={styles.statusRight}>
+                    <Text style={styles.statusPbLabel}>TWÓJ REKORD</Text>
+                    <Text style={styles.statusPb}>{myStats?.pbMs ? formatTime(myStats.pbMs) : '—'}</Text>
+                    <Text style={styles.statusPbScope}>WSZECHCZASÓW</Text>
+                  </View>
+                </View>
+                {nearestRival && (
+                  <View style={styles.rivalRow}>
+                    <Text style={styles.rivalLabel}>CEL: #{nearestRival.currentPosition} {nearestRival.username}</Text>
+                    <Text style={styles.rivalGap}>
+                      {((myEntry.bestDurationMs - nearestRival.bestDurationMs) / 1000).toFixed(1)}s
+                    </Text>
+                  </View>
+                )}
+                {placesToNextTier > 0 && placesToNextTier <= 7 && (
+                  <Text style={styles.ambition}>
+                    {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do {myPos > 10 ? 'TOP 10' : 'podium'}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <View style={styles.noResultState}>
+                <Text style={styles.noResultText}>Bez wyniku na tej trasie</Text>
+                <Text style={styles.noResultHint}>Ukończ zjazd aby pojawić się na tablicy</Text>
+              </View>
+            )}
           </View>
+        ) : (
+          <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
+            <Text style={styles.signInText}>Zaloguj się aby jechać rankingowo</Text>
+          </Pressable>
         )}
 
-        {/* Leaderboard — real data */}
-        <View style={styles.leaderboardSection}>
-          <Text style={styles.label}>TOP RIDERS</Text>
+        {/* ═══ BOARD — top riders ═══ */}
+        <View style={styles.boardSection}>
+          <View style={styles.boardHeader}>
+            <Text style={styles.sectionLabel}>TABLICA</Text>
+            <View style={styles.scopeTabs}>
+              {([['day', 'DZIŚ'], ['weekend', 'WKND'], ['all_time', '∞']] as [PeriodType, string][]).map(([key, label]) => (
+                <Pressable
+                  key={key}
+                  style={[styles.scopeTab, boardScope === key && styles.scopeTabActive]}
+                  onPress={() => setBoardScope(key)}
+                >
+                  <Text style={[styles.scopeTabText, boardScope === key && styles.scopeTabTextActive]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
 
-          {lbLoading && (
-            <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />
-          )}
+          {lbLoading && <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />}
 
           {!lbLoading && top5.length === 0 && (
             <View style={styles.emptyLb}>
-              <Text style={styles.emptyText}>No verified runs yet.</Text>
-              <Text style={styles.emptyHint}>Be the first to set a time.</Text>
+              <Text style={styles.emptyText}>Brak zweryfikowanych zjazdów</Text>
+              <Text style={styles.emptyHint}>Bądź pierwszy — ustaw czas</Text>
             </View>
           )}
 
           {top5.map((entry) => (
-            <View
-              key={entry.userId}
-              style={[styles.lbRow, entry.isCurrentUser && styles.lbRowHighlight]}
-            >
-              <Text style={styles.lbPosition}>#{entry.currentPosition}</Text>
-              <Text style={[styles.lbName, entry.isCurrentUser && { color: colors.accent }]}>
+            <View key={entry.userId} style={[styles.lbRow, entry.isCurrentUser && styles.lbRowHighlight]}>
+              <Text style={[styles.lbPos,
+                entry.currentPosition <= 3 && { color: colors.gold },
+                entry.isCurrentUser && { color: colors.accent },
+              ]}>
+                {entry.currentPosition}
+              </Text>
+              <Text style={[styles.lbName, entry.isCurrentUser && { color: colors.accent }]} numberOfLines={1}>
                 {entry.username}
               </Text>
               <Text style={styles.lbTime}>{formatTimeShort(entry.bestDurationMs)}</Text>
@@ -158,32 +197,35 @@ export default function TrailDetailScreen() {
             <>
               <Text style={styles.lbDots}>···</Text>
               <View style={[styles.lbRow, styles.lbRowHighlight]}>
-                <Text style={styles.lbPosition}>#{myEntry.currentPosition}</Text>
-                <Text style={[styles.lbName, { color: colors.accent }]}>
-                  {myEntry.username}
+                <Text style={[styles.lbPos, { color: colors.accent }]}>
+                  {myEntry.currentPosition}
                 </Text>
+                <Text style={[styles.lbName, { color: colors.accent }]}>{myEntry.username}</Text>
                 <Text style={styles.lbTime}>{formatTimeShort(myEntry.bestDurationMs)}</Text>
               </View>
             </>
           )}
+
+          {leaderboard.length > 5 && (
+            <Pressable style={styles.fullBoardBtn} onPress={() => router.push({
+              pathname: '/(tabs)/leaderboard',
+              params: { trailId: trail.id, scope: boardScope },
+            })}>
+              <Text style={styles.fullBoardText}>PEŁNA TABLICA →</Text>
+            </Pressable>
+          )}
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Start Run CTA */}
+      {/* ═══ RIDE CTAs ═══ */}
       <View style={styles.ctaContainer}>
-        <Pressable
-          style={styles.startBtn}
-          onPress={() => {
-            tapMedium();
-            router.push({
-              pathname: '/run/active',
-              params: { trailId: trail.id, trailName: trail.name },
-            });
-          }}
-        >
-          <Text style={styles.startBtnText}>START RUN</Text>
+        <Pressable style={styles.rankedBtn} onPress={handleStartRanked}>
+          <Text style={styles.rankedBtnText}>JEDŹ RANKINGOWO</Text>
+        </Pressable>
+        <Pressable style={styles.practiceBtn} onPress={handleStartPractice}>
+          <Text style={styles.practiceBtnText}>TRENING</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -195,37 +237,62 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.lg },
   backBtn: { marginBottom: spacing.lg },
   backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
-  header: { marginBottom: spacing.xl },
+
+  // Hero
+  hero: { marginBottom: spacing.xl },
+  venueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginBottom: spacing.md, fontSize: 9 },
   badges: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   badge: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
   badgeText: { ...typography.labelSmall, color: colors.textSecondary },
-  trailName: { ...typography.h1, color: colors.textPrimary, fontSize: 32 },
-  trailDesc: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
-  statsRow: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing.lg },
-  stat: {},
-  statValue: { ...typography.h3, color: colors.textPrimary },
-  statLabel: { ...typography.labelSmall, color: colors.textTertiary },
-  pbCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
-  label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, marginBottom: spacing.sm },
-  pbTime: { ...typography.timeLarge, color: colors.accent },
-  pbPosition: { ...typography.label, color: colors.textSecondary, marginTop: spacing.xs },
-  signInHint: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.sm },
-  rivalCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
-  rivalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rivalName: { ...typography.h3, color: colors.textPrimary },
-  rivalGap: { ...typography.timeSmall, color: colors.textSecondary },
-  rivalDelta: { ...typography.bodySmall, color: colors.orange, marginTop: spacing.xs },
-  leaderboardSection: { marginTop: spacing.lg },
+  trailName: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 2 },
+  trailMeta: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, alignItems: 'center' },
+  metaText: { ...typography.body, color: colors.textSecondary },
+  metaDot: { color: colors.textTertiary },
+
+  // Board status
+  statusCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  statusMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  statusPos: { fontFamily: 'Orbitron_700Bold', fontSize: 36, color: colors.accent },
+  statusTier: { ...typography.labelSmall, letterSpacing: 3, marginTop: spacing.xxs, fontSize: 10 },
+  statusRight: { alignItems: 'flex-end' },
+  statusPbLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
+  statusPb: { fontFamily: 'Orbitron_700Bold', fontSize: 20, color: colors.textPrimary, marginTop: spacing.xxs },
+  statusPbScope: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginTop: 2 },
+  rivalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  rivalLabel: { ...typography.bodySmall, color: colors.orange, fontFamily: 'Inter_600SemiBold' },
+  rivalGap: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.orange },
+  ambition: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
+  noResultState: { alignItems: 'center', paddingVertical: spacing.sm },
+  noResultText: { ...typography.body, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
+  noResultHint: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xs },
+  signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
+  signInText: { ...typography.body, color: colors.accent, fontFamily: 'Inter_600SemiBold' },
+
+  // Board
+  boardSection: { marginTop: spacing.sm },
+  boardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  sectionLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 9 },
+  scopeTabs: { flexDirection: 'row', gap: spacing.xs },
+  scopeTab: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border },
+  scopeTabActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 1 },
+  scopeTabTextActive: { color: colors.accent },
   emptyLb: { alignItems: 'center', paddingVertical: spacing.xl },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
   lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  lbRowHighlight: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 0 },
-  lbPosition: { ...typography.label, color: colors.textTertiary, width: 40 },
-  lbName: { ...typography.body, color: colors.textPrimary, flex: 1, fontFamily: 'Inter_600SemiBold' },
-  lbTime: { ...typography.timeSmall, color: colors.textSecondary },
+  lbRowHighlight: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 0, marginVertical: spacing.xxs },
+  lbPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textTertiary, width: 36 },
+  lbName: { ...typography.body, color: colors.textPrimary, flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  lbTime: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.textSecondary, letterSpacing: 1 },
   lbDots: { ...typography.body, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.xs },
-  ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg },
-  startBtn: { backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
-  startBtnText: { ...typography.cta, color: colors.bg, letterSpacing: 3 },
+  fullBoardBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
+  fullBoardText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3 },
+
+  // CTAs
+  ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.sm },
+  rankedBtn: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
+  rankedBtnText: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
+  practiceBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
+  practiceBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
 });

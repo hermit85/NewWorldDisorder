@@ -1,23 +1,34 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import { trailLineColors } from '@/theme/map';
 import { mockTrails } from '@/data/mock/trails';
 import { formatTimeShort } from '@/content/copy';
-import { copy } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard } from '@/hooks/useBackend';
 
-// Only all_time is supported by backend in MVP.
-// Day/Weekend will be added when backend supports period-based queries.
+const SCOPES: { key: PeriodType; label: string }[] = [
+  { key: 'day', label: 'DZIŚ' },
+  { key: 'weekend', label: 'WEEKEND' },
+  { key: 'all_time', label: 'WSZECHCZASÓW' },
+];
 
 export default function LeaderboardScreen() {
-  const selectedPeriod: PeriodType = 'all_time';
-  const [selectedTrailId, setSelectedTrailId] = useState('dzida-czerwona');
+  const params = useLocalSearchParams<{ trailId?: string; scope?: string }>();
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(
+    (params.scope as PeriodType) || 'all_time',
+  );
+  const [selectedTrailId, setSelectedTrailId] = useState(
+    params.trailId && mockTrails.some(t => t.id === params.trailId)
+      ? params.trailId
+      : 'dzida-czerwona',
+  );
   const { profile } = useAuthContext();
 
   const { entries, loading, error: lbError, refresh } = useLeaderboard(
@@ -27,52 +38,91 @@ export default function LeaderboardScreen() {
   );
 
   const selectedTrail = mockTrails.find((t) => t.id === selectedTrailId);
+  const diffColor = selectedTrail ? trailLineColors[selectedTrail.difficulty] : colors.accent;
+
+  // Derive rider context
+  const myEntry = entries.find((e) => e.isCurrentUser);
+  const myPos = myEntry?.currentPosition ?? 0;
+  const totalEntries = entries.length;
+
+  // Find who is directly above and below the rider
+  const rivalAbove = myEntry
+    ? entries.find((e) => e.currentPosition === myPos - 1)
+    : null;
+  const rivalBelow = myEntry
+    ? entries.find((e) => e.currentPosition === myPos + 1)
+    : null;
+
+  // Tier context
+  const tierLabel = myPos === 0 ? null
+    : myPos <= 3 ? 'PODIUM'
+    : myPos <= 10 ? 'TOP 10'
+    : 'CHASING';
+  const placesToNextTier = myPos === 0 ? 0
+    : myPos <= 3 ? 0
+    : myPos <= 10 ? myPos - 3
+    : myPos - 10;
+
+  // Podium entries (top 3)
+  const podium = entries.filter((e) => e.currentPosition <= 3);
+  const rest = entries.filter((e) => e.currentPosition > 3);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Header */}
         <View style={styles.titleRow}>
-          <Text style={styles.title}>LEADERBOARD</Text>
-          <View style={styles.verifiedBadge}>
-            <Text style={styles.verifiedText}>✓ VERIFIED LEAGUE</Text>
+          <View>
+            <Text style={styles.title}>TABLICA WYNIKÓW</Text>
+            <Text style={styles.subtitle}>TYLKO ZWERYFIKOWANE CZASY</Text>
+          </View>
+          <View style={styles.scopeTabs}>
+            {SCOPES.map(s => (
+              <Pressable
+                key={s.key}
+                style={[styles.scopeTab, selectedPeriod === s.key && styles.scopeTabActive]}
+                onPress={() => setSelectedPeriod(s.key)}
+              >
+                <Text style={[styles.scopeTabText, selectedPeriod === s.key && styles.scopeTabTextActive]}>
+                  {s.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
-        {/* Trail selector */}
+        {/* Trail selector with prestige */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.trailSelector}
           contentContainerStyle={styles.trailSelectorContent}
         >
-          {mockTrails.map((trail) => (
-            <Pressable
-              key={trail.id}
-              style={[
-                styles.trailChip,
-                selectedTrailId === trail.id && styles.trailChipActive,
-              ]}
-              onPress={() => setSelectedTrailId(trail.id)}
-            >
-              <Text
+          {mockTrails.map((trail) => {
+            const isActive = selectedTrailId === trail.id;
+            const tColor = trailLineColors[trail.difficulty];
+            return (
+              <Pressable
+                key={trail.id}
                 style={[
-                  styles.trailChipText,
-                  selectedTrailId === trail.id && styles.trailChipTextActive,
+                  styles.trailChip,
+                  isActive && { borderColor: tColor, backgroundColor: tColor + '18' },
                 ]}
+                onPress={() => setSelectedTrailId(trail.id)}
               >
-                {trail.name}
-              </Text>
-            </Pressable>
-          ))}
+                <View style={[styles.trailChipDot, { backgroundColor: tColor }]} />
+                <Text
+                  style={[
+                    styles.trailChipText,
+                    isActive && { color: colors.textPrimary },
+                  ]}
+                >
+                  {trail.name}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
-
-        {/* ALL TIME — single period for MVP */}
-        <View style={styles.periodTabs}>
-          <View style={[styles.periodTab, styles.periodTabActive]}>
-            <Text style={[styles.periodTabText, styles.periodTabTextActive]}>ALL TIME</Text>
-          </View>
-        </View>
 
         {/* Loading */}
         {loading && (
@@ -81,223 +131,424 @@ export default function LeaderboardScreen() {
           </View>
         )}
 
-        {/* Error state — backend failed, not just empty */}
+        {/* Error state */}
         {!loading && lbError && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>COULD NOT LOAD</Text>
+            <Text style={styles.emptyTitle}>NIE UDAŁO SIĘ ZAŁADOWAĆ</Text>
             <Text style={styles.emptyDesc}>
-              Leaderboard data is unavailable right now. Check your connection.
+              Tablica wyników jest teraz niedostępna.
             </Text>
             <Pressable style={styles.retryBtn} onPress={refresh}>
-              <Text style={styles.retryText}>RETRY</Text>
+              <Text style={styles.retryText}>PONÓW</Text>
             </Pressable>
           </View>
         )}
 
-        {/* Empty state — valid but no runs yet */}
+        {/* Empty state */}
         {!loading && !lbError && entries.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>NO VERIFIED RUNS YET</Text>
+            <Text style={styles.emptyTitle}>BRAK ZWERYFIKOWANYCH ZJAZDÓW</Text>
             <Text style={styles.emptyDesc}>
-              Be the first to set a verified time on {selectedTrail?.name ?? 'this trail'}.
+              Bądź pierwszy — ustaw czas na {selectedTrail?.name ?? 'tej trasie'}.
             </Text>
           </View>
         )}
 
-        {/* Leaderboard entries */}
-        {entries.map((entry) => {
-          const rank = getRank(entry.rankId);
-          const isTop3 = entry.currentPosition <= 3;
-          const isUser = entry.isCurrentUser;
-
-          return (
-            <View
-              key={entry.userId}
-              style={[
-                styles.entry,
-                isUser && styles.entryUser,
-                isTop3 && styles.entryTop3,
-              ]}
-            >
-              <View style={styles.positionCol}>
-                <Text
+        {/* ═══ PODIUM — top 3 ceremonial ═══ */}
+        {!loading && !lbError && podium.length > 0 && (
+          <View style={styles.podiumSection}>
+            {podium.map((entry) => {
+              const rank = getRank(entry.rankId);
+              const isUser = entry.isCurrentUser;
+              const pos = entry.currentPosition;
+              const isFirst = pos === 1;
+              return (
+                <View
+                  key={entry.userId}
                   style={[
-                    styles.position,
-                    isTop3 && { color: colors.gold },
-                    isUser && { color: colors.accent },
+                    styles.podiumCard,
+                    isFirst && styles.podiumFirst,
+                    isUser && styles.podiumUser,
                   ]}
                 >
-                  {entry.currentPosition}
-                </Text>
-              </View>
-
-              <View style={styles.deltaCol}>
-                {entry.delta > 0 && (
-                  <Text style={styles.deltaUp}>↑{entry.delta}</Text>
-                )}
-                {entry.delta < 0 && (
-                  <Text style={styles.deltaDown}>↓{Math.abs(entry.delta)}</Text>
-                )}
-                {entry.delta === 0 && (
-                  <Text style={styles.deltaFlat}>—</Text>
-                )}
-              </View>
-
-              <View style={styles.riderCol}>
-                <View style={styles.riderRow}>
-                  <Text style={[styles.rankIcon, { color: rank.color }]}>
-                    {rank.icon}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.riderName,
-                      isUser && { color: colors.accent },
-                    ]}
-                  >
-                    {entry.username}
-                  </Text>
+                  <View style={styles.podiumPosRow}>
+                    <Text style={[
+                      styles.podiumPos,
+                      isFirst && { color: colors.gold, fontSize: 28 },
+                      pos === 2 && { color: '#C0C0C0' },
+                      pos === 3 && { color: '#CD7F32' },
+                    ]}>
+                      {pos}
+                    </Text>
+                  </View>
+                  <View style={styles.podiumInfo}>
+                    <View style={styles.podiumNameRow}>
+                      <Text style={[styles.podiumRankIcon, { color: rank.color }]}>{rank.icon}</Text>
+                      <Text style={[
+                        styles.podiumName,
+                        isUser && { color: colors.accent },
+                      ]} numberOfLines={1}>
+                        {entry.username}
+                      </Text>
+                    </View>
+                    <Text style={[
+                      styles.podiumTime,
+                      isFirst && { color: colors.gold },
+                    ]}>
+                      {formatTimeShort(entry.bestDurationMs)}
+                    </Text>
+                  </View>
+                  {entry.delta > 0 && (
+                    <View style={styles.podiumDelta}>
+                      <Text style={styles.podiumDeltaText}>↑{entry.delta}</Text>
+                    </View>
+                  )}
                 </View>
-              </View>
+              );
+            })}
+          </View>
+        )}
 
-              <View style={styles.timeCol}>
-                <Text
-                  style={[
-                    styles.time,
-                    isTop3 && { color: colors.textPrimary },
-                  ]}
-                >
-                  {formatTimeShort(entry.bestDurationMs)}
-                </Text>
-                {entry.gapToLeader > 0 && (
-                  <Text style={styles.gap}>
-                    +{(entry.gapToLeader / 1000).toFixed(1)}s
+        {/* ═══ RIDER STATUS CARD — your position context ═══ */}
+        {myEntry && myPos > 3 && (
+          <View style={styles.riderStatusCard}>
+            <View style={styles.riderStatusMain}>
+              <Text style={styles.riderStatusPos}>#{myPos}</Text>
+              <View style={styles.riderStatusRight}>
+                {tierLabel && (
+                  <Text style={[
+                    styles.riderStatusTier,
+                    tierLabel === 'TOP 10' && { color: colors.accent },
+                  ]}>
+                    {tierLabel}
+                  </Text>
+                )}
+                {myEntry.delta > 0 && (
+                  <Text style={styles.riderStatusDelta}>↑{myEntry.delta} POZYCJI</Text>
+                )}
+                {myEntry.delta < 0 && (
+                  <Text style={[styles.riderStatusDelta, { color: colors.red }]}>
+                    ↓{Math.abs(myEntry.delta)} POZYCJI
                   </Text>
                 )}
               </View>
             </View>
-          );
-        })}
+
+            {/* Gap to next position */}
+            {rivalAbove && (
+              <View style={styles.riderGapRow}>
+                <Text style={styles.riderGapLabel}>
+                  #{rivalAbove.currentPosition} {rivalAbove.username}
+                </Text>
+                <Text style={styles.riderGapValue}>
+                  {((myEntry.bestDurationMs - rivalAbove.bestDurationMs) / 1000).toFixed(1)}s przed Tobą
+                </Text>
+              </View>
+            )}
+
+            {/* Tier ambition */}
+            {placesToNextTier > 0 && placesToNextTier <= 5 && (
+              <Text style={styles.riderAmbition}>
+                {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do {myPos > 10 ? 'TOP 10' : 'podium'}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* ═══ REST OF BOARD — positions 4+ ═══ */}
+        {rest.length > 0 && (
+          <View style={styles.boardSection}>
+            {rest.map((entry) => {
+              const rank = getRank(entry.rankId);
+              const isUser = entry.isCurrentUser;
+              const isRivalAbove = rivalAbove?.userId === entry.userId;
+              const isRivalBelow = rivalBelow?.userId === entry.userId;
+
+              return (
+                <View
+                  key={entry.userId}
+                  style={[
+                    styles.entry,
+                    isUser && styles.entryUser,
+                    (isRivalAbove || isRivalBelow) && styles.entryRival,
+                  ]}
+                >
+                  <View style={styles.positionCol}>
+                    <Text
+                      style={[
+                        styles.position,
+                        isUser && { color: colors.accent },
+                        isRivalAbove && { color: colors.orange },
+                      ]}
+                    >
+                      {entry.currentPosition}
+                    </Text>
+                  </View>
+
+                  <View style={styles.deltaCol}>
+                    {entry.delta > 0 && (
+                      <Text style={styles.deltaUp}>↑{entry.delta}</Text>
+                    )}
+                    {entry.delta < 0 && (
+                      <Text style={styles.deltaDown}>↓{Math.abs(entry.delta)}</Text>
+                    )}
+                    {entry.delta === 0 && (
+                      <Text style={styles.deltaFlat}>—</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.riderCol}>
+                    <View style={styles.riderRow}>
+                      <Text style={[styles.rankIcon, { color: rank.color }]}>
+                        {rank.icon}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.riderName,
+                          isUser && { color: colors.accent },
+                          isRivalAbove && { color: colors.orange },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {entry.username}
+                      </Text>
+                      {isRivalAbove && (
+                        <Text style={styles.rivalTag}>CEL</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.timeCol}>
+                    <Text
+                      style={[
+                        styles.time,
+                        isUser && { color: colors.accent },
+                      ]}
+                    >
+                      {formatTimeShort(entry.bestDurationMs)}
+                    </Text>
+                    {entry.gapToLeader > 0 && (
+                      <Text style={styles.gap}>
+                        +{(entry.gapToLeader / 1000).toFixed(1)}s
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Board footer */}
+        {!loading && !lbError && entries.length > 0 && (
+          <View style={styles.boardFooter}>
+            <Text style={styles.boardFooterText}>
+              {totalEntries} {totalEntries === 1 ? 'RIDER' : 'RIDERÓW'} · {selectedTrail?.name?.toUpperCase() ?? 'TRASA'} · {SCOPES.find(s => s.key === selectedPeriod)?.label ?? 'WSZECHCZASÓW'}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  scroll: {
-    padding: spacing.lg,
-    paddingBottom: spacing.huge,
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
+  scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
+
+  // Header
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.lg,
   },
   title: {
-    ...typography.label,
-    color: colors.textSecondary,
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 14,
+    color: colors.textPrimary,
     letterSpacing: 4,
   },
-  verifiedBadge: {
-    backgroundColor: colors.accentDim,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-  },
-  verifiedText: {
+  subtitle: {
     ...typography.labelSmall,
-    color: colors.accent,
+    color: colors.textTertiary,
+    letterSpacing: 2,
+    marginTop: spacing.xxs,
     fontSize: 9,
-    letterSpacing: 1,
   },
-  trailSelector: {
-    marginBottom: spacing.lg,
-  },
-  trailSelectorContent: {
-    gap: spacing.sm,
-  },
+  // Scope tabs
+  scopeTabs: { flexDirection: 'row', gap: spacing.xs },
+  scopeTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border },
+  scopeTabActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
+  scopeTabTextActive: { color: colors.accent },
+
+  // Trail selector
+  trailSelector: { marginBottom: spacing.xl },
+  trailSelectorContent: { gap: spacing.sm },
   trailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  trailChipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentDim,
+  trailChipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   trailChipText: {
     ...typography.bodySmall,
     color: colors.textTertiary,
     fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
-  trailChipTextActive: {
+
+  // Loading / Empty
+  loadingWrap: { paddingVertical: spacing.xxl, alignItems: 'center' },
+  emptyWrap: { alignItems: 'center', paddingVertical: spacing.xxl },
+  emptyTitle: { ...typography.h3, color: colors.textSecondary, letterSpacing: 2 },
+  emptyDesc: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.sm },
+  retryBtn: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
+  retryText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2 },
+
+  // ═══ PODIUM ═══
+  podiumSection: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  podiumCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  podiumFirst: {
+    borderColor: colors.goldDim,
+    backgroundColor: 'rgba(255, 215, 0, 0.06)',
+    paddingVertical: spacing.lg,
+  },
+  podiumUser: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  podiumPosRow: {
+    width: 40,
+    alignItems: 'center',
+  },
+  podiumPos: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 22,
+    color: colors.textSecondary,
+  },
+  podiumInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  podiumNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  podiumRankIcon: {
+    fontSize: 12,
+  },
+  podiumName: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+  podiumTime: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: spacing.xxs,
+    letterSpacing: 1,
+  },
+  podiumDelta: {
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  podiumDeltaText: {
+    ...typography.labelSmall,
     color: colors.accent,
   },
-  periodTabs: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.xl,
-  },
-  periodTab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radii.sm,
+
+  // ═══ RIDER STATUS CARD ═══
+  riderStatusCard: {
     backgroundColor: colors.bgCard,
-  },
-  periodTabActive: {
-    backgroundColor: colors.bgElevated,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.accent,
   },
-  periodTabText: {
+  riderStatusMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  riderStatusPos: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 32,
+    color: colors.accent,
+  },
+  riderStatusRight: {
+    alignItems: 'flex-end',
+    gap: spacing.xxs,
+  },
+  riderStatusTier: {
     ...typography.labelSmall,
     color: colors.textTertiary,
+    letterSpacing: 3,
   },
-  periodTabTextActive: {
-    color: colors.textPrimary,
+  riderStatusDelta: {
+    ...typography.labelSmall,
+    color: colors.accent,
+    letterSpacing: 1,
   },
-  loadingWrap: {
-    paddingVertical: spacing.xxl,
+  riderGapRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  emptyIcon: {
-    fontSize: 40,
-    marginBottom: spacing.md,
-  },
-  emptyTitle: {
-    ...typography.h3,
-    color: colors.textSecondary,
-    letterSpacing: 2,
-  },
-  emptyDesc: {
+  riderGapLabel: {
     ...typography.bodySmall,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    marginTop: spacing.sm,
+    color: colors.orange,
+    fontFamily: 'Inter_600SemiBold',
   },
-  retryBtn: {
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  retryText: {
+  riderGapValue: {
     ...typography.labelSmall,
-    color: colors.textSecondary,
-    letterSpacing: 2,
+    color: colors.orange,
+    letterSpacing: 1,
+  },
+  riderAmbition: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 1,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+
+  // ═══ BOARD (pos 4+) ═══
+  boardSection: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   entry: {
     flexDirection: 'row',
@@ -313,59 +564,48 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     marginVertical: spacing.xxs,
   },
-  entryTop3: {
-    borderBottomColor: colors.goldDim,
+  entryRival: {
+    backgroundColor: 'rgba(255, 149, 0, 0.06)',
   },
-  positionCol: {
-    width: 36,
-  },
+  positionCol: { width: 36 },
   position: {
-    ...typography.positionLarge,
-    color: colors.textSecondary,
-    fontSize: 20,
-  },
-  deltaCol: {
-    width: 36,
-    alignItems: 'center',
-  },
-  deltaUp: {
-    ...typography.labelSmall,
-    color: colors.accent,
-  },
-  deltaDown: {
-    ...typography.labelSmall,
-    color: colors.red,
-  },
-  deltaFlat: {
-    ...typography.labelSmall,
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 16,
     color: colors.textTertiary,
   },
-  riderCol: {
-    flex: 1,
-  },
-  riderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  rankIcon: {
-    fontSize: 12,
-  },
+  deltaCol: { width: 36, alignItems: 'center' },
+  deltaUp: { ...typography.labelSmall, color: colors.accent },
+  deltaDown: { ...typography.labelSmall, color: colors.red },
+  deltaFlat: { ...typography.labelSmall, color: colors.textTertiary },
+  riderCol: { flex: 1 },
+  riderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rankIcon: { fontSize: 12 },
   riderName: {
     ...typography.body,
     color: colors.textPrimary,
     fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
   },
-  timeCol: {
-    alignItems: 'flex-end',
+  rivalTag: {
+    ...typography.labelSmall,
+    color: colors.orange,
+    fontSize: 8,
+    letterSpacing: 2,
+    marginLeft: spacing.xs,
   },
-  time: {
-    ...typography.timeSmall,
-    color: colors.textSecondary,
+  timeCol: { alignItems: 'flex-end' },
+  time: { ...typography.timeSmall, color: colors.textSecondary, fontSize: 15 },
+  gap: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xxs },
+
+  // Board footer
+  boardFooter: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
   },
-  gap: {
+  boardFooterText: {
     ...typography.labelSmall,
     color: colors.textTertiary,
-    marginTop: spacing.xxs,
+    letterSpacing: 3,
+    fontSize: 8,
   },
 });

@@ -21,11 +21,11 @@ const statusColors: Record<string, string> = {
 };
 
 const gpsLabels: Record<string, { label: string; color: string }> = {
-  unavailable: { label: 'NO GPS', color: colors.red },
-  locking: { label: 'LOCKING', color: colors.textTertiary },
-  weak: { label: 'WEAK', color: colors.orange },
-  good: { label: 'GOOD', color: colors.accent },
-  excellent: { label: 'STRONG', color: colors.accent },
+  unavailable: { label: 'BRAK GPS', color: colors.red },
+  locking: { label: 'ŁĄCZENIE', color: colors.textTertiary },
+  weak: { label: 'SŁABY', color: colors.orange },
+  good: { label: 'DOBRY', color: colors.accent },
+  excellent: { label: 'SILNY', color: colors.accent },
 };
 
 export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack }: Props) {
@@ -59,7 +59,7 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
       {/* Location mismatch hint */}
       {isLocationMismatch && (
         <Text style={styles.hintText}>
-          Make sure you're at Słotwiny Arena, or start a practice run from anywhere.
+          Upewnij się, że jesteś na Słotwiny Arena, lub zacznij trening z dowolnego miejsca.
         </Text>
       )}
 
@@ -67,11 +67,11 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
       <View style={styles.modeRow}>
         {readiness.rankedEligible ? (
           <View style={styles.rankedBadge}>
-            <Text style={styles.rankedText}>✓ RANKED ELIGIBLE</Text>
+            <Text style={styles.rankedText}>✓ GOTOWY DO RANKINGU</Text>
           </View>
         ) : (
           <View style={styles.practiceBadge}>
-            <Text style={styles.practiceText}>PRACTICE MODE</Text>
+            <Text style={styles.practiceText}>TRYB TRENINGOWY</Text>
           </View>
         )}
       </View>
@@ -81,12 +81,12 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
         <View style={styles.fallbackRow}>
           {onStartPractice && (
             <Pressable style={styles.fallbackBtn} onPress={onStartPractice}>
-              <Text style={styles.fallbackBtnText}>START PRACTICE</Text>
+              <Text style={styles.fallbackBtnText}>ZACZNIJ TRENING</Text>
             </Pressable>
           )}
           {onBack && (
             <Pressable style={styles.fallbackBtnGhost} onPress={onBack}>
-              <Text style={styles.fallbackGhostText}>BACK TO MAP</Text>
+              <Text style={styles.fallbackGhostText}>WRÓĆ DO MAPY</Text>
             </Pressable>
           )}
         </View>

@@ -22,11 +22,12 @@ import { getRankForXp } from '@/systems/ranks';
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await db()
+  const { data, error } = await db()
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .single();
+  if (error && error.code !== 'PGRST116') throw new Error(`fetchProfile failed: ${error.message}`);
   return data;
 }
 
@@ -225,7 +226,7 @@ export async function fetchLeaderboard(
   periodType: string = 'all_time',
   currentUserId?: string,
 ): Promise<LeaderboardRow[]> {
-  const { data: entries } = await db()
+  const { data: entries, error } = await db()
     .from('leaderboard_entries')
     .select(`
       *,
@@ -240,6 +241,7 @@ export async function fetchLeaderboard(
     .order('rank_position', { ascending: true })
     .limit(50);
 
+  if (error) throw new Error(`fetchLeaderboard failed: ${error.message}`);
   if (!entries) return [];
 
   const leaderTime = entries[0]?.best_duration_ms ?? 0;
@@ -261,17 +263,261 @@ export async function fetchLeaderboard(
 }
 
 // ═══════════════════════════════════════════════════════════
+// TODAY / WEEKEND LEADERBOARD (computed from runs table)
+// ═══════════════════════════════════════════════════════════
+
+function todayStart(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function weekendStart(): string {
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun, 6=Sat
+  // Find most recent Saturday 00:00
+  const diff = day === 0 ? 1 : day === 6 ? 0 : day + 1;
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+export async function fetchScopedLeaderboard(
+  trailId: string,
+  scope: 'today' | 'weekend',
+  currentUserId?: string,
+): Promise<LeaderboardRow[]> {
+  const since = scope === 'today' ? todayStart() : weekendStart();
+
+  // Query runs grouped by user, best time per user on this trail since cutoff
+  const { data, error } = await db()
+    .from('runs')
+    .select(`
+      user_id,
+      duration_ms,
+      trail_id,
+      profiles!inner (
+        username,
+        display_name,
+        rank_id
+      )
+    `)
+    .eq('trail_id', trailId)
+    .eq('counted_in_leaderboard', true)
+    .gte('started_at', since)
+    .order('duration_ms', { ascending: true });
+
+  if (error) throw new Error(`fetchScopedLeaderboard failed: ${error.message}`);
+  if (!data || data.length === 0) return [];
+
+  // Deduplicate: keep only best time per user
+  const bestByUser = new Map<string, any>();
+  for (const run of data) {
+    if (!bestByUser.has(run.user_id) || run.duration_ms < bestByUser.get(run.user_id).duration_ms) {
+      bestByUser.set(run.user_id, run);
+    }
+  }
+
+  const sorted = Array.from(bestByUser.values()).sort((a, b) => a.duration_ms - b.duration_ms);
+  const leaderTime = sorted[0]?.duration_ms ?? 0;
+
+  return sorted.map((e: any, i: number) => ({
+    userId: e.user_id,
+    username: (e.profiles as any).username,
+    displayName: (e.profiles as any).display_name,
+    rankId: (e.profiles as any).rank_id,
+    trailId: e.trail_id,
+    periodType: scope,
+    bestDurationMs: e.duration_ms,
+    rankPosition: i + 1,
+    previousPosition: null,
+    delta: 0,
+    gapToLeader: e.duration_ms - leaderTime,
+    isCurrentUser: e.user_id === currentUserId,
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════
+// VENUE ACTIVITY SUMMARY
+// ═══════════════════════════════════════════════════════════
+
+export interface VenueActivity {
+  verifiedRunsToday: number;
+  activeRidersToday: number;
+  hotTrailId: string | null;
+  hotTrailRuns: number;
+}
+
+export async function fetchVenueActivity(spotId: string): Promise<VenueActivity> {
+  const since = todayStart();
+
+  const { data: runs, error } = await db()
+    .from('runs')
+    .select('user_id, trail_id')
+    .eq('spot_id', spotId)
+    .eq('counted_in_leaderboard', true)
+    .gte('started_at', since);
+
+  if (error) throw new Error(`fetchVenueActivity failed: ${error.message}`);
+  if (!runs || runs.length === 0) {
+    return { verifiedRunsToday: 0, activeRidersToday: 0, hotTrailId: null, hotTrailRuns: 0 };
+  }
+
+  const uniqueRiders = new Set(runs.map(r => r.user_id));
+
+  // Find hottest trail (most runs today)
+  const trailCounts = new Map<string, number>();
+  for (const r of runs) {
+    trailCounts.set(r.trail_id, (trailCounts.get(r.trail_id) ?? 0) + 1);
+  }
+  let hotTrailId: string | null = null;
+  let hotTrailRuns = 0;
+  for (const [tid, count] of trailCounts) {
+    if (count > hotTrailRuns) {
+      hotTrailId = tid;
+      hotTrailRuns = count;
+    }
+  }
+
+  return {
+    verifiedRunsToday: runs.length,
+    activeRidersToday: uniqueRiders.size,
+    hotTrailId,
+    hotTrailRuns,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// RIDER BOARD CONTEXT — for re-engagement signals
+// ═══════════════════════════════════════════════════════════
+
+export interface RiderBoardContextRow {
+  trailId: string;
+  allTimePosition: number | null;
+  todayPosition: number | null;
+  weekendPosition: number | null;
+  todayBoardSize: number;
+  weekendBoardSize: number;
+  allTimeBoardSize: number;
+}
+
+export async function fetchRiderBoardContext(
+  userId: string,
+  trailIds: string[],
+): Promise<RiderBoardContextRow[]> {
+  const results: RiderBoardContextRow[] = [];
+
+  for (const trailId of trailIds) {
+    let allTimePos: number | null = null;
+    let allTimeSize = 0;
+    let todayPos: number | null = null;
+    let todaySize = 0;
+    let weekendPos: number | null = null;
+    let weekendSize = 0;
+
+    try {
+      const allTime = await fetchLeaderboard(trailId, 'all_time', userId);
+      allTimeSize = allTime.length;
+      allTimePos = allTime.find(r => r.isCurrentUser)?.rankPosition ?? null;
+    } catch {}
+
+    try {
+      const today = await fetchScopedLeaderboard(trailId, 'today', userId);
+      todaySize = today.length;
+      todayPos = today.find(r => r.isCurrentUser)?.rankPosition ?? null;
+    } catch {}
+
+    try {
+      const weekend = await fetchScopedLeaderboard(trailId, 'weekend', userId);
+      weekendSize = weekend.length;
+      weekendPos = weekend.find(r => r.isCurrentUser)?.rankPosition ?? null;
+    } catch {}
+
+    results.push({
+      trailId,
+      allTimePosition: allTimePos,
+      todayPosition: todayPos,
+      weekendPosition: weekendPos,
+      todayBoardSize: todaySize,
+      weekendBoardSize: weekendSize,
+      allTimeBoardSize: allTimeSize,
+    });
+  }
+
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESULT IMPACT — scoped board position after a run
+// ═══════════════════════════════════════════════════════════
+
+export interface ScopeImpact {
+  scope: 'today' | 'weekend' | 'all_time';
+  position: number | null;  // null = not on board for this scope
+  totalRiders: number;
+}
+
+export async function fetchResultImpact(
+  userId: string,
+  trailId: string,
+): Promise<ScopeImpact[]> {
+  const results: ScopeImpact[] = [];
+
+  // Today
+  try {
+    const todayBoard = await fetchScopedLeaderboard(trailId, 'today', userId);
+    const myToday = todayBoard.find(r => r.isCurrentUser);
+    results.push({
+      scope: 'today',
+      position: myToday?.rankPosition ?? null,
+      totalRiders: todayBoard.length,
+    });
+  } catch {
+    // skip today if failed
+  }
+
+  // Weekend
+  try {
+    const weekendBoard = await fetchScopedLeaderboard(trailId, 'weekend', userId);
+    const myWeekend = weekendBoard.find(r => r.isCurrentUser);
+    results.push({
+      scope: 'weekend',
+      position: myWeekend?.rankPosition ?? null,
+      totalRiders: weekendBoard.length,
+    });
+  } catch {
+    // skip weekend if failed
+  }
+
+  // All-time (from leaderboard_entries table)
+  try {
+    const allTimeBoard = await fetchLeaderboard(trailId, 'all_time', userId);
+    const myAllTime = allTimeBoard.find(r => r.isCurrentUser);
+    results.push({
+      scope: 'all_time',
+      position: myAllTime?.rankPosition ?? null,
+      totalRiders: allTimeBoard.length,
+    });
+  } catch {
+    // skip all-time if failed
+  }
+
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════
 // RUNS HISTORY
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchUserRuns(userId: string, limit: number = 20): Promise<DbRun[]> {
-  const { data } = await db()
+  const { data, error } = await db()
     .from('runs')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
 
+  if (error) throw new Error(`fetchUserRuns failed: ${error.message}`);
   return data ?? [];
 }
 
@@ -293,12 +539,13 @@ export async function fetchUserTrailStats(userId: string): Promise<Map<string, {
   const result = new Map<string, { pbMs: number | null; position: number | null }>();
 
   // Get all leaderboard entries for this user
-  const { data: entries } = await db()
+  const { data: entries, error } = await db()
     .from('leaderboard_entries')
     .select('trail_id, best_duration_ms, rank_position')
     .eq('user_id', userId)
     .eq('period_type', 'all_time');
 
+  if (error) throw new Error(`fetchUserTrailStats failed: ${error.message}`);
   if (entries) {
     for (const e of entries) {
       result.set(e.trail_id, {
@@ -316,7 +563,7 @@ export async function fetchUserTrailStats(userId: string): Promise<Map<string, {
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchActiveChallenges(spotId: string): Promise<DbChallenge[]> {
-  const { data } = await db()
+  const { data, error } = await db()
     .from('challenges')
     .select('*')
     .eq('spot_id', spotId)
@@ -324,6 +571,7 @@ export async function fetchActiveChallenges(spotId: string): Promise<DbChallenge
     .gte('ends_at', new Date().toISOString())
     .order('starts_at', { ascending: true });
 
+  if (error) throw new Error(`fetchActiveChallenges failed: ${error.message}`);
   return data ?? [];
 }
 
@@ -384,7 +632,7 @@ export async function incrementChallengeProgress(
 // ═══════════════════════════════════════════════════════════
 
 export async function fetchUserAchievements(userId: string) {
-  const { data } = await db()
+  const { data, error } = await db()
     .from('user_achievements')
     .select(`
       *,
@@ -392,6 +640,7 @@ export async function fetchUserAchievements(userId: string) {
     `)
     .eq('user_id', userId);
 
+  if (error) throw new Error(`fetchUserAchievements failed: ${error.message}`);
   return data ?? [];
 }
 

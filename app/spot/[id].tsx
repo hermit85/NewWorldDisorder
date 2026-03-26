@@ -11,7 +11,7 @@ import { getSpot } from '@/data/mock/spots';
 import { getTrailsForSpot } from '@/data/mock/trails';
 import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats } from '@/hooks/useBackend';
+import { useUserTrailStats, useChallenges } from '@/hooks/useBackend';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
 
@@ -28,6 +28,7 @@ export default function SpotScreen() {
   const { profile } = useAuthContext();
   const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
   const spot = getSpot(id);
+  const { challenges } = useChallenges(spot?.id ?? 'slotwiny-arena', profile?.id);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
 
   const goBack = useCallback(() => {
@@ -51,7 +52,7 @@ export default function SpotScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>
-          Spot not found
+          Spot nie znaleziony
         </Text>
       </SafeAreaView>
     );
@@ -72,7 +73,7 @@ export default function SpotScreen() {
             <Text style={styles.backText}>←</Text>
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.seasonLabel}>SEASON 01</Text>
+            <Text style={styles.seasonLabel}>SEZON 01</Text>
             <Text style={styles.spotTitle}>{spot.name}</Text>
           </View>
           <View style={styles.ridersTag}>
@@ -98,6 +99,7 @@ export default function SpotScreen() {
           selectedTrailId={selectedTrailId}
           hotTrailId="dzida-czerwona"
           challengeTrailId="dzida-czerwona"
+          trailStats={trailStatsMap}
           onTrailSelect={handleTrailSelect}
           onMapPress={handleMapPress}
         />
@@ -136,7 +138,7 @@ export default function SpotScreen() {
                     </Text>
                   )}
                   {!stats?.pbMs && (
-                    <Text style={styles.trailChipNoPb}>No PB yet</Text>
+                    <Text style={styles.trailChipNoPb}>Brak PB</Text>
                   )}
                 </Pressable>
               );
@@ -150,6 +152,7 @@ export default function SpotScreen() {
         <TrailDrawer
           trail={selectedTrail}
           stats={selectedStats}
+          challenges={challenges}
           onClose={handleMapPress}
         />
       )}

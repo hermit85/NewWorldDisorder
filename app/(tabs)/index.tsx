@@ -1,5 +1,11 @@
+// ═══════════════════════════════════════════════════════════
+// Home — liga gravity radar
+// Off-mountain: shows venue, rider status, board entry
+// Not a dashboard. A league lobby.
+// ═══════════════════════════════════════════════════════════
+
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -9,51 +15,65 @@ import { trailLineColors } from '@/theme/map';
 import { mockSpots } from '@/data/mock/spots';
 import { mockTrails } from '@/data/mock/trails';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
-import { copy, formatTimeShort } from '@/content/copy';
+import { formatTimeShort } from '@/content/copy';
 import { spotLore } from '@/data/seed/slotwinyLore';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useProfile, useUserTrailStats, useChallenges } from '@/hooks/useBackend';
+import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement } from '@/hooks/useBackend';
+import { LeagueSignal } from '@/systems/leagueMovement';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
+import { useVenueContext } from '@/hooks/useVenueContext';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { profile: authProfile, isAuthenticated } = useAuthContext();
   const { needsOnboarding, loading: betaLoading } = useBetaFlow();
 
-  // Redirect to onboarding on first launch
   useEffect(() => {
     if (!betaLoading && needsOnboarding) {
       router.replace('/onboarding');
     }
   }, [betaLoading, needsOnboarding]);
 
-  // Backend-backed hooks with mock fallback
-  const { profile: userProfile } = useProfile(authProfile?.id);
-  const { stats: trailStats } = useUserTrailStats(authProfile?.id);
-  const { challenges } = useChallenges('slotwiny-arena', authProfile?.id);
+  const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
+  const { stats: trailStats, status: trailStatsStatus } = useUserTrailStats(authProfile?.id);
+  const { entries: topBoard, status: boardStatus } = useLeaderboard('dzida-czerwona', 'all_time', authProfile?.id);
+  const { activity: venueActivity, status: venueActivityStatus } = useVenueActivity('slotwiny-arena');
+  const venueCtx = useVenueContext(true);
 
-  const user = userProfile;
+  const { signals: leagueSignals } = useLeagueMovement(authProfile?.id, venueActivity);
+
   const spot = mockSpots[0];
-  const hotTrail = mockTrails.find((t) => t.id === 'dzida-czerwona') ?? mockTrails[0];
-  const activeChallenge = challenges[0];
+  const isAtVenue = venueCtx.context?.venue.isInsideVenue ?? false;
+  const startZone = venueCtx.context?.startZone ?? null;
   const rank = user ? getRank(user.rankId) : getRank('rookie');
   const xpProgress = getXpToNextRank(user?.xp ?? 0);
+
+  // Find rider's best position across all trails
+  const bestPos = user?.bestPosition ?? 0;
+
+  // Top rider on featured board
+  const topRider = topBoard.length > 0 ? topBoard[0] : null;
+  const myBoardEntry = topBoard.find(e => e.isCurrentUser);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Header */}
+        {/* ═══ HEADER ═══ */}
         <View style={styles.header}>
-          <Text style={styles.title}>NWD</Text>
+          <View>
+            <Text style={styles.brand}>NWD</Text>
+            <Text style={styles.leagueLabel}>LIGA GRAVITY</Text>
+          </View>
           <Pressable
             style={styles.rankPill}
             onPress={() => {
               if (!isAuthenticated) router.push('/auth');
+              else router.push('/(tabs)/profile');
             }}
           >
             <Text style={[styles.rankIcon, { color: rank.color }]}>{rank.icon}</Text>
             <Text style={[styles.rankName, { color: rank.color }]}>
-              {isAuthenticated ? rank.name : 'SIGN IN'}
+              {isAuthenticated ? rank.name : 'ZALOGUJ'}
             </Text>
             {user && (
               <View style={styles.xpMini}>
@@ -63,75 +83,239 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Enter Arena — primary CTA */}
-        <Pressable
-          style={styles.arenaCard}
-          onPress={() => router.push(`/spot/${spot.id}`)}
-        >
-          <View style={styles.arenaHeader}>
-            <Text style={styles.seasonTag}>SEASON 01</Text>
-            <View style={styles.liveDot}>
-              <View style={styles.liveDotInner} />
-              <Text style={styles.liveText}>{spot.activeRidersToday} LIVE</Text>
+        {/* ═══ START-ZONE PROMPT — highest priority when at a start gate ═══ */}
+        {isAtVenue && startZone?.isAtStart && startZone.nearestStart && !startZone.ambiguous && (
+          <View style={styles.startZoneCard}>
+            <Text style={styles.startZoneTag}>JESTEŚ PRZY STARCIE</Text>
+            <Text style={styles.startZoneTrail}>{startZone.nearestStart.trailName}</Text>
+            <View style={styles.startZoneActions}>
+              <Pressable
+                style={styles.startZoneRanked}
+                onPress={() => router.push({
+                  pathname: '/run/active',
+                  params: { trailId: startZone.nearestStart!.trailId, trailName: startZone.nearestStart!.trailName },
+                })}
+              >
+                <Text style={styles.startZoneRankedText}>JEDŹ RANKINGOWO</Text>
+              </Pressable>
+              <Pressable
+                style={styles.startZonePractice}
+                onPress={() => router.push({
+                  pathname: '/run/active',
+                  params: { trailId: startZone.nearestStart!.trailId, trailName: startZone.nearestStart!.trailName },
+                })}
+              >
+                <Text style={styles.startZonePracticeText}>TRENING</Text>
+              </Pressable>
             </View>
-          </View>
-          <Text style={styles.arenaName}>{spot.name}</Text>
-          <Text style={styles.arenaRegion}>{spot.region}</Text>
-          <Text style={styles.arenaTagline}>{spotLore.tagline}</Text>
-
-          <View style={styles.enterBtn}>
-            <Text style={styles.enterBtnText}>ENTER ARENA</Text>
-          </View>
-        </Pressable>
-
-        {/* Active challenge */}
-        {activeChallenge && (
-          <View style={styles.challengeCard}>
-            <View style={styles.challengeHeader}>
-              <Text style={styles.challengeIcon}>⚡</Text>
-              <Text style={styles.challengeLabel}>ACTIVE CHALLENGE</Text>
-            </View>
-            <Text style={styles.challengeName}>{activeChallenge.name}</Text>
-            <Text style={styles.challengeDesc}>{activeChallenge.description}</Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${(activeChallenge.currentProgress / Math.max(activeChallenge.targetProgress, 1)) * 100}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.progressLabel}>
-              {activeChallenge.currentProgress}/{activeChallenge.targetProgress}
-            </Text>
           </View>
         )}
 
-        {/* Hot trail quick-access */}
-        <Pressable
-          style={styles.hotTrailCard}
-          onPress={() => router.push(`/trail/${hotTrail.id}`)}
-        >
-          <View style={styles.hotHeader}>
-            <Text style={styles.hotBadge}>🔥 HOT TRAIL</Text>
+        {/* ═══ START-ZONE AMBIGUOUS — multiple trails nearby ═══ */}
+        {isAtVenue && startZone?.isAtStart && startZone.ambiguous && (
+          <View style={styles.startZoneCard}>
+            <Text style={styles.startZoneTag}>JESTEŚ PRZY STARCIE</Text>
+            <Text style={styles.startZoneHint}>Wybierz trasę</Text>
+            {startZone.alternatives.map(alt => (
+              <Pressable
+                key={alt.trailId}
+                style={styles.startZoneAlt}
+                onPress={() => router.push({
+                  pathname: '/run/active',
+                  params: { trailId: alt.trailId, trailName: alt.trailName },
+                })}
+              >
+                <Text style={styles.startZoneAltText}>{alt.trailName}</Text>
+                <Text style={styles.startZoneAltDist}>{alt.distanceM}m</Text>
+              </Pressable>
+            ))}
           </View>
-          <Text style={styles.hotTrailName}>{hotTrail.name}</Text>
-          <View style={styles.hotMeta}>
-            <Text style={[styles.hotDiff, { color: trailLineColors[hotTrail.difficulty] }]}>
-              {hotTrail.difficulty.toUpperCase()}
+        )}
+
+        {/* ═══ NEAR START — close but not at gate yet ═══ */}
+        {isAtVenue && !startZone?.isAtStart && startZone?.isNearStart && startZone.nearestStart && (
+          <Pressable
+            style={styles.nearStartCard}
+            onPress={() => router.push(`/trail/${startZone.nearestStart!.trailId}`)}
+          >
+            <Text style={styles.nearStartTag}>BLISKO STARTU</Text>
+            <Text style={styles.nearStartTrail}>
+              {startZone.nearestStart.trailName} · {startZone.nearestStart.distanceM}m
             </Text>
-            <Text style={styles.hotType}>{hotTrail.trailType.toUpperCase()}</Text>
-            <Text style={styles.hotStats}>
-              {hotTrail.distanceM}m · ↓{hotTrail.elevationDropM}m
-            </Text>
+          </Pressable>
+        )}
+
+        {/* ═══ VENUE ARRIVAL — at venue but not near any start ═══ */}
+        {isAtVenue && !startZone?.isNearStart && (
+          <View style={styles.venueArrivalCard}>
+            <View style={styles.venueArrivalDot} />
+            <Text style={styles.venueArrivalText}>Jesteś w {venueCtx.context?.venue.venueName}</Text>
+          </View>
+        )}
+
+        {/* ═══ VENUE HERO CARD ═══ */}
+        <Pressable
+          style={styles.venueCard}
+          onPress={() => router.push(`/spot/${spot.id}`)}
+        >
+          <View style={styles.venueHeader}>
+            <Text style={styles.venueTag}>OŚRODEK · SEZON 01</Text>
+            <View style={styles.betaBadge}>
+              <View style={styles.betaDot} />
+              <Text style={styles.betaText}>BETA</Text>
+            </View>
+          </View>
+
+          <Text style={styles.venueName}>{spot.name}</Text>
+          <Text style={styles.venueRegion}>{spot.region}</Text>
+
+          <View style={styles.venueStats}>
+            <View style={styles.venueStat}>
+              <Text style={styles.venueStatValue}>{mockTrails.length}</Text>
+              <Text style={styles.venueStatLabel}>TRAS</Text>
+            </View>
+            <View style={styles.venueStatDivider} />
+            {venueActivityStatus === 'ok' && venueActivity && venueActivity.verifiedRunsToday > 0 ? (
+              <>
+                <View style={styles.venueStat}>
+                  <Text style={[styles.venueStatValue, { color: colors.accent }]}>{venueActivity.verifiedRunsToday}</Text>
+                  <Text style={styles.venueStatLabel}>ZJAZDÓW DZIŚ</Text>
+                </View>
+                <View style={styles.venueStatDivider} />
+                <View style={styles.venueStat}>
+                  <Text style={[styles.venueStatValue, { color: colors.accent }]}>{venueActivity.activeRidersToday}</Text>
+                  <Text style={styles.venueStatLabel}>RIDERÓW DZIŚ</Text>
+                </View>
+              </>
+            ) : venueActivityStatus === 'error' ? (
+              <View style={styles.venueStat}>
+                <Text style={[styles.venueStatValue, { color: colors.textTertiary }]}>—</Text>
+                <Text style={styles.venueStatLabel}>BRAK DANYCH</Text>
+              </View>
+            ) : (
+              <View style={styles.venueStat}>
+                <Text style={styles.venueStatValue}>—</Text>
+                <Text style={styles.venueStatLabel}>CISZA DZIŚ</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.venueCta}>
+            <Text style={styles.venueCtaText}>WEJDŹ DO OŚRODKA</Text>
           </View>
         </Pressable>
 
-        {/* Quick trail access */}
-        <Text style={styles.sectionLabel}>ALL TRAILS</Text>
+        {/* ═══ RIDER STATUS ═══ */}
+        {isAuthenticated && user ? (
+          <View style={styles.riderCard}>
+            <Text style={styles.riderCardTag}>TWÓJ STATUS</Text>
+            <View style={styles.riderStatsRow}>
+              <View style={styles.riderStat}>
+                <Text style={styles.riderStatValue}>{user.totalRuns}</Text>
+                <Text style={styles.riderStatLabel}>ZJAZDÓW</Text>
+              </View>
+              <View style={styles.riderStat}>
+                <Text style={styles.riderStatValue}>{user.totalPbs}</Text>
+                <Text style={styles.riderStatLabel}>REKORDÓW</Text>
+              </View>
+              <View style={styles.riderStat}>
+                <Text style={[styles.riderStatValue, bestPos > 0 ? { color: colors.accent } : {}]}>
+                  {bestPos > 0 ? `#${bestPos}` : '—'}
+                </Text>
+                <Text style={styles.riderStatLabel}>NAJLEPSZA POZ.</Text>
+              </View>
+            </View>
+            {myBoardEntry && (
+              <View style={styles.riderBoardRow}>
+                <Text style={styles.riderBoardLabel}>Dzida Czerwona</Text>
+                <Text style={styles.riderBoardPos}>#{myBoardEntry.currentPosition}</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
+            <Text style={styles.signInTitle}>DOŁĄCZ DO LIGI</Text>
+            <Text style={styles.signInDesc}>
+              Zaloguj się, aby jechać rankingowo i pojawiać się na tablicy.
+            </Text>
+            <View style={styles.signInCta}>
+              <Text style={styles.signInCtaText}>ZALOGUJ</Text>
+            </View>
+          </Pressable>
+        )}
+
+        {/* ═══ LEAGUE MOVEMENT — re-engagement signals ═══ */}
+        {leagueSignals.length > 0 && (
+          <View style={styles.movementSection}>
+            <Text style={styles.movementTag}>RUCH W LIDZE</Text>
+            {leagueSignals.map((signal, i) => (
+              <Pressable
+                key={i}
+                style={[
+                  styles.movementRow,
+                  signal.riderSpecific && styles.movementRowPersonal,
+                ]}
+                onPress={() => {
+                  if (signal.trailId) router.push(`/trail/${signal.trailId}`);
+                  else if (signal.venueId) router.push(`/spot/${signal.venueId}`);
+                }}
+              >
+                <View style={styles.movementContent}>
+                  <Text style={[
+                    styles.movementHeadline,
+                    signal.riderSpecific && { color: colors.accent },
+                  ]}>
+                    {signal.headline}
+                  </Text>
+                  {signal.detail && (
+                    <Text style={styles.movementDetail}>{signal.detail}</Text>
+                  )}
+                </View>
+                <Text style={styles.movementArrow}>→</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* ═══ BOARD ENTRY — top from featured trail ═══ */}
+        {topBoard.length > 0 && (
+          <Pressable
+            style={styles.boardCard}
+            onPress={() => router.push('/(tabs)/leaderboard')}
+          >
+            <Text style={styles.boardTag}>TABLICA · DZIDA CZERWONA</Text>
+            {topBoard.slice(0, 3).map((entry) => (
+              <View key={entry.userId} style={styles.boardRow}>
+                <Text style={[
+                  styles.boardPos,
+                  entry.currentPosition === 1 && { color: colors.gold },
+                  entry.isCurrentUser && { color: colors.accent },
+                ]}>
+                  {entry.currentPosition}
+                </Text>
+                <Text style={[
+                  styles.boardName,
+                  entry.isCurrentUser && { color: colors.accent },
+                ]} numberOfLines={1}>
+                  {entry.username}
+                </Text>
+                <Text style={styles.boardTime}>
+                  {formatTimeShort(entry.bestDurationMs)}
+                </Text>
+              </View>
+            ))}
+            <View style={styles.boardMore}>
+              <Text style={styles.boardMoreText}>PEŁNA TABLICA →</Text>
+            </View>
+          </Pressable>
+        )}
+
+        {/* ═══ TRAILS LIST ═══ */}
+        <Text style={styles.sectionLabel}>TRASY · {spot.name.toUpperCase()}</Text>
         {mockTrails.map((trail) => {
           const stats = trailStats.get(trail.id);
           const diffColor = trailLineColors[trail.difficulty];
+          const hasResult = !!stats?.pbMs;
           return (
             <Pressable
               key={trail.id}
@@ -142,17 +326,19 @@ export default function HomeScreen() {
               <View style={styles.trailRowInfo}>
                 <Text style={styles.trailRowName}>{trail.name}</Text>
                 <Text style={styles.trailRowMeta}>
-                  {trail.difficulty.toUpperCase()} · {trail.trailType}
+                  {trail.difficulty.toUpperCase()} · {trail.distanceM}m · ↓{trail.elevationDropM}m
                 </Text>
               </View>
               <View style={styles.trailRowRight}>
-                {stats?.pbMs ? (
-                  <Text style={styles.trailRowPb}>{formatTimeShort(stats.pbMs)}</Text>
+                {hasResult ? (
+                  <>
+                    <Text style={styles.trailRowPb}>{formatTimeShort(stats!.pbMs!)}</Text>
+                    {stats!.position && (
+                      <Text style={styles.trailRowPos}>#{stats!.position}</Text>
+                    )}
+                  </>
                 ) : (
-                  <Text style={styles.trailRowNoPb}>—</Text>
-                )}
-                {stats?.position && (
-                  <Text style={styles.trailRowPos}>#{stats.position}</Text>
+                  <Text style={styles.trailRowNoPb}>Bez wyniku</Text>
                 )}
               </View>
             </Pressable>
@@ -164,255 +350,107 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  scroll: {
-    padding: spacing.lg,
-    paddingBottom: spacing.huge,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.textPrimary,
-    letterSpacing: 6,
-  },
-  rankPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rankIcon: {
-    fontSize: 14,
-  },
-  rankName: {
-    ...typography.labelSmall,
-    letterSpacing: 2,
-  },
-  xpMini: {
-    width: 30,
-    height: 3,
-    backgroundColor: colors.bgElevated,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  xpMiniFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  arenaCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  arenaHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  seasonTag: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    letterSpacing: 3,
-  },
-  liveDot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  liveDotInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-  },
-  liveText: {
-    ...typography.labelSmall,
-    color: colors.accent,
-    fontSize: 9,
-    letterSpacing: 2,
-  },
-  arenaName: {
-    ...typography.h1,
-    color: colors.textPrimary,
-    fontSize: 30,
-  },
-  arenaRegion: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
-  arenaTagline: {
-    ...typography.bodySmall,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
-  },
-  enterBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  enterBtnText: {
-    ...typography.cta,
-    color: colors.bg,
-    letterSpacing: 4,
-    fontSize: 16,
-  },
-  challengeCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  challengeIcon: {
-    fontSize: 14,
-  },
-  challengeLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    letterSpacing: 2,
-  },
-  challengeName: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  challengeDesc: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: colors.bgElevated,
-    borderRadius: 2,
-    marginTop: spacing.md,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 2,
-  },
-  progressLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    textAlign: 'right',
-    marginTop: spacing.xxs,
-    fontSize: 9,
-  },
-  hotTrailCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.red,
-  },
-  hotHeader: {
-    marginBottom: spacing.sm,
-  },
-  hotBadge: {
-    ...typography.labelSmall,
-    color: colors.red,
-    letterSpacing: 2,
-  },
-  hotTrailName: {
-    ...typography.h2,
-    color: colors.textPrimary,
-  },
-  hotMeta: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  hotDiff: {
-    ...typography.labelSmall,
-    letterSpacing: 1,
-  },
-  hotType: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-  },
-  hotStats: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-  },
-  sectionLabel: {
-    ...typography.label,
-    color: colors.textTertiary,
-    letterSpacing: 3,
-    marginBottom: spacing.md,
-  },
-  trailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.md,
-  },
-  trailDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  trailRowInfo: {
-    flex: 1,
-  },
-  trailRowName: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  trailRowMeta: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 9,
-    marginTop: 2,
-  },
-  trailRowRight: {
-    alignItems: 'flex-end',
-  },
-  trailRowPb: {
-    ...typography.timeSmall,
-    color: colors.accent,
-    fontSize: 14,
-  },
-  trailRowNoPb: {
-    ...typography.bodySmall,
-    color: colors.textTertiary,
-  },
-  trailRowPos: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 9,
-    marginTop: 2,
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
+  scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
+
+  // Header
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
+  brand: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 8 },
+  leagueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.xxs, fontSize: 8 },
+  rankPill: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.bgCard, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.border },
+  rankIcon: { fontSize: 14 },
+  rankName: { ...typography.labelSmall, letterSpacing: 2 },
+  xpMini: { width: 30, height: 3, backgroundColor: colors.bgElevated, borderRadius: 2, overflow: 'hidden' },
+  xpMiniFill: { height: '100%', borderRadius: 2 },
+
+  // Start-zone prompt
+  startZoneCard: { backgroundColor: colors.bgCard, borderRadius: radii.xl, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 2, borderColor: colors.accent, alignItems: 'center' },
+  startZoneTag: { ...typography.labelSmall, color: colors.accent, letterSpacing: 4, marginBottom: spacing.sm, fontSize: 10 },
+  startZoneTrail: { fontFamily: 'Orbitron_700Bold', fontSize: 22, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.lg },
+  startZoneActions: { flexDirection: 'row', gap: spacing.sm, width: '100%' },
+  startZoneRanked: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
+  startZoneRankedText: { fontFamily: 'Orbitron_700Bold', fontSize: 13, color: colors.bg, letterSpacing: 3 },
+  startZonePractice: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
+  startZonePracticeText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2, fontSize: 11 },
+  startZoneHint: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
+  startZoneAlt: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  startZoneAltText: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+  startZoneAltDist: { ...typography.labelSmall, color: colors.textTertiary },
+
+  // Near start
+  nearStartCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  nearStartTag: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3, fontSize: 9 },
+  nearStartTrail: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+
+  // Venue arrival
+  venueArrivalCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.accentDim, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg },
+  venueArrivalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  venueArrivalText: { ...typography.body, color: colors.accent, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+
+  // Venue card
+  venueCard: { backgroundColor: colors.bgCard, borderRadius: radii.xl, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent },
+  venueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  venueTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 9 },
+  betaBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  betaDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  betaText: { ...typography.labelSmall, color: colors.accent, fontSize: 9, letterSpacing: 2 },
+  venueName: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textPrimary, letterSpacing: 2 },
+  venueRegion: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xxs },
+  venueStats: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgElevated, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
+  venueStat: { flex: 1, alignItems: 'center' },
+  venueStatValue: { ...typography.h3, color: colors.textPrimary, fontSize: 15 },
+  venueStatLabel: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 8, marginTop: 2 },
+  venueStatDivider: { width: 1, height: 24, backgroundColor: colors.border },
+  venueCta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.lg },
+  venueCtaText: { ...typography.cta, color: colors.bg, letterSpacing: 4, fontSize: 14 },
+
+  // Rider status
+  riderCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  riderCardTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.md, fontSize: 9 },
+  riderStatsRow: { flexDirection: 'row', gap: spacing.sm },
+  riderStat: { flex: 1, alignItems: 'center', backgroundColor: colors.bgElevated, borderRadius: radii.sm, paddingVertical: spacing.sm },
+  riderStatValue: { ...typography.h3, color: colors.textPrimary },
+  riderStatLabel: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 8, marginTop: 2 },
+  riderBoardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  riderBoardLabel: { ...typography.bodySmall, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
+  riderBoardPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.accent },
+
+  // Sign-in
+  signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
+  signInTitle: { ...typography.label, color: colors.textPrimary, letterSpacing: 3, marginBottom: spacing.sm },
+  signInDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
+  signInCta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl },
+  signInCtaText: { ...typography.cta, color: colors.bg, letterSpacing: 3, fontSize: 13 },
+
+  // League movement
+  movementSection: { marginBottom: spacing.lg },
+  movementTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginBottom: spacing.sm, fontSize: 8 },
+  movementRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, marginBottom: spacing.xs, borderWidth: 1, borderColor: colors.border },
+  movementRowPersonal: { borderColor: colors.accent + '30' },
+  movementContent: { flex: 1 },
+  movementHeadline: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  movementDetail: { ...typography.labelSmall, color: colors.textTertiary, marginTop: 2, fontSize: 10 },
+  movementArrow: { color: colors.textTertiary, fontSize: 16, marginLeft: spacing.sm },
+
+  // Board entry
+  boardCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  boardTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.md, fontSize: 9 },
+  boardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.md },
+  boardPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textSecondary, width: 28 },
+  boardName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', flex: 1, fontSize: 14 },
+  boardTime: { fontFamily: 'Orbitron_700Bold', fontSize: 13, color: colors.textTertiary, letterSpacing: 1 },
+  boardMore: { alignItems: 'center', paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.sm },
+  boardMoreText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3 },
+
+  // Trails
+  sectionLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.md, marginTop: spacing.sm, fontSize: 9 },
+  trailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
+  trailDot: { width: 10, height: 10, borderRadius: 5 },
+  trailRowInfo: { flex: 1 },
+  trailRowName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+  trailRowMeta: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, marginTop: 2 },
+  trailRowRight: { alignItems: 'flex-end' },
+  trailRowPb: { ...typography.timeSmall, color: colors.accent, fontSize: 14 },
+  trailRowNoPb: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 10 },
+  trailRowPos: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, marginTop: 2 },
 });

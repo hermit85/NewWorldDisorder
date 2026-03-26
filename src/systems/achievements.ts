@@ -1,23 +1,18 @@
-import { Achievement, ResultScenario } from '@/data/types';
-import { mockAchievements } from '@/data/mock/achievements';
-
-// Check if any achievement was just unlocked based on a result
-export function checkAchievements(
-  scenario: ResultScenario,
-  userAchievements: Achievement[]
-): Achievement | null {
-  const unlockedIds = new Set(userAchievements.filter((a) => a.isUnlocked).map((a) => a.id));
-
-  // Top 10 Entry
-  if (
-    scenario.rankPosition <= 10 &&
-    scenario.previousPosition > 10 &&
-    !unlockedIds.has('top-10-entry')
-  ) {
-    return mockAchievements.find((a) => a.id === 'top-10-entry') ?? null;
-  }
-
-  // Double PB — would need session context, skip for now
-
-  return null;
-}
+// Achievement system — only unlocks for real, verifiable reasons.
+// Achievements that require aggregated state not yet available
+// from the backend are not checked here. They stay locked.
+//
+// Currently verifiable on a per-run basis:
+// - first-blood: first valid run (handled via backend upsert)
+//
+// NOT verifiable per-run (require aggregated queries):
+// - top-10-entry: needs leaderboard context post-save
+// - weekend-warrior: needs session tracking across runs
+// - double-pb: needs day-scoped PB tracking
+// - trail-hunter: needs per-trail completion aggregation
+// - slotwiny-local: needs total runs count
+// - gravity-addict: needs total runs count
+//
+// These will be implemented when the backend supports
+// aggregated achievement evaluation. Until then, they stay
+// locked rather than faking unlock.

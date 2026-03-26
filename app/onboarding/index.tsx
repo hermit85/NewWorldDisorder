@@ -1,10 +1,25 @@
 // ═══════════════════════════════════════════════════════════
-// Onboarding — game rules + beta context + location permission
-// Feels like entering a league, not reading a manual
+// Onboarding — 3-screen teaser + post-onboarding location
+// Swipeable pages · short copy · league vibe
 // ═══════════════════════════════════════════════════════════
 
-import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useState, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  FlatList,
+  Dimensions,
+  type ViewToken,
+  type ListRenderItemInfo,
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -14,76 +29,97 @@ import { requestLocationPermission } from '@/systems/gps';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
 import { selectionTick, notifySuccess, tapLight } from '@/systems/haptics';
 
-interface OnboardingStep {
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ── Content ──────────────────────────────────────────────
+
+interface OnboardingSlide {
+  key: string;
   tag: string;
   title: string;
   body: string;
-  icon: string;
+  cta: string;
 }
 
-const steps: OnboardingStep[] = [
+const slides: OnboardingSlide[] = [
   {
-    tag: 'THE GAME',
-    title: 'Ride real trails.\nEnter the league.',
-    body: 'NWD turns real downhill trails into a competitive racing game. Your mountain. Your time. Your rank.',
-    icon: '⛰️',
+    key: 'game',
+    tag: 'GRA',
+    title: 'Prawdziwe trasy.\nPrawdziwa liga.',
+    body: 'NWD zamienia realne trasy downhill w grę wyścigową. Twoja góra. Twój czas. Twoja pozycja.',
+    cta: 'WEJDŹ DO LIGI',
   },
   {
-    tag: 'THE ARENA',
-    title: 'Choose your line\nfrom the map.',
-    body: 'Each trail is a race line. Tap to select. Check the stats. Hit Start Run.',
-    icon: '🗺️',
+    key: 'ranked',
+    tag: 'ZJAZDY RANKINGOWE',
+    title: 'Liczą się tylko\nzweryfikowane zjazdy.',
+    body: 'Startuj z bramki. Trzymaj się trasy. Finiszuj na końcu. Tylko czyste przejazdy trafiają na tablicę.',
+    cta: 'ROZUMIEM',
   },
   {
-    tag: 'RANKED RUNS',
-    title: 'Only verified\nruns count.',
-    body: 'Start at the gate. Stay on line. Finish strong. The system checks your route — only clean runs enter the board.',
-    icon: '✓',
-  },
-  {
-    tag: 'PRACTICE',
-    title: 'Practice anything.\nRank what\'s trusted.',
-    body: 'Weak signal? Wrong gate? No problem — ride practice. Your time still matters to you. Just not to the league.',
-    icon: '○',
-  },
-  {
-    tag: 'CLOSED BETA',
-    title: 'You\'re early.\nHelp us build this.',
-    body: 'This is a closed test build. GPS and verification are still improving. Your runs and feedback shape the league. Ride hard, report issues, own the board.',
-    icon: '🔒',
+    key: 'training',
+    tag: 'TRENING',
+    title: 'Trenuj bez presji.\nRankuj co pewne.',
+    body: 'Gdy warunki są słabe albo start nie był czysty, jedź trening. Liga ma być uczciwa.',
+    cta: 'ZACZYNAM',
   },
 ];
+
+// ── Component ────────────────────────────────────────────
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const { completeOnboarding } = useBetaFlow();
-  const [step, setStep] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(false);
 
-  const isLastContentStep = step === steps.length - 1;
-  const isPermissionStep = step === steps.length;
+  const listRef = useRef<FlatList<OnboardingSlide>>(null);
+  const fadeAnim = useSharedValue(1);
 
+  // Track page changes from swipe
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        setCurrentIndex(viewableItems[0].index);
+      }
+    }
+  ).current;
+
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+
+  // Finish onboarding → show location prompt
   const handleFinish = useCallback(async () => {
     notifySuccess();
     await completeOnboarding();
+    // Show location prompt as separate moment
+    fadeAnim.value = withTiming(0, { duration: 200 }, () => {
+      // will be set in JS thread
+    });
+    setShowLocationPrompt(true);
+    fadeAnim.value = withTiming(1, { duration: 300 });
+  }, [completeOnboarding, fadeAnim]);
+
+  // Enter the app
+  const handleEnterApp = useCallback(() => {
+    notifySuccess();
     router.replace('/(tabs)');
-  }, [completeOnboarding, router]);
+  }, [router]);
 
-  const handleNext = useCallback(async () => {
+  // CTA press — advance or finish
+  const handleCta = useCallback(() => {
     selectionTick();
-    if (isPermissionStep) {
-      await handleFinish();
-      return;
+    if (currentIndex < slides.length - 1) {
+      // Scroll to next page
+      listRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
+    } else {
+      // Last slide → finish
+      handleFinish();
     }
-    if (isLastContentStep) {
-      setStep(steps.length); // permission step
-      return;
-    }
-    setStep((s) => s + 1);
-  }, [step, isLastContentStep, isPermissionStep, handleFinish]);
+  }, [currentIndex, handleFinish]);
 
-  const [permissionGranted, setPermissionGranted] = useState(false);
-
+  // Location permission
   const handleRequestPermission = useCallback(async () => {
     tapLight();
     const result = await requestLocationPermission();
@@ -91,85 +127,99 @@ export default function OnboardingScreen() {
     if (result.foreground) {
       setPermissionGranted(true);
       notifySuccess();
-    } else {
-      setPermissionGranted(false);
-      // No success haptic — permission was denied
     }
   }, []);
 
-  const currentStep = steps[step];
-  const totalSteps = steps.length + 1;
+  const animatedContainer = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value,
+  }));
 
-  // Permission screen
-  if (isPermissionStep) {
+  // ── Location Prompt (post-onboarding) ──────────────────
+
+  if (showLocationPrompt) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.tag}>LOCATION</Text>
-          <Text style={styles.stepIcon}>📍</Text>
-          <Text style={styles.title}>We need your{'\n'}location.</Text>
-          <Text style={styles.body}>
-            NWD uses GPS to track your runs, verify your route, and detect start/finish gates. Without location, only practice mode works.
+        <Animated.View style={[styles.locationContent, animatedContainer]}>
+          <Text style={styles.locationTag}>OSTATNI KROK</Text>
+          <Text style={styles.locationTitle}>
+            Włącz GPS{'\n'}żeby jechać.
+          </Text>
+          <Text style={styles.locationBody}>
+            Bez lokalizacji nie zweryfikujemy zjazdu. Trening działa zawsze.
           </Text>
 
           {!permissionAsked ? (
-            <Pressable style={styles.permBtn} onPress={handleRequestPermission}>
-              <Text style={styles.permBtnText}>ALLOW LOCATION</Text>
+            <Pressable style={styles.locationBtn} onPress={handleRequestPermission}>
+              <Text style={styles.locationBtnText}>WŁĄCZ LOKALIZACJĘ</Text>
             </Pressable>
           ) : permissionGranted ? (
-            <View style={styles.permGranted}>
-              <Text style={styles.permGrantedText}>✓ LOCATION ENABLED</Text>
+            <View style={styles.locationGranted}>
+              <Text style={styles.locationGrantedText}>✓ GPS AKTYWNY</Text>
             </View>
           ) : (
-            <View style={styles.permDenied}>
-              <Text style={styles.permDeniedText}>LOCATION DENIED</Text>
-              <Text style={styles.permDeniedHint}>
-                Ranked runs need location. You can enable it later in Settings. Practice mode still works.
+            <View style={styles.locationDenied}>
+              <Text style={styles.locationDeniedText}>
+                Możesz włączyć później w Ustawieniach.
               </Text>
             </View>
           )}
 
-          <Pressable style={styles.nextBtn} onPress={handleNext}>
-            <Text style={styles.nextBtnText}>
-              {permissionAsked ? 'ENTER THE LEAGUE' : 'SKIP FOR NOW'}
+          <Pressable style={styles.enterBtn} onPress={handleEnterApp}>
+            <Text style={styles.enterBtnText}>
+              {permissionGranted ? 'WCHODZĘ' : 'POMIŃ'}
             </Text>
           </Pressable>
-        </View>
-        <ProgressDots total={totalSteps} current={step} />
+        </Animated.View>
       </SafeAreaView>
     );
   }
 
-  // Content steps
+  // ── Swipeable Onboarding Slides ────────────────────────
+
+  const renderSlide = ({ item }: ListRenderItemInfo<OnboardingSlide>) => (
+    <View style={styles.slide}>
+      <View style={styles.slideContent}>
+        <Text style={styles.tag}>{item.tag}</Text>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.body}>{item.body}</Text>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.tag}>{currentStep.tag}</Text>
-        <Text style={styles.stepIcon}>{currentStep.icon}</Text>
-        <Text style={styles.title}>{currentStep.title}</Text>
-        <Text style={styles.body}>{currentStep.body}</Text>
-      </View>
+      <FlatList
+        ref={listRef}
+        data={slides}
+        renderItem={renderSlide}
+        keyExtractor={(item) => item.key}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+      />
 
       <View style={styles.footer}>
-        <ProgressDots total={totalSteps} current={step} />
+        <PageDots total={slides.length} current={currentIndex} />
 
-        <Pressable style={styles.nextBtn} onPress={handleNext}>
-          <Text style={styles.nextBtnText}>
-            {isLastContentStep ? 'ALMOST THERE' : 'NEXT'}
-          </Text>
+        <Pressable style={styles.ctaBtn} onPress={handleCta}>
+          <Text style={styles.ctaBtnText}>{slides[currentIndex].cta}</Text>
         </Pressable>
-
-        {step === 0 && (
-          <Pressable style={styles.skipBtn} onPress={handleFinish}>
-            <Text style={styles.skipText}>SKIP — I KNOW THE RULES</Text>
-          </Pressable>
-        )}
       </View>
     </SafeAreaView>
   );
 }
 
-function ProgressDots({ total, current }: { total: number; current: number }) {
+// ── Page Dots ────────────────────────────────────────────
+
+function PageDots({ total, current }: { total: number; current: number }) {
   return (
     <View style={styles.dots}>
       {Array.from({ length: total }, (_, i) => (
@@ -186,26 +236,28 @@ function ProgressDots({ total, current }: { total: number; current: number }) {
   );
 }
 
+// ── Styles ───────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
-    justifyContent: 'space-between',
   },
-  content: {
+
+  // Slide
+  slide: {
+    width: SCREEN_WIDTH,
     flex: 1,
     justifyContent: 'center',
+  },
+  slideContent: {
     paddingHorizontal: spacing.xxl,
   },
   tag: {
     ...typography.labelSmall,
     color: colors.accent,
     letterSpacing: 4,
-    marginBottom: spacing.lg,
-  },
-  stepIcon: {
-    fontSize: 48,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
   title: {
     ...typography.h1,
@@ -219,16 +271,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
+
+  // Footer
   footer: {
     paddingHorizontal: spacing.xxl,
     paddingBottom: spacing.xxl,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
+
+  // Page dots
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.lg,
   },
   dot: {
     width: 8,
@@ -243,68 +298,88 @@ const styles = StyleSheet.create({
   dotDone: {
     backgroundColor: colors.textTertiary,
   },
-  nextBtn: {
+
+  // CTA button
+  ctaBtn: {
     backgroundColor: colors.accent,
     borderRadius: radii.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
   },
-  nextBtnText: {
+  ctaBtnText: {
     ...typography.cta,
     color: colors.bg,
     letterSpacing: 3,
   },
-  skipBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
+
+  // Location prompt
+  locationContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxl,
   },
-  skipText: {
-    ...typography.label,
+  locationTag: {
+    ...typography.labelSmall,
     color: colors.textTertiary,
-    letterSpacing: 2,
+    letterSpacing: 4,
+    marginBottom: spacing.xl,
   },
-  permBtn: {
+  locationTitle: {
+    ...typography.h1,
+    color: colors.textPrimary,
+    fontSize: 28,
+    lineHeight: 36,
+    marginBottom: spacing.lg,
+  },
+  locationBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 22,
+    marginBottom: spacing.xxl,
+  },
+  locationBtn: {
     backgroundColor: colors.blue,
     borderRadius: radii.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
-    marginTop: spacing.xxl,
+    marginBottom: spacing.md,
   },
-  permBtnText: {
+  locationBtnText: {
     ...typography.cta,
     color: colors.textPrimary,
     letterSpacing: 3,
   },
-  permGranted: {
+  locationGranted: {
     backgroundColor: colors.accentDim,
     borderRadius: radii.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
-    marginTop: spacing.xxl,
+    marginBottom: spacing.md,
   },
-  permGrantedText: {
+  locationGrantedText: {
     ...typography.cta,
     color: colors.accent,
     letterSpacing: 2,
   },
-  permDenied: {
-    backgroundColor: 'rgba(255,149,0,0.1)',
+  locationDenied: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  locationDeniedText: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    textAlign: 'center',
+  },
+  enterBtn: {
+    backgroundColor: colors.accent,
     borderRadius: radii.lg,
     paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
     alignItems: 'center',
-    marginTop: spacing.xxl,
   },
-  permDeniedText: {
+  enterBtnText: {
     ...typography.cta,
-    color: colors.orange,
-    letterSpacing: 2,
-    marginBottom: spacing.sm,
-  },
-  permDeniedHint: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+    color: colors.bg,
+    letterSpacing: 3,
   },
 });

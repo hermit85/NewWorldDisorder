@@ -11,7 +11,7 @@ const KEYS = {
   betaVersion: 'nwd_beta_version',
 };
 
-const CURRENT_BETA = '0.2.0';
+const CURRENT_BETA = '0.3.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{

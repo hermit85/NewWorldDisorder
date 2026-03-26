@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // Auth Context — provides auth state to entire app
+// Sprint 25: added retryAuth, error state support
 // ═══════════════════════════════════════════════════════════
 
 import React, { createContext, useContext, ReactNode } from 'react';
@@ -10,9 +11,11 @@ import { User } from '@supabase/supabase-js';
 interface AuthContextValue {
   state: AuthState;
   signInWithEmail: (email: string) => Promise<{ error: any }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   createProfile: (username: string, displayName?: string) => Promise<any>;
   refreshProfile: () => Promise<void>;
+  retryAuth: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
   user: User | null;

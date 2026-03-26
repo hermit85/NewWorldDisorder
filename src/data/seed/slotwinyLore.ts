@@ -5,9 +5,9 @@
 
 // Spot lore
 export const spotLore = {
-  tagline: 'Where gravity rules.',
-  seasonIntro: 'Season 01 opens at Słotwiny Arena. Four trails. One mountain. Your name on the board.',
-  worldDescription: 'Krynica-Zdrój. The Pingwina crew built this place from dirt and ambition. Now it\'s your arena.',
+  tagline: 'Tutaj rządzi grawitacja.',
+  seasonIntro: 'Sezon 01 startuje na Słotwiny Arena. Cztery trasy. Jedna góra. Twoje nazwisko na tablicy.',
+  worldDescription: 'Krynica-Zdrój. Ekipa Pingwina zbudowała to miejsce z ziemi i ambicji. Teraz to Twoja arena.',
 } as const;
 
 // Per-trail game flavor — short punchy lines for UI
@@ -56,24 +56,24 @@ export const difficultyLabels: Record<string, { label: string; sublabel: string 
 export const seasonChallenges = [
   {
     id: 'weekend-heat-dzida',
-    name: 'Weekend Heat: Dzida',
-    description: 'Set the fastest time on Dzida Czerwona this weekend',
+    name: 'Weekend: Dzida',
+    description: 'Ustaw najszybszy czas na Dzida Czerwona w ten weekend',
     trailId: 'dzida-czerwona',
     type: 'fastest_time' as const,
     rewardXp: 300,
   },
   {
     id: 'three-runs-today',
-    name: '3 Runs Today',
-    description: 'Complete 3 valid runs today at Słotwiny Arena',
+    name: '3 zjazdy dziś',
+    description: 'Ukończ 3 prawidłowe zjazdy dziś na Słotwiny Arena',
     trailId: null,
     type: 'run_count' as const,
     rewardXp: 100,
   },
   {
     id: 'all-trails-session',
-    name: 'Full Mountain',
-    description: 'Ride all 4 race trails in one session',
+    name: 'Cała Góra',
+    description: 'Przejedź wszystkie 4 trasy w jednej sesji',
     trailId: null,
     type: 'multi_trail' as const,
     rewardXp: 250,
