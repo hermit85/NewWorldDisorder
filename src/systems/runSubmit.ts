@@ -13,7 +13,7 @@
 import { RunTrace } from './traceCapture';
 import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp as updateProfileXpDirect } from '@/lib/api';
+import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp } from '@/lib/api';
 import { calculateRunXp, type XpBreakdown } from './xp';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';
@@ -114,10 +114,16 @@ export async function submitRun(params: {
         previousPosition: result.leaderboardResult?.previousPosition ?? null,
       });
 
-      // Award bonus XP difference if any
+      // Award bonus XP difference if any (atomic via RPC)
       const bonusXp = fullXp.total - baseXp.total;
       if (bonusXp > 0) {
-        await updateProfileXpDirect(userId, bonusXp);
+        const xpResult = await updateProfileXp(userId, bonusXp);
+        if (!xpResult) {
+          logDebugEvent('save', 'bonus_xp_fail', 'warn', {
+            runSessionId: sessionId,
+            payload: { bonusXp, reasons: fullXp.reasons },
+          });
+        }
       }
 
       logDebugEvent('save', 'submit_ok', 'ok', {

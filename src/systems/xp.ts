@@ -12,16 +12,15 @@
 
 // XP awards per action
 export const XP_TABLE = {
-  // Base run award
+  // Base run award (ranked, leaderboard-eligible runs only)
   validRun: 25,
-  practiceRun: 5,
 
-  // Bonus conditions (additive)
+  // Bonus conditions (additive, on top of base)
   newPb: 50,
   top10Entry: 200,
   top3Entry: 500,
 
-  // Progression awards
+  // Progression awards (granted by DB RPCs)
   challengeComplete: 100,
   rankUp: 100,
 } as const;
@@ -47,9 +46,10 @@ export function calculateRunXp(params: {
 }): XpBreakdown {
   const { isEligible, isPractice, isPb, position, previousPosition } = params;
 
-  // Practice runs get minimal XP
+  // Practice runs: no XP (clear product decision — XP is for ranked league)
+  // Riders know: practice = no pressure, no points. Rank up by racing.
   if (isPractice) {
-    return { base: XP_TABLE.practiceRun, pbBonus: 0, positionBonus: 0, total: XP_TABLE.practiceRun, reasons: ['Trening'] };
+    return { base: 0, pbBonus: 0, positionBonus: 0, total: 0, reasons: [] };
   }
 
   // Non-eligible ranked runs get nothing

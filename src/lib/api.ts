@@ -31,8 +31,33 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
   return data;
 }
 
-export async function updateProfileXp(userId: string, xpToAdd: number): Promise<Profile | null> {
-  // Get current profile
+/**
+ * Atomically increment profile XP using database-level RPC.
+ * Prevents race conditions on concurrent run submissions.
+ * Also auto-computes and updates rank_id.
+ */
+export async function updateProfileXp(userId: string, xpToAdd: number): Promise<{ xp: number; rankId: string } | null> {
+  if (xpToAdd <= 0) return null;
+
+  const { data, error } = await db().rpc('increment_profile_xp', {
+    p_user_id: userId,
+    p_xp_to_add: xpToAdd,
+  });
+
+  if (error) {
+    console.error('[NWD] increment_profile_xp failed:', error.message);
+    // Fallback to non-atomic update if RPC not available (e.g. migration not run)
+    return updateProfileXpFallback(userId, xpToAdd);
+  }
+
+  const result = data as { xp: number; rank_id: string; xp_added: number } | null;
+  if (!result || result.xp === undefined) return null;
+
+  return { xp: result.xp, rankId: result.rank_id };
+}
+
+/** Fallback for pre-migration environments — non-atomic but works */
+async function updateProfileXpFallback(userId: string, xpToAdd: number): Promise<{ xp: number; rankId: string } | null> {
   const { data: current } = await db()
     .from('profiles')
     .select('xp')
@@ -44,18 +69,12 @@ export async function updateProfileXp(userId: string, xpToAdd: number): Promise<
   const newXp = current.xp + xpToAdd;
   const newRank = getRankForXp(newXp);
 
-  const { data } = await db()
+  await db()
     .from('profiles')
-    .update({
-      xp: newXp,
-      rank_id: newRank.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId)
-    .select()
-    .single();
+    .update({ xp: newXp, rank_id: newRank.id, updated_at: new Date().toISOString() })
+    .eq('id', userId);
 
-  return data;
+  return { xp: newXp, rankId: newRank.id };
 }
 
 export async function incrementProfileRuns(userId: string, isPb: boolean): Promise<void> {
@@ -655,8 +674,23 @@ export async function fetchUserAchievements(userId: string) {
   return data ?? [];
 }
 
+/**
+ * Unlock achievement and atomically grant its XP reward.
+ * Idempotent: re-calling for already-unlocked achievement returns success
+ * without double-granting XP (handled by database RPC).
+ */
 export async function unlockAchievement(userId: string, achievementId: string): Promise<boolean> {
-  // Upsert: safe to call on every run — won't duplicate, won't fail on re-unlock
+  // Try atomic RPC first (grants XP + prevents duplicate XP)
+  const { data, error: rpcError } = await db().rpc('unlock_achievement_with_xp', {
+    p_user_id: userId,
+    p_achievement_id: achievementId,
+  });
+
+  if (!rpcError && data) {
+    return true;
+  }
+
+  // Fallback: simple upsert without XP (pre-migration environments)
   const { error } = await db()
     .from('user_achievements')
     .upsert(
@@ -664,7 +698,7 @@ export async function unlockAchievement(userId: string, achievementId: string): 
       { onConflict: 'user_id,achievement_id', ignoreDuplicates: true },
     );
 
-  if (error && __DEV__) {
+  if (error) {
     console.warn('[NWD] Achievement unlock failed:', achievementId, error.message);
   }
   return !error;
