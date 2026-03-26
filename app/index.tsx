@@ -16,11 +16,11 @@ export default function BootstrapScreen() {
   useEffect(() => {
     if (loading) return;
 
-    if (needsOnboarding) {
-      router.replace('/onboarding');
-    } else {
-      router.replace('/(tabs)');
+    const target = needsOnboarding ? '/onboarding' : '/(tabs)';
+    if (__DEV__) {
+      console.log('[NWD:bootstrap]', { needsOnboarding, target });
     }
+    router.replace(target);
   }, [loading, needsOnboarding]);
 
   // Dark blank screen while resolving — no flash

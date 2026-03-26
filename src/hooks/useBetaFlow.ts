@@ -11,7 +11,10 @@ const KEYS = {
   betaVersion: 'nwd_beta_version',
 };
 
-const CURRENT_BETA = '0.3.0';
+// Bump this to force re-onboarding after onboarding content changes.
+// 0.3.0 = pre-Sprint 26A old onboarding
+// 0.4.0 = Sprint 26A+ race game intro rewrite
+const CURRENT_BETA = '0.4.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{
@@ -33,6 +36,10 @@ export function useBetaFlow() {
 
       const isFirstLaunch = !betaVersion;
       const needsOnboarding = !onboardingDone || betaVersion !== CURRENT_BETA;
+
+      if (__DEV__) {
+        console.log('[NWD:betaFlow]', { onboardingDone, betaVersion, CURRENT_BETA, needsOnboarding, isFirstLaunch });
+      }
 
       setState({ loading: false, needsOnboarding, isFirstLaunch });
     } catch {
