@@ -12,8 +12,6 @@ import { Profile } from '@/lib/database.types';
 import * as Linking from 'expo-linking';
 import { logDebugEvent } from '@/systems/debugEvents';
 
-const AUTH_REDIRECT_URL = Linking.createURL('login-callback');
-
 export type AuthState =
   | { status: 'loading' }
   | { status: 'unauthenticated' }
@@ -59,7 +57,9 @@ export function useAuth() {
     };
   }, []);
 
-  // ── Deep link listener for magic link callback ──
+  // ── Deep link listener (silent fallback, not primary UX) ──
+  // Primary auth is OTP code entry. Deep link only fires if user
+  // somehow receives and clicks a magic link (e.g. desktop → mobile handoff)
   useEffect(() => {
     if (!supabase) return;
 
@@ -155,11 +155,12 @@ export function useAuth() {
     logDebugEvent('auth', 'otp_send_start', 'start', { payload: { email: email.slice(0, 3) + '***' } });
 
     try {
+      // OTP-first: no emailRedirectTo so Supabase sends code-only email template
+      // Deep link magic link is a secondary fallback, not the primary UX
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: AUTH_REDIRECT_URL,
         },
       });
 

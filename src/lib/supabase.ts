@@ -26,7 +26,7 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
   : null;
 
 // ── Auto-refresh on app foreground ──
-// When user returns to app after clicking magic link, refresh the session
+// Keep session alive when user switches back to the app
 if (supabase) {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {

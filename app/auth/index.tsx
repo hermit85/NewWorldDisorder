@@ -195,7 +195,10 @@ export default function AuthScreen() {
               <Text style={styles.inboxIcon}>📧</Text>
               <Text style={styles.inboxTitle}>SPRAWDŹ SKRZYNKĘ</Text>
               <Text style={styles.inboxDesc}>
-                Wysłaliśmy 6-cyfrowy kod na {email}
+                Wysłaliśmy 6-cyfrowy kod na{'\n'}{email}
+              </Text>
+              <Text style={styles.inboxHint}>
+                Wpisz kod poniżej. Nie klikaj linku w mailu.
               </Text>
             </View>
 
@@ -326,6 +329,7 @@ const styles = StyleSheet.create({
   inboxIcon: { fontSize: 40, marginBottom: spacing.md },
   inboxTitle: { ...typography.h3, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
   inboxDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  inboxHint: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
   errorCard: { backgroundColor: 'rgba(255, 59, 48, 0.08)', borderWidth: 1, borderColor: colors.red, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center' },
   errorCardTitle: { ...typography.h3, color: colors.red, letterSpacing: 2, marginBottom: spacing.sm },
   errorCardDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
