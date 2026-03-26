@@ -39,6 +39,7 @@ const CATEGORY_COLORS: Record<DebugCategory, string> = {
   auth: '#00BCD4',
   nav: '#607D8B',
   sim: '#FFEB3B',
+  queue: '#FF5722',
 };
 
 export function DebugDrawer({ onClose }: { onClose: () => void }) {

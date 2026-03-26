@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
@@ -15,6 +15,8 @@ import {
 } from '@expo-google-fonts/inter';
 import { colors } from '@/theme/colors';
 import { AuthProvider } from '@/hooks/AuthContext';
+import { hydrateRunStore } from '@/systems/runStore';
+import { initSaveQueue } from '@/systems/saveQueue';
 
 // Debug drawer — only imported in dev
 const DebugDrawerLazy = __DEV__
@@ -30,6 +32,13 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  // ── Hydrate run store + init save queue on mount ──
+  useEffect(() => {
+    hydrateRunStore().then(() => {
+      initSaveQueue();
+    });
+  }, []);
 
   // ── Debug drawer toggle (5-tap) ──
   const [debugOpen, setDebugOpen] = useState(false);

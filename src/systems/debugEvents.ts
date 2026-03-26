@@ -12,7 +12,8 @@ export type DebugCategory =
   | 'fetch'       // data reads
   | 'auth'        // session/auth
   | 'nav'         // navigation context
-  | 'sim';        // simulation events
+  | 'sim'         // simulation events
+  | 'queue';      // offline save queue
 
 export type DebugStatus = 'start' | 'ok' | 'fail' | 'skip' | 'info' | 'warn';
 

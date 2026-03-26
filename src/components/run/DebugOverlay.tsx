@@ -10,6 +10,7 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { RealRunState } from '@/systems/useRealRun';
 import { formatTime } from '@/content/copy';
+import { getSaveQueueStatus } from '@/systems/saveQueue';
 
 interface Props {
   state: RealRunState;
@@ -204,6 +205,22 @@ export function DebugOverlay({ state }: Props) {
           <Row label="Points" value={String(state.pointCount)} />
         </View>
       )}
+
+      {/* ── SAVE QUEUE STATUS ── */}
+      {(() => {
+        const q = getSaveQueueStatus();
+        if (q.pending === 0 && !q.isRetrying) return null;
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>SAVE QUEUE</Text>
+            <Row label="Pending" value={String(q.pending)} color={q.pending > 0 ? colors.orange : colors.accent} />
+            <Row label="Retrying" value={q.isRetrying ? 'YES' : 'NO'} color={q.isRetrying ? colors.gold : colors.textTertiary} />
+            {q.lastRetryAt > 0 && (
+              <Row label="Last retry" value={`${Math.round((Date.now() - q.lastRetryAt) / 1000)}s ago`} />
+            )}
+          </View>
+        );
+      })()}
     </ScrollView>
   );
 }

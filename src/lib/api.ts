@@ -94,6 +94,8 @@ export interface SubmitRunParams {
   verification: VerificationResult;
   trace: RunTrace;
   xpAwarded: number;
+  /** Quality tier from gate engine (PERFECT/VALID/ROUGH) */
+  qualityTier?: 'perfect' | 'valid' | 'rough';
 }
 
 export interface SubmitRunResult {
@@ -110,7 +112,7 @@ export interface SubmitRunResult {
 export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResult | null> {
   const {
     userId, spotId, trailId, mode, startedAt, finishedAt,
-    durationMs, verification, trace, xpAwarded,
+    durationMs, verification, trace, xpAwarded, qualityTier,
   } = params;
 
   const isLeaderboardEligible = verification.isLeaderboardEligible;
@@ -158,7 +160,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
       finished_at: new Date(finishedAt).toISOString(),
       duration_ms: durationMs,
       verification_status: verification.status,
-      verification_summary: verification as any,
+      verification_summary: { ...verification, qualityTier: qualityTier ?? null } as any,
       gps_trace: traceForStorage as any,
       is_pb: isPb,
       xp_awarded: xpAwarded,

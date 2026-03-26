@@ -328,6 +328,7 @@ export default function ResultScreen() {
   const isSaving = run.saveStatus === 'saving' || run.saveStatus === 'pending';
   const isSaved = run.saveStatus === 'saved';
   const isFailed = run.saveStatus === 'failed';
+  const isQueued = run.saveStatus === 'queued';
 
   // Quality-based status for saved ranked runs
   const isOfficialRankedResult = showRank && isSaved;
@@ -460,6 +461,11 @@ export default function ResultScreen() {
               <Text style={styles.saveFailText}>NIE UDAŁO SIĘ ZAPISAĆ</Text>
             </View>
           )}
+          {isQueued && (
+            <View style={styles.saveQueuedBadge}>
+              <Text style={styles.saveQueuedText}>CZEKA NA ZAPIS · PONOWI AUTOMATYCZNIE</Text>
+            </View>
+          )}
           {run.saveStatus === 'offline' && !isPractice && (
             <View style={styles.saveFailBadge}>
               <Text style={styles.saveFailText}>BRAK POŁĄCZENIA</Text>
@@ -475,8 +481,8 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ═══ RETRY CARD — verified but sync failed ═══ */}
-        {isFailed && isRanked && isVerified && (
+        {/* ═══ RETRY CARD — verified but sync failed/queued ═══ */}
+        {(isFailed || isQueued) && isRanked && isVerified && (
           <View style={styles.retryCard}>
             <Text style={styles.retryTitle}>ZJAZD BYŁ CZYSTY</Text>
             <Text style={styles.retryBody}>
@@ -633,6 +639,8 @@ const styles = StyleSheet.create({
   savePracticeText: { ...typography.labelSmall, color: colors.blue, letterSpacing: 1, fontSize: 10 },
   saveFailBadge: { backgroundColor: 'rgba(255,149,0,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   saveFailText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1, fontSize: 10 },
+  saveQueuedBadge: { backgroundColor: 'rgba(255,204,0,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  saveQueuedText: { ...typography.labelSmall, color: colors.gold, letterSpacing: 1, fontSize: 9 },
 
   // Status context card (non-verified explanation)
   statusContextCard: {

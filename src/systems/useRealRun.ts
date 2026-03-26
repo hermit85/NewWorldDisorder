@@ -487,10 +487,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           mode: state.mode,
           durationMs: state.elapsedMs,
           startedAt: state.startedAt ?? Date.now(),
+          userId: userId ?? null,
           verification: null,
           saveStatus: 'offline',
           backendResult: null,
           traceSnapshot: null,
+          qualityTier: null,
           updatedAt: Date.now(),
         });
         return;
@@ -602,16 +604,18 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         mode: completedTrace.mode,
         durationMs: completedTrace.durationMs,
         startedAt: completedTrace.startedAt,
+        userId: userId ?? null,
         verification,
         saveStatus,
         backendResult: null,
         traceSnapshot,
+        qualityTier: qualityAssessment.quality,
         updatedAt: Date.now(),
       });
 
       // Submit to backend (async, non-blocking)
       if (isBackendConfigured() && userId) {
-        submitToBackend(currentSessionId, userId, completedTrace, verification);
+        submitToBackend(currentSessionId, userId, completedTrace, verification, qualityAssessment.quality);
       }
     }, 400);
 
@@ -625,6 +629,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
     uid: string,
     trace: RunTrace,
     verification: VerificationResult,
+    qualityTier?: 'perfect' | 'valid' | 'rough',
   ) => {
     logDebugEvent('save', 'submit_start', 'start', { runSessionId: sessionId, trailId });
 
@@ -657,6 +662,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         verification,
         trace,
         xpAwarded,
+        qualityTier,
       });
 
       if (result) {
@@ -670,12 +676,12 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       } else {
         logDebugEvent('save', 'submit_null', 'fail', { runSessionId: sessionId, trailId });
         safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
-        updateFinalizedRun(sessionId, { saveStatus: 'failed' });
+        updateFinalizedRun(sessionId, { saveStatus: 'queued' }); // queue for retry
       }
     } catch (e) {
       logDebugEvent('save', 'submit_error', 'fail', { runSessionId: sessionId, trailId, payload: { error: String(e) } });
       safeSetState((s) => ({ ...s, backendStatus: 'failed' }));
-      updateFinalizedRun(sessionId, { saveStatus: 'failed' });
+      updateFinalizedRun(sessionId, { saveStatus: 'queued' }); // queue for retry
     }
   };
 

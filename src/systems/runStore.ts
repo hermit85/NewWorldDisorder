@@ -1,14 +1,17 @@
 // ═══════════════════════════════════════════════════════════
-// Run Store — single source of truth for finalized runs
+// Run Store — persisted source of truth for finalized runs
 // Written by useRealRun. Read by result screen.
-// Lives in memory — survives navigation, not app restart.
-// Capped at MAX_STORED_RUNS to prevent memory leaks.
+//
+// v2: AsyncStorage persistence — survives app restart.
+// In-memory Map is the hot cache. AsyncStorage is the cold store.
+// Writes go to both. Reads from memory first, cold on miss.
 // ═══════════════════════════════════════════════════════════
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VerificationResult, RunMode } from '@/data/verificationTypes';
 import { SubmitRunResult } from '@/lib/api';
 
-export type SaveStatus = 'pending' | 'saving' | 'saved' | 'failed' | 'offline';
+export type SaveStatus = 'pending' | 'saving' | 'saved' | 'failed' | 'offline' | 'queued';
 
 /** Minimal trace data kept for retry — not full GPS points array */
 export interface TraceSnapshot {
@@ -28,19 +31,66 @@ export interface FinalizedRun {
   mode: RunMode;
   durationMs: number;
   startedAt: number;
+  /** User ID for offline retry — needed to resubmit to backend */
+  userId: string | null;
   verification: VerificationResult | null;
   saveStatus: SaveStatus;
   backendResult: SubmitRunResult | null;
   /** Snapshot of trace for retry — created at finalization time */
   traceSnapshot: TraceSnapshot | null;
+  /** Quality tier from gate engine */
+  qualityTier: 'perfect' | 'valid' | 'rough' | null;
   updatedAt: number;
 }
 
-// ── Module-level store ──
+// ── Storage keys ──
 
-const MAX_STORED_RUNS = 10;
+const STORAGE_KEY = '@nwd:finalized_runs';
+const MAX_STORED_RUNS = 15;
+
+// ── In-memory hot cache ──
+
 const _store = new Map<string, FinalizedRun>();
 const _listeners = new Set<() => void>();
+let _hydrated = false;
+
+// ── Persistence helpers ──
+
+async function persistToStorage(): Promise<void> {
+  try {
+    const entries = Array.from(_store.values())
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_STORED_RUNS);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch (e) {
+    console.warn('[NWD] runStore persist failed:', e);
+  }
+}
+
+/** Hydrate in-memory store from AsyncStorage. Call once at app start. */
+export async function hydrateRunStore(): Promise<void> {
+  if (_hydrated) return;
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const runs: FinalizedRun[] = JSON.parse(raw);
+      for (const run of runs) {
+        _store.set(run.sessionId, run);
+      }
+    }
+    _hydrated = true;
+  } catch (e) {
+    console.warn('[NWD] runStore hydrate failed:', e);
+    _hydrated = true; // don't retry forever
+  }
+}
+
+/** Check if store has been hydrated */
+export function isRunStoreHydrated(): boolean {
+  return _hydrated;
+}
+
+// ── Public API (same interface as before + persistence) ──
 
 /** Generate a unique session ID for each run attempt */
 export function createRunSessionId(): string {
@@ -58,17 +108,18 @@ function evictOldest(): void {
   }
 }
 
-/** Write or update a finalized run */
+/** Write or update a finalized run (persists to AsyncStorage) */
 export function setFinalizedRun(run: FinalizedRun): void {
   _store.set(run.sessionId, { ...run, updatedAt: Date.now() });
   evictOldest();
   _listeners.forEach((fn) => fn());
+  persistToStorage(); // async, non-blocking
 }
 
 /** Update specific fields on an existing finalized run */
 export function updateFinalizedRun(
   sessionId: string,
-  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult'>>,
+  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult' | 'qualityTier'>>,
 ): boolean {
   const existing = _store.get(sessionId);
   if (!existing) {
@@ -77,12 +128,30 @@ export function updateFinalizedRun(
   }
   _store.set(sessionId, { ...existing, ...patch, updatedAt: Date.now() });
   _listeners.forEach((fn) => fn());
+  persistToStorage(); // async, non-blocking
   return true;
 }
 
 /** Read a finalized run by session ID */
 export function getFinalizedRun(sessionId: string): FinalizedRun | undefined {
   return _store.get(sessionId);
+}
+
+/** Get all runs with a given save status */
+export function getRunsByStatus(status: SaveStatus): FinalizedRun[] {
+  return Array.from(_store.values()).filter((r) => r.saveStatus === status);
+}
+
+/** Get all finalized runs, newest first */
+export function getAllFinalizedRuns(): FinalizedRun[] {
+  return Array.from(_store.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** Get count of runs pending save (queued + failed) */
+export function getPendingSaveCount(): number {
+  return Array.from(_store.values()).filter(
+    (r) => r.saveStatus === 'queued' || r.saveStatus === 'failed'
+  ).length;
 }
 
 /** Subscribe to changes — returns unsubscribe function */
