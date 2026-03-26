@@ -150,7 +150,7 @@ export function useAuth() {
   // ── Auth actions ──
 
   const signInWithEmail = useCallback(async (email: string) => {
-    if (!supabase) return { error: new Error('Backend not configured') };
+    if (!supabase) return { error: new Error('Logowanie jest chwilowo niedostępne. Spróbuj ponownie później.') };
 
     logDebugEvent('auth', 'otp_send_start', 'start', { payload: { email: email.slice(0, 3) + '***' } });
 
@@ -177,7 +177,7 @@ export function useAuth() {
   }, []);
 
   const verifyOtp = useCallback(async (email: string, token: string) => {
-    if (!supabase) return { error: new Error('Backend not configured') };
+    if (!supabase) return { error: new Error('Logowanie jest chwilowo niedostępne. Spróbuj ponownie później.') };
 
     logDebugEvent('auth', 'otp_verify_start', 'start');
 
