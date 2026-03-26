@@ -11,15 +11,10 @@ import {
   Pressable,
   FlatList,
   Dimensions,
+  Animated,
   type ViewToken,
   type ListRenderItemInfo,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  interpolate,
-} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -76,7 +71,7 @@ export default function OnboardingScreen() {
   const [permissionGranted, setPermissionGranted] = useState(false);
 
   const listRef = useRef<FlatList<OnboardingSlide>>(null);
-  const fadeAnim = useSharedValue(1);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Track page changes from swipe
   const onViewableItemsChanged = useRef(
@@ -94,11 +89,9 @@ export default function OnboardingScreen() {
     notifySuccess();
     await completeOnboarding();
     // Show location prompt as separate moment
-    fadeAnim.value = withTiming(0, { duration: 200 }, () => {
-      // will be set in JS thread
-    });
+    fadeAnim.setValue(0);
     setShowLocationPrompt(true);
-    fadeAnim.value = withTiming(1, { duration: 300 });
+    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
   }, [completeOnboarding, fadeAnim]);
 
   // Enter the app
@@ -130,16 +123,12 @@ export default function OnboardingScreen() {
     }
   }, []);
 
-  const animatedContainer = useAnimatedStyle(() => ({
-    opacity: fadeAnim.value,
-  }));
-
   // ── Location Prompt (post-onboarding) ──────────────────
 
   if (showLocationPrompt) {
     return (
       <SafeAreaView style={styles.container}>
-        <Animated.View style={[styles.locationContent, animatedContainer]}>
+        <Animated.View style={[styles.locationContent, { opacity: fadeAnim }]}>
           <Text style={styles.locationTag}>OSTATNI KROK</Text>
           <Text style={styles.locationTitle}>
             Włącz GPS{'\n'}żeby jechać.
