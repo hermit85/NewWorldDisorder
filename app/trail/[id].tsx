@@ -11,6 +11,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrail } from '@/data/mock/trails';
+import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { Difficulty, PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -31,6 +32,9 @@ export default function TrailDetailScreen() {
   const navigation = useNavigation();
   const { profile, isAuthenticated } = useAuthContext();
   const trail = getTrail(id);
+  const venueMatch = id ? getVenueForTrail(id) : undefined;
+  const venueName = venueMatch?.venue.name;
+  const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
 
   const [boardScope, setBoardScope] = useState<PeriodType>('all_time');
   const { entries: leaderboard, loading: lbLoading } = useLeaderboard(id ?? '', boardScope, profile?.id);
@@ -84,7 +88,7 @@ export default function TrailDetailScreen() {
 
         {/* ═══ TRAIL HERO ═══ */}
         <View style={styles.hero}>
-          <Text style={styles.venueLabel}>SŁOTWINY ARENA</Text>
+          <Text style={styles.venueLabel}>{(venueName ?? 'ARENA').toUpperCase()}</Text>
           <View style={styles.badges}>
             <View style={[styles.badge, { borderColor: diffColor }]}>
               <Text style={[styles.badgeText, { color: diffColor }]}>{trail.difficulty.toUpperCase()}</Text>
@@ -94,6 +98,8 @@ export default function TrailDetailScreen() {
             </View>
           </View>
           <Text style={styles.trailName}>{trail.name}</Text>
+          {venueName && <Text style={styles.venueSub}>{venueName}</Text>}
+          {isTrainingOnly && <Text style={styles.trainingTag}>WALIDACJA TRENINGOWA</Text>}
           <View style={styles.trailMeta}>
             <Text style={styles.metaText}>{trail.distanceM}m</Text>
             <Text style={styles.metaDot}>·</Text>
@@ -245,6 +251,8 @@ const styles = StyleSheet.create({
   badge: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
   badgeText: { ...typography.labelSmall, color: colors.textSecondary },
   trailName: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 2 },
+  venueSub: { ...typography.bodySmall, color: colors.textTertiary, marginTop: 2 },
+  trainingTag: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 9, marginTop: spacing.sm },
   trailMeta: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, alignItems: 'center' },
   metaText: { ...typography.body, color: colors.textSecondary },
   metaDot: { color: colors.textTertiary },

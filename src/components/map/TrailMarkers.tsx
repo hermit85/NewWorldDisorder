@@ -68,7 +68,7 @@ export function TrailMarkers({
               </View>
             </Marker>
 
-            {/* Trail name label — at dedicated anchor position */}
+            {/* Trail name label — race chip style */}
             {!isDimmed && (
               <Marker
                 coordinate={labelCoord}
@@ -79,21 +79,29 @@ export function TrailMarkers({
                 <View
                   style={[
                     styles.trailLabel,
+                    isSelected && styles.trailLabelSelected,
                     isSelected && { backgroundColor: diffColor, borderColor: diffColor },
-                    !isSelected && { borderColor: diffColor + '40' },
+                    !isSelected && { borderColor: diffColor + '30' },
                   ]}
                 >
-                  <View style={[styles.trailDot, { backgroundColor: diffColor }]} />
+                  {!isSelected && (
+                    <View style={[styles.trailDot, { backgroundColor: diffColor }]} />
+                  )}
                   <Text
                     style={[
                       styles.trailLabelText,
+                      isSelected && styles.trailLabelTextSelected,
                       isSelected && { color: colors.bg },
                     ]}
                   >
                     {official?.shortName ?? trail.name}
                   </Text>
-                  {isHot && <Text style={styles.badge}>HOT</Text>}
-                  {hasChallenge && !isHot && <Text style={styles.badge}>!</Text>}
+                  {isHot && (
+                    <Text style={[styles.badge, isSelected && { color: colors.bg }]}>HOT</Text>
+                  )}
+                  {hasChallenge && !isHot && (
+                    <Text style={[styles.badge, isSelected && { color: colors.bg }]}>!</Text>
+                  )}
                 </View>
               </Marker>
             )}
@@ -143,7 +151,7 @@ const styles = StyleSheet.create({
   trailLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgOverlay,
+    backgroundColor: 'rgba(12, 12, 20, 0.85)',
     borderRadius: radii.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xxs + 1,
@@ -151,16 +159,27 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.xs,
   },
+  trailLabelSelected: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+  },
   trailDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
   },
   trailLabelText: {
     ...typography.labelSmall,
-    color: colors.textPrimary,
-    fontSize: 10,
-    letterSpacing: 1,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 9,
+    letterSpacing: 1.5,
+  },
+  trailLabelTextSelected: {
+    fontSize: 11,
+    letterSpacing: 2,
+    fontFamily: 'Orbitron_700Bold',
   },
   badge: {
     ...typography.labelSmall,

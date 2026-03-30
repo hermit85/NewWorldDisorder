@@ -1,7 +1,21 @@
 import { colors } from './colors';
 import { Difficulty } from '@/data/types';
 
-// Trail line styling by difficulty (fallback)
+// ═══════════════════════════════════════════════════════════
+// NWD Map Presentation System v1
+// Reusable visual rules for all arena maps.
+// Venue-specific data (polylines, zones) lives in seed files.
+// ═══════════════════════════════════════════════════════════
+
+// ── Trail colors by official colorClass ──
+export const officialTrailColors: Record<string, string> = {
+  green: '#00FF88',
+  blue: '#4A9EFF',
+  red: '#FF3B30',
+  black: '#FFFFFF',
+};
+
+// ── Trail colors by difficulty (fallback) ──
 export const trailLineColors: Record<Difficulty, string> = {
   easy: colors.diffEasy,
   medium: colors.diffMedium,
@@ -10,15 +24,6 @@ export const trailLineColors: Record<Difficulty, string> = {
   pro: colors.diffPro,
 };
 
-// Official trail colors — use colorClass from seed data, not difficulty
-export const officialTrailColors: Record<string, string> = {
-  green: '#00FF88',  // Dookoła Świata
-  blue: '#4A9EFF',   // Gałgan, Kometa
-  red: '#FF3B30',    // Dzida
-  black: '#FFFFFF',  // future expert trails
-};
-
-// Get the correct display color for a trail
 export function getTrailColor(colorClass?: string, difficulty?: Difficulty): string {
   if (colorClass && officialTrailColors[colorClass]) {
     return officialTrailColors[colorClass];
@@ -29,66 +34,106 @@ export function getTrailColor(colorClass?: string, difficulty?: Difficulty): str
   return colors.textTertiary;
 }
 
+// ── Trail line geometry ──
 export const trailLineWidth = {
-  default: 3.5,
-  selected: 6,
-  dimmed: 2,
-  shadow: 8, // dark outline behind trail for separation from terrain
+  default: 3,
+  selected: 4.5,
+  dimmed: 1.5,
+  shadow: 6,
+  selectedShadow: 10,
+  glow: 12,
+  selectedGlow: 22,
+  selectedOuterGlow: 34,  // wide soft halo on selected
+  hitTarget: 32,
 } as const;
 
 export const trailLineOpacity = {
-  default: 0.85,
+  default: 0.90,
   selected: 1,
-  dimmed: 0.15,
-  shadow: 0.4,
+  dimmed: 0.18,        // ghost trails still provide spatial context
+  shadow: 0.35,
 } as const;
 
-// ═══════════════════════════════════════════════════════════
-// Stylized Dark Terrain Map — NWD branded mountain basemap
-// Strips all city/navigation elements. Emphasizes terrain.
-// Used on Android (Google Maps JSON styling)
-// ═══════════════════════════════════════════════════════════
-export const darkMapStyle = [
-  // ── Base geometry: ultra-dark mountain background ──
-  { elementType: 'geometry', stylers: [{ color: '#080810' }] },
+export const trailGlowOpacity = {
+  default: 0.20,       // visible ambient glow on dark bg
+  selected: 0.50,      // strong hero aura
+  selectedOuter: 0.10, // wide soft outer halo
+  dimmed: 0,
+} as const;
 
-  // ── Kill ALL labels ──
+// ── Edge gradients — blends map into UI chrome ──
+export const mapGradient = {
+  top: {
+    colors: ['rgba(7, 7, 16, 0.92)', 'rgba(7, 7, 16, 0.5)', 'rgba(7, 7, 16, 0.1)', 'transparent'] as const,
+    height: 110,
+  },
+  bottom: {
+    colors: ['transparent', 'rgba(7, 7, 16, 0.3)', 'rgba(7, 7, 16, 0.7)', 'rgba(7, 7, 16, 0.95)'] as const,
+    height: 100,
+  },
+  // Side vignette strips
+  sideLeft: {
+    colors: ['rgba(7, 7, 16, 0.5)', 'transparent'] as const,
+    width: 48,
+  },
+  sideRight: {
+    colors: ['transparent', 'rgba(7, 7, 16, 0.5)'] as const,
+    width: 48,
+  },
+} as const;
+
+// ── Terrain zone colors ──
+// Subtle fills + visible stroke outlines = "sketched terrain" not "colored blobs"
+export const terrainFill: Record<string, string> = {
+  forest: 'rgba(5, 16, 8, 0.18)',
+  openSlope: 'rgba(8, 14, 6, 0.10)',
+  summit: 'rgba(14, 18, 12, 0.10)',
+  base: 'rgba(8, 10, 16, 0.12)',
+} as const;
+
+export const terrainStroke: Record<string, string> = {
+  forest: 'rgba(20, 50, 30, 0.14)',
+  openSlope: 'rgba(25, 40, 20, 0.10)',
+  summit: 'rgba(35, 45, 28, 0.12)',
+  base: 'rgba(18, 22, 35, 0.10)',
+} as const;
+
+// Compat alias for lift line (used in ArenaMapCustom)
+export const terrainColors: Record<string, string> = {
+  ...terrainFill,
+  liftLine: 'rgba(55, 55, 72, 0.20)',
+} as const;
+
+// ── Android dark map style (Google Maps JSON) ──
+export const darkMapStyle = [
+  // Base: ultra-dark
+  { elementType: 'geometry', stylers: [{ color: '#070710' }] },
+
+  // Kill all labels
   { elementType: 'labels', stylers: [{ visibility: 'off' }] },
 
-  // ── Landscape: dark terrain with subtle differentiation ──
-  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#0C0C16' }] },
-  { featureType: 'landscape.natural.terrain', elementType: 'geometry', stylers: [{ color: '#101020' }] },
-  { featureType: 'landscape.natural.landcover', elementType: 'geometry', stylers: [{ color: '#0A0E14' }] },
-  { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#0A0A12' }] },
+  // Landscape — subtle terrain depth
+  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#0B0B15' }] },
+  { featureType: 'landscape.natural.terrain', elementType: 'geometry', stylers: [{ color: '#0E0E1C' }] },
+  { featureType: 'landscape.natural.landcover', elementType: 'geometry', stylers: [{ color: '#090E13' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#090910' }] },
 
-  // ── Water: very dark, subtle presence ──
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#06060C' }] },
+  // Water — dark blue tint (not pure black — gives orientation)
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#080C14' }] },
 
-  // ── Roads: nearly invisible — just ghost lines ──
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#12121C' }, { weight: 0.5 }] },
+  // Roads — ghost lines for orientation
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#111119' }, { weight: 0.5 }] },
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#14141E' }, { weight: 0.8 }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#13131C' }, { weight: 0.8 }] },
   { featureType: 'road.local', stylers: [{ visibility: 'off' }] },
 
-  // ── Kill everything non-terrain ──
+  // Kill non-terrain
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
   { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
 ];
 
-// ═══════════════════════════════════════════════════════════
-// Terrain zone colors — for polygon overlays on the map
-// These create the stylized mountain terrain feel
-// ═══════════════════════════════════════════════════════════
-export const terrainColors = {
-  forest: 'rgba(8, 20, 12, 0.65)',       // dark forest masses
-  openSlope: 'rgba(16, 20, 14, 0.40)',   // lighter meadow/slope areas
-  summit: 'rgba(24, 28, 20, 0.35)',      // summit plateau
-  base: 'rgba(12, 14, 18, 0.50)',        // base area
-  liftLine: 'rgba(90, 90, 106, 0.25)',   // lift corridor
-} as const;
-
-// Marker types (legacy — kept for compatibility)
+// ── Legacy marker config (kept for compat) ──
 export const markerConfig = {
   startGate: { emoji: '🏁', size: 24, label: 'START' },
   finishGate: { emoji: '🔻', size: 20, label: 'FINISH' },

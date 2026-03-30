@@ -20,7 +20,14 @@ import { retryRunSubmit } from './retrySubmit';
 let _retrying = false;
 let _appStateListener: { remove: () => void } | null = null;
 let _lastRetryAt = 0;
-const RETRY_COOLDOWN_MS = 30_000;
+let _consecutiveFailures = 0;
+
+// Exponential backoff: 5s → 10s → 20s → 40s → 60s (cap)
+function getRetryCooldown(): number {
+  const base = 5_000;
+  const cooldown = Math.min(base * Math.pow(2, _consecutiveFailures), 60_000);
+  return cooldown;
+}
 
 // ── Public API ──
 
@@ -38,7 +45,7 @@ export async function flushSaveQueue(): Promise<{ retried: number; succeeded: nu
   if (!isBackendConfigured()) return { retried: 0, succeeded: 0 };
 
   const now = Date.now();
-  if (now - _lastRetryAt < RETRY_COOLDOWN_MS) return { retried: 0, succeeded: 0 };
+  if (now - _lastRetryAt < getRetryCooldown()) return { retried: 0, succeeded: 0 };
 
   _retrying = true;
   _lastRetryAt = now;
@@ -65,8 +72,15 @@ export async function flushSaveQueue(): Promise<{ retried: number; succeeded: nu
     if (success) succeeded++;
   }
 
+  // Backoff: reset on any success, increment on all-fail
+  if (succeeded > 0) {
+    _consecutiveFailures = 0;
+  } else {
+    _consecutiveFailures++;
+  }
+
   logDebugEvent('queue', 'flush_done', succeeded > 0 ? 'ok' : 'info', {
-    payload: { retried: queued.length, succeeded },
+    payload: { retried: queued.length, succeeded, nextCooldown: getRetryCooldown() },
   });
 
   _retrying = false;

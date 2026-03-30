@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { selectionTick } from '@/systems/haptics';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
@@ -7,18 +7,21 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
-import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { getSpot } from '@/data/mock/spots';
 import { getTrailsForSpot } from '@/data/mock/trails';
 import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useUserTrailStats, useChallenges } from '@/hooks/useBackend';
+import { useVenueContext } from '@/hooks/useVenueContext';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
+import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
+import { distanceMeters } from '@/systems/gps';
+import { getVenue } from '@/data/venues';
 
-// Only import native map on native platforms
+// Custom SVG surface on native, web fallback on web
 const ArenaMap = Platform.OS !== 'web'
-  ? require('@/components/map/ArenaMap').ArenaMap
+  ? require('@/components/map/ArenaMapCustom').ArenaMapCustom
   : null;
 import { Difficulty } from '@/data/types';
 
@@ -29,8 +32,61 @@ export default function SpotScreen() {
   const { profile } = useAuthContext();
   const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
   const spot = getSpot(id);
-  const { challenges } = useChallenges(spot?.id ?? 'slotwiny-arena', profile?.id);
+  const venue = id ? getVenue(id) : undefined;
+  const { challenges } = useChallenges(spot?.id ?? id ?? '', profile?.id);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
+  const [highlightStart, setHighlightStart] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<'start' | 'rider' | 'both' | null>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Live rider position + venue context ──
+  const venueState = useVenueContext(true);
+  const riderPosition = venueState.riderPosition;
+
+  // ── Compute start readiness for selected trail ──
+  const readiness = useMemo((): StartReadiness | undefined => {
+    if (!selectedTrailId) return undefined;
+
+    // GPS quality from accuracy
+    const accuracy = riderPosition?.accuracy ?? null;
+    const gpsQuality: GpsQuality =
+      accuracy === null || accuracy === undefined ? 'none' :
+      accuracy <= 10 ? 'excellent' :
+      accuracy <= 25 ? 'good' : 'weak';
+
+    if (!riderPosition) return { level: 'no_gps', distanceM: null, gpsQuality: 'none' };
+
+    const geo = venue?.trailGeo.find((t) => t.trailId === selectedTrailId);
+    if (!geo) return { level: 'no_gps', distanceM: null, gpsQuality };
+
+    const dist = Math.round(distanceMeters(
+      riderPosition,
+      { latitude: geo.startZone.latitude, longitude: geo.startZone.longitude },
+    ));
+
+    // ── Outside venue: > 2 km = not at resort, > 5 km = different continent ──
+    if (dist > 2000) {
+      return { level: 'outside_venue', distanceM: null, gpsQuality };
+    }
+
+    // Tightened thresholds for mountain terrain:
+    //   ready:       inside gate radius (25-30m) + decent GPS
+    //   at_start:    ≤ 40m — close enough to see the gate
+    //   approaching: ≤ 80m — walking distance, ~1 min
+    //   too_far:     > 80m — need to move significantly
+    let level: ReadinessLevel;
+    if (dist <= geo.startZone.radiusM) {
+      level = gpsQuality !== 'weak' ? 'ready' : 'at_start'; // weak GPS → don't promise "ready"
+    } else if (dist <= 40) {
+      level = 'at_start';
+    } else if (dist <= 80) {
+      level = 'approaching';
+    } else {
+      level = 'too_far';
+    }
+
+    return { level, distanceM: dist, gpsQuality };
+  }, [selectedTrailId, riderPosition]);
 
   const goBack = useCallback(() => {
     if (navigation.canGoBack()) {
@@ -52,9 +108,14 @@ export default function SpotScreen() {
   if (!spot) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>
-          Spot nie znaleziony
-        </Text>
+        <View style={{ padding: spacing.lg, gap: spacing.md }}>
+          <Text style={{ color: colors.textTertiary, fontSize: 13 }}>
+            Spot nie znaleziony
+          </Text>
+          <Pressable onPress={goBack} style={styles.backBtn}>
+            <Text style={styles.backText}>← WRÓĆ</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
@@ -84,22 +145,38 @@ export default function SpotScreen() {
         </View>
       </SafeAreaView>
 
+      {/* Training-only banner for unranked venues */}
+      {venue && !venue.rankingEnabled && (
+        <View style={styles.trainingBanner}>
+          <Text style={styles.trainingBannerText}>
+            TRYB WALIDACJI · TRASY W WERYFIKACJI
+          </Text>
+        </View>
+      )}
+
       {/* Full-screen map */}
-      {Platform.OS !== 'web' && ArenaMap ? (
+      {Platform.OS !== 'web' && ArenaMap && venue ? (
         <ArenaMap
+          venue={venue}
           trails={trails}
           selectedTrailId={selectedTrailId}
-          hotTrailId="dzida-czerwona"
-          challengeTrailId="dzida-czerwona"
+          hotTrailId={venue.trails[venue.trails.length - 1]?.id}
+          challengeTrailId={venue.trails[venue.trails.length - 1]?.id}
+          riderPosition={riderPosition}
+          highlightStart={highlightStart}
+          focusTarget={focusTarget}
           onTrailSelect={handleTrailSelect}
-          onMapPress={handleMapPress}
+          onMapPress={() => {
+            handleMapPress();
+            setFocusTarget(null);
+          }}
         />
       ) : (
         <ArenaMapWeb
           trails={trails}
           selectedTrailId={selectedTrailId}
-          hotTrailId="dzida-czerwona"
-          challengeTrailId="dzida-czerwona"
+          hotTrailId={venue?.trails[venue.trails.length - 1]?.id}
+          challengeTrailId={venue?.trails[venue.trails.length - 1]?.id}
           trailStats={trailStatsMap}
           onTrailSelect={handleTrailSelect}
           onMapPress={handleMapPress}
@@ -116,19 +193,20 @@ export default function SpotScreen() {
           >
             {trails.map((trail) => {
               const stats = trailStatsMap.get(trail.id);
-              const official = slotwinyTrails.find((o) => o.id === trail.id);
+              const official = venue?.trails.find((o) => o.id === trail.id);
               const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
 
               return (
                 <Pressable
                   key={trail.id}
-                  style={styles.trailChip}
+                  style={({ pressed }) => [
+                    styles.trailChip,
+                    { borderLeftWidth: 2.5, borderLeftColor: diffColor },
+                    pressed && { backgroundColor: 'rgba(255,255,255,0.06)', transform: [{ scale: 0.97 }] },
+                  ]}
                   onPress={() => handleTrailSelect(trail.id)}
                 >
                   <View style={styles.trailChipHeader}>
-                    <View
-                      style={[styles.trailChipDot, { backgroundColor: diffColor }]}
-                    />
                     <Text style={styles.trailChipName}>{trail.name}</Text>
                   </View>
                   <Text style={styles.trailChipMeta}>
@@ -155,6 +233,28 @@ export default function SpotScreen() {
           trail={selectedTrail}
           stats={selectedStats}
           challenges={challenges}
+          readiness={readiness}
+          rankingEnabled={venue?.rankingEnabled ?? false}
+          colorClass={venue?.trails.find((t) => t.id === selectedTrail.id)?.colorClass}
+          onShowStart={() => {
+            selectionTick();
+            setHighlightStart(true);
+            // Smart: if rider has GPS, show both rider + start together
+            setFocusTarget(riderPosition ? 'both' : 'start');
+            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = setTimeout(() => {
+              setHighlightStart(false);
+              setFocusTarget(null);
+            }, 5000);
+          }}
+          onShowRider={() => {
+            selectionTick();
+            setFocusTarget('rider');
+            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = setTimeout(() => {
+              setFocusTarget(null);
+            }, 5000);
+          }}
           onClose={handleMapPress}
         />
       )}
@@ -167,6 +267,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  // Training banner
+  trainingBanner: {
+    position: 'absolute' as const,
+    top: 100, // below header
+    left: spacing.lg,
+    right: spacing.lg,
+    zIndex: 5,
+    backgroundColor: 'rgba(255, 149, 0, 0.12)',
+    borderRadius: radii.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center' as const,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 149, 0, 0.20)',
+  },
+  trainingBannerText: {
+    fontFamily: 'Orbitron_400Regular',
+    fontSize: 8,
+    color: 'rgba(255, 149, 0, 0.70)',
+    letterSpacing: 2,
+  },
+
   // Floating header
   headerOverlay: {
     position: 'absolute',
@@ -235,51 +357,56 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 34, // iPhone safe area
     backgroundColor: 'transparent',
   },
   trailStripContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     gap: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   trailChip: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    minWidth: 140,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: 'rgba(10, 10, 18, 0.75)',
+    borderRadius: radii.sm + 2,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    minWidth: 110,
+    maxWidth: 160,
+    borderWidth: 0,
   },
   trailChipHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xxs,
+    gap: 4,
+    marginBottom: 1,
   },
   trailChipDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
   },
   trailChipName: {
-    ...typography.bodySmall,
-    color: colors.textPrimary,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
   },
   trailChipMeta: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 9,
-    marginBottom: spacing.xxs,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(255, 255, 255, 0.30)',
+    fontSize: 7.5,
+    letterSpacing: 0.3,
+    marginBottom: 1,
   },
   trailChipPb: {
-    ...typography.labelSmall,
+    fontFamily: 'Inter_500Medium',
     color: colors.accent,
-    fontSize: 10,
+    fontSize: 8.5,
+    letterSpacing: 0.5,
+    opacity: 0.9,
   },
   trailChipNoPb: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    fontSize: 10,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(255, 255, 255, 0.30)',
+    fontSize: 8.5,
   },
 });

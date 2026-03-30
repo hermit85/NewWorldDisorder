@@ -1,16 +1,27 @@
 // ═══════════════════════════════════════════════════════════
-// Avatar Service — pick, upload, update profile
+// Avatar Service — pick, compress, upload, update profile
 //
-// Uses expo-image-picker + Supabase Storage (avatars bucket).
+// Compression pipeline adapted from BZZT (uploadPhoto.ts):
+//   resize 600px → JPEG 70% → base64 → validate → upload
+//
+// Uses expo-image-picker + expo-image-manipulator + Supabase Storage.
 // Falls back gracefully on permission denied, cancel, offline.
 // ═══════════════════════════════════════════════════════════
 
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 import { logDebugEvent } from '@/systems/debugEvents';
 
 const BUCKET = 'avatars';
-const MAX_SIZE_MB = 2;
+
+// Compression settings (from BZZT)
+const RESIZE_WIDTH = 600;
+const COMPRESS_QUALITY = 0.7;
+const MAX_FILE_SIZE_KB = 4500; // 4.5 MB after compression
+const UPLOAD_TIMEOUT_MS = 15_000; // 15s
 
 export type AvatarResult =
   | { status: 'success'; url: string }
@@ -48,7 +59,13 @@ export async function pickAvatarImage(): Promise<
 
 /**
  * Upload avatar to Supabase Storage and update profile.
- * Returns the public URL on success.
+ *
+ * Pipeline (from BZZT):
+ *   1. Resize to 600px width, compress to JPEG 70%
+ *   2. Read as base64
+ *   3. Validate size (max 4.5MB)
+ *   4. Upload with 15s timeout
+ *   5. Update profile with public URL + cache buster
  */
 export async function uploadAvatar(userId: string, localUri: string): Promise<AvatarResult> {
   if (!supabase) {
@@ -58,33 +75,69 @@ export async function uploadAvatar(userId: string, localUri: string): Promise<Av
   try {
     logDebugEvent('avatar', 'upload_start', 'start', { sessionId: userId });
 
-    // Read file as blob
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    // ── Step 1: Compress & resize (from BZZT uploadPhoto.ts) ──
+    console.log('[AVATAR] Compressing image...');
+    const compressed = await ImageManipulator.manipulateAsync(
+      localUri,
+      [{ resize: { width: RESIZE_WIDTH } }],
+      { compress: COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    console.log('[AVATAR] Compressed URI:', compressed.uri);
 
-    // Check size
-    if (blob.size > MAX_SIZE_MB * 1024 * 1024) {
-      return { status: 'error', message: `Zdjęcie jest za duże (max ${MAX_SIZE_MB}MB)` };
+    // ── Step 2: Read as base64 (from BZZT) ──
+    const base64 = await FileSystem.readAsStringAsync(compressed.uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    if (!base64 || base64.length === 0) {
+      console.error('[AVATAR] Compressed image is empty');
+      return { status: 'error', message: 'Zdjęcie jest puste po kompresji. Wybierz inne.' };
     }
 
-    // Determine extension from MIME
-    const ext = blob.type === 'image/png' ? 'png' : 'jpg';
-    const filePath = `${userId}/avatar.${ext}`;
+    // ── Step 3: Validate size (from BZZT) ──
+    const fileSizeKB = Math.round((base64.length * 3) / 4 / 1024);
+    console.log('[AVATAR] File size:', fileSizeKB, 'KB');
 
-    // Upload (upsert — replaces existing)
-    const { error: uploadError } = await supabase.storage
+    if (fileSizeKB > MAX_FILE_SIZE_KB) {
+      return {
+        status: 'error',
+        message: `Zdjęcie za duże (${(fileSizeKB / 1024).toFixed(1)}MB). Wybierz mniejsze.`,
+      };
+    }
+
+    // ── Step 4: Upload with timeout (from BZZT) ──
+    const filePath = `${userId}/avatar.jpg`;
+    console.log('[AVATAR] Uploading to bucket:', filePath);
+
+    const uploadPromise = supabase.storage
       .from(BUCKET)
-      .upload(filePath, blob, {
+      .upload(filePath, decode(base64), {
+        contentType: 'image/jpeg',
         upsert: true,
-        contentType: blob.type,
       });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), UPLOAD_TIMEOUT_MS),
+    );
+
+    let uploadError;
+    try {
+      const result = await Promise.race([uploadPromise, timeoutPromise]);
+      uploadError = result.error;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'timeout') {
+        console.error('[AVATAR] Upload timeout');
+        return { status: 'error', message: 'Wolne połączenie. Spróbuj ponownie.' };
+      }
+      throw err;
+    }
 
     if (uploadError) {
       logDebugEvent('avatar', 'upload_fail', 'fail', { payload: { error: uploadError.message } });
       return { status: 'error', message: 'Nie udało się wysłać zdjęcia' };
     }
 
-    // Get public URL
+    // ── Step 5: Public URL + cache buster + profile update ──
     const { data: urlData } = supabase.storage
       .from(BUCKET)
       .getPublicUrl(filePath);
@@ -94,10 +147,8 @@ export async function uploadAvatar(userId: string, localUri: string): Promise<Av
       return { status: 'error', message: 'Nie udało się uzyskać adresu zdjęcia' };
     }
 
-    // Add cache buster to force refresh
     const avatarUrl = `${publicUrl}?t=${Date.now()}`;
 
-    // Update profile
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ avatar_url: avatarUrl })

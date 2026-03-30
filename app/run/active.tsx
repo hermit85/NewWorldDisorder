@@ -9,12 +9,13 @@ import { formatTime } from '@/content/copy';
 import { useRealRun } from '@/systems/useRealRun';
 import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
-import { getTrailGeo } from '@/data/seed/slotwinyMap';
+import { getVenueForTrail } from '@/data/venues';
+import { DEFAULT_SPOT_ID } from '@/constants';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
 
 export default function ActiveRunScreen() {
-  const { trailId = 'dzida-czerwona', trailName = 'Dzida Czerwona' } =
+  const { trailId = '', trailName = 'Unknown Trail' } =
     useLocalSearchParams<{ trailId: string; trailName: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -22,7 +23,19 @@ export default function ActiveRunScreen() {
   const [debugTaps, setDebugTaps] = useState(0);
 
   const { profile, isAuthenticated } = useAuthContext();
-  const geo = getTrailGeo(trailId) ?? null;
+
+  // Resolve venue for this trail
+  const venueMatch = getVenueForTrail(trailId);
+  const spotId = venueMatch?.venueId ?? DEFAULT_SPOT_ID;
+  const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
+
+  // Find trail geo from resolved venue
+  const geo = (() => {
+    if (venueMatch) {
+      return venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null;
+    }
+    return null;
+  })();
 
   const {
     state,
@@ -70,11 +83,14 @@ export default function ActiveRunScreen() {
         beginReadinessCheck();
         break;
       case 'readiness_check':
-        if (state.readiness.rankedEligible && isAuthenticated) {
+        if (isTrainingOnly) {
+          // Training-only venue: always practice, never ranked
+          tapLight();
+          armRun('practice');
+        } else if (state.readiness.rankedEligible && isAuthenticated) {
           tapMedium();
           armRun('ranked');
         } else if (state.readiness.rankedEligible && !isAuthenticated) {
-          // Ranked eligible but not signed in — gate it
           tapLight();
           router.push('/auth');
         } else if (state.readiness.ctaEnabled) {
@@ -142,7 +158,7 @@ export default function ActiveRunScreen() {
         if (state.readiness.rankedEligible) return state.readiness.ctaLabel;
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
-      case 'armed_ranked': return 'UZBROJONY — CZEKAM NA DROP';
+      case 'armed_ranked': return isTrainingOnly ? 'TRENING — CZEKAM NA START' : 'UZBROJONY — CZEKAM NA DROP';
       case 'armed_practice': return 'TRENING — CZEKAM NA START';
       case 'running_ranked': return 'ZJAZD RANKINGOWY';
       case 'running_practice': return 'ZJAZD TRENINGOWY';

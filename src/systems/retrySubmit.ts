@@ -19,6 +19,7 @@ import { calculateRunXp } from './xp';
 import { logDebugEvent } from './debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { DEFAULT_SPOT_ID } from '@/constants';
+import { getVenueForTrail } from '@/data/venueConfig';
 
 export interface RetryResult {
   success: boolean;
@@ -82,9 +83,11 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       previousPosition: null,
     });
 
+    const resolvedSpotId = getVenueForTrail(run.trailId)?.venueId ?? DEFAULT_SPOT_ID;
+
     const result = await submitRunToBackend({
       userId,
-      spotId: DEFAULT_SPOT_ID,
+      spotId: resolvedSpotId,
       trailId: run.trailId,
       mode: run.mode,
       startedAt: run.startedAt,

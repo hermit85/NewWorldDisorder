@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
@@ -22,6 +22,44 @@ import { initSaveQueue } from '@/systems/saveQueue';
 const DebugDrawerLazy = __DEV__
   ? require('@/components/dev/DebugDrawer').DebugDrawer
   : null;
+
+// ── Error Boundary — catches crashes, shows recovery UI ──
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[NWD] Uncaught error:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0A0A0F', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
+            CRASH
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+            Coś poszło nie tak. Spróbuj ponownie.
+          </Text>
+          <Pressable
+            onPress={() => this.setState({ hasError: false, error: null })}
+            style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 }}
+          >
+            <Text style={{ color: '#fff', fontSize: 13, letterSpacing: 2 }}>PONÓW</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -61,6 +99,7 @@ export default function RootLayout() {
   }
 
   return (
+    <AppErrorBoundary>
     <AuthProvider>
       <StatusBar style="light" />
       <View style={{ flex: 1 }}>
@@ -124,6 +163,7 @@ export default function RootLayout() {
         )}
       </View>
     </AuthProvider>
+    </AppErrorBoundary>
   );
 }
 

@@ -238,8 +238,9 @@ export default function ResultScreen() {
 
   // ── Retry save — uses canonical path (same as saveQueue) ──
   const handleRetrySave = async () => {
-    if (!run || !authProfile?.id || retrying) return;
-    if (run.saveStatus !== 'failed') return;
+    if (!run || retrying) return;
+    if (run.saveStatus !== 'failed' && run.saveStatus !== 'queued' && run.saveStatus !== 'offline') return;
+    if (!run.userId) return;
 
     setRetrying(true);
     selectionTick();
@@ -357,6 +358,70 @@ export default function ResultScreen() {
           </Text>
         </Animated.View>
 
+        {/* ═══ SAVE STATUS — immediately after time, before celebrations ═══ */}
+        {/* User must know immediately: did this save? */}
+        <View style={styles.saveRow}>
+          {/* Mutually exclusive save states — only ONE badge renders */}
+          {isSaving ? (
+            <View style={styles.savingBadge}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.savingText}>ZAPISUJĘ DO LIGI…</Text>
+            </View>
+          ) : (isFailed || run.saveStatus === 'offline') && !isPractice ? (
+            <View style={styles.saveFailCard}>
+              <Text style={styles.saveFailTitle}>
+                {run.saveStatus === 'offline' ? 'ZAPISANO LOKALNIE' : 'ZAPIS NIE POWIÓDŁ SIĘ'}
+              </Text>
+              <Text style={styles.saveFailBody}>
+                {run.saveStatus === 'offline'
+                  ? 'Brak internetu. Wyślę automatycznie gdy wrócisz online.'
+                  : 'Zjazd zapisany lokalnie. Możesz spróbować ponownie.'}
+              </Text>
+              {isFailed && !!run.userId && (
+                <Pressable
+                  style={[styles.retryInlineBtn, retrying && { opacity: 0.5 }]}
+                  onPress={handleRetrySave}
+                  disabled={retrying}
+                >
+                  <Text style={styles.retryInlineBtnText}>
+                    {retrying ? 'ZAPISUJĘ…' : 'PONÓW ZAPIS'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          ) : isQueued ? (
+            <View style={styles.saveQueuedCard}>
+              <Text style={styles.saveQueuedTitle}>CZEKA NA WYSŁANIE</Text>
+              <Text style={styles.saveQueuedBody}>
+                Zjazd w kolejce. Wyślę automatycznie.
+              </Text>
+              {!!run.userId && (
+                <Pressable
+                  style={[styles.retryInlineBtn, retrying && { opacity: 0.5 }]}
+                  onPress={handleRetrySave}
+                  disabled={retrying}
+                >
+                  <Text style={styles.retryInlineBtnText}>
+                    {retrying ? 'ZAPISUJĘ…' : 'WYŚLIJ TERAZ'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          ) : isPractice ? (
+            <View style={styles.savePracticeBadge}>
+              <Text style={styles.savePracticeText}>TRENING ZAPISANY</Text>
+            </View>
+          ) : isSaved && isVerified ? (
+            <View style={styles.saveOfficialBadge}>
+              <Text style={styles.saveOfficialText}>✓ WYNIK W LIDZE</Text>
+            </View>
+          ) : isSaved && !isVerified && isRanked ? (
+            <View style={styles.saveSavedBadge}>
+              <Text style={styles.saveSavedText}>ZAPISANY · POZA RANKINGIEM</Text>
+            </View>
+          ) : null}
+        </View>
+
         {/* ═══ PB CELEBRATION ═══ */}
         {isPb && (
           <View style={styles.pbCard}>
@@ -459,70 +524,11 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ═══ SAVE STATUS — league sync ═══ */}
-        <View style={styles.saveRow}>
-          {isSaving && (
-            <View style={styles.savingBadge}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.savingText}>SYNCHRONIZUJĘ Z LIGĄ...</Text>
-            </View>
-          )}
-          {isSaved && isVerified && (
-            <View style={styles.saveOfficialBadge}>
-              <Text style={styles.saveOfficialText}>✓ OFICJALNY WYNIK LIGI</Text>
-            </View>
-          )}
-          {isSaved && !isVerified && isRanked && (
-            <View style={styles.saveSavedBadge}>
-              <Text style={styles.saveSavedText}>ZAPISANY · POZA OFICJALNYM RANKINGIEM</Text>
-            </View>
-          )}
-          {isPractice && (
-            <View style={styles.savePracticeBadge}>
-              <Text style={styles.savePracticeText}>TRENING · POZA RANKINGIEM</Text>
-            </View>
-          )}
-          {isFailed && (
-            <View style={styles.saveFailBadge}>
-              <Text style={styles.saveFailText}>NIE UDAŁO SIĘ ZAPISAĆ</Text>
-            </View>
-          )}
-          {isQueued && (
-            <View style={styles.saveQueuedBadge}>
-              <Text style={styles.saveQueuedText}>CZEKA NA ZAPIS · PONOWI AUTOMATYCZNIE</Text>
-            </View>
-          )}
-          {run.saveStatus === 'offline' && !isPractice && (
-            <View style={styles.saveFailBadge}>
-              <Text style={styles.saveFailText}>BRAK POŁĄCZENIA</Text>
-            </View>
-          )}
-        </View>
-
         {/* ═══ STATUS CONTEXT — soft human explanation ═══ */}
         {!isVerified && !isPractice && vStatus !== 'pending' && (
           <View style={styles.statusContextCard}>
             <Text style={[styles.statusContextLabel, { color: sd.color }]}>{sd.label}</Text>
             <Text style={styles.statusContextBody}>{sd.description}</Text>
-          </View>
-        )}
-
-        {/* ═══ RETRY CARD — verified but sync failed/queued ═══ */}
-        {(isFailed || isQueued) && isRanked && isVerified && (
-          <View style={styles.retryCard}>
-            <Text style={styles.retryTitle}>ZJAZD BYŁ CZYSTY</Text>
-            <Text style={styles.retryBody}>
-              Weryfikacja przeszła, ale zapis do ligi nie powiódł się. Spróbuj ponownie.
-            </Text>
-            <Pressable
-              style={[styles.retryBtn, retrying && { opacity: 0.5 }]}
-              onPress={handleRetrySave}
-              disabled={retrying}
-            >
-              <Text style={styles.retryBtnText}>
-                {retrying ? 'ZAPISUJĘ...' : 'PONÓW ZAPIS'}
-              </Text>
-            </Pressable>
           </View>
         )}
 
@@ -587,6 +593,21 @@ export default function ResultScreen() {
             <Text style={styles.secondaryBtnText}>TRASA</Text>
           </Pressable>
         </View>
+        {/* ═══ FIELD TEST DEBUG — tester-visible verification summary ═══ */}
+        <View style={styles.debugCard}>
+          <Text style={styles.debugTitle}>DANE ZJAZDU</Text>
+          <Text style={styles.debugLine}>Trail: {run.trailId}</Text>
+          <Text style={styles.debugLine}>Mode: {run.mode}</Text>
+          <Text style={styles.debugLine}>Verification: {vStatus}</Text>
+          <Text style={styles.debugLine}>Leaderboard eligible: {v?.isLeaderboardEligible ? 'YES' : 'NO'}</Text>
+          <Text style={styles.debugLine}>Quality: {run.qualityTier ?? 'N/A'}</Text>
+          <Text style={styles.debugLine}>Save: {run.saveStatus}</Text>
+          <Text style={styles.debugLine}>Duration: {run.durationMs}ms</Text>
+          {v?.checkpointsPassed != null && (
+            <Text style={styles.debugLine}>Checkpoints: {v.checkpointsPassed}/{v.checkpointsTotal}</Text>
+          )}
+          <Text style={styles.debugLine}>Session: {run.sessionId?.slice(0, 12)}…</Text>
+        </View>
       </Animated.ScrollView>
     </SafeAreaView>
   );
@@ -612,7 +633,7 @@ const styles = StyleSheet.create({
   statusText: { ...typography.labelSmall, letterSpacing: 3, fontSize: 9 },
 
   // Time — hero
-  timeContainer: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.sm },
+  timeContainer: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
   timeHero: { fontFamily: 'Orbitron_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 3 },
 
   // PB celebration
@@ -620,10 +641,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.accentDim,
     borderRadius: radii.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.accent + '40',
+    borderColor: colors.accent + '60',
     gap: spacing.xxs,
   },
   pbIcon: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.accent },
@@ -680,10 +701,42 @@ const styles = StyleSheet.create({
   saveSavedText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
   savePracticeBadge: { backgroundColor: 'rgba(0,122,255,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   savePracticeText: { ...typography.labelSmall, color: colors.blue, letterSpacing: 1, fontSize: 10 },
-  saveFailBadge: { backgroundColor: 'rgba(255,149,0,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  saveFailText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1, fontSize: 10 },
-  saveQueuedBadge: { backgroundColor: 'rgba(255,204,0,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  saveQueuedText: { ...typography.labelSmall, color: colors.gold, letterSpacing: 1, fontSize: 9 },
+  // Failed/offline — card with inline retry
+  saveFailCard: {
+    backgroundColor: 'rgba(255,149,0,0.06)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(255,149,0,0.15)',
+  },
+  saveFailTitle: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 10 },
+  saveFailBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', fontSize: 12, lineHeight: 18 },
+  // Queued — card with send-now
+  saveQueuedCard: {
+    backgroundColor: 'rgba(255,204,0,0.05)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(255,204,0,0.12)',
+  },
+  saveQueuedTitle: { ...typography.labelSmall, color: colors.gold, letterSpacing: 2, fontSize: 10 },
+  saveQueuedBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', fontSize: 12, lineHeight: 18 },
+  // Inline retry button (used in both fail and queued cards)
+  retryInlineBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,149,0,0.40)',
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  retryInlineBtnText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 10 },
 
   // Status context card (non-verified explanation)
   statusContextCard: {
@@ -699,20 +752,7 @@ const styles = StyleSheet.create({
   statusContextLabel: { ...typography.labelSmall, letterSpacing: 3, fontSize: 10 },
   statusContextBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20 },
 
-  // Retry card
-  retryCard: {
-    backgroundColor: colors.bgCard,
-    borderRadius: radii.md,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.orange + '30',
-    alignItems: 'center',
-  },
-  retryTitle: { ...typography.labelSmall, color: colors.orange, letterSpacing: 3, marginBottom: spacing.sm, fontSize: 10 },
-  retryBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
-  retryBtn: { borderWidth: 1, borderColor: colors.orange + '60', borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  retryBtnText: { ...typography.label, color: colors.orange, letterSpacing: 2, fontSize: 11 },
+  // (retry card merged into saveFailCard / saveQueuedCard above)
 
   // League impact
   impactSection: { marginBottom: spacing.lg },
@@ -738,4 +778,16 @@ const styles = StyleSheet.create({
   secondaryCtaRow: { flexDirection: 'row', gap: spacing.sm },
   secondaryBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
   secondaryBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
+
+  // Field test debug card
+  debugCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginTop: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  debugTitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 8, marginBottom: spacing.sm },
+  debugLine: { fontFamily: 'Inter_400Regular', fontSize: 10, color: 'rgba(255, 255, 255, 0.25)', lineHeight: 16 },
 });

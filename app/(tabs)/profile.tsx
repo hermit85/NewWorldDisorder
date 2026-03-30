@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { getRank } from '@/systems/ranks';
+import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { getLevel, getLevelProgress } from '@/systems/xp';
 import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -14,6 +14,17 @@ import { RiderAvatar } from '@/components/RiderAvatar';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
+
+// All achievements in the game — locked ones shown as placeholders
+const ACHIEVEMENT_CATALOG = [
+  { slug: 'first-blood', name: 'First Blood', icon: '▲', description: 'Pierwszy zweryfikowany zjazd' },
+  { slug: 'top-10-entry', name: 'Top 10', icon: '★', description: 'Wejdź do TOP 10 na dowolnej trasie' },
+  { slug: 'weekend-warrior', name: 'Weekend Warrior', icon: '◆', description: '3 zjazdy w jeden weekend' },
+  { slug: 'double-pb', name: 'Double PB', icon: '⚡', description: 'Dwa rekordy w jeden dzień' },
+  { slug: 'trail-hunter', name: 'Trail Hunter', icon: '◇', description: 'Zjedź każdą trasę w ośrodku' },
+  { slug: 'slotwiny-local', name: 'Local Hero', icon: '♛', description: '20 zjazdów łącznie' },
+  { slug: 'gravity-addict', name: 'Gravity Addict', icon: '✦', description: '50 zjazdów łącznie' },
+] as const;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -165,6 +176,31 @@ export default function ProfileScreen() {
                   </View>
                 );
               })()}
+
+              {/* Rank progress bar — shows progress to next rank */}
+              {(() => {
+                const rp = getXpToNextRank(user?.xp ?? 0);
+                if (!rp.nextRank) return null; // max rank reached
+                return (
+                  <View style={styles.rankProgressSection}>
+                    <View style={styles.xpBarBg}>
+                      <View
+                        style={[
+                          styles.xpBarFill,
+                          { width: `${rp.progress * 100}%`, backgroundColor: rank.color },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.rankProgressText}>
+                      <Text style={{ color: rank.color }}>{rank.icon} {rank.name}</Text>
+                      {'  →  '}
+                      <Text style={{ color: rp.nextRank.color }}>{rp.nextRank.icon} {rp.nextRank.name}</Text>
+                      {'  ·  '}
+                      {rp.xpNeeded} XP
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Stats */}
@@ -174,24 +210,36 @@ export default function ProfileScreen() {
               <StatBox label={copy.bestPosition} value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'} />
             </View>
 
-            {/* Achievements */}
-            {achievements.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>OSIĄGNIĘCIA</Text>
-                <View style={styles.achievementGrid}>
-                  {achievements.map((a) => (
-                    <View key={a.id} style={styles.achievementItem}>
-                      <View style={[styles.achievementBadge, styles.achievementBadgeUnlocked]}>
-                        <Text style={[styles.achievementBadgeText, { color: colors.accent }]}>
-                          {a.icon}
-                        </Text>
-                      </View>
-                      <Text style={styles.achievementName}>{a.name}</Text>
+            {/* Achievements — full catalog with locked/unlocked states */}
+            <Text style={styles.sectionTitle}>
+              OSIĄGNIĘCIA · {achievements.length}/{ACHIEVEMENT_CATALOG.length}
+            </Text>
+            <View style={styles.achievementGrid}>
+              {ACHIEVEMENT_CATALOG.map((def) => {
+                const unlocked = achievements.find((a) => a.slug === def.slug);
+                return (
+                  <View key={def.slug} style={[styles.achievementItem, !unlocked && styles.achievementItemLocked]}>
+                    <View style={[
+                      styles.achievementBadge,
+                      unlocked ? styles.achievementBadgeUnlocked : styles.achievementBadgeLocked,
+                    ]}>
+                      <Text style={[
+                        styles.achievementBadgeText,
+                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.15)' },
+                      ]}>
+                        {def.icon}
+                      </Text>
                     </View>
-                  ))}
-                </View>
-              </>
-            )}
+                    <Text style={[styles.achievementName, !unlocked && styles.achievementNameLocked]}>
+                      {unlocked ? def.name : '???'}
+                    </Text>
+                    {!unlocked && (
+                      <Text style={styles.achievementHint}>{def.description}</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </>
         )}
 
@@ -269,6 +317,8 @@ const styles = StyleSheet.create({
   xpBarBg: { height: 6, backgroundColor: colors.bgElevated, borderRadius: 3, overflow: 'hidden' },
   xpBarFill: { height: '100%', borderRadius: 3 },
   xpText: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.xs },
+  rankProgressSection: { width: '100%', marginTop: spacing.md },
+  rankProgressText: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.xs, fontSize: 10 },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xxl },
   statBox: { flex: 1, backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   statValue: { ...typography.timeMedium, color: colors.textPrimary },
@@ -278,8 +328,12 @@ const styles = StyleSheet.create({
   achievementItem: { width: '47%', backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   achievementBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   achievementBadgeUnlocked: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  achievementBadgeLocked: { borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' },
   achievementBadgeText: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.textTertiary },
   achievementName: { ...typography.bodySmall, color: colors.textPrimary, textAlign: 'center', fontFamily: 'Inter_600SemiBold' },
+  achievementNameLocked: { color: colors.textTertiary, opacity: 0.5 },
+  achievementHint: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 9, opacity: 0.5, marginTop: 2 },
+  achievementItemLocked: { opacity: 0.6 },
   signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
   signInTitle: { ...typography.label, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
   signInDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },

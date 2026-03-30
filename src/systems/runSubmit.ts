@@ -13,15 +13,26 @@
 import { RunTrace } from './traceCapture';
 import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
-import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp } from '@/lib/api';
+import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp, fetchProfile } from '@/lib/api';
 import { calculateRunXp, type XpBreakdown } from './xp';
 import { DEFAULT_SPOT_ID } from '@/constants';
+import { getVenueForTrail } from '@/data/venueConfig';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';
 import { logDebugEvent } from './debugEvents';
 import { shouldSimSaveFail, getSimSaveDelay } from './testMode';
 
 export type BackendSaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'offline';
+
+const SUBMIT_TIMEOUT_MS = 30_000;
+const _submittingSessionIds = new Set<string>();
+
+const ACHIEVEMENT_IDS = {
+  firstBlood: 'ach-first-blood',
+  top10Entry: 'ach-top-10',
+  slotwinyLocal: 'ach-slotwiny-local',
+  gravityAddict: 'ach-gravity-addict',
+} as const;
 
 /**
  * Determine initial save status based on backend + user availability.
@@ -62,12 +73,20 @@ export async function submitRun(params: {
     return null;
   }
 
+  // Guard: double-tap prevention — skip if already submitting this session
+  if (_submittingSessionIds.has(sessionId)) {
+    logDebugEvent('save', 'submit_skip_duplicate', 'info', { runSessionId: sessionId });
+    return null;
+  }
+  _submittingSessionIds.add(sessionId);
+
   logDebugEvent('save', 'submit_start', 'start', { runSessionId: sessionId, trailId });
 
   // Simulation: force save failure
   if (shouldSimSaveFail()) {
     logDebugEvent('save', 'sim_save_fail', 'fail', { runSessionId: sessionId });
     updateFinalizedRun(sessionId, { saveStatus: 'failed' });
+    _submittingSessionIds.delete(sessionId);
     return null;
   }
 
@@ -91,9 +110,13 @@ export async function submitRun(params: {
       previousPosition: null,
     });
 
-    const result = await submitRunToBackend({
+    // Resolve venue from trail (multi-venue aware)
+    const resolvedSpotId = getVenueForTrail(trailId)?.venueId ?? DEFAULT_SPOT_ID;
+
+    // Submit with timeout protection
+    const submitPromise = submitRunToBackend({
       userId,
-      spotId: DEFAULT_SPOT_ID,
+      spotId: resolvedSpotId,
       trailId,
       mode: trace.mode,
       startedAt: trace.startedAt,
@@ -104,6 +127,10 @@ export async function submitRun(params: {
       xpAwarded: baseXp.total,
       qualityTier,
     });
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), SUBMIT_TIMEOUT_MS),
+    );
+    const result = await Promise.race([submitPromise, timeoutPromise]);
 
     if (result) {
       // Calculate bonus XP now that we know PB + position
@@ -155,6 +182,8 @@ export async function submitRun(params: {
     });
     updateFinalizedRun(sessionId, { saveStatus: 'queued' });
     return null;
+  } finally {
+    _submittingSessionIds.delete(sessionId);
   }
 }
 
@@ -170,8 +199,15 @@ export async function updateProgression(
   totalRuns?: number,
 ): Promise<void> {
   try {
+    let effectiveTotalRuns = totalRuns ?? null;
+    if (effectiveTotalRuns == null) {
+      const profile = await fetchProfile(userId);
+      effectiveTotalRuns = profile?.total_runs ?? null;
+    }
+
     // ── Challenges ──
-    const challenges = await fetchActiveChallenges(DEFAULT_SPOT_ID);
+    const challengeSpotId = getVenueForTrail(trailId)?.venueId ?? DEFAULT_SPOT_ID;
+    const challenges = await fetchActiveChallenges(challengeSpotId);
     const now = new Date();
 
     for (const ch of challenges) {
@@ -191,21 +227,22 @@ export async function updateProgression(
 
     // ── Achievements (fire-and-forget, idempotent) ──
     // First Blood — always fire (upsert is safe)
-    await unlockAchievement(userId, 'first-blood');
+    await unlockAchievement(userId, ACHIEVEMENT_IDS.firstBlood);
 
     // Top 10 Entry — if rider entered top 10 on this run
     if (position != null && position <= 10) {
-      await unlockAchievement(userId, 'top-10-entry');
+      await unlockAchievement(userId, ACHIEVEMENT_IDS.top10Entry);
     }
 
-    // Słotwiny Local — 20+ total runs
-    if (totalRuns != null && totalRuns >= 20) {
-      await unlockAchievement(userId, 'slotwiny-local');
+    // Słotwiny Local — 20+ total runs (global count, not venue-filtered yet)
+    // TODO: filter by venue-specific run count when backend supports per-venue aggregation
+    if (effectiveTotalRuns != null && effectiveTotalRuns >= 20) {
+      await unlockAchievement(userId, ACHIEVEMENT_IDS.slotwinyLocal);
     }
 
     // Gravity Addict — 50+ total runs
-    if (totalRuns != null && totalRuns >= 50) {
-      await unlockAchievement(userId, 'gravity-addict');
+    if (effectiveTotalRuns != null && effectiveTotalRuns >= 50) {
+      await unlockAchievement(userId, ACHIEVEMENT_IDS.gravityAddict);
     }
   } catch (e) {
     console.warn('[NWD] Progression update failed:', e);

@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "4",
+      "buildNumber": "6",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "NWD needs your location to track runs, verify routes, and determine your position on the trail.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -41,6 +41,12 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NWD potrzebuje dostępu do galerii, żeby ustawić Twoje zdjęcie profilowe."
+        }
+      ],
       [
         "expo-location",
         {

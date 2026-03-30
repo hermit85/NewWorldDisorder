@@ -61,19 +61,35 @@ type RunStatusLabel = {
 };
 
 function getRunStatus(run: FinalizedRun): RunStatusLabel {
+  // 5 clear user-facing categories:
+  // ZALICZONY — verified, in league
+  // TRENING — practice mode, not ranked
+  // SŁABY SYGNAŁ — weak GPS, saved but not ranked
+  // OCZEKUJE — still pending verification/save
+  // NIEZALICZONY — failed verification (shortcut, off-route, etc.)
+
   if (run.mode === 'practice') {
-    return { text: 'TRENING', color: colors.blue, icon: '◇' };
+    return { text: 'TRENING', color: colors.blue, icon: '○' };
   }
 
-  if (run.verification?.isLeaderboardEligible) {
-    if (run.qualityTier === 'perfect') {
-      return { text: 'CZYSTY PRZEJAZD', color: colors.accent, icon: '▲' };
-    }
-    if (run.qualityTier === 'rough') {
-      return { text: 'OGRANICZONA PRECYZJA', color: colors.orange, icon: '▲' };
-    }
-    // valid or default
-    return { text: 'ZALICZONY', color: colors.accent, icon: '▲' };
+  const v = run.verification;
+  if (!v || v.status === 'pending') {
+    return { text: 'OCZEKUJE', color: colors.gold, icon: '…' };
+  }
+
+  if (v.isLeaderboardEligible) {
+    return { text: 'ZALICZONY', color: colors.accent, icon: '✓' };
+  }
+
+  if (v.status === 'weak_signal') {
+    return { text: 'SŁABY SYGNAŁ', color: colors.orange, icon: '!' };
+  }
+
+  // All other non-eligible: shortcut, off-route, missing checkpoint, etc.
+  if (v.status === 'shortcut_detected' || v.status === 'invalid_route' ||
+      v.status === 'outside_start_gate' || v.status === 'outside_finish_gate' ||
+      v.status === 'missing_checkpoint') {
+    return { text: 'NIEZALICZONY', color: colors.red, icon: '✕' };
   }
 
   return { text: 'ZAPISANY', color: colors.textTertiary, icon: '—' };
@@ -81,13 +97,14 @@ function getRunStatus(run: FinalizedRun): RunStatusLabel {
 
 function getSaveIndicator(status: SaveStatus): { text: string; color: string } | null {
   switch (status) {
-    case 'queued':
     case 'saving':
-      return { text: 'Zapisywanie…', color: colors.orange };
+      return { text: 'Zapisuję…', color: colors.accent };
+    case 'queued':
+      return { text: 'W kolejce', color: colors.gold };
     case 'failed':
-      return { text: 'Zapis nieudany', color: colors.red };
+      return { text: 'Zapis nieudany · otwórz aby ponowić', color: colors.orange };
     case 'offline':
-      return { text: 'Offline', color: colors.textTertiary };
+      return { text: 'Zapisano lokalnie · wyślę online', color: colors.textTertiary };
     default:
       return null;
   }

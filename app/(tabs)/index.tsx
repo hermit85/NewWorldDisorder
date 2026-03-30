@@ -4,38 +4,77 @@
 // Not a dashboard. A league lobby.
 // ═══════════════════════════════════════════════════════════
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getPendingSaveCount, subscribeFinalizedRun } from '@/systems/runStore';
+import { flushSaveQueue } from '@/systems/saveQueue';
+import { tapLight } from '@/systems/haptics';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
-import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { mockSpots } from '@/data/mock/spots';
-import { mockTrails } from '@/data/mock/trails';
+import { getTrailsForSpot } from '@/data/mock/trails';
+import { getAllVenues, getVenue } from '@/data/venues';
+import { DEFAULT_SPOT_ID } from '@/constants';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { formatTimeShort } from '@/content/copy';
-import { spotLore } from '@/data/seed/slotwinyLore';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement } from '@/hooks/useBackend';
 import { LeagueSignal } from '@/systems/leagueMovement';
 import { useVenueContext } from '@/hooks/useVenueContext';
 
+const VENUE_STORAGE_KEY = '@nwd_selected_venue';
+
 export default function HomeScreen() {
   const router = useRouter();
   const { profile: authProfile, isAuthenticated } = useAuthContext();
 
+  // ── Venue selection (persisted) ──
+  const [selectedVenueId, setSelectedVenueId] = useState(DEFAULT_SPOT_ID);
+  useEffect(() => {
+    AsyncStorage.getItem(VENUE_STORAGE_KEY).then((stored) => {
+      if (stored && getVenue(stored)) setSelectedVenueId(stored);
+    });
+  }, []);
+
+  const handleVenueSelect = useCallback((venueId: string) => {
+    tapLight();
+    setSelectedVenueId(venueId);
+    AsyncStorage.setItem(VENUE_STORAGE_KEY, venueId);
+  }, []);
+
+  const allVenues = getAllVenues();
+  const venue = getVenue(selectedVenueId);
+  const spot = mockSpots.find((s) => s.id === selectedVenueId) ?? mockSpots[0];
+  const venueTrails = getTrailsForSpot(selectedVenueId);
+
+  // Featured trail = first trail of selected venue (for board preview)
+  const featuredTrailId = venue?.trails[0]?.id ?? venueTrails[0]?.id;
+
   const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
   const { stats: trailStats, status: trailStatsStatus } = useUserTrailStats(authProfile?.id);
-  const { entries: topBoard, status: boardStatus } = useLeaderboard('dzida-czerwona', 'all_time', authProfile?.id);
-  const { activity: venueActivity, status: venueActivityStatus } = useVenueActivity('slotwiny-arena');
+  const { entries: topBoard, status: boardStatus } = useLeaderboard(featuredTrailId, 'all_time', authProfile?.id);
+  const { activity: venueActivity, status: venueActivityStatus } = useVenueActivity(selectedVenueId);
   const venueCtx = useVenueContext(true);
 
   const { signals: leagueSignals } = useLeagueMovement(authProfile?.id, venueActivity);
 
-  const spot = mockSpots[0];
+  // ── Pending saves indicator ──
+  const [pendingSaves, setPendingSaves] = useState(getPendingSaveCount());
+  useEffect(() => {
+    const unsub = subscribeFinalizedRun(() => setPendingSaves(getPendingSaveCount()));
+    return unsub;
+  }, []);
+
+  const handleFlushQueue = useCallback(() => {
+    tapLight();
+    flushSaveQueue();
+  }, []);
+
   const isAtVenue = venueCtx.context?.venue.isInsideVenue ?? false;
   const startZone = venueCtx.context?.startZone ?? null;
   const rank = user ? getRank(user.rankId) : getRank('rookie');
@@ -47,6 +86,7 @@ export default function HomeScreen() {
   // Top rider on featured board
   const topRider = topBoard.length > 0 ? topBoard[0] : null;
   const myBoardEntry = topBoard.find(e => e.isCurrentUser);
+  const featuredTrailName = venue?.trails[0]?.name ?? venueTrails[0]?.name ?? 'Trasa';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,6 +116,43 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* ═══ VENUE PICKER RAIL ═══ */}
+        {allVenues.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.venueRail}
+            contentContainerStyle={styles.venueRailContent}
+          >
+            {allVenues.map((v) => {
+              const isActive = v.id === selectedVenueId;
+              return (
+                <Pressable
+                  key={v.id}
+                  style={[styles.venueChip, isActive && styles.venueChipActive]}
+                  onPress={() => handleVenueSelect(v.id)}
+                >
+                  <Text style={[styles.venueChipText, isActive && styles.venueChipTextActive]}>
+                    {v.name.toUpperCase()}
+                  </Text>
+                  {isActive && <View style={styles.venueChipBar} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* ═══ PENDING SAVES BANNER ═══ */}
+        {pendingSaves > 0 && (
+          <Pressable style={styles.pendingBanner} onPress={handleFlushQueue}>
+            <Text style={styles.pendingDot}>●</Text>
+            <Text style={styles.pendingText}>
+              {pendingSaves === 1 ? '1 zjazd czeka na wysłanie' : `${pendingSaves} zjazdy czekają na wysłanie`}
+            </Text>
+            <Text style={styles.pendingAction}>WYŚLIJ</Text>
+          </Pressable>
+        )}
+
         {/* ═══ START-ZONE PROMPT — highest priority when at a start gate ═══ */}
         {isAtVenue && startZone?.isAtStart && startZone.nearestStart && !startZone.ambiguous && (
           <View style={styles.startZoneCard}>
@@ -86,7 +163,7 @@ export default function HomeScreen() {
                 style={styles.startZoneRanked}
                 onPress={() => router.push({
                   pathname: '/run/active',
-                  params: { trailId: startZone.nearestStart!.trailId, trailName: startZone.nearestStart!.trailName },
+                  params: { trailId: startZone.nearestStart?.trailId, trailName: startZone.nearestStart?.trailName },
                 })}
               >
                 <Text style={styles.startZoneRankedText}>JEDŹ RANKINGOWO</Text>
@@ -95,7 +172,7 @@ export default function HomeScreen() {
                 style={styles.startZonePractice}
                 onPress={() => router.push({
                   pathname: '/run/active',
-                  params: { trailId: startZone.nearestStart!.trailId, trailName: startZone.nearestStart!.trailName },
+                  params: { trailId: startZone.nearestStart?.trailId, trailName: startZone.nearestStart?.trailName },
                 })}
               >
                 <Text style={styles.startZonePracticeText}>TRENING</Text>
@@ -129,7 +206,7 @@ export default function HomeScreen() {
         {isAtVenue && !startZone?.isAtStart && startZone?.isNearStart && startZone.nearestStart && (
           <Pressable
             style={styles.nearStartCard}
-            onPress={() => router.push(`/trail/${startZone.nearestStart!.trailId}`)}
+            onPress={() => router.push(`/trail/${startZone.nearestStart?.trailId}`)}
           >
             <Text style={styles.nearStartTag}>BLISKO STARTU</Text>
             <Text style={styles.nearStartTrail}>
@@ -164,7 +241,7 @@ export default function HomeScreen() {
 
           <View style={styles.venueStats}>
             <View style={styles.venueStat}>
-              <Text style={styles.venueStatValue}>{mockTrails.length}</Text>
+              <Text style={styles.venueStatValue}>{venueTrails.length}</Text>
               <Text style={styles.venueStatLabel}>TRAS</Text>
             </View>
             <View style={styles.venueStatDivider} />
@@ -220,7 +297,7 @@ export default function HomeScreen() {
             </View>
             {myBoardEntry && (
               <View style={styles.riderBoardRow}>
-                <Text style={styles.riderBoardLabel}>Dzida Czerwona</Text>
+                <Text style={styles.riderBoardLabel}>{featuredTrailName}</Text>
                 <Text style={styles.riderBoardPos}>#{myBoardEntry.currentPosition}</Text>
               </View>
             )}
@@ -276,7 +353,7 @@ export default function HomeScreen() {
             style={styles.boardCard}
             onPress={() => router.push('/(tabs)/leaderboard')}
           >
-            <Text style={styles.boardTag}>TABLICA · DZIDA CZERWONA</Text>
+            <Text style={styles.boardTag}>TABLICA · {featuredTrailName.toUpperCase()}</Text>
             {topBoard.slice(0, 3).map((entry) => (
               <View key={entry.userId} style={styles.boardRow}>
                 <Text style={[
@@ -305,10 +382,10 @@ export default function HomeScreen() {
 
         {/* ═══ TRAILS LIST ═══ */}
         <Text style={styles.sectionLabel}>TRASY · {spot.name.toUpperCase()}</Text>
-        {mockTrails.map((trail) => {
+        {venueTrails.map((trail) => {
           const stats = trailStats.get(trail.id);
-          const official = slotwinyTrails.find((o) => o.id === trail.id);
-          const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
+          const venueTrail = venue?.trails.find((o) => o.id === trail.id);
+          const diffColor = getTrailColor(venueTrail?.colorClass, trail.difficulty);
           const hasResult = !!stats?.pbMs;
           return (
             <Pressable
@@ -346,6 +423,52 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
+
+  // Venue picker rail
+  venueRail: { marginHorizontal: -spacing.lg, marginBottom: spacing.md },
+  venueRailContent: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+  venueChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.sm,
+    alignItems: 'center' as const,
+  },
+  venueChipActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  venueChipText: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.25)',
+    letterSpacing: 2,
+  },
+  venueChipTextActive: {
+    color: colors.textPrimary,
+  },
+  venueChipBar: {
+    width: 16,
+    height: 1.5,
+    borderRadius: 1,
+    backgroundColor: colors.accent,
+    marginTop: 4,
+  },
+
+  // Pending saves banner
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255, 204, 0, 0.06)',
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.12)',
+  },
+  pendingDot: { fontSize: 8, color: colors.gold },
+  pendingText: { flex: 1, ...typography.bodySmall, color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  pendingAction: { ...typography.labelSmall, color: colors.gold, letterSpacing: 2, fontSize: 9 },
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },

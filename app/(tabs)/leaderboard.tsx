@@ -5,15 +5,19 @@ import { useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTrailColor } from '@/theme/map';
-import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
-import { mockTrails } from '@/data/mock/trails';
+import { getTrailsForSpot } from '@/data/mock/trails';
+import { getVenue, getAllVenues } from '@/data/venues';
+import { DEFAULT_SPOT_ID } from '@/constants';
 import { formatTimeShort } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard } from '@/hooks/useBackend';
+
+const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 
 const SCOPES: { key: PeriodType; label: string }[] = [
   { key: 'day', label: 'DZIŚ' },
@@ -33,18 +37,37 @@ export default function LeaderboardScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(
     (params.scope as PeriodType) || 'all_time',
   );
+  const [selectedVenueId, setSelectedVenueId] = useState(DEFAULT_SPOT_ID);
+  const venue = getVenue(selectedVenueId);
+  const venueTrails = getTrailsForSpot(selectedVenueId);
+  const allVenues = getAllVenues();
+
+  // Load persisted venue selection
+  useEffect(() => {
+    AsyncStorage.getItem(VENUE_STORAGE_KEY).then((stored) => {
+      if (stored && getVenue(stored)) setSelectedVenueId(stored);
+    });
+  }, []);
+
   const [selectedTrailId, setSelectedTrailId] = useState(
-    params.trailId && mockTrails.some(t => t.id === params.trailId)
-      ? params.trailId
-      : 'dzida-czerwona',
+    params.trailId ?? venueTrails[0]?.id ?? '',
   );
+
+  // When venue changes, reset to first trail of that venue
+  useEffect(() => {
+    const vTrails = getTrailsForSpot(selectedVenueId);
+    if (vTrails.length > 0 && !vTrails.some(t => t.id === selectedTrailId)) {
+      setSelectedTrailId(vTrails[0].id);
+    }
+  }, [selectedVenueId]);
+
   const { profile } = useAuthContext();
 
   // Entrance animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (params.trailId && mockTrails.some(t => t.id === params.trailId)) {
+    if (params.trailId && venueTrails.some(t => t.id === params.trailId)) {
       setSelectedTrailId(params.trailId);
     }
     if (params.scope && ['day', 'weekend', 'all_time'].includes(params.scope)) {
@@ -91,9 +114,9 @@ export default function LeaderboardScreen() {
     }
   }, []);
 
-  const selectedTrail = mockTrails.find((t) => t.id === selectedTrailId);
-  const selectedOfficial = slotwinyTrails.find((o) => o.id === selectedTrailId);
-  const diffColor = selectedTrail ? getTrailColor(selectedOfficial?.colorClass, selectedTrail.difficulty) : colors.accent;
+  const selectedTrail = venueTrails.find((t) => t.id === selectedTrailId);
+  const selectedVenueTrail = venue?.trails.find((o) => o.id === selectedTrailId);
+  const diffColor = selectedTrail ? getTrailColor(selectedVenueTrail?.colorClass, selectedTrail.difficulty) : colors.accent;
 
   const myEntry = entries.find((e) => e.isCurrentUser);
   const myPos = myEntry?.currentPosition ?? 0;
@@ -133,8 +156,33 @@ export default function LeaderboardScreen() {
             <Text style={styles.title}>TABLICA WYNIKÓW</Text>
             <View style={styles.trustDot} />
           </View>
-          <Text style={styles.subtitle}>TYLKO ZWERYFIKOWANE ZJAZDY</Text>
+          <Text style={styles.subtitle}>
+            {venue?.rankingEnabled === false ? 'WALIDACJA TRENINGOWA' : 'TYLKO ZWERYFIKOWANE ZJAZDY'}
+          </Text>
         </View>
+
+        {/* Venue tabs */}
+        {allVenues.length > 1 && (
+          <View style={styles.venueTabRow}>
+            {allVenues.map((v) => {
+              const isActive = v.id === selectedVenueId;
+              return (
+                <Pressable
+                  key={v.id}
+                  style={[styles.venueTab, isActive && styles.venueTabActive]}
+                  onPress={() => {
+                    setSelectedVenueId(v.id);
+                    AsyncStorage.setItem(VENUE_STORAGE_KEY, v.id);
+                  }}
+                >
+                  <Text style={[styles.venueTabText, isActive && styles.venueTabTextActive]}>
+                    {v.name.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         {/* Scope tabs */}
         <View style={styles.scopeRow}>
@@ -159,10 +207,10 @@ export default function LeaderboardScreen() {
           style={styles.trailSelector}
           contentContainerStyle={styles.trailSelectorContent}
         >
-          {mockTrails.map((trail) => {
+          {venueTrails.map((trail) => {
             const isActive = selectedTrailId === trail.id;
-            const tOfficial = slotwinyTrails.find((o) => o.id === trail.id);
-            const tColor = getTrailColor(tOfficial?.colorClass, trail.difficulty);
+            const vt = venue?.trails.find((o) => o.id === trail.id);
+            const tColor = getTrailColor(vt?.colorClass, trail.difficulty);
             return (
               <Pressable
                 key={trail.id}
@@ -208,12 +256,25 @@ export default function LeaderboardScreen() {
           </View>
         )}
 
-        {/* Empty state */}
-        {!loading && !lbError && entries.length === 0 && (
+        {/* Signed-out state */}
+        {!loading && !lbError && !profile && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>TABLICA PUSTA</Text>
-            <Text style={styles.emptyDesc}>Postaw pierwszy czas na {selectedTrail?.name ?? 'tej trasie'}.</Text>
+            <Text style={styles.emptyTitle}>ZALOGUJ SIĘ</Text>
+            <Text style={styles.emptyDesc}>Tablica wyników wymaga konta. Zjedź trasę, żeby pojawić się w rankingu.</Text>
+          </View>
+        )}
+
+        {/* Empty state (logged in but no entries) */}
+        {!loading && !lbError && !!profile && entries.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyLine}>—</Text>
+            <Text style={styles.emptyTitle}>BRAK WYNIKÓW</Text>
+            <Text style={styles.emptyDesc}>
+              {venue?.rankingEnabled === false
+                ? `${venue.name} jest w trybie walidacji. Ranking pojawi się po weryfikacji tras.`
+                : `Nikt jeszcze nie zjechał ${selectedTrail?.name ?? 'tej trasy'} w tym zakresie. Bądź pierwszy.`}
+            </Text>
           </View>
         )}
 
@@ -450,6 +511,13 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.textPrimary, letterSpacing: 4 },
   trustDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, marginTop: spacing.xxs, fontSize: 9 },
+
+  // Venue tabs
+  venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
+  venueTab: { paddingVertical: spacing.xs },
+  venueTabActive: {},
+  venueTabText: { fontFamily: 'Orbitron_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.20)', letterSpacing: 2 },
+  venueTabTextActive: { color: colors.textPrimary },
 
   // Scope tabs
   scopeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.lg },

@@ -56,8 +56,11 @@ export async function updateProfileXp(userId: string, xpToAdd: number): Promise<
   return { xp: result.xp, rankId: result.rank_id };
 }
 
-/** Fallback for pre-migration environments — non-atomic but works */
+/** Fallback for pre-migration environments — uses select+update (non-atomic).
+ *  WARNING: concurrent calls may lose XP. RPC should be deployed ASAP. */
 async function updateProfileXpFallback(userId: string, xpToAdd: number): Promise<{ xp: number; rankId: string } | null> {
+  console.warn('[NWD] XP fallback used — RPC not available. Deploy increment_profile_xp migration.');
+
   const { data: current } = await db()
     .from('profiles')
     .select('xp')
@@ -66,13 +69,18 @@ async function updateProfileXpFallback(userId: string, xpToAdd: number): Promise
 
   if (!current) return null;
 
-  const newXp = current.xp + xpToAdd;
+  const newXp = (current.xp ?? 0) + xpToAdd;
   const newRank = getRankForXp(newXp);
 
-  await db()
+  const { error } = await db()
     .from('profiles')
     .update({ xp: newXp, rank_id: newRank.id, updated_at: new Date().toISOString() })
     .eq('id', userId);
+
+  if (error) {
+    console.error('[NWD] XP fallback update failed:', error.message);
+    return null;
+  }
 
   return { xp: newXp, rankId: newRank.id };
 }

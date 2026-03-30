@@ -57,6 +57,10 @@ const _runCache = new Map<string, FinalizedRun>();
 const _changeListeners = new Set<() => void>();
 let _hydrationComplete = false;
 
+function notifyChangeListeners(): void {
+  _changeListeners.forEach((fn) => fn());
+}
+
 // ── Persistence helpers ──
 
 async function persistToStorage(): Promise<void> {
@@ -95,9 +99,11 @@ export async function hydrateRunStore(): Promise<void> {
       }
     }
     _hydrationComplete = true;
+    notifyChangeListeners();
   } catch (e) {
     console.warn('[NWD] runStore hydrate failed:', e);
     _hydrationComplete = true; // don't retry forever
+    notifyChangeListeners();
   }
 }
 
@@ -128,7 +134,7 @@ function evictOldest(): void {
 export function setFinalizedRun(run: FinalizedRun): void {
   _runCache.set(run.sessionId, { ...run, updatedAt: Date.now() });
   evictOldest();
-  _changeListeners.forEach((fn) => fn());
+  notifyChangeListeners();
   // Persist async — if app crashes before this completes, in-memory state
   // is lost but AsyncStorage has the previous version. Acceptable trade-off
   // for not blocking the UI thread on every run save.
@@ -146,7 +152,7 @@ export function updateFinalizedRun(
     return false;
   }
   _runCache.set(sessionId, { ...existing, ...patch, updatedAt: Date.now() });
-  _changeListeners.forEach((fn) => fn());
+  notifyChangeListeners();
   persistToStorage(); // async, non-blocking
   return true;
 }

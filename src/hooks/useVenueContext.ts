@@ -18,9 +18,16 @@ import {
 
 export type VenueContextStatus = 'loading' | 'active' | 'no_location' | 'denied';
 
+export interface RiderPosition {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
+
 export interface VenueContextState {
   status: VenueContextStatus;
   context: VenueContext | null;
+  riderPosition: RiderPosition | null;
   lastUpdate: number;
 }
 
@@ -31,6 +38,7 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
   const [state, setState] = useState<VenueContextState>({
     status: 'loading',
     context: null,
+    riderPosition: null,
     lastUpdate: 0,
   });
 
@@ -42,7 +50,7 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
 
   useEffect(() => {
     if (!enabled) {
-      setState({ status: 'no_location', context: null, lastUpdate: 0 });
+      setState({ status: 'no_location', context: null, riderPosition: null, lastUpdate: 0 });
       return;
     }
 
@@ -57,7 +65,7 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
           logDebugEvent('gps', 'sim_no_location', 'info');
           if (mounted) {
             lastContextRef.current = null;
-            setState({ status: 'no_location', context: null, lastUpdate: Date.now() });
+            setState({ status: 'no_location', context: null, riderPosition: null, lastUpdate: Date.now() });
           }
           return;
         }
@@ -65,7 +73,7 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
         const perm = await checkLocationPermission();
         if (!perm.foreground) {
           logDebugEvent('gps', 'permission_denied', 'warn');
-          if (mounted) setState({ status: 'denied', context: null, lastUpdate: Date.now() });
+          if (mounted) setState({ status: 'denied', context: null, riderPosition: null, lastUpdate: Date.now() });
           return;
         }
 
@@ -86,7 +94,7 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
           logDebugEvent('gps', 'position_null', 'warn');
           if (mounted) {
             lastContextRef.current = null;
-            setState({ status: 'no_location', context: null, lastUpdate: Date.now() });
+            setState({ status: 'no_location', context: null, riderPosition: null, lastUpdate: Date.now() });
           }
           return;
         }
@@ -121,7 +129,16 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
 
         lastContextRef.current = ctx;
         if (mounted) {
-          setState({ status: 'active', context: ctx, lastUpdate: now });
+          setState({
+            status: 'active',
+            context: ctx,
+            riderPosition: {
+              latitude: pos.latitude,
+              longitude: pos.longitude,
+              accuracy: (pos as any).accuracy,
+            },
+            lastUpdate: now,
+          });
         }
       } catch (e) {
         logDebugEvent('gps', 'poll_error', 'fail', { payload: { error: String(e) } });

@@ -284,9 +284,23 @@ export function useLeagueMovement(userId?: string, venueActivity?: VenueActivity
         trailName: trailNames[b.trailId] ?? b.trailId,
       }));
 
-      const venueCtx: VenueActivityContext | null = venueActivity ? {
-        venueId: 'slotwiny-arena',
-        venueName: 'Słotwiny Arena',
+      // Resolve venue name from registry instead of hardcoding
+      const _venueMatch = venueActivity ? (() => {
+        const { getVenue, getAllVenues } = require('@/data/venues');
+        // Try to find which venue this activity belongs to by hotTrailId
+        if (venueActivity.hotTrailId) {
+          const { getVenueForTrail } = require('@/data/venueConfig');
+          const match = getVenueForTrail(venueActivity.hotTrailId);
+          if (match) return { id: match.venueId, name: match.venue.name };
+        }
+        // Fallback: first venue
+        const all = getAllVenues();
+        return all.length > 0 ? { id: all[0].id, name: all[0].name } : { id: 'unknown', name: 'Arena' };
+      })() : null;
+
+      const venueCtx: VenueActivityContext | null = venueActivity && _venueMatch ? {
+        venueId: _venueMatch.id,
+        venueName: _venueMatch.name,
         verifiedRunsToday: venueActivity.verifiedRunsToday,
         activeRidersToday: venueActivity.activeRidersToday,
         hotTrailId: venueActivity.hotTrailId,

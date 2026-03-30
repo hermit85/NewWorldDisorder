@@ -1,15 +1,22 @@
 // ═══════════════════════════════════════════════════════════
-// Arena Map — Stylized Dark Terrain Map
-// Branded mountain basemap with terrain zones, trail hero lines,
-// lift corridor, and official race markers.
-// Not a utility map. A race system surface.
+// Arena Map — NWD Branded Race Surface v1
+// Dark terrain map with glow trails, edge gradients,
+// wide tap targets, and terrain zone overlays.
 // ═══════════════════════════════════════════════════════════
 
 import { useRef, useCallback } from 'react';
 import { StyleSheet, View, Text, Platform } from 'react-native';
 import MapView, { Polyline, Polygon, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/theme/colors';
-import { trailLineWidth, trailLineOpacity, darkMapStyle, getTrailColor, terrainColors } from '@/theme/map';
+import {
+  trailLineWidth,
+  trailLineOpacity,
+  trailGlowOpacity,
+  darkMapStyle,
+  getTrailColor,
+  terrainColors,
+} from '@/theme/map';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
 import { Trail } from '@/data/types';
@@ -19,6 +26,67 @@ import {
 } from '@/data/seed/slotwinyMap';
 import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
 import { TrailMarkers } from './TrailMarkers';
+
+// ── IN-MAP FOG SYSTEM ──
+// Large polygons rendered INSIDE MapView — they sit UNDER Polylines/Markers.
+// This suppresses Apple Maps base layer while trails render clean on top.
+// Extends well beyond visible region so edges are never seen.
+const FOG_COLOR = 'rgba(7, 7, 16, 0.58)';
+const FOG_HEAVY = 'rgba(7, 7, 16, 0.72)';
+
+// Main fog — covers entire arena region
+const FOG_MAIN = [
+  { latitude: 49.440, longitude: 20.935 },
+  { latitude: 49.440, longitude: 20.975 },
+  { latitude: 49.400, longitude: 20.975 },
+  { latitude: 49.400, longitude: 20.935 },
+];
+
+// Peripheral fog masses — heavier coverage on map edges
+// Northwest (far from any trail)
+const FOG_NW = [
+  { latitude: 49.440, longitude: 20.935 },
+  { latitude: 49.440, longitude: 20.950 },
+  { latitude: 49.435, longitude: 20.952 },
+  { latitude: 49.428, longitude: 20.948 },
+  { latitude: 49.424, longitude: 20.944 },
+  { latitude: 49.418, longitude: 20.946 },
+  { latitude: 49.412, longitude: 20.948 },
+  { latitude: 49.408, longitude: 20.944 },
+  { latitude: 49.400, longitude: 20.935 },
+];
+
+// Southeast (below Dzida, away from trails)
+const FOG_SE = [
+  { latitude: 49.416, longitude: 20.958 },
+  { latitude: 49.418, longitude: 20.965 },
+  { latitude: 49.415, longitude: 20.975 },
+  { latitude: 49.400, longitude: 20.975 },
+  { latitude: 49.400, longitude: 20.955 },
+  { latitude: 49.406, longitude: 20.956 },
+  { latitude: 49.410, longitude: 20.955 },
+];
+
+// South base (below finish zones)
+const FOG_S = [
+  { latitude: 49.413, longitude: 20.935 },
+  { latitude: 49.414, longitude: 20.955 },
+  { latitude: 49.412, longitude: 20.960 },
+  { latitude: 49.408, longitude: 20.962 },
+  { latitude: 49.400, longitude: 20.960 },
+  { latitude: 49.400, longitude: 20.935 },
+];
+
+// Northeast (above and right of Dzida)
+const FOG_NE = [
+  { latitude: 49.440, longitude: 20.960 },
+  { latitude: 49.440, longitude: 20.975 },
+  { latitude: 49.425, longitude: 20.975 },
+  { latitude: 49.420, longitude: 20.968 },
+  { latitude: 49.425, longitude: 20.962 },
+  { latitude: 49.430, longitude: 20.958 },
+  { latitude: 49.435, longitude: 20.958 },
+];
 
 interface Props {
   trails: Trail[];
@@ -81,7 +149,7 @@ export function ArenaMap({
         rotateEnabled={false}
         onPress={handleMapPress}
       >
-        {/* ═══ TERRAIN ZONES — stylized mountain overlay ═══ */}
+        {/* ═══ TERRAIN ZONES ═══ */}
         {terrainZones.map((zone) => (
           <Polygon
             key={zone.id}
@@ -92,7 +160,39 @@ export function ArenaMap({
           />
         ))}
 
-        {/* ═══ LIFT LINE — dashed corridor ═══ */}
+        {/* ═══ FOG SYSTEM — renders UNDER trails, suppresses base map ═══ */}
+        <Polygon
+          coordinates={FOG_MAIN}
+          fillColor={FOG_COLOR}
+          strokeColor="transparent"
+          strokeWidth={0}
+        />
+        <Polygon
+          coordinates={FOG_NW}
+          fillColor={FOG_HEAVY}
+          strokeColor="transparent"
+          strokeWidth={0}
+        />
+        <Polygon
+          coordinates={FOG_SE}
+          fillColor={FOG_HEAVY}
+          strokeColor="transparent"
+          strokeWidth={0}
+        />
+        <Polygon
+          coordinates={FOG_S}
+          fillColor={FOG_HEAVY}
+          strokeColor="transparent"
+          strokeWidth={0}
+        />
+        <Polygon
+          coordinates={FOG_NE}
+          fillColor={FOG_HEAVY}
+          strokeColor="transparent"
+          strokeWidth={0}
+        />
+
+        {/* ═══ LIFT LINE ═══ */}
         <Polyline
           coordinates={[LIFT_LINE.bottom, LIFT_LINE.top]}
           strokeColor={terrainColors.liftLine}
@@ -100,8 +200,6 @@ export function ArenaMap({
           lineDashPattern={[8, 6]}
           lineCap="round"
         />
-
-        {/* Lift label at midpoint */}
         <Marker
           coordinate={{
             latitude: (LIFT_LINE.bottom.latitude + LIFT_LINE.top.latitude) / 2,
@@ -115,7 +213,55 @@ export function ArenaMap({
           </View>
         </Marker>
 
-        {/* ═══ TRAIL SHADOW LINES — dark outline for separation ═══ */}
+        {/* ═══ TAP HIT TARGETS — invisible wide polylines ═══ */}
+        {trailGeoSeeds.map((geo: TrailGeoSeed) => {
+          const trail = trails.find((t) => t.id === geo.trailId);
+          if (!trail) return null;
+
+          return (
+            <Polyline
+              key={`hit-${geo.trailId}`}
+              coordinates={geo.polyline}
+              strokeColor="rgba(0,0,0,0.001)"
+              strokeWidth={trailLineWidth.hitTarget}
+              lineCap="round"
+              lineJoin="round"
+              tappable
+              onPress={() => handleTrailPress(geo.trailId)}
+            />
+          );
+        })}
+
+        {/* ═══ TRAIL GLOW LINES — soft color aura ═══ */}
+        {trailGeoSeeds.map((geo: TrailGeoSeed) => {
+          const trail = trails.find((t) => t.id === geo.trailId);
+          if (!trail) return null;
+
+          const isSelected = selectedTrailId === geo.trailId;
+          const isDimmed = selectedTrailId !== null && !isSelected;
+          if (isDimmed) return null;
+
+          const official = slotwinyTrails.find((o) => o.id === geo.trailId);
+          const lineColor = getTrailColor(official?.colorClass, trail.difficulty);
+
+          return (
+            <Polyline
+              key={`glow-${geo.trailId}`}
+              coordinates={geo.polyline}
+              strokeColor={lineColor}
+              strokeWidth={isSelected ? trailLineWidth.selectedGlow : trailLineWidth.glow}
+              lineCap="round"
+              lineJoin="round"
+              style={{
+                opacity: isSelected
+                  ? trailGlowOpacity.selected
+                  : trailGlowOpacity.default,
+              }}
+            />
+          );
+        })}
+
+        {/* ═══ TRAIL SHADOW LINES ═══ */}
         {trailGeoSeeds.map((geo: TrailGeoSeed) => {
           const trail = trails.find((t) => t.id === geo.trailId);
           if (!trail) return null;
@@ -128,14 +274,14 @@ export function ArenaMap({
               key={`shadow-${geo.trailId}`}
               coordinates={geo.polyline}
               strokeColor="rgba(0, 0, 0, 0.6)"
-              strokeWidth={isSelected ? trailLineWidth.shadow + 2 : trailLineWidth.shadow}
+              strokeWidth={isSelected ? trailLineWidth.selectedShadow : trailLineWidth.shadow}
               lineCap="round"
               lineJoin="round"
             />
           );
         })}
 
-        {/* ═══ TRAIL HERO LINES — official race lines ═══ */}
+        {/* ═══ TRAIL HERO LINES ═══ */}
         {trailGeoSeeds.map((geo: TrailGeoSeed) => {
           const trail = trails.find((t) => t.id === geo.trailId);
           if (!trail) return null;
@@ -159,8 +305,6 @@ export function ArenaMap({
               }
               lineCap="round"
               lineJoin="round"
-              tappable
-              onPress={() => handleTrailPress(geo.trailId)}
               style={{
                 opacity: isSelected
                   ? trailLineOpacity.selected
@@ -182,7 +326,7 @@ export function ArenaMap({
           onTrailPress={handleTrailPress}
         />
 
-        {/* ═══ ARENA LABEL — summit area ═══ */}
+        {/* ═══ ARENA LABEL ═══ */}
         <Marker
           coordinate={{ latitude: 49.4256, longitude: SLOTWINY_CENTER.longitude }}
           anchor={{ x: 0.5, y: 1 }}
@@ -195,10 +339,43 @@ export function ArenaMap({
         </Marker>
       </MapView>
 
-      {/* Top edge gradient — blends map into header */}
-      <View style={styles.topGradient} pointerEvents="none" />
-      {/* Bottom edge gradient — blends map into drawer */}
-      <View style={styles.bottomGradient} pointerEvents="none" />
+      {/* ═══ UI CHROME VIGNETTES — blends map edges into app shell ═══ */}
+      {/* No more global scrim — fog polygons handle base map suppression */}
+      {/* These only blend the edges into header/cards/container background */}
+      <LinearGradient
+        colors={[
+          'rgba(7, 7, 16, 0.90)',
+          'rgba(7, 7, 16, 0.45)',
+          'rgba(7, 7, 16, 0.10)',
+          'transparent',
+        ] as const}
+        style={[styles.edgeGradient, styles.vignetteTop]}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={[
+          'transparent',
+          'rgba(7, 7, 16, 0.10)',
+          'rgba(7, 7, 16, 0.50)',
+          'rgba(7, 7, 16, 0.92)',
+        ] as const}
+        style={[styles.edgeGradient, styles.vignetteBottom]}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={['rgba(7, 7, 16, 0.60)', 'rgba(7, 7, 16, 0.15)', 'transparent'] as const}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={[styles.sideGradient, styles.vignetteLeft]}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(7, 7, 16, 0.15)', 'rgba(7, 7, 16, 0.60)'] as const}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={[styles.sideGradient, styles.vignetteRight]}
+        pointerEvents="none"
+      />
     </View>
   );
 }
@@ -206,26 +383,37 @@ export function ArenaMap({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#080810',
+    backgroundColor: '#070710',
   },
   map: {
     flex: 1,
   },
-  topGradient: {
+  // Gradient layers (UI chrome blending only — fog polygons handle base map)
+  edgeGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
+  vignetteTop: {
+    top: 0,
+    height: 180,
+  },
+  vignetteBottom: {
+    bottom: 0,
+    height: 160,
+  },
+  sideGradient: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: 'rgba(8, 8, 16, 0.7)',
-  },
-  bottomGradient: {
-    position: 'absolute',
     bottom: 0,
+  },
+  vignetteLeft: {
     left: 0,
+    width: 70,
+  },
+  vignetteRight: {
     right: 0,
-    height: 40,
-    backgroundColor: 'rgba(8, 8, 16, 0.5)',
+    width: 70,
   },
   liftLabel: {
     backgroundColor: 'rgba(20, 20, 28, 0.8)',
