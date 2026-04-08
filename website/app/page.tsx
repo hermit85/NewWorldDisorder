@@ -65,14 +65,13 @@ export default function HomePage() {
                 <Image
                   src={APP_ICON}
                   alt="NWD"
-                  width={72}
-                  height={72}
+                  width={64}
+                  height={64}
                   priority
                   className="lp-hero-icon"
                 />
                 <div className="lp-hero-icon-meta">
-                  <span className="t1">NEW WORLD DISORDER</span>
-                  <span className="t2">LIGA GRAVITY · iOS · SEZON 01</span>
+                  <span className="t1">LIGA GRAVITY · iOS · SEZON 01</span>
                 </div>
               </div>
 
@@ -91,7 +90,7 @@ export default function HomePage() {
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
                     <span className="big">Dołącz do ligi</span>
-                    <span className="small">iOS · Sezon 01 · Wkrótce w App Store</span>
+                    <span className="small">Pierwsi riderzy · Pierwsze czasy · Sezon 01</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -104,10 +103,6 @@ export default function HomePage() {
 
             {/* HUD result tower */}
             <div style={{ position: 'relative' }}>
-              <div className="lp-pos-tag" aria-hidden="true">
-                <span className="small">POZYCJA</span>
-                #07
-              </div>
               <div className="lp-hud" aria-hidden="true">
                 <div className="lp-hud-head">
                   <span>RESULT // GAŁGAN // STAGE 01</span>
@@ -246,6 +241,10 @@ export default function HomePage() {
             TRZY EKRANY.<br />
             <span className="red">JEDNO PYTANIE.</span>
           </h2>
+          <p className="lp-h2-show-sub">
+            Start. Wynik. Tablica. Cała liga mieści się w trzech ekranach
+            — i w jednym pytaniu, które zadaje Ci meta.
+          </p>
 
           {/* ──────────────────────────────────────────────
               Three phone screens — pixel-faithful HTML
@@ -550,30 +549,32 @@ export default function HomePage() {
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Pierwsze czasy w Słotwinach idą na tablicę od dnia zero.
+              Sezon 01 pisze się raz. Pierwsi riderzy zapiszą się
+              do historii ligi — od dnia zero.
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">DOŁĄCZ DO LIGI</span>
-                <span className="line2">Bądź pierwszy na liście · Sezon 01</span>
+                <span className="line2">Miejsce na podium · Od dnia zero</span>
               </span>
               <span className="arr">→</span>
             </Link>
 
-            {/* Stage dossier — horizontal launch strip */}
+            {/* Stage dossier — launch manifest */}
             <div className="lp-finale-dossier" aria-label="Stage 01 — Słotwiny Arena">
               <div className="dossier-head">
                 <div className="left">
-                  <div className="tag">
+                  <div className="tag gold">
                     <Image src={APP_ICON} alt="" width={16} height={16} className="ico" />
-                    STAGE 01 / LAUNCH WORLD
+                    STAGE 01 · LAUNCH WORLD
                   </div>
-                  <div className="name">SŁOTWINY ARENA</div>
+                  <div className="name">Słotwiny Arena</div>
                   <div className="region">Krynica-Zdrój · Polska</div>
                 </div>
                 <div className="right">
                   <div className="kv"><span className="k">SEZON</span><span className="v">01 / 2026</span></div>
+                  <div className="kv"><span className="k">TRASY</span><span className="v">4 OFICJALNE</span></div>
                   <div className="kv"><span className="k">WERYFIKACJA</span><span className="v">GPS · LIVE</span></div>
                 </div>
               </div>
@@ -583,25 +584,45 @@ export default function HomePage() {
                   <div className="nm">Gałgan</div>
                   <div className="meta">FLOW · 2.4 km · ↓180 m</div>
                   <div className="df easy">EASY</div>
+                  <div className="podium">
+                    <span className="plabel">PODIUM</span>
+                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
+                  </div>
                 </div>
                 <div className="trail">
                   <div className="ix">02</div>
                   <div className="nm">Dookoła Świata</div>
                   <div className="meta">FLOW · 3.1 km · ↓155 m</div>
                   <div className="df easy">EASY</div>
+                  <div className="podium">
+                    <span className="plabel">PODIUM</span>
+                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
+                  </div>
                 </div>
                 <div className="trail">
                   <div className="ix">03</div>
                   <div className="nm">Kometa</div>
                   <div className="meta">FLOW · 2.3 km · ↓184 m</div>
                   <div className="df med">MEDIUM</div>
+                  <div className="podium">
+                    <span className="plabel">PODIUM</span>
+                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
+                  </div>
                 </div>
                 <div className="trail">
                   <div className="ix">04</div>
                   <div className="nm">Dzida</div>
                   <div className="meta">TECH · 1.5 km · ↓165 m</div>
                   <div className="df hard">HARD</div>
+                  <div className="podium">
+                    <span className="plabel">PODIUM</span>
+                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
+                  </div>
                 </div>
+              </div>
+              <div className="dossier-foot">
+                <span className="dot" />
+                WSZYSTKIE MIEJSCA NA PODIUM OTWARTE · SEZON 01 / 2026
               </div>
             </div>
           </div>
