@@ -1,13 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// Pomoc / FAQ — informacje dla beta testerów
+// Pomoc / FAQ / legal & support
 // ═══════════════════════════════════════════════════════════
 
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import { LEGAL } from '@/constants/legal';
 
 interface FAQ {
   q: string;
@@ -40,12 +41,8 @@ const faqs: FAQ[] = [
     a: 'Tak. Treningi zapisują Twój czas i trasę, ale nigdy nie pojawiają się na oficjalnej tablicy wyników.',
   },
   {
-    q: 'To beta — czego się spodziewać?',
-    a: 'Weryfikacja GPS wciąż się poprawia. Niektóre przypadki mogą nie zostać prawidłowo zweryfikowane. Wyniki mogą czasem wydawać się niespójne. Zgłaszaj wszystko co dziwne — Twój feedback kształtuje ligę.',
-  },
-  {
     q: 'Jakie trasy są dostępne?',
-    a: 'Sezon 01 obejmuje Słotwiny Arena w Krynicy-Zdrój: Gałgan, Dookoła Świata, Kometa i Dzida. Więcej spotów w kolejnych sezonach.',
+    a: 'Sezon 01 obejmuje Słotwiny Arena w Krynicy-Zdrój: Gałgan, Dookoła Świata, Kometa i Dzida. Kolejne ośrodki dołączą w następnych sezonach.',
   },
 ];
 
@@ -61,9 +58,6 @@ export default function HelpScreen() {
             <Text style={styles.backText}>← WRÓĆ</Text>
           </Pressable>
           <Text style={styles.title}>JAK DZIAŁA NWD</Text>
-          <View style={styles.betaBadge}>
-            <Text style={styles.betaText}>ZAMKNIĘTA BETA</Text>
-          </View>
         </View>
 
         {/* Zasady */}
@@ -86,15 +80,34 @@ export default function HelpScreen() {
           </View>
         ))}
 
-        {/* Beta note */}
-        <View style={styles.betaNote}>
-          <Text style={styles.betaNoteTitle}>🔒 BETA TESTER</Text>
-          <Text style={styles.betaNoteBody}>
-            Jesteś częścią zamkniętej grupy testowej. Weryfikacja GPS, detekcja trasy i logika rankingowa są aktywnie rozwijane. Twoje zjazdy i feedback bezpośrednio kształtują produkt.
+        {/* Support / contact */}
+        <View style={styles.supportCard}>
+          <Text style={styles.supportTitle}>POTRZEBUJESZ POMOCY?</Text>
+          <Text style={styles.supportBody}>
+            Masz pytanie albo problem ze zjazdem? Napisz do nas.
           </Text>
-          <Text style={styles.betaNoteVersion}>
-            v0.2.0-beta · Sezon 01 · Słotwiny Arena
+          <Pressable
+            style={styles.supportBtn}
+            onPress={() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)}
+          >
+            <Text style={styles.supportBtnText}>{LEGAL.supportEmail}</Text>
+          </Pressable>
+          <Text style={styles.supportVersion}>
+            Sezon 01 · Słotwiny Arena
           </Text>
+        </View>
+
+        {/* Legal links */}
+        <View style={styles.legalRow}>
+          <Pressable style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
+            <Text style={styles.legalLinkText}>POLITYKA PRYWATNOŚCI</Text>
+          </Pressable>
+          <Pressable style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.termsUrl)}>
+            <Text style={styles.legalLinkText}>REGULAMIN</Text>
+          </Pressable>
+          <Pressable style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.supportUrl)}>
+            <Text style={styles.legalLinkText}>WSPARCIE</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -117,8 +130,6 @@ const styles = StyleSheet.create({
   backBtn: { marginBottom: spacing.md },
   backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
   title: { ...typography.label, color: colors.textSecondary, letterSpacing: 4, marginBottom: spacing.sm },
-  betaBadge: { alignSelf: 'flex-start', backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
-  betaText: { ...typography.labelSmall, color: colors.accent, fontSize: 9, letterSpacing: 2 },
   rulesCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.xl, borderWidth: 1, borderColor: colors.accent },
   rulesTitle: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3, marginBottom: spacing.md },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
@@ -128,8 +139,13 @@ const styles = StyleSheet.create({
   faqItem: { backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.lg, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
   faqQ: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', marginBottom: spacing.sm },
   faqA: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
-  betaNote: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.xl, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  betaNoteTitle: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2, marginBottom: spacing.sm },
-  betaNoteBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
-  betaNoteVersion: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 2 },
+  supportCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.xl, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  supportTitle: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2, marginBottom: spacing.sm },
+  supportBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
+  supportBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  supportBtnText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1, fontSize: 11 },
+  supportVersion: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 2 },
+  legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  legalLink: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  legalLinkText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
 });

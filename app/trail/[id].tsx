@@ -17,6 +17,7 @@ import { Difficulty, PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard, useUserTrailStats } from '@/hooks/useBackend';
 import { tapMedium, tapLight } from '@/systems/haptics';
+import { reportRider } from '@/services/moderation';
 
 const difficultyColors: Record<Difficulty, string> = {
   easy: colors.diffEasy,
@@ -70,6 +71,11 @@ export default function TrailDetailScreen() {
     : myPos - 10;
 
   const handleStartRanked = () => {
+    if (!isAuthenticated) {
+      tapLight();
+      router.push('/auth');
+      return;
+    }
     tapMedium();
     router.push({ pathname: '/run/active', params: { trailId: trail.id, trailName: trail.name } });
   };
@@ -185,7 +191,19 @@ export default function TrailDetailScreen() {
           )}
 
           {top5.map((entry) => (
-            <View key={entry.userId} style={[styles.lbRow, entry.isCurrentUser && styles.lbRowHighlight]}>
+            <Pressable
+              key={entry.userId}
+              style={[styles.lbRow, entry.isCurrentUser && styles.lbRowHighlight]}
+              onLongPress={() => {
+                if (entry.isCurrentUser) return;
+                reportRider({
+                  userId: entry.userId,
+                  username: entry.username,
+                  surface: `Trasa · ${trail.name}`,
+                });
+              }}
+              delayLongPress={450}
+            >
               <Text style={[styles.lbPos,
                 entry.currentPosition <= 3 && { color: colors.gold },
                 entry.isCurrentUser && { color: colors.accent },
@@ -196,7 +214,7 @@ export default function TrailDetailScreen() {
                 {entry.username}
               </Text>
               <Text style={styles.lbTime}>{formatTimeShort(entry.bestDurationMs)}</Text>
-            </View>
+            </Pressable>
           ))}
 
           {myEntry && myEntry.currentPosition > 5 && (
@@ -228,7 +246,9 @@ export default function TrailDetailScreen() {
       {/* ═══ RIDE CTAs ═══ */}
       <View style={styles.ctaContainer}>
         <Pressable style={styles.rankedBtn} onPress={handleStartRanked}>
-          <Text style={styles.rankedBtnText}>JEDŹ RANKINGOWO</Text>
+          <Text style={styles.rankedBtnText}>
+            {isAuthenticated ? 'JEDŹ RANKINGOWO' : 'ZALOGUJ — JEDŹ RANKINGOWO'}
+          </Text>
         </Pressable>
         <Pressable style={styles.practiceBtn} onPress={handleStartPractice}>
           <Text style={styles.practiceBtnText}>TRENING</Text>

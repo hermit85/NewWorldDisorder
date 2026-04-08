@@ -11,7 +11,7 @@ export const mockSpots: Spot[] = [
     isOfficial: slotwinySpot.isOfficial,
     coverImage: slotwinySpot.coverImage,
     status: slotwinySpot.status,
-    activeRidersToday: 14,
+    activeRidersToday: 0,
     trailCount: 4,
   },
   {

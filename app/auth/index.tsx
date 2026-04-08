@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Pressable,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,8 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { useAuthContext } from '@/hooks/AuthContext';
+import { LEGAL } from '@/constants/legal';
+import { validateUsername } from '@/services/moderation';
 
 type Step = 'email' | 'verify_code' | 'create_profile';
 
@@ -145,20 +147,16 @@ export default function AuthScreen() {
   };
 
   const handleCreateProfile = async () => {
-    const clean = username.trim().toLowerCase();
-    if (clean.length < 2) {
-      setError('Minimum 2 znaki');
-      return;
-    }
-    if (!/^[a-z0-9_.-]+$/.test(clean)) {
-      setError('Tylko litery, cyfry, kropki, myślniki');
+    const validation = validateUsername(username);
+    if (!validation.ok) {
+      setError(validation.reason);
       return;
     }
 
     setLoading(true);
     setError('');
 
-    const { error: profileError } = await createProfile(clean, username.trim());
+    const { error: profileError } = await createProfile(validation.normalized, username.trim());
 
     setLoading(false);
     if (profileError) {
@@ -222,6 +220,18 @@ export default function AuthScreen() {
             <Pressable style={styles.skipBtn} onPress={handleSkip}>
               <Text style={styles.skipText}>PRZEGLĄDAJ BEZ LOGOWANIA</Text>
             </Pressable>
+
+            <Text style={styles.legalNote}>
+              Logując się akceptujesz{' '}
+              <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.termsUrl)}>
+                Regulamin
+              </Text>
+              {' '}i{' '}
+              <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
+                Politykę Prywatności
+              </Text>
+              .
+            </Text>
           </View>
         )}
 
@@ -371,4 +381,6 @@ const styles = StyleSheet.create({
   errorCardDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   footer: { alignItems: 'center', marginTop: spacing.huge },
   footerText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 3 },
+  legalNote: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 10, lineHeight: 16, marginTop: spacing.md, paddingHorizontal: spacing.md },
+  legalLink: { color: colors.textSecondary, textDecorationLine: 'underline' },
 });

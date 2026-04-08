@@ -65,8 +65,11 @@ export default function ActiveRunScreen() {
     return () => subscription.remove();
   }, [state.phase]);
 
-  // Triple-tap trail name to toggle debug
+  // Triple-tap trail name to toggle debug — dev builds only.
+  // In production this is a no-op so reviewers can't surface
+  // the debug overlay accidentally.
   const handleDebugTap = useCallback(() => {
+    if (!__DEV__) return;
     const newTaps = debugTaps + 1;
     setDebugTaps(newTaps);
     if (newTaps >= 3) {
@@ -298,8 +301,8 @@ export default function ActiveRunScreen() {
         </Pressable>
       )}
 
-      {/* Debug overlay */}
-      {showDebug && <DebugOverlay state={state} />}
+      {/* Debug overlay — dev builds only */}
+      {__DEV__ && showDebug && <DebugOverlay state={state} />}
     </SafeAreaView>
   );
 }

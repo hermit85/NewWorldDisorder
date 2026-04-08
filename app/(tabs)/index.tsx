@@ -161,12 +161,20 @@ export default function HomeScreen() {
             <View style={styles.startZoneActions}>
               <Pressable
                 style={styles.startZoneRanked}
-                onPress={() => router.push({
-                  pathname: '/run/active',
-                  params: { trailId: startZone.nearestStart?.trailId, trailName: startZone.nearestStart?.trailName },
-                })}
+                onPress={() => {
+                  if (!isAuthenticated) {
+                    router.push('/auth');
+                    return;
+                  }
+                  router.push({
+                    pathname: '/run/active',
+                    params: { trailId: startZone.nearestStart?.trailId, trailName: startZone.nearestStart?.trailName },
+                  });
+                }}
               >
-                <Text style={styles.startZoneRankedText}>JEDŹ RANKINGOWO</Text>
+                <Text style={styles.startZoneRankedText}>
+                  {isAuthenticated ? 'JEDŹ RANKINGOWO' : 'ZALOGUJ — RANKING'}
+                </Text>
               </Pressable>
               <Pressable
                 style={styles.startZonePractice}
@@ -230,10 +238,6 @@ export default function HomeScreen() {
         >
           <View style={styles.venueHeader}>
             <Text style={styles.venueTag}>OŚRODEK · SEZON 01</Text>
-            <View style={styles.betaBadge}>
-              <View style={styles.betaDot} />
-              <Text style={styles.betaText}>BETA</Text>
-            </View>
           </View>
 
           <Text style={styles.venueName}>{spot.name}</Text>
@@ -508,9 +512,6 @@ const styles = StyleSheet.create({
   venueCard: { backgroundColor: colors.bgCard, borderRadius: radii.xl, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent },
   venueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   venueTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 9 },
-  betaBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  betaDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  betaText: { ...typography.labelSmall, color: colors.accent, fontSize: 9, letterSpacing: 2 },
   venueName: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textPrimary, letterSpacing: 2 },
   venueRegion: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xxs },
   venueStats: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgElevated, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.md, marginTop: spacing.lg, gap: spacing.sm },

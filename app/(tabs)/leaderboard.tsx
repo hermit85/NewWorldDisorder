@@ -16,6 +16,7 @@ import { RiderAvatar } from '@/components/RiderAvatar';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard } from '@/hooks/useBackend';
+import { reportRider } from '@/services/moderation';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 
@@ -292,8 +293,17 @@ export default function LeaderboardScreen() {
                   const medal = MEDAL[pos];
 
                   return (
-                    <View
+                    <Pressable
                       key={entry.userId}
+                      onLongPress={() => {
+                        if (entry.isCurrentUser) return;
+                        reportRider({
+                          userId: entry.userId,
+                          username: entry.username,
+                          surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
+                        });
+                      }}
+                      delayLongPress={450}
                       style={[
                         styles.podiumCard,
                         medal && { borderColor: medal.border, backgroundColor: medal.bg },
@@ -350,7 +360,7 @@ export default function LeaderboardScreen() {
                           <Text style={[styles.podiumDeltaText, { color: colors.accent }]}>NOWY</Text>
                         </View>
                       )}
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -419,8 +429,17 @@ export default function LeaderboardScreen() {
                   const isRivalBelow = rivalBelow?.userId === entry.userId;
 
                   return (
-                    <View
+                    <Pressable
                       key={entry.userId}
+                      onLongPress={() => {
+                        if (entry.isCurrentUser) return;
+                        reportRider({
+                          userId: entry.userId,
+                          username: entry.username,
+                          surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
+                        });
+                      }}
+                      delayLongPress={450}
                       style={[
                         styles.entry,
                         isUser && styles.entryUser,
@@ -482,7 +501,7 @@ export default function LeaderboardScreen() {
                           <Text style={styles.gap}>+{(entry.gapToLeader / 1000).toFixed(1)}s</Text>
                         )}
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -492,6 +511,9 @@ export default function LeaderboardScreen() {
             <View style={styles.boardFooter}>
               <Text style={styles.boardFooterText}>
                 {totalEntries} {totalEntries === 1 ? 'RIDER' : 'RIDERÓW'} · {selectedTrail?.name?.toUpperCase() ?? 'TRASA'} · {SCOPES.find(s => s.key === selectedPeriod)?.label ?? 'SEZON'}
+              </Text>
+              <Text style={styles.boardFooterHint}>
+                PRZYTRZYMAJ RIDERA, ABY ZGŁOSIĆ
               </Text>
             </View>
           </Animated.View>
@@ -638,4 +660,5 @@ const styles = StyleSheet.create({
   // Board footer
   boardFooter: { alignItems: 'center', paddingVertical: spacing.xl },
   boardFooterText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 8 },
+  boardFooterHint: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginTop: spacing.xs, opacity: 0.6 },
 });

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import { LEGAL } from '@/constants/legal';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { getLevel, getLevelProgress } from '@/systems/xp';
 import { copy } from '@/content/copy';
@@ -245,7 +246,7 @@ export default function ProfileScreen() {
 
         {/* App info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>New World Disorder v0.2.0-beta</Text>
+          <Text style={styles.appInfoText}>New World Disorder</Text>
           <Text style={styles.appInfoText}>Sezon 01 · Słotwiny Arena</Text>
           {isAuthenticated && (
             <Text style={styles.appInfoText}>{authUser?.email ?? ''}</Text>
@@ -267,6 +268,31 @@ export default function ProfileScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* Legal links — always visible, reviewer-reachable */}
+          <View style={styles.legalRow}>
+            <Pressable onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
+              <Text style={styles.legalLinkText}>POLITYKA PRYWATNOŚCI</Text>
+            </Pressable>
+            <Text style={styles.legalSep}>·</Text>
+            <Pressable onPress={() => Linking.openURL(LEGAL.termsUrl)}>
+              <Text style={styles.legalLinkText}>REGULAMIN</Text>
+            </Pressable>
+            <Text style={styles.legalSep}>·</Text>
+            <Pressable onPress={() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)}>
+              <Text style={styles.legalLinkText}>WSPARCIE</Text>
+            </Pressable>
+          </View>
+
+          {/* Destructive: delete account */}
+          {isAuthenticated && (
+            <Pressable
+              style={styles.deleteBtn}
+              onPress={() => router.push('/settings/delete-account')}
+            >
+              <Text style={styles.deleteBtnText}>USUŃ KONTO</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -344,4 +370,9 @@ const styles = StyleSheet.create({
   appActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.lg },
   actionLink: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm },
   actionLinkText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2 },
+  legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, paddingHorizontal: spacing.md },
+  legalLinkText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9, textDecorationLine: 'underline' },
+  legalSep: { color: colors.textTertiary, fontSize: 9, marginHorizontal: 2 },
+  deleteBtn: { marginTop: spacing.xl, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.red, borderRadius: radii.sm, alignSelf: 'center' },
+  deleteBtnText: { ...typography.labelSmall, color: colors.red, letterSpacing: 2, fontSize: 10 },
 });

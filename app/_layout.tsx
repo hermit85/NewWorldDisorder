@@ -145,6 +145,10 @@ export default function RootLayout() {
             name="help/index"
             options={{ animation: 'slide_from_right' }}
           />
+          <Stack.Screen
+            name="settings/delete-account"
+            options={{ animation: 'slide_from_right' }}
+          />
         </Stack>
 
         {/* Debug trigger — invisible 5-tap zone in bottom-right corner */}

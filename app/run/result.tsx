@@ -593,21 +593,23 @@ export default function ResultScreen() {
             <Text style={styles.secondaryBtnText}>TRASA</Text>
           </Pressable>
         </View>
-        {/* ═══ FIELD TEST DEBUG — tester-visible verification summary ═══ */}
-        <View style={styles.debugCard}>
-          <Text style={styles.debugTitle}>DANE ZJAZDU</Text>
-          <Text style={styles.debugLine}>Trail: {run.trailId}</Text>
-          <Text style={styles.debugLine}>Mode: {run.mode}</Text>
-          <Text style={styles.debugLine}>Verification: {vStatus}</Text>
-          <Text style={styles.debugLine}>Leaderboard eligible: {v?.isLeaderboardEligible ? 'YES' : 'NO'}</Text>
-          <Text style={styles.debugLine}>Quality: {run.qualityTier ?? 'N/A'}</Text>
-          <Text style={styles.debugLine}>Save: {run.saveStatus}</Text>
-          <Text style={styles.debugLine}>Duration: {run.durationMs}ms</Text>
-          {v?.checkpointsPassed != null && (
-            <Text style={styles.debugLine}>Checkpoints: {v.checkpointsPassed}/{v.checkpointsTotal}</Text>
-          )}
-          <Text style={styles.debugLine}>Session: {run.sessionId?.slice(0, 12)}…</Text>
-        </View>
+        {/* Field test debug — dev builds only */}
+        {__DEV__ && (
+          <View style={styles.debugCard}>
+            <Text style={styles.debugTitle}>DANE ZJAZDU</Text>
+            <Text style={styles.debugLine}>Trail: {run.trailId}</Text>
+            <Text style={styles.debugLine}>Mode: {run.mode}</Text>
+            <Text style={styles.debugLine}>Verification: {vStatus}</Text>
+            <Text style={styles.debugLine}>Leaderboard eligible: {v?.isLeaderboardEligible ? 'YES' : 'NO'}</Text>
+            <Text style={styles.debugLine}>Quality: {run.qualityTier ?? 'N/A'}</Text>
+            <Text style={styles.debugLine}>Save: {run.saveStatus}</Text>
+            <Text style={styles.debugLine}>Duration: {run.durationMs}ms</Text>
+            {v?.checkpointsPassed != null && (
+              <Text style={styles.debugLine}>Checkpoints: {v.checkpointsPassed}/{v.checkpointsTotal}</Text>
+            )}
+            <Text style={styles.debugLine}>Session: {run.sessionId?.slice(0, 12)}…</Text>
+          </View>
+        )}
       </Animated.ScrollView>
     </SafeAreaView>
   );

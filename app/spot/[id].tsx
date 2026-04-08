@@ -140,7 +140,7 @@ export default function SpotScreen() {
           </View>
           <View style={styles.ridersTag}>
             <Text style={styles.ridersCount}>S01</Text>
-            <Text style={styles.ridersLabel}>BETA</Text>
+            <Text style={styles.ridersLabel}>LIGA</Text>
           </View>
         </View>
       </SafeAreaView>
