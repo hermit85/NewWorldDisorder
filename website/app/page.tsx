@@ -4,7 +4,7 @@ export default function HomePage() {
   return (
     <main className="landing">
       {/* ════════════════════════════════════════════════
-          HERO — STAGE-START TIMING TOWER
+          1 // HERO
          ════════════════════════════════════════════════ */}
       <section className="lp-hero2">
         <div className="lp-wide">
@@ -27,7 +27,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Headline + HUD grid */}
+          {/* Headline + HUD */}
           <div className="lp-hero2-grid">
             <div>
               <div className="lp-stage-label">
@@ -43,16 +43,15 @@ export default function HomePage() {
 
               <p className="lp-stage-sub">
                 NWD to gra arcade gravity rozgrywana na prawdziwych ośrodkach.
-                Bramka, trasa, meta, tablica. <strong>Czas albo PB.</strong>{' '}
-                <strong>Pozycja albo żadna.</strong> Bez wykresów, bez treningu,
-                bez wymówek. Tylko jedno pytanie po mecie: jeszcze raz?
+                Bramka, trasa, meta, tablica. Czas albo PB. Pozycja albo żadna.
+                Tylko jedno pytanie po mecie: jeszcze raz?
               </p>
 
               <div className="lp-cta-row2">
-                <a className="lp-btn2 red" href="#launch">
-                  Stage 01 ▸ Słotwiny <span className="arr">→</span>
+                <a className="lp-btn2 red" href="#cta">
+                  Bądź na liście <span className="arr">→</span>
                 </a>
-                <a className="lp-btn2" href="#loop">Pętla</a>
+                <a className="lp-btn2" href="#loop">Jak to działa</a>
                 <span className="lp-cta-meta">
                   <span className="pulse" />
                   iOS // App Store // dzień zero
@@ -106,256 +105,93 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
-          MARQUEE — TELEMETRY TICKER
+          MARQUEE — single slim ticker
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
         <div className="lp-marquee-track">
           <span>STAGE 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span className="ghost">GAŁGAN — 02:14.86</span><span className="star">◆</span>
+          <span>GAŁGAN — 02:14.86</span><span className="star">◆</span>
           <span>DOOKOŁA ŚWIATA — 03:08.42</span><span className="star">▸</span>
-          <span className="ghost">KOMETA — 02:46.15</span><span className="star">◆</span>
+          <span>KOMETA — 02:46.15</span><span className="star">◆</span>
           <span>DZIDA — 01:58.07</span><span className="star">▸</span>
-          <span className="ghost">PB +0 // RANKING +3 // RANGA HUNTER</span><span className="star">◆</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">▸</span>
-          <span className="ghost">JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
-          {/* Duplicate for seamless loop */}
+          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
+          {/* loop dup */}
           <span>STAGE 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span className="ghost">GAŁGAN — 02:14.86</span><span className="star">◆</span>
+          <span>GAŁGAN — 02:14.86</span><span className="star">◆</span>
           <span>DOOKOŁA ŚWIATA — 03:08.42</span><span className="star">▸</span>
-          <span className="ghost">KOMETA — 02:46.15</span><span className="star">◆</span>
+          <span>KOMETA — 02:46.15</span><span className="star">◆</span>
           <span>DZIDA — 01:58.07</span><span className="star">▸</span>
-          <span className="ghost">PB +0 // RANKING +3 // RANGA HUNTER</span><span className="star">◆</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">▸</span>
-          <span className="ghost">JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
+          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
         </div>
       </div>
 
       {/* ════════════════════════════════════════════════
-          §02 — PĘTLA / THE LOOP
+          2 // PĘTLA — compressed inline strip
          ════════════════════════════════════════════════ */}
-      <section className="lp-block" id="loop">
+      <section className="lp-block tight" id="loop">
         <div className="lp-block-label">
-          <span><span className="num">§02</span> // PĘTLA</span>
+          <span><span className="num">§01</span> // PĘTLA</span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2">
-            JEDEN ZJAZD.<br />
-            JEDNA POZYCJA.<br />
-            <span className="red">JEDEN POWÓD,</span><br />
-            ŻEBY WRÓCIĆ.
+            CZTERY KROKI.<br />
+            <span className="red">JEDNA PĘTLA.</span>
           </h2>
-          <p className="lp-body2">
-            Bramka. Trasa. Meta. Tablica. Wynik znasz w minutę po finiszu —
-            pozycja, delta, rywal nad Tobą. Wyciąg działa do 17:00, masz jeszcze
-            cztery przejazdy. To nie jest dzienniczek. To <strong>pętla</strong>,
-            z której nie chcesz wyjść.
-          </p>
 
-          <div className="lp-loop">
-            <div className="lp-phase">
-              <div className="num">01</div>
-              <div className="title">BRAMKA</div>
-              <div className="desc">
-                Apka wykrywa, że stoisz przy starcie. Pokazuje gotowość GPS,
-                checkpointy, dystans. Jeden tap — uzbrojenie.
-              </div>
-              <div className="meta">PRZED ZJAZDEM</div>
+          <div className="lp-loop-strip">
+            <div className="lp-strip-phase">
+              <div className="ix">01 / BRAMKA</div>
+              <div className="t">STAŃ PRZY STARCIE</div>
+              <div className="d">Apka wykrywa bramkę. Jeden tap — uzbrojenie.</div>
             </div>
-            <div className="lp-phase">
-              <div className="num">02</div>
-              <div className="title">ZJAZD</div>
-              <div className="desc">
-                Schowaj telefon. Timer startuje na bramce. Meta kończy
-                automatycznie. Apka pilnuje linii i checkpointów po GPS.
-              </div>
-              <div className="meta">W RUCHU</div>
+            <div className="lp-strip-phase">
+              <div className="ix">02 / ZJAZD</div>
+              <div className="t">SCHOWAJ TELEFON</div>
+              <div className="d">Timer leci od bramki, meta kończy automatycznie.</div>
             </div>
-            <div className="lp-phase">
-              <div className="num">03</div>
-              <div className="title">WYNIK</div>
-              <div className="desc">
-                ✓ ZALICZONY albo NIE. Czas, weryfikacja, PB delta, pozycja
-                w sezonowej tabeli, ranga, postęp. Wszystko w 60 sekund.
-              </div>
-              <div className="meta">META</div>
+            <div className="lp-strip-phase">
+              <div className="ix">03 / WYNIK</div>
+              <div className="t">CZAS · POZYCJA</div>
+              <div className="d">Weryfikacja, PB delta, rywal nad Tobą — w 60s.</div>
             </div>
-            <div className="lp-phase">
-              <div className="num">04</div>
-              <div className="title">JESZCZE RAZ</div>
-              <div className="desc">
-                Wiesz, że Cię obudziło. Wiesz, kto goni. Wiesz, ile sekund
-                zostało do podium. Wracasz na wyciąg. Bramka znów otwarta.
-              </div>
-              <div className="meta">LOOP</div>
+            <div className="lp-strip-phase">
+              <div className="ix">04 / LOOP</div>
+              <div className="t">JESZCZE RAZ</div>
+              <div className="d">Wyciąg działa do 17:00. Bramka znów otwarta.</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ════════════════════════════════════════════════
-          §03 — TRACKER vs LIGA
+          PULL QUOTE BAND — anti-tracker positioning
          ════════════════════════════════════════════════ */}
-      <section className="lp-block">
-        <div className="lp-block-label">
-          <span><span className="num">§03</span> // GRA. NIE TRENING.</span>
-        </div>
+      <section className="lp-quote">
         <div className="lp-wide">
-          <h2 className="lp-h2-2">
-            TO NIE JEST<br />
-            <span className="strike">APKA TRENINGOWA</span>.<br />
+          <span className="label">§02 // POZYCJONOWANIE</span>
+          <h2>
+            TO NIE <span className="strike">TRACKER</span>.<br />
             TO <span className="red">LIGA</span>.
           </h2>
-          <p className="lp-body2">
-            Apki treningowe mierzą każde tętno na nudnej rolce. NWD jest
-            po drugiej stronie tej samej góry — tam, gdzie się rywalizuje,
-            a nie tam, gdzie się ćwiczy.
+          <p className="sub">
+            Bez wykresów, bez treningu, bez wymówek. Tylko czas, miejsce
+            i kolejny start.
           </p>
-
-          <div className="lp-vs">
-            <div className="col bad">
-              <span className="stamp">// TRACKER</span>
-              <h3>APKA TRENINGOWA</h3>
-              <ul>
-                <li>Mierzy każdy ruch dnia</li>
-                <li>Wykresy tętna, mocy, kalorii</li>
-                <li>„Plany treningowe" i „strefy"</li>
-                <li>Trasa = surowy log GPS</li>
-                <li>Twój rywal to wczorajszy Ty</li>
-                <li>Nikt nie pilnuje, czy zjechałeś po linii</li>
-              </ul>
-            </div>
-            <div className="col good">
-              <span className="stamp">// LIGA NWD</span>
-              <h3>
-                GRA <span className="red">GRAVITY</span>
-              </h3>
-              <ul>
-                <li>Tylko zjazdy. Żadnego dziennika dnia</li>
-                <li>Czas. Pozycja. Delta. Ranga. Koniec listy</li>
-                <li>Sezon. Weekend. Podium</li>
-                <li>Trasa = oficjalna linia z bramki do mety</li>
-                <li>Twój rywal to lokal nad Tobą w tabeli</li>
-                <li>GPS pilnuje. Bez skrótów. Bez ściemy</li>
-              </ul>
-            </div>
-          </div>
         </div>
       </section>
 
       {/* ════════════════════════════════════════════════
-          §04 — SŁOTWINY LAUNCH WORLD
+          3 // EKRANY — screen showcase
          ════════════════════════════════════════════════ */}
-      <section className="lp-block" id="launch">
+      <section className="lp-block tight">
         <div className="lp-block-label">
-          <span><span className="num">§04</span> // LAUNCH WORLD</span>
-        </div>
-        <div className="lp-wide">
-          <div className="lp-launch">
-            <div className="lp-launch-head">
-              <span className="lp-launch-eyebrow">
-                ▸ STAGE 01 ▸ KRYNICA-ZDRÓJ ▸ POLSKA
-              </span>
-              <h2 className="lp-launch-h">
-                SŁOTWINY <span className="red">ARENA</span>.
-                <span className="small">
-                  4 OFICJALNE TRASY · 1 WYCIĄG · 1 SEZONOWA TABLICA ·{' '}
-                  <span className="v">PIERWSZE CZASY OD DNIA ZERO</span>
-                </span>
-              </h2>
-            </div>
-
-            <div className="lp-launch-grid">
-              <div className="lp-stage-list">
-                <div className="lp-stage-row">
-                  <div className="num">01</div>
-                  <div>
-                    <div className="name">Gałgan</div>
-                    <div className="meta">
-                      FLOW <span className="sep">·</span> 1.2 KM <span className="sep">·</span> ↓ 220 M
-                    </div>
-                  </div>
-                  <div className="diff easy">EASY</div>
-                </div>
-                <div className="lp-stage-row">
-                  <div className="num">02</div>
-                  <div>
-                    <div className="name">Dookoła Świata</div>
-                    <div className="meta">
-                      TRAIL <span className="sep">·</span> 1.6 KM <span className="sep">·</span> ↓ 240 M
-                    </div>
-                  </div>
-                  <div className="diff med">MEDIUM</div>
-                </div>
-                <div className="lp-stage-row">
-                  <div className="num">03</div>
-                  <div>
-                    <div className="name">Kometa</div>
-                    <div className="meta">
-                      TECH <span className="sep">·</span> 1.1 KM <span className="sep">·</span> ↓ 250 M
-                    </div>
-                  </div>
-                  <div className="diff hard">HARD</div>
-                </div>
-                <div className="lp-stage-row">
-                  <div className="num">04</div>
-                  <div>
-                    <div className="name">Dzida</div>
-                    <div className="meta">
-                      DH <span className="sep">·</span> 0.9 KM <span className="sep">·</span> ↓ 260 M
-                    </div>
-                  </div>
-                  <div className="diff pro">PRO</div>
-                </div>
-              </div>
-
-              <aside className="lp-launch-spec">
-                <div className="row">
-                  <span className="k">SEZON</span>
-                  <span className="v">01 / 2026</span>
-                </div>
-                <div className="row">
-                  <span className="k">REGION</span>
-                  <span className="v">KRYNICA-ZDRÓJ</span>
-                </div>
-                <div className="row">
-                  <span className="k">TRASY</span>
-                  <span className="v">4 OFICJALNE</span>
-                </div>
-                <div className="row">
-                  <span className="k">WERYFIKACJA</span>
-                  <span className="v">GPS · LIVE</span>
-                </div>
-                <div className="row">
-                  <span className="k">TRYB</span>
-                  <span className="v">LIGA + TRENING</span>
-                </div>
-                <p className="note">
-                  Kolejne ośrodki dołączą w następnych sezonach.
-                  Lista trwa, ale każdy nowy świat musi przejść
-                  własną weryfikację tras zanim wjedzie do ligi.
-                </p>
-              </aside>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════
-          §05 — SCREENS
-         ════════════════════════════════════════════════ */}
-      <section className="lp-block">
-        <div className="lp-block-label">
-          <span><span className="num">§05</span> // EKRANY</span>
+          <span><span className="num">§03</span> // EKRANY</span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2">
             TRZY EKRANY.<br />
             JEDNO PYTANIE: <span className="red">JESZCZE RAZ?</span>
           </h2>
-          <p className="lp-body2">
-            Wynik. Profil. Tablica. Cała gra mieści się w trzech ekranach,
-            które otwierasz między zjazdami.
-          </p>
 
           <div className="lp-screens2">
             {/* Result */}
@@ -483,53 +319,66 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
-          MARQUEE — between screens and final CTA
+          4 // FINAL CTA + Słotwiny stage card inline
          ════════════════════════════════════════════════ */}
-      <div className="lp-marquee" aria-hidden="true">
-        <div className="lp-marquee-track">
-          <span className="ghost">BRAMKA OTWARTA</span><span className="star">▸</span>
-          <span>BRAMKA OTWARTA</span><span className="star">◆</span>
-          <span className="ghost">SEZON 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span>iOS // APP STORE // DZIEŃ ZERO</span><span className="star">◆</span>
-          <span className="ghost">PB ALBO NIC</span><span className="star">▸</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
-          <span className="ghost">BRAMKA OTWARTA</span><span className="star">▸</span>
-          <span>BRAMKA OTWARTA</span><span className="star">◆</span>
-          <span className="ghost">SEZON 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span>iOS // APP STORE // DZIEŃ ZERO</span><span className="star">◆</span>
-          <span className="ghost">PB ALBO NIC</span><span className="star">▸</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
-        </div>
-      </div>
-
-      {/* ════════════════════════════════════════════════
-          §06 — FINAL STAGE-START CTA
-         ════════════════════════════════════════════════ */}
-      <section className="lp-block">
+      <section className="lp-block tight" id="cta">
         <div className="lp-block-label">
-          <span><span className="num">§06</span> // BRAMKA OTWARTA</span>
+          <span><span className="num">§04</span> // BRAMKA OTWARTA</span>
         </div>
         <div className="lp-wide">
-          <div className="lp-final2">
-            <div className="stamp">
-              <span className="pulse" />
-              SEZON 01 ▸ iOS ▸ WKRÓTCE W APP STORE
-            </div>
-            <h2 className="h">
-              BRAMKA<br />
-              <span className="red">OTWARTA</span>.
-            </h2>
-            <p>
-              Aplikacja iOS jest w drodze do App Store. Liga rusza wraz
-              z premierą — pierwsze czasy w Słotwinach idą do tablicy
-              od dnia zero. Bądź na liście, jak chcesz zająć podium
-              zanim ktokolwiek zdąży się rozgrzać.
-            </p>
-            <div className="lp-cta-row2">
-              <Link className="lp-btn2 red" href="/support">
-                Bądź na liście <span className="arr">→</span>
-              </Link>
-              <Link className="lp-btn2" href="/support">Kontakt</Link>
+          <div className="lp-final3">
+            <div className="lp-final3-grid">
+              <div>
+                <div className="lp-final3-stamp">
+                  <span className="pulse" />
+                  SEZON 01 ▸ iOS ▸ WKRÓTCE W APP STORE
+                </div>
+                <h2 className="h">
+                  BRAMKA<br />
+                  <span className="red">OTWARTA</span>.
+                </h2>
+                <p>
+                  Aplikacja iOS jest w drodze do App Store. Liga rusza wraz
+                  z premierą — pierwsze czasy w Słotwinach idą na tablicę
+                  od dnia zero.
+                </p>
+                <div className="lp-cta-row2">
+                  <Link className="lp-btn2 red" href="/support">
+                    Bądź na liście <span className="arr">→</span>
+                  </Link>
+                  <Link className="lp-btn2" href="/support">Kontakt</Link>
+                </div>
+              </div>
+
+              {/* Inline Słotwiny stage card */}
+              <aside className="lp-stage-card" aria-label="Stage 01 — Słotwiny Arena">
+                <div className="head">▸ STAGE 01 / LAUNCH WORLD</div>
+                <h3>Słotwiny Arena</h3>
+                <div className="meta">
+                  <span>KRYNICA-ZDRÓJ</span>
+                  <span>4 TRASY</span>
+                  <span>GPS · LIVE</span>
+                </div>
+                <div className="trails">
+                  <div className="trail">
+                    <span className="nm">Gałgan</span>
+                    <span className="df easy">EASY</span>
+                  </div>
+                  <div className="trail">
+                    <span className="nm">D. Świata</span>
+                    <span className="df med">MED</span>
+                  </div>
+                  <div className="trail">
+                    <span className="nm">Kometa</span>
+                    <span className="df hard">HARD</span>
+                  </div>
+                  <div className="trail">
+                    <span className="nm">Dzida</span>
+                    <span className="df pro">PRO</span>
+                  </div>
+                </div>
+                <div className="note">SEZON 01 · 2026</div>
+              </aside>
             </div>
           </div>
         </div>
