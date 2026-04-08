@@ -3396,6 +3396,190 @@ body:has(.landing) .nav-links a:hover { color: var(--lp-accent); }
    the original nav + footer because they don't carry .landing. */
 body:has(.landing) .footer { display: none; }
 
+/* ═══════════════════════════════════════════════════════════
+   LANDING V5 — DESCENT FLOW PASS
+   Subtle "downhill run" rhythm across the page:
+   fixed left descent rail, one drop-chevron gutter marker
+   between hero and §01, tiny ▾ chevrons inside every §
+   block label, and gentle tonal shifts that support the
+   run metaphor without turning into a theme park.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Descent rail (fixed left viewport edge) ── */
+@keyframes rail-descend {
+  from { height: 0%; }
+  to   { height: 100%; }
+}
+
+.lp-descent-rail {
+  position: fixed;
+  top: 120px;
+  left: 34px;
+  bottom: 120px;
+  width: 12px;
+  z-index: 20;
+  pointer-events: none;
+  display: none;
+}
+@media (min-width: 1280px) {
+  .lp-descent-rail { display: block; }
+}
+
+.lp-descent-rail .rail-track {
+  position: relative;
+  width: 1px;
+  height: 100%;
+  margin: 0 auto;
+  background: var(--lp-line);
+}
+.lp-descent-rail .rail-fill {
+  position: absolute;
+  top: 0; left: -0.5px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--lp-accent), rgba(0, 255, 136, 0.35));
+  box-shadow: 0 0 8px var(--lp-accent-glow);
+  height: 0;
+  /* Scroll-linked fill — Chrome 115+, Safari 26+, Firefox 111+.
+     Falls back to 0% height on older browsers (rail still shows
+     the 4 static dots + track, so the metaphor still reads). */
+  animation: rail-descend linear;
+  animation-timeline: scroll(root);
+  animation-range: 0% 92%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-descent-rail .rail-fill { animation: none; height: 100%; opacity: 0.35; }
+}
+
+.lp-descent-rail .rail-stops {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+.lp-descent-rail .stop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lp-descent-rail .stop .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--lp-bg);
+  border: 1.5px solid var(--lp-line-2);
+  flex-shrink: 0;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.lp-descent-rail .stop .lbl {
+  position: absolute;
+  left: 18px;
+  font-family: var(--lp-mono);
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  color: var(--lp-text-4);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The first stop should always look live — we're at the start */
+.lp-descent-rail .stop:first-child .dot {
+  border-color: var(--lp-accent);
+  background: var(--lp-accent);
+  box-shadow: 0 0 10px var(--lp-accent-glow);
+}
+.lp-descent-rail .stop:first-child .lbl {
+  color: var(--lp-accent);
+}
+
+/* ── Drop marker between hero and §01 ── */
+.lp-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 0 32px;
+  margin: 8px 0 12px;
+  position: relative;
+}
+.lp-drop .line {
+  flex: 1;
+  max-width: 220px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--lp-line-2), transparent);
+}
+.lp-drop .cap {
+  font-family: var(--lp-mono);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: var(--lp-text-4);
+  text-transform: uppercase;
+}
+.lp-drop .chev {
+  font-family: var(--lp-display);
+  font-size: 11px;
+  color: var(--lp-accent);
+  line-height: 1;
+  animation: lp-chev-bob 3.2s ease-in-out infinite;
+  text-shadow: 0 0 10px var(--lp-accent-glow);
+}
+@keyframes lp-chev-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50%      { transform: translateY(3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-drop .chev { animation: none; }
+}
+
+/* ── Section-label descent chevrons ── */
+.landing .lp-block-label .chev {
+  display: inline-block;
+  color: var(--lp-accent);
+  font-size: 10px;
+  margin-left: 6px;
+  opacity: 0.65;
+}
+.landing .lp-quote .label {
+  /* the quote band label is inline text, not .lp-block-label,
+     so the ▾ we injected is a literal char — colour it too */
+  color: var(--lp-text-4);
+}
+
+/* ── Tonal rhythm — subtle descent across sections ── */
+.landing .lp-hero2 {
+  /* start: bright top-right — the gate is above you */
+}
+.landing .lp-block#loop {
+  /* descent 1: glow angle tilts toward mid-right, feeling the drop */
+  background:
+    radial-gradient(900px 360px at 72% 18%, rgba(0, 255, 136, 0.05), transparent 70%),
+    var(--lp-bg);
+}
+.landing .lp-quote {
+  /* peak momentum: centered brighter glow */
+  background:
+    radial-gradient(700px 360px at 50% 40%, rgba(0, 255, 136, 0.12), transparent 72%),
+    var(--lp-bg);
+}
+.landing .lp-block.showcase {
+  /* pure flow state — already centered, push it slightly lower */
+  background:
+    radial-gradient(980px 460px at 50% 42%, rgba(0, 255, 136, 0.06), transparent 72%),
+    var(--lp-bg);
+}
+.landing .lp-block.finale {
+  /* finish line — glow rises from the bottom, like the board lighting up */
+  background:
+    radial-gradient(900px 460px at 50% 92%, rgba(0, 255, 136, 0.10), transparent 72%),
+    var(--lp-bg);
+}
+
+/* ── Nudge the block-label position down one tick per section
+       to create a faint vertical descent rhythm without gimmickry ── */
+.landing .lp-block#loop .lp-block-label   { top: 22px; }
+.landing .lp-block.showcase .lp-block-label { top: 28px; }
+.landing .lp-block.finale .lp-block-label   { top: 34px; }
+
 /* ── Footer ── */
 .footer {
   margin-top: 96px;

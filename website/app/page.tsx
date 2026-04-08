@@ -8,6 +8,37 @@ export default function HomePage() {
   return (
     <main className="landing">
       {/* ════════════════════════════════════════════════
+          DESCENT RAIL — fixed left edge, desktop only
+          Four phases of a run. The fill grows as the
+          visitor scrolls the page using scroll-linked CSS
+          animation-timeline. Static 4-dot fallback on
+          browsers without scroll timelines.
+         ════════════════════════════════════════════════ */}
+      <aside className="lp-descent-rail" aria-hidden="true">
+        <div className="rail-track">
+          <div className="rail-fill" />
+          <div className="rail-stops">
+            <div className="stop">
+              <span className="dot" />
+              <span className="lbl">BRAMKA</span>
+            </div>
+            <div className="stop">
+              <span className="dot" />
+              <span className="lbl">ROZPĘD</span>
+            </div>
+            <div className="stop">
+              <span className="dot" />
+              <span className="lbl">META</span>
+            </div>
+            <div className="stop">
+              <span className="dot" />
+              <span className="lbl">LOOP</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ════════════════════════════════════════════════
           1 // HERO
          ════════════════════════════════════════════════ */}
       <section className="lp-hero2">
@@ -47,7 +78,7 @@ export default function HomePage() {
 
               <h1 className="lp-stage-h1">
                 <span className="line">WJEDŹ.</span>
-                <span className="line">ZALICZ.</span>
+                <span className="line">ZJEDŹ.</span>
                 <span className="line">WRÓĆ <span className="red">NA GÓRĘ<span className="dot" /></span></span>
               </h1>
 
@@ -117,6 +148,17 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
+          DROP MARKER — the moment the page commits to
+          descending. One subtle mono chevron in the gutter.
+         ════════════════════════════════════════════════ */}
+      <div className="lp-drop" aria-hidden="true">
+        <span className="line" />
+        <span className="cap">DROP</span>
+        <span className="chev">▼</span>
+        <span className="line" />
+      </div>
+
+      {/* ════════════════════════════════════════════════
           MARQUEE — single slim ticker
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
@@ -142,7 +184,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block tight" id="loop">
         <div className="lp-block-label">
-          <span><span className="num">§01</span> // PĘTLA</span>
+          <span><span className="num">§01</span> // PĘTLA <span className="chev">▾</span></span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2">
@@ -180,7 +222,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-quote">
         <div className="lp-wide">
-          <span className="label">§02 // POZYCJONOWANIE</span>
+          <span className="label">§02 // POZYCJONOWANIE ▾</span>
           <h2>
             TO NIE <span className="strike">TRACKER</span>.<br />
             TO <span className="red">LIGA</span>.
@@ -197,7 +239,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block showcase">
         <div className="lp-block-label">
-          <span><span className="num">§03</span> // EKRANY</span>
+          <span><span className="num">§03</span> // EKRANY <span className="chev">▾</span></span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2 lp-h2-show">
@@ -495,7 +537,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block finale" id="cta">
         <div className="lp-block-label">
-          <span><span className="num">§04</span> // BRAMKA OTWARTA</span>
+          <span><span className="num">§04</span> // META · BRAMKA OTWARTA ▾</span>
         </div>
         <div className="lp-wide">
           <div className="lp-finale">
