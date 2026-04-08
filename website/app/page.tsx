@@ -1,30 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import fs from 'node:fs';
-import path from 'node:path';
 
-// ─────────────────────────────────────────────────────────────
-// Real-asset detection.
-//
-// At build time we check whether the marketing team has dropped
-// real iPhone captures into website/public/screens/. If yes, the
-// phone frames in §03 EKRANY render those screenshots and the
-// CSS-built mocks are skipped. If no, the CSS mocks render.
-//
-// See website/public/screens/README.md for the drop spec.
-// ─────────────────────────────────────────────────────────────
-const SCREENS_DIR = path.join(process.cwd(), 'public', 'screens');
-const has = (name: string) =>
-  fs.existsSync(path.join(SCREENS_DIR, name));
-
-const realScreens = {
-  result: has('result.png'),
-  profile: has('profile.png'),
-  leaderboard: has('leaderboard.png'),
-};
-
-// Real product asset — the actual app icon, copied from
-// assets/icon.png into public/brand/icon.png
+// Real product asset — the actual NWD iOS app icon
 const APP_ICON = '/brand/icon.png';
 
 export default function HomePage() {
@@ -57,17 +34,19 @@ export default function HomePage() {
           {/* Headline + HUD */}
           <div className="lp-hero2-grid">
             <div>
-              <div className="lp-stage-label">
-                <span className="bar" />
+              <div className="lp-hero-icon-row">
                 <Image
                   src={APP_ICON}
                   alt="NWD"
-                  width={18}
-                  height={18}
+                  width={72}
+                  height={72}
                   priority
-                  className="lp-brand-icon"
+                  className="lp-hero-icon"
                 />
-                <span>NEW WORLD DISORDER ▸ LIGA GRAVITY</span>
+                <div className="lp-hero-icon-meta">
+                  <span className="t1">NEW WORLD DISORDER</span>
+                  <span className="t2">LIGA GRAVITY · iOS · SEZON 01</span>
+                </div>
               </div>
 
               <h1 className="lp-stage-h1">
@@ -228,161 +207,281 @@ export default function HomePage() {
             JEDNO PYTANIE: <span className="red">JESZCZE RAZ?</span>
           </h2>
 
-          <div className="lp-screens2">
-            {/* Result */}
-            <div className="lp-screen-wrap">
-              <div className="phone2">
-                {realScreens.result ? (
-                  <div className="phone2-screen real">
-                    <Image
-                      src="/screens/result.png"
-                      alt="NWD — ekran wyniku zjazdu"
-                      fill
-                      sizes="(max-width: 980px) 320px, 380px"
-                      className="phone2-img"
-                      priority
-                    />
+          {/* ──────────────────────────────────────────────
+              Three phone screens — pixel-faithful HTML
+              transcriptions of the actual React Native screens
+              shipped in app/(tabs)/profile.tsx,
+              app/(tabs)/index.tsx (start/Słotwiny),
+              app/(tabs)/leaderboard.tsx.
+
+              Same fonts (Orbitron + Inter), same hex tokens
+              (src/theme/colors.ts), same rank icons
+              (src/systems/ranks.ts), same trail data
+              (src/data/seed/slotwinyOfficial.ts), same copy.
+              ────────────────────────────────────────────── */}
+          <div className="lp-screens3">
+            {/* ═══ PHONE 01 // RIDER ═══ */}
+            <div className="lp-scr-wrap">
+              <div className="phone3">
+                <div className="phone3-screen scr-rider">
+                  <div className="scr-status">
+                    <span>9:41</span>
+                    <span className="ind">●●●●●</span>
                   </div>
-                ) : (
-                  <div className="phone2-screen ph2-r">
-                    <div className="small">META · STAGE 01</div>
-                    <div className="trail">GAŁGAN</div>
-                    <div className="verified">✓ ZWERYFIKOWANY · RANKING</div>
-                    <div className="time">02:14<span className="ms">.86</span></div>
-                    <div className="pb">PB · −1.4s</div>
-                    <div className="grid">
-                      <div className="cell">
-                        <span className="l">POZYCJA</span>
-                        <span className="v up">#7</span>
-                      </div>
-                      <div className="cell">
-                        <span className="l">SEZON Δ</span>
-                        <span className="v up">↑3</span>
-                      </div>
-                      <div className="cell">
-                        <span className="l">XP</span>
-                        <span className="v">+185</span>
-                      </div>
-                      <div className="cell">
-                        <span className="l">RANGA</span>
-                        <span className="v">HUNTER</span>
+                  <div className="scr-rider-card">
+                    <div className="scr-rider-avatar">▲</div>
+                    <div className="scr-rider-name">k.rajder</div>
+                    <div className="scr-rider-rank">
+                      <span className="lvl">12</span>
+                      <span className="rname">HUNTER</span>
+                    </div>
+                    <div className="scr-rider-xp">
+                      <div className="bar"><i style={{ width: '62%' }} /></div>
+                      <div className="cap">LVL 12 · 1240 / 2000 XP</div>
+                    </div>
+                    <div className="scr-rider-rankprog">
+                      <div className="bar"><i style={{ width: '34%' }} /></div>
+                      <div className="cap">
+                        <span className="from">▲ HUNTER</span>
+                        <span className="arrow">→</span>
+                        <span className="to">★ SLAYER</span>
+                        <span className="need">· 760 XP</span>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-              <div className="lp-screen-cap">
-                <span><span className="num">01</span> // RESULT</span>
-                <span>STAGE 01</span>
-              </div>
-            </div>
 
-            {/* Profile */}
-            <div className="lp-screen-wrap center">
-              <div className="phone2">
-                {realScreens.profile ? (
-                  <div className="phone2-screen real">
-                    <Image
-                      src="/screens/profile.png"
-                      alt="NWD — profil ridera"
-                      fill
-                      sizes="(max-width: 980px) 320px, 380px"
-                      className="phone2-img"
-                    />
-                  </div>
-                ) : (
-                  <div className="phone2-screen ph2-p">
-                    <div className="small">RIDER</div>
-                    <div className="avatar">▲</div>
-                    <div className="name">k.rajder</div>
-                    <div className="rank">★ HUNTER · LVL 12</div>
-                    <div className="bar"><i /></div>
-                    <div className="xp">LVL 12 · 1240 / 2000 XP</div>
-                    <div className="grid">
-                      <div className="c">
-                        <span className="v">23</span>
-                        <span className="l">ZJAZDÓW</span>
-                      </div>
-                      <div className="c">
-                        <span className="v">4</span>
-                        <span className="l">PB</span>
-                      </div>
-                      <div className="c">
-                        <span className="v">#7</span>
-                        <span className="l">BEST</span>
-                      </div>
+                  <div className="scr-rider-stats">
+                    <div className="cell">
+                      <div className="v">23</div>
+                      <div className="l">ZJAZDÓW</div>
+                    </div>
+                    <div className="cell">
+                      <div className="v">4</div>
+                      <div className="l">REKORDÓW</div>
+                    </div>
+                    <div className="cell">
+                      <div className="v">#7</div>
+                      <div className="l">POZYCJA</div>
                     </div>
                   </div>
-                )}
+
+                  <div className="scr-section-label">OSIĄGNIĘCIA · 3 / 7</div>
+                  <div className="scr-ach-grid">
+                    <div className="ach unlocked"><div className="badge">▲</div><div className="nm">First Blood</div></div>
+                    <div className="ach unlocked"><div className="badge">★</div><div className="nm">Top 10</div></div>
+                    <div className="ach unlocked"><div className="badge">◆</div><div className="nm">Weekend Warrior</div></div>
+                    <div className="ach"><div className="badge">⚡</div><div className="nm">???</div></div>
+                    <div className="ach"><div className="badge">◇</div><div className="nm">???</div></div>
+                    <div className="ach"><div className="badge">♛</div><div className="nm">???</div></div>
+                  </div>
+
+                  <div className="scr-tabbar">
+                    <div className="tab">START</div>
+                    <div className="tab">ZJAZDY</div>
+                    <div className="tab">TABLICA</div>
+                    <div className="tab active">RIDER</div>
+                  </div>
+                </div>
               </div>
-              <div className="lp-screen-cap">
-                <span><span className="num">02</span> // RIDER</span>
-                <span>HUNTER</span>
+              <div className="lp-scr-cap">
+                <span><span className="num">01</span> RIDER</span>
+                <span>HUNTER · LVL 12</span>
               </div>
             </div>
 
-            {/* Leaderboard */}
-            <div className="lp-screen-wrap">
-              <div className="phone2">
-                {realScreens.leaderboard ? (
-                  <div className="phone2-screen real">
-                    <Image
-                      src="/screens/leaderboard.png"
-                      alt="NWD — tablica wyników"
-                      fill
-                      sizes="(max-width: 980px) 320px, 380px"
-                      className="phone2-img"
-                    />
+            {/* ═══ PHONE 02 // START — Słotwiny ═══ */}
+            <div className="lp-scr-wrap center">
+              <div className="phone3">
+                <div className="phone3-screen scr-start">
+                  <div className="scr-status">
+                    <span>9:41</span>
+                    <span className="ind">●●●●●</span>
                   </div>
-                ) : (
-                  <div className="phone2-screen ph2-b">
-                    <div className="small">TABLICA · GAŁGAN</div>
-                    <div className="title">SEZON 01</div>
-                    <div className="row gold">
+                  <div className="scr-start-head">
+                    <div>
+                      <div className="brand">NWD</div>
+                      <div className="league">LIGA GRAVITY</div>
+                    </div>
+                    <div className="rankpill">
+                      <span className="ico">▲</span>
+                      <span className="nm">HUNTER</span>
+                      <span className="bar"><i style={{ width: '62%' }} /></span>
+                    </div>
+                  </div>
+
+                  <div className="scr-venue-rail">
+                    <div className="vchip active">
+                      SŁOTWINY<div className="under" />
+                    </div>
+                    <div className="vchip">KASINA</div>
+                  </div>
+
+                  <div className="scr-venue-card">
+                    <div className="tag">OŚRODEK · SEZON 01</div>
+                    <div className="name">SŁOTWINY ARENA</div>
+                    <div className="region">Krynica-Zdrój</div>
+                    <div className="stats">
+                      <div className="s">
+                        <div className="v">4</div>
+                        <div className="l">TRAS</div>
+                      </div>
+                      <div className="div" />
+                      <div className="s">
+                        <div className="v on">23</div>
+                        <div className="l">ZJAZDÓW</div>
+                      </div>
+                      <div className="div" />
+                      <div className="s">
+                        <div className="v on">8</div>
+                        <div className="l">RIDERÓW</div>
+                      </div>
+                    </div>
+                    <div className="cta">WEJDŹ DO OŚRODKA</div>
+                  </div>
+
+                  <div className="scr-section-label">TWÓJ STATUS</div>
+                  <div className="scr-rider-mini">
+                    <div className="cell"><div className="v">23</div><div className="l">ZJAZDÓW</div></div>
+                    <div className="cell"><div className="v">4</div><div className="l">REKORDÓW</div></div>
+                    <div className="cell"><div className="v on">#7</div><div className="l">POZYCJA</div></div>
+                  </div>
+
+                  <div className="scr-trail-row">
+                    <div className="dot blue" />
+                    <div className="info">
+                      <div className="nm">Gałgan</div>
+                      <div className="meta">EASY · 2400m · ↓180m</div>
+                    </div>
+                    <div className="right">
+                      <div className="pb">02:14.86</div>
+                      <div className="pos">#7</div>
+                    </div>
+                  </div>
+
+                  <div className="scr-tabbar">
+                    <div className="tab active">START</div>
+                    <div className="tab">ZJAZDY</div>
+                    <div className="tab">TABLICA</div>
+                    <div className="tab">RIDER</div>
+                  </div>
+                </div>
+              </div>
+              <div className="lp-scr-cap">
+                <span><span className="num">02</span> START</span>
+                <span>SŁOTWINY · S01</span>
+              </div>
+            </div>
+
+            {/* ═══ PHONE 03 // TABLICA ═══ */}
+            <div className="lp-scr-wrap">
+              <div className="phone3">
+                <div className="phone3-screen scr-board">
+                  <div className="scr-status">
+                    <span>9:41</span>
+                    <span className="ind">●●●●●</span>
+                  </div>
+                  <div className="scr-board-head">
+                    <div className="title">TABLICA WYNIKÓW<span className="dot" /></div>
+                    <div className="sub">TYLKO ZWERYFIKOWANE ZJAZDY</div>
+                  </div>
+
+                  <div className="scr-board-tabs">
+                    <div className="vt active">SŁOTWINY</div>
+                    <div className="vt">KASINA</div>
+                  </div>
+                  <div className="scr-board-scope">
+                    <div className="st">DZIŚ</div>
+                    <div className="st">WEEKEND</div>
+                    <div className="st active">SEZON</div>
+                  </div>
+
+                  <div className="scr-board-trails">
+                    <div className="tchip active">
+                      <span className="dot blue" />Gałgan
+                    </div>
+                    <div className="tchip">
+                      <span className="dot green" />D. Świata
+                    </div>
+                    <div className="tchip">
+                      <span className="dot blue" />Kometa
+                    </div>
+                  </div>
+
+                  {/* Podium */}
+                  <div className="scr-podium">
+                    <div className="prow gold">
                       <div className="pos">1</div>
-                      <div className="who">m.dropek</div>
+                      <div className="who">
+                        <div className="nm">m.dropek</div>
+                        <div className="rk">★ SLAYER</div>
+                      </div>
                       <div className="t">02:08.12</div>
                     </div>
-                    <div className="row silver">
+                    <div className="prow silver">
                       <div className="pos">2</div>
-                      <div className="who">apex.pl</div>
+                      <div className="who">
+                        <div className="nm">apex.pl</div>
+                        <div className="rk">★ SLAYER</div>
+                      </div>
                       <div className="t">02:09.55</div>
                     </div>
-                    <div className="row bronze">
+                    <div className="prow bronze">
                       <div className="pos">3</div>
-                      <div className="who">slayer22</div>
+                      <div className="who">
+                        <div className="nm">slayer22</div>
+                        <div className="rk">▲ HUNTER</div>
+                      </div>
                       <div className="t">02:11.40</div>
                     </div>
-                    <div className="row">
-                      <div className="pos">4</div>
-                      <div className="who">l.kosa</div>
-                      <div className="t">02:12.98</div>
+                  </div>
+
+                  <div className="scr-sep">
+                    <span /><em>RANKING</em><span />
+                  </div>
+
+                  {/* Rider status */}
+                  <div className="scr-rider-status">
+                    <div className="left">
+                      <div className="pos">#7</div>
+                      <div className="tier">TOP 10</div>
                     </div>
-                    <div className="row">
-                      <div className="pos">5</div>
-                      <div className="who">jed.zen</div>
-                      <div className="t">02:13.20</div>
-                    </div>
-                    <div className="row">
-                      <div className="pos">6</div>
-                      <div className="who">w.bronk</div>
-                      <div className="t">02:14.10</div>
-                    </div>
-                    <div className="row you">
-                      <div className="pos">7</div>
-                      <div className="who">k.rajder · TY</div>
-                      <div className="t">02:14.86</div>
-                    </div>
-                    <div className="row">
-                      <div className="pos">8</div>
-                      <div className="who">tomek.dh</div>
-                      <div className="t">02:15.40</div>
+                    <div className="right">
+                      <div className="gap">0.7s do podium</div>
+                      <div className="rival">CEL: #6 w.bronk</div>
                     </div>
                   </div>
-                )}
+
+                  <div className="scr-board-rows">
+                    <div className="brow">
+                      <div className="pos">4</div>
+                      <div className="nm">l.kosa</div>
+                      <div className="up">↑2</div>
+                      <div className="t">02:12.98</div>
+                    </div>
+                    <div className="brow">
+                      <div className="pos">5</div>
+                      <div className="nm">jed.zen</div>
+                      <div className="flat">—</div>
+                      <div className="t">02:13.20</div>
+                    </div>
+                    <div className="brow you">
+                      <div className="pos">7</div>
+                      <div className="nm">k.rajder <em>TY</em></div>
+                      <div className="up">↑3</div>
+                      <div className="t">02:14.86</div>
+                    </div>
+                  </div>
+
+                  <div className="scr-tabbar">
+                    <div className="tab">START</div>
+                    <div className="tab">ZJAZDY</div>
+                    <div className="tab active">TABLICA</div>
+                    <div className="tab">RIDER</div>
+                  </div>
+                </div>
               </div>
-              <div className="lp-screen-cap">
-                <span><span className="num">03</span> // TABLICA</span>
+              <div className="lp-scr-cap">
+                <span><span className="num">03</span> TABLICA</span>
                 <span>SEZON 01</span>
               </div>
             </div>
