@@ -1,4 +1,31 @@
 import Link from 'next/link';
+import Image from 'next/image';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// ─────────────────────────────────────────────────────────────
+// Real-asset detection.
+//
+// At build time we check whether the marketing team has dropped
+// real iPhone captures into website/public/screens/. If yes, the
+// phone frames in §03 EKRANY render those screenshots and the
+// CSS-built mocks are skipped. If no, the CSS mocks render.
+//
+// See website/public/screens/README.md for the drop spec.
+// ─────────────────────────────────────────────────────────────
+const SCREENS_DIR = path.join(process.cwd(), 'public', 'screens');
+const has = (name: string) =>
+  fs.existsSync(path.join(SCREENS_DIR, name));
+
+const realScreens = {
+  result: has('result.png'),
+  profile: has('profile.png'),
+  leaderboard: has('leaderboard.png'),
+};
+
+// Real product asset — the actual app icon, copied from
+// assets/icon.png into public/brand/icon.png
+const APP_ICON = '/brand/icon.png';
 
 export default function HomePage() {
   return (
@@ -32,7 +59,15 @@ export default function HomePage() {
             <div>
               <div className="lp-stage-label">
                 <span className="bar" />
-                <span><span className="num">▸</span> NEW WORLD DISORDER ▸ LIGA GRAVITY</span>
+                <Image
+                  src={APP_ICON}
+                  alt="NWD"
+                  width={18}
+                  height={18}
+                  priority
+                  className="lp-brand-icon"
+                />
+                <span>NEW WORLD DISORDER ▸ LIGA GRAVITY</span>
               </div>
 
               <h1 className="lp-stage-h1">
@@ -197,31 +232,44 @@ export default function HomePage() {
             {/* Result */}
             <div className="lp-screen-wrap">
               <div className="phone2">
-                <div className="phone2-screen ph2-r">
-                  <div className="small">META · STAGE 01</div>
-                  <div className="trail">GAŁGAN</div>
-                  <div className="verified">✓ ZWERYFIKOWANY · RANKING</div>
-                  <div className="time">02:14<span className="ms">.86</span></div>
-                  <div className="pb">PB · −1.4s</div>
-                  <div className="grid">
-                    <div className="cell">
-                      <span className="l">POZYCJA</span>
-                      <span className="v up">#7</span>
-                    </div>
-                    <div className="cell">
-                      <span className="l">SEZON Δ</span>
-                      <span className="v up">↑3</span>
-                    </div>
-                    <div className="cell">
-                      <span className="l">XP</span>
-                      <span className="v">+185</span>
-                    </div>
-                    <div className="cell">
-                      <span className="l">RANGA</span>
-                      <span className="v">HUNTER</span>
+                {realScreens.result ? (
+                  <div className="phone2-screen real">
+                    <Image
+                      src="/screens/result.png"
+                      alt="NWD — ekran wyniku zjazdu"
+                      fill
+                      sizes="(max-width: 980px) 320px, 380px"
+                      className="phone2-img"
+                      priority
+                    />
+                  </div>
+                ) : (
+                  <div className="phone2-screen ph2-r">
+                    <div className="small">META · STAGE 01</div>
+                    <div className="trail">GAŁGAN</div>
+                    <div className="verified">✓ ZWERYFIKOWANY · RANKING</div>
+                    <div className="time">02:14<span className="ms">.86</span></div>
+                    <div className="pb">PB · −1.4s</div>
+                    <div className="grid">
+                      <div className="cell">
+                        <span className="l">POZYCJA</span>
+                        <span className="v up">#7</span>
+                      </div>
+                      <div className="cell">
+                        <span className="l">SEZON Δ</span>
+                        <span className="v up">↑3</span>
+                      </div>
+                      <div className="cell">
+                        <span className="l">XP</span>
+                        <span className="v">+185</span>
+                      </div>
+                      <div className="cell">
+                        <span className="l">RANGA</span>
+                        <span className="v">HUNTER</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
               <div className="lp-screen-cap">
                 <span><span className="num">01</span> // RESULT</span>
@@ -232,28 +280,40 @@ export default function HomePage() {
             {/* Profile */}
             <div className="lp-screen-wrap center">
               <div className="phone2">
-                <div className="phone2-screen ph2-p">
-                  <div className="small">RIDER</div>
-                  <div className="avatar">▲</div>
-                  <div className="name">k.rajder</div>
-                  <div className="rank">★ HUNTER · LVL 12</div>
-                  <div className="bar"><i /></div>
-                  <div className="xp">LVL 12 · 1240 / 2000 XP</div>
-                  <div className="grid">
-                    <div className="c">
-                      <span className="v">23</span>
-                      <span className="l">ZJAZDÓW</span>
-                    </div>
-                    <div className="c">
-                      <span className="v">4</span>
-                      <span className="l">PB</span>
-                    </div>
-                    <div className="c">
-                      <span className="v">#7</span>
-                      <span className="l">BEST</span>
+                {realScreens.profile ? (
+                  <div className="phone2-screen real">
+                    <Image
+                      src="/screens/profile.png"
+                      alt="NWD — profil ridera"
+                      fill
+                      sizes="(max-width: 980px) 320px, 380px"
+                      className="phone2-img"
+                    />
+                  </div>
+                ) : (
+                  <div className="phone2-screen ph2-p">
+                    <div className="small">RIDER</div>
+                    <div className="avatar">▲</div>
+                    <div className="name">k.rajder</div>
+                    <div className="rank">★ HUNTER · LVL 12</div>
+                    <div className="bar"><i /></div>
+                    <div className="xp">LVL 12 · 1240 / 2000 XP</div>
+                    <div className="grid">
+                      <div className="c">
+                        <span className="v">23</span>
+                        <span className="l">ZJAZDÓW</span>
+                      </div>
+                      <div className="c">
+                        <span className="v">4</span>
+                        <span className="l">PB</span>
+                      </div>
+                      <div className="c">
+                        <span className="v">#7</span>
+                        <span className="l">BEST</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
               <div className="lp-screen-cap">
                 <span><span className="num">02</span> // RIDER</span>
@@ -264,50 +324,62 @@ export default function HomePage() {
             {/* Leaderboard */}
             <div className="lp-screen-wrap">
               <div className="phone2">
-                <div className="phone2-screen ph2-b">
-                  <div className="small">TABLICA · GAŁGAN</div>
-                  <div className="title">SEZON 01</div>
-                  <div className="row gold">
-                    <div className="pos">1</div>
-                    <div className="who">m.dropek</div>
-                    <div className="t">02:08.12</div>
+                {realScreens.leaderboard ? (
+                  <div className="phone2-screen real">
+                    <Image
+                      src="/screens/leaderboard.png"
+                      alt="NWD — tablica wyników"
+                      fill
+                      sizes="(max-width: 980px) 320px, 380px"
+                      className="phone2-img"
+                    />
                   </div>
-                  <div className="row silver">
-                    <div className="pos">2</div>
-                    <div className="who">apex.pl</div>
-                    <div className="t">02:09.55</div>
+                ) : (
+                  <div className="phone2-screen ph2-b">
+                    <div className="small">TABLICA · GAŁGAN</div>
+                    <div className="title">SEZON 01</div>
+                    <div className="row gold">
+                      <div className="pos">1</div>
+                      <div className="who">m.dropek</div>
+                      <div className="t">02:08.12</div>
+                    </div>
+                    <div className="row silver">
+                      <div className="pos">2</div>
+                      <div className="who">apex.pl</div>
+                      <div className="t">02:09.55</div>
+                    </div>
+                    <div className="row bronze">
+                      <div className="pos">3</div>
+                      <div className="who">slayer22</div>
+                      <div className="t">02:11.40</div>
+                    </div>
+                    <div className="row">
+                      <div className="pos">4</div>
+                      <div className="who">l.kosa</div>
+                      <div className="t">02:12.98</div>
+                    </div>
+                    <div className="row">
+                      <div className="pos">5</div>
+                      <div className="who">jed.zen</div>
+                      <div className="t">02:13.20</div>
+                    </div>
+                    <div className="row">
+                      <div className="pos">6</div>
+                      <div className="who">w.bronk</div>
+                      <div className="t">02:14.10</div>
+                    </div>
+                    <div className="row you">
+                      <div className="pos">7</div>
+                      <div className="who">k.rajder · TY</div>
+                      <div className="t">02:14.86</div>
+                    </div>
+                    <div className="row">
+                      <div className="pos">8</div>
+                      <div className="who">tomek.dh</div>
+                      <div className="t">02:15.40</div>
+                    </div>
                   </div>
-                  <div className="row bronze">
-                    <div className="pos">3</div>
-                    <div className="who">slayer22</div>
-                    <div className="t">02:11.40</div>
-                  </div>
-                  <div className="row">
-                    <div className="pos">4</div>
-                    <div className="who">l.kosa</div>
-                    <div className="t">02:12.98</div>
-                  </div>
-                  <div className="row">
-                    <div className="pos">5</div>
-                    <div className="who">jed.zen</div>
-                    <div className="t">02:13.20</div>
-                  </div>
-                  <div className="row">
-                    <div className="pos">6</div>
-                    <div className="who">w.bronk</div>
-                    <div className="t">02:14.10</div>
-                  </div>
-                  <div className="row you">
-                    <div className="pos">7</div>
-                    <div className="who">k.rajder · TY</div>
-                    <div className="t">02:14.86</div>
-                  </div>
-                  <div className="row">
-                    <div className="pos">8</div>
-                    <div className="who">tomek.dh</div>
-                    <div className="t">02:15.40</div>
-                  </div>
-                </div>
+                )}
               </div>
               <div className="lp-screen-cap">
                 <span><span className="num">03</span> // TABLICA</span>
@@ -352,7 +424,16 @@ export default function HomePage() {
 
               {/* Inline Słotwiny stage card */}
               <aside className="lp-stage-card" aria-label="Stage 01 — Słotwiny Arena">
-                <div className="head">▸ STAGE 01 / LAUNCH WORLD</div>
+                <div className="head">
+                  <Image
+                    src={APP_ICON}
+                    alt=""
+                    width={14}
+                    height={14}
+                    className="lp-stage-card-icon"
+                  />
+                  STAGE 01 / LAUNCH WORLD
+                </div>
                 <h3>Słotwiny Arena</h3>
                 <div className="meta">
                   <span>KRYNICA-ZDRÓJ</span>

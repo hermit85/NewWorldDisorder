@@ -1962,6 +1962,61 @@ body:has(.landing) .nav-links a:hover { color: var(--lp-accent); }
 .landing .lp-block.tight { padding: 110px 0; }
 @media (max-width: 720px) { .landing .lp-block.tight { padding: 80px 0; } }
 
+/* ═══════════════════════════════════════════════════════════
+   REAL ASSET SUPPORT
+   - .lp-brand-icon: real app icon mark next to brand label
+   - .lp-stage-card-icon: small icon inside §04 stage card
+   - .phone2-screen.real: drops the inner CSS mock and lets a
+     <Image fill> screenshot fill the screen rect
+   ═══════════════════════════════════════════════════════════ */
+.lp-brand-icon {
+  border-radius: 4px;
+  display: inline-block;
+  border: 1px solid rgba(0, 255, 136, 0.32);
+  box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.06);
+  flex-shrink: 0;
+}
+.lp-stage-card-icon {
+  border-radius: 3px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 6px;
+  border: 1px solid rgba(0, 255, 136, 0.32);
+}
+.lp-stage-card .head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lp-stage-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Real phone screen — replaces the CSS mock body, fills the
+   rounded rect with the next/image screenshot */
+.phone2-screen.real {
+  position: relative;
+  padding: 0;
+  background: #000;
+  overflow: hidden;
+}
+.phone2-screen.real::after {
+  /* tiny inner highlight ring so the screenshot still feels
+     embedded in glass, not pasted */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+.phone2-img {
+  object-fit: cover;
+  object-position: center top;
+}
+
 /* ── Footer ── */
 .footer {
   margin-top: 96px;
