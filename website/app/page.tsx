@@ -12,7 +12,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-hero2">
         <div className="lp-wide">
-          {/* Telemetry strip */}
+          {/* Telemetry strip — reduced to 3 cells */}
           <div className="lp-telestrip" aria-hidden="true">
             <div>
               <span className="k">SEZON</span>
@@ -20,11 +20,7 @@ export default function HomePage() {
             </div>
             <div>
               <span className="k">STAGE</span>
-              <span className="v">01 — SŁOTWINY</span>
-            </div>
-            <div>
-              <span className="k">TRYB</span>
-              <span className="v">LIGA · GRAVITY</span>
+              <span className="v">01 — SŁOTWINY ARENA</span>
             </div>
             <div>
               <span className="live">SYGNAŁ AKTYWNY</span>
@@ -56,20 +52,22 @@ export default function HomePage() {
               </h1>
 
               <p className="lp-stage-sub">
-                NWD to gra arcade gravity rozgrywana na prawdziwych ośrodkach.
-                Bramka, trasa, meta, tablica. Czas albo PB. Pozycja albo żadna.
-                Tylko jedno pytanie po mecie: jeszcze raz?
+                Arcade racing na prawdziwej górze. Bramka, trasa, meta, tablica —
+                i jedno pytanie po mecie: <strong>jeszcze raz?</strong>
               </p>
 
-              <div className="lp-cta-row2">
-                <a className="lp-btn2 red" href="#cta">
-                  Bądź na liście <span className="arr">→</span>
+              <div className="lp-cta-row3">
+                <a className="lp-btn-mega" href="#cta">
+                  <span className="label">
+                    <span className="big">Dołącz do ligi</span>
+                    <span className="small">iOS · Sezon 01 · Wkrótce w App Store</span>
+                  </span>
+                  <span className="arr">→</span>
                 </a>
-                <a className="lp-btn2" href="#loop">Jak to działa</a>
-                <span className="lp-cta-meta">
-                  <span className="pulse" />
-                  iOS // App Store // dzień zero
-                </span>
+                <a className="lp-btn-ghost" href="#loop">
+                  <span className="num">§01</span>
+                  Jak to działa
+                </a>
               </div>
             </div>
 
@@ -195,16 +193,16 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
-          3 // EKRANY — screen showcase
+          3 // EKRANY — screen showcase (centerpiece)
          ════════════════════════════════════════════════ */}
-      <section className="lp-block tight">
+      <section className="lp-block showcase">
         <div className="lp-block-label">
           <span><span className="num">§03</span> // EKRANY</span>
         </div>
         <div className="lp-wide">
-          <h2 className="lp-h2-2">
+          <h2 className="lp-h2-2 lp-h2-show">
             TRZY EKRANY.<br />
-            JEDNO PYTANIE: <span className="red">JESZCZE RAZ?</span>
+            <span className="red">JEDNO PYTANIE.</span>
           </h2>
 
           {/* ──────────────────────────────────────────────
@@ -284,8 +282,9 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="lp-scr-cap">
-                <span><span className="num">01</span> RIDER</span>
-                <span>HUNTER · LVL 12</span>
+                <span className="ix">01 / 03</span>
+                <span className="ttl">RIDER</span>
+                <span className="tag">HUNTER · LVL 12</span>
               </div>
             </div>
 
@@ -367,8 +366,9 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="lp-scr-cap">
-                <span><span className="num">02</span> START</span>
-                <span>SŁOTWINY · S01</span>
+                <span className="ix">02 / 03</span>
+                <span className="ttl">START</span>
+                <span className="tag">SŁOTWINY · S01</span>
               </div>
             </div>
 
@@ -481,8 +481,9 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="lp-scr-cap">
-                <span><span className="num">03</span> TABLICA</span>
-                <span>SEZON 01</span>
+                <span className="ix">03 / 03</span>
+                <span className="ttl">TABLICA</span>
+                <span className="tag">SEZON 01</span>
               </div>
             </div>
           </div>
@@ -490,105 +491,103 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
-          4 // FINAL CTA + Słotwiny stage card inline
+          4 // FINAL CTA — finale block
          ════════════════════════════════════════════════ */}
-      <section className="lp-block tight" id="cta">
+      <section className="lp-block finale" id="cta">
         <div className="lp-block-label">
           <span><span className="num">§04</span> // BRAMKA OTWARTA</span>
         </div>
         <div className="lp-wide">
-          <div className="lp-final3">
-            <div className="lp-final3-grid">
-              <div>
-                <div className="lp-final3-stamp">
-                  <span className="pulse" />
-                  SEZON 01 ▸ iOS ▸ WKRÓTCE W APP STORE
+          <div className="lp-finale">
+            <div className="lp-finale-stamp">
+              <span className="pulse" />
+              SEZON 01 ▸ iOS ▸ WKRÓTCE W APP STORE
+            </div>
+            <h2 className="lp-finale-h">
+              BRAMKA<br />
+              <span className="red">OTWARTA</span>.
+            </h2>
+            <p className="lp-finale-sub">
+              Pierwsze czasy w Słotwinach idą na tablicę od dnia zero.
+            </p>
+
+            <Link className="lp-btn-finale" href="/support">
+              <span className="left">
+                <span className="line1">DOŁĄCZ DO LIGI</span>
+                <span className="line2">Bądź pierwszy na liście · Sezon 01</span>
+              </span>
+              <span className="arr">→</span>
+            </Link>
+
+            {/* Stage dossier — horizontal launch strip */}
+            <div className="lp-finale-dossier" aria-label="Stage 01 — Słotwiny Arena">
+              <div className="dossier-head">
+                <div className="left">
+                  <div className="tag">
+                    <Image src={APP_ICON} alt="" width={16} height={16} className="ico" />
+                    STAGE 01 / LAUNCH WORLD
+                  </div>
+                  <div className="name">SŁOTWINY ARENA</div>
+                  <div className="region">Krynica-Zdrój · Polska</div>
                 </div>
-                <h2 className="h">
-                  BRAMKA<br />
-                  <span className="red">OTWARTA</span>.
-                </h2>
-                <p>
-                  Aplikacja iOS jest w drodze do App Store. Liga rusza wraz
-                  z premierą — pierwsze czasy w Słotwinach idą na tablicę
-                  od dnia zero.
-                </p>
-                <div className="lp-cta-row2">
-                  <Link className="lp-btn2 red" href="/support">
-                    Bądź na liście <span className="arr">→</span>
-                  </Link>
-                  <Link className="lp-btn2" href="/support">Kontakt</Link>
+                <div className="right">
+                  <div className="kv"><span className="k">SEZON</span><span className="v">01 / 2026</span></div>
+                  <div className="kv"><span className="k">WERYFIKACJA</span><span className="v">GPS · LIVE</span></div>
                 </div>
               </div>
-
-              {/* Inline Słotwiny stage card */}
-              <aside className="lp-stage-card" aria-label="Stage 01 — Słotwiny Arena">
-                <div className="head">
-                  <Image
-                    src={APP_ICON}
-                    alt=""
-                    width={14}
-                    height={14}
-                    className="lp-stage-card-icon"
-                  />
-                  STAGE 01 / LAUNCH WORLD
+              <div className="dossier-trails">
+                <div className="trail">
+                  <div className="ix">01</div>
+                  <div className="nm">Gałgan</div>
+                  <div className="meta">FLOW · 2.4 km · ↓180 m</div>
+                  <div className="df easy">EASY</div>
                 </div>
-                <h3>Słotwiny Arena</h3>
-                <div className="meta">
-                  <span>KRYNICA-ZDRÓJ</span>
-                  <span>4 TRASY</span>
-                  <span>GPS · LIVE</span>
+                <div className="trail">
+                  <div className="ix">02</div>
+                  <div className="nm">Dookoła Świata</div>
+                  <div className="meta">FLOW · 3.1 km · ↓155 m</div>
+                  <div className="df easy">EASY</div>
                 </div>
-                <div className="trails">
-                  <div className="trail">
-                    <span className="nm">Gałgan</span>
-                    <span className="df easy">EASY</span>
-                  </div>
-                  <div className="trail">
-                    <span className="nm">D. Świata</span>
-                    <span className="df med">MED</span>
-                  </div>
-                  <div className="trail">
-                    <span className="nm">Kometa</span>
-                    <span className="df hard">HARD</span>
-                  </div>
-                  <div className="trail">
-                    <span className="nm">Dzida</span>
-                    <span className="df pro">PRO</span>
-                  </div>
+                <div className="trail">
+                  <div className="ix">03</div>
+                  <div className="nm">Kometa</div>
+                  <div className="meta">FLOW · 2.3 km · ↓184 m</div>
+                  <div className="df med">MEDIUM</div>
                 </div>
-                <div className="note">SEZON 01 · 2026</div>
-              </aside>
+                <div className="trail">
+                  <div className="ix">04</div>
+                  <div className="nm">Dzida</div>
+                  <div className="meta">TECH · 1.5 km · ↓165 m</div>
+                  <div className="df hard">HARD</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ════════════════════════════════════════════════
-          COMPLIANCE — kept accessible, narrower rail
+          END TRANSMISSION — quiet fade to compliance
          ════════════════════════════════════════════════ */}
-      <div className="compliance-shell">
-        <span className="eyebrow">Dokumenty</span>
-        <h2 style={{ borderTop: 'none', paddingTop: 0, marginTop: 8 }}>
-          Compliance &amp; wsparcie
-        </h2>
-        <div className="section-grid">
-          <Link href="/privacy" className="tile">
-            <h3>Polityka prywatności</h3>
-            <p>Jakie dane zbieramy i dlaczego.</p>
-          </Link>
-          <Link href="/terms" className="tile">
-            <h3>Regulamin</h3>
-            <p>Zasady gry, ligi i odpowiedzialności.</p>
-          </Link>
-          <Link href="/support" className="tile">
-            <h3>Wsparcie</h3>
-            <p>Kontakt, FAQ, zgłaszanie problemów.</p>
-          </Link>
-          <Link href="/delete-account" className="tile">
-            <h3>Usunięcie konta</h3>
-            <p>Jak trwale usunąć profil i dane.</p>
-          </Link>
+      <div className="lp-end">
+        <div className="lp-wide">
+          <div className="lp-end-rule">
+            <span className="bar" />
+            <span className="label">§ END OF TRANSMISSION</span>
+            <span className="bar" />
+          </div>
+          <nav className="lp-end-links" aria-label="Compliance">
+            <Link href="/privacy">Prywatność</Link>
+            <span className="sep" aria-hidden="true">·</span>
+            <Link href="/terms">Regulamin</Link>
+            <span className="sep" aria-hidden="true">·</span>
+            <Link href="/support">Wsparcie</Link>
+            <span className="sep" aria-hidden="true">·</span>
+            <Link href="/delete-account">Usunięcie konta</Link>
+          </nav>
+          <div className="lp-end-colophon">
+            NEW WORLD DISORDER · LIGA GRAVITY · SEZON 01 / 2026
+          </div>
         </div>
       </div>
     </main>
