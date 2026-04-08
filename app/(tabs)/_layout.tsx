@@ -41,8 +41,11 @@ function TabItem({ label, focused }: { label: string; focused: boolean }) {
     }
   }, [focused]);
 
+  // Inactive opacity raised from 0.35 → 0.62 so the label
+  // remains readable on OLED iPhones without competing with
+  // the focused tab. Color also moved up to textSecondary.
   const textAnim = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 1 : 0.35, TIMING),
+    opacity: withTiming(focused ? 1 : 0.62, TIMING),
     transform: [{ scale: scale.value }],
   }));
 
@@ -60,7 +63,7 @@ function TabItem({ label, focused }: { label: string; focused: boolean }) {
       <Animated.Text
         style={[
           styles.label,
-          { color: focused ? colors.textPrimary : colors.textTertiary },
+          { color: focused ? colors.textPrimary : colors.textSecondary },
           textAnim,
         ]}
       >
@@ -134,7 +137,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     backgroundColor: colors.bg,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: 'rgba(255,255,255,0.12)',
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 10,
   },

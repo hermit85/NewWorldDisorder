@@ -1,9 +1,22 @@
+// ─────────────────────────────────────────────────────────────
+// Contrast pass:
+//   - bgCard / bgElevated nudged up so cards separate from bg
+//     on real OLED iPhone screens.
+//   - textSecondary / textTertiary brightened so muted labels
+//     stay readable without becoming grey iOS chrome.
+//   - border / borderLight raised to be visible on dark cards.
+//   - mutedSurface added as the official locked/disabled fill.
+// ─────────────────────────────────────────────────────────────
 export const colors = {
   // Base
   bg: '#0A0A0F',
-  bgCard: '#14141C',
-  bgElevated: '#1C1C28',
+  bgCard: '#181822',
+  bgElevated: '#22222F',
   bgOverlay: 'rgba(10, 10, 15, 0.85)',
+
+  // Locked / disabled surfaces — tuned for visible-but-quiet on OLED
+  mutedSurface: 'rgba(255, 255, 255, 0.05)',
+  mutedBorder: 'rgba(255, 255, 255, 0.14)',
 
   // Primary accent — electric green (speed, PB, success)
   accent: '#00FF88',
@@ -23,16 +36,17 @@ export const colors = {
 
   // Text
   textPrimary: '#FFFFFF',
-  textSecondary: '#8E8E9A',
-  textTertiary: '#5A5A6A',
+  textSecondary: '#B4B4C2',
+  textTertiary: '#82828F',
+  textDisabled: '#5C5C68',
   textAccent: '#00FF88',
 
   // Borders
-  border: '#2A2A38',
-  borderLight: '#3A3A4A',
+  border: '#34344A',
+  borderLight: '#44445A',
 
   // Rank colors
-  rankRookie: '#8E8E9A',
+  rankRookie: '#B4B4C2',
   rankRider: '#007AFF',
   rankHunter: '#FF9500',
   rankSlayer: '#FF3B30',

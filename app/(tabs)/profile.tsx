@@ -226,7 +226,7 @@ export default function ProfileScreen() {
                     ]}>
                       <Text style={[
                         styles.achievementBadgeText,
-                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.15)' },
+                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.42)' },
                       ]}>
                         {def.icon}
                       </Text>
@@ -354,12 +354,12 @@ const styles = StyleSheet.create({
   achievementItem: { width: '47%', backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   achievementBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   achievementBadgeUnlocked: { borderColor: colors.accent, backgroundColor: colors.accentDim },
-  achievementBadgeLocked: { borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.02)' },
+  achievementBadgeLocked: { borderColor: colors.mutedBorder, backgroundColor: colors.mutedSurface },
   achievementBadgeText: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.textTertiary },
   achievementName: { ...typography.bodySmall, color: colors.textPrimary, textAlign: 'center', fontFamily: 'Inter_600SemiBold' },
-  achievementNameLocked: { color: colors.textTertiary, opacity: 0.5 },
-  achievementHint: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 9, opacity: 0.5, marginTop: 2 },
-  achievementItemLocked: { opacity: 0.6 },
+  achievementNameLocked: { color: colors.textTertiary, opacity: 0.92 },
+  achievementHint: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 9, opacity: 0.85, marginTop: 2 },
+  achievementItemLocked: { opacity: 0.92 },
   signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
   signInTitle: { ...typography.label, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
   signInDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },

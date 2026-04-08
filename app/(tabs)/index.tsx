@@ -438,12 +438,12 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
   },
   venueChipActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   venueChipText: {
     fontFamily: 'Orbitron_700Bold',
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.25)',
+    color: 'rgba(255, 255, 255, 0.55)',
     letterSpacing: 2,
   },
   venueChipTextActive: {

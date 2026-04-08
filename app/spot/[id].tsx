@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   },
   trailChipMeta: {
     fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.30)',
+    color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 7.5,
     letterSpacing: 0.3,
     marginBottom: 1,
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   trailChipNoPb: {
     fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.30)',
+    color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 8.5,
   },
 });

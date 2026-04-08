@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
   venueTab: { paddingVertical: spacing.xs },
   venueTabActive: {},
-  venueTabText: { fontFamily: 'Orbitron_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.20)', letterSpacing: 2 },
+  venueTabText: { fontFamily: 'Orbitron_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: 2 },
   venueTabTextActive: { color: colors.textPrimary },
 
   // Scope tabs
