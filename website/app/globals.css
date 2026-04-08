@@ -3905,6 +3905,230 @@ body:has(.landing) .footer { display: none; }
 .landing .lp-end { padding: 96px 0 72px; }
 .landing .lp-end-rule { margin-bottom: 28px; }
 
+/* ═══════════════════════════════════════════════════════════
+   LANDING V7 — FINAL DESIRE PASS
+   - Fix Orbitron Polish-diacritic clipping at display sizes
+   - Scroll-linked reveals (animation-timeline: view())
+   - Center-phone parallax rise
+   - Drop decorative clutter
+   - Rivalry + founding-rider copy layer
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Hero headline: bulletproof Polish diacritics ──
+   The previous line-height: 0.82 was clipping Ź / Ć / Ó / Ę
+   acute accents + ogoneks at 168px. Fix the render box so
+   diacritics always have room, and add feature settings +
+   proper text rendering. Fallback stack lands on Inter (which
+   has excellent Polish coverage) if Orbitron's latin-ext
+   payload fails to load. */
+.landing .lp-stage-h1 {
+  font-family: 'Orbitron', 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+  font-weight: 900;
+  font-size: clamp(56px, 10.2vw, 156px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  padding-block: 0.08em 0.12em;
+  margin-top: -0.08em;
+  margin-bottom: 32px;
+  text-rendering: geometricPrecision;
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  overflow: visible;
+}
+.landing .lp-stage-h1 .line {
+  display: block;
+  padding-block: 0.02em 0.04em;
+  overflow: visible;
+}
+/* Tune the bullet dot so it lands on the cap-line of "GÓRĘ"
+   instead of drifting with the baseline */
+.landing .lp-stage-h1 .dot {
+  width: 0.15em;
+  height: 0.15em;
+  margin-left: 0.06em;
+  vertical-align: 0.14em;
+  box-shadow: 0 0 28px var(--lp-accent-glow);
+}
+
+/* Hide the old drop marker element if any stale build leaks
+   through a CDN cache — we deleted the JSX above */
+.lp-drop { display: none; }
+
+/* Hide any leftover descent chevrons inside block labels —
+   we removed the inline ▾ characters from the markup */
+.landing .lp-block-label .chev { display: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLL-LINKED REVEAL RHYTHM — the descent run
+   Each element fades + rises slightly as it enters the viewport,
+   using CSS animation-timeline: view(). Chrome 115+ / Safari 26+
+   / Firefox 140+. Silently no-ops on older browsers — the
+   base state is already fully visible.
+   ═══════════════════════════════════════════════════════════ */
+@supports (animation-timeline: view()) {
+  @keyframes lp-view-rise {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes lp-view-rise-soft {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* §01 PĘTLA strip phases — stagger without JS */
+  .landing .lp-loop-strip .lp-strip-phase {
+    animation: lp-view-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 8% entry 48%;
+  }
+  /* Simulate stagger via per-cell animation-delay */
+  .landing .lp-loop-strip .lp-strip-phase:nth-child(1) { animation-range: entry 4%  entry 44%; }
+  .landing .lp-loop-strip .lp-strip-phase:nth-child(2) { animation-range: entry 8%  entry 48%; }
+  .landing .lp-loop-strip .lp-strip-phase:nth-child(3) { animation-range: entry 12% entry 52%; }
+  .landing .lp-loop-strip .lp-strip-phase:nth-child(4) { animation-range: entry 16% entry 56%; }
+
+  /* §02 pull quote — rises with the camera */
+  .landing .lp-quote h2 {
+    animation: lp-view-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 60%;
+  }
+  .landing .lp-quote .sub {
+    animation: lp-view-rise-soft linear both;
+    animation-timeline: view();
+    animation-range: entry 8% entry 58%;
+  }
+
+  /* §03 screens — headline, sub, side phones rise softly */
+  .landing .lp-h2-show,
+  .landing .lp-h2-show-sub {
+    animation: lp-view-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 50%;
+  }
+  .landing .lp-block.showcase .lp-scr-wrap:not(.center) {
+    animation: lp-view-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 60%;
+  }
+  .landing .lp-block.showcase .lp-scr-wrap:not(.center):nth-child(1) {
+    animation-range: entry 0% entry 50%;
+  }
+  .landing .lp-block.showcase .lp-scr-wrap:not(.center):last-child {
+    animation-range: entry 12% entry 62%;
+  }
+
+  /* Center phone — parallax rise across the full section.
+     Translates from +40px through -80px while the section
+     passes through the viewport. Premium depth feel. */
+  @keyframes lp-center-parallax {
+    from { transform: translateY(40px); }
+    to   { transform: translateY(-88px); }
+  }
+  .landing .lp-block.showcase .lp-scr-wrap.center {
+    animation: lp-center-parallax linear both;
+    animation-timeline: view();
+    animation-range: cover 0% cover 100%;
+  }
+
+  /* §04 finale dossier — settles into place as it enters */
+  .landing .lp-finale-dossier {
+    animation: lp-view-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 8% entry 62%;
+  }
+  .landing .lp-finale-h,
+  .landing .lp-finale-sub,
+  .landing .lp-btn-finale {
+    animation: lp-view-rise-soft linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 55%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing .lp-loop-strip .lp-strip-phase,
+  .landing .lp-quote h2,
+  .landing .lp-quote .sub,
+  .landing .lp-h2-show,
+  .landing .lp-h2-show-sub,
+  .landing .lp-block.showcase .lp-scr-wrap,
+  .landing .lp-finale-dossier,
+  .landing .lp-finale-h,
+  .landing .lp-finale-sub,
+  .landing .lp-btn-finale {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   APPLE-LEVEL MICRO CORRECTIONS V7
+   ═══════════════════════════════════════════════════════════ */
+
+/* Hero: tighter optical rhythm */
+.landing .lp-hero2 { padding-top: 40px; padding-bottom: 40px; }
+.landing .lp-telestrip { margin-bottom: 56px; }
+.landing .lp-stage-sub {
+  max-width: 540px;
+  margin-bottom: 40px;
+}
+.landing .lp-stage-sub strong {
+  color: var(--lp-text);
+  font-weight: 600;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+  padding-bottom: 1px;
+}
+
+/* Section rhythm: matched padding between blocks so the
+   descent feels even on scroll */
+.landing .lp-block#loop   { padding: 132px 0 124px; }
+.landing .lp-block.showcase { padding: 148px 0 152px; }
+.landing .lp-block.finale { padding: 132px 0 120px; }
+.landing .lp-quote { padding: 112px 0 116px; }
+@media (max-width: 720px) {
+  .landing .lp-block#loop { padding: 88px 0; }
+  .landing .lp-block.showcase { padding: 96px 0; }
+  .landing .lp-block.finale { padding: 88px 0; }
+  .landing .lp-quote { padding: 76px 0; }
+}
+
+/* §03 showcase: more silence around the phones */
+.landing .lp-block.showcase .lp-screens3 {
+  margin-top: 120px;
+}
+@media (max-width: 1100px) {
+  .landing .lp-block.showcase .lp-screens3 { margin-top: 80px; }
+}
+
+/* Pull-quote strike should be SLIGHTLY heavier now that the
+   phones dominate the page */
+.lp-quote h2 .strike::after { height: 0.12em; }
+
+/* Mega CTA internal spacing — more premium */
+.lp-btn-mega {
+  gap: 32px;
+  padding: 22px 32px 22px 36px;
+}
+.lp-btn-finale {
+  gap: 36px;
+  padding: 28px 40px 28px 48px;
+}
+
+/* Finale: reduce breathing below the mega CTA so the dossier
+   reads as part of the same block, not a second card */
+.landing .lp-btn-finale { margin-bottom: 56px; }
+
+/* Quiet the marquee track on very wide displays — at >1600px
+   it was reading as loud. Tighter letter-spacing saves it. */
+@media (min-width: 1600px) {
+  .lp-marquee-track { font-size: 16px; letter-spacing: 0.01em; gap: 56px; }
+}
+
+/* End transmission: slightly more silence before the fade */
+.landing .lp-end { padding: 112px 0 80px; }
+
 /* ── Footer ── */
 .footer {
   margin-top: 96px;

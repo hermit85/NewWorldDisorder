@@ -82,15 +82,15 @@ export default function HomePage() {
               </h1>
 
               <p className="lp-stage-sub">
-                Arcade racing na prawdziwej górze. Bramka, trasa, meta, tablica —
-                i jedno pytanie po mecie: <strong>jeszcze raz?</strong>
+                Arcade racing na prawdziwej górze. Twój czas staje obok
+                innych. <strong>Twój rywal już wie, że pojedzie w weekend.</strong>
               </p>
 
               <div className="lp-cta-row3">
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
                     <span className="big">Dołącz do ligi</span>
-                    <span className="small">Pierwsi riderzy · Pierwsze czasy · Sezon 01</span>
+                    <span className="small">Zapisz się zanim zapiszą cię inni · Sezon 01</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -143,17 +143,6 @@ export default function HomePage() {
       </section>
 
       {/* ════════════════════════════════════════════════
-          DROP MARKER — the moment the page commits to
-          descending. One subtle mono chevron in the gutter.
-         ════════════════════════════════════════════════ */}
-      <div className="lp-drop" aria-hidden="true">
-        <span className="line" />
-        <span className="cap">DROP</span>
-        <span className="chev">▼</span>
-        <span className="line" />
-      </div>
-
-      {/* ════════════════════════════════════════════════
           MARQUEE — single slim ticker
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
@@ -179,7 +168,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block tight" id="loop">
         <div className="lp-block-label">
-          <span><span className="num">§01</span> // PĘTLA <span className="chev">▾</span></span>
+          <span><span className="num">§01</span> // PĘTLA</span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2">
@@ -217,14 +206,14 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-quote">
         <div className="lp-wide">
-          <span className="label">§02 // POZYCJONOWANIE ▾</span>
+          <span className="label">§02 // POZYCJONOWANIE</span>
           <h2>
             TO NIE <span className="strike">TRACKER</span>.<br />
             TO <span className="red">LIGA</span>.
           </h2>
           <p className="sub">
-            Bez wykresów, bez treningu, bez wymówek. Tylko czas, miejsce
-            i kolejny start.
+            Twój czas to Twoja pozycja. Twoja pozycja to Twój rywal.
+            Twój rywal czeka na weekend.
           </p>
         </div>
       </section>
@@ -234,7 +223,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block showcase">
         <div className="lp-block-label">
-          <span><span className="num">§03</span> // EKRANY <span className="chev">▾</span></span>
+          <span><span className="num">§03</span> // EKRANY</span>
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2 lp-h2-show">
@@ -536,7 +525,7 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <section className="lp-block finale" id="cta">
         <div className="lp-block-label">
-          <span><span className="num">§04</span> // META · BRAMKA OTWARTA ▾</span>
+          <span><span className="num">§04</span> // META</span>
         </div>
         <div className="lp-wide">
           <div className="lp-finale">
@@ -549,14 +538,15 @@ export default function HomePage() {
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Sezon 01 pisze się raz. Pierwsi riderzy zapiszą się
-              do historii ligi — od dnia zero.
+              Sezon 01 pisze się raz. Pierwsi riderzy wpisują się
+              do historii ligi. Weekend w Słotwinach decyduje
+              o pierwszym podium całego sezonu.
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">DOŁĄCZ DO LIGI</span>
-                <span className="line2">Miejsce na podium · Od dnia zero</span>
+                <span className="line2">Podium otwarte · Wejdź zanim zajmą</span>
               </span>
               <span className="arr">→</span>
             </Link>
