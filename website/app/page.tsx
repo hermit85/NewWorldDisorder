@@ -597,68 +597,48 @@ export default function HomePage() {
               <span className="arr">→</span>
             </Link>
 
-            {/* Stage dossier — launch manifest */}
-            <div className="lp-finale-dossier" aria-label="Stage 01 — Słotwiny Arena">
-              <div className="dossier-head">
+            {/* Podium map — one row per trail, focused on empty slots */}
+            <div className="lp-podium-map" aria-label="Podium map — Słotwiny Arena">
+              <div className="pm-head">
                 <div className="left">
-                  <div className="tag gold">
-                    <Image src={APP_ICON} alt="" width={16} height={16} className="ico" />
-                    STAGE 01 · ZASADY LIGI
+                  <div className="tag">
+                    <Image src={APP_ICON} alt="" width={14} height={14} className="ico" />
+                    SŁOTWINY ARENA · SEZON 01
                   </div>
-                  <div className="name">Słotwiny Arena</div>
-                  <div className="region">4 trasy · każda z własną tablicą sezonu · top 3 na każdej = podium</div>
                 </div>
                 <div className="right">
-                  <div className="kv"><span className="k">TRASY</span><span className="v">4 OFICJALNE</span></div>
-                  <div className="kv"><span className="k">PODIUM / TRASA</span><span className="v">TOP 3</span></div>
-                  <div className="kv"><span className="k">RAZEM</span><span className="v">12 MIEJSC</span></div>
+                  <span className="k">TRASY</span><span className="v">4</span>
+                  <span className="sep">·</span>
+                  <span className="k">PODIUM / TRASA</span><span className="v">TOP 3</span>
+                  <span className="sep">·</span>
+                  <span className="k">RAZEM</span><span className="v gold">12</span>
                 </div>
               </div>
-              <div className="dossier-trails">
-                <div className="trail">
-                  <div className="ix">01</div>
-                  <div className="nm">Gałgan</div>
-                  <div className="meta">FLOW · 2.4 km · ↓180 m</div>
-                  <div className="df easy">EASY</div>
-                  <div className="podium">
-                    <span className="plabel">TOP 3 · PODIUM</span>
-                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
-                  </div>
+              <div className="pm-grid">
+                <div className="pm-trail">
+                  <span className="dot c-blue" />
+                  <span className="nm">Gałgan</span>
+                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
                 </div>
-                <div className="trail">
-                  <div className="ix">02</div>
-                  <div className="nm">Dookoła Świata</div>
-                  <div className="meta">FLOW · 3.1 km · ↓155 m</div>
-                  <div className="df easy">EASY</div>
-                  <div className="podium">
-                    <span className="plabel">TOP 3 · PODIUM</span>
-                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
-                  </div>
+                <div className="pm-trail">
+                  <span className="dot c-green" />
+                  <span className="nm">Dookoła Świata</span>
+                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
                 </div>
-                <div className="trail">
-                  <div className="ix">03</div>
-                  <div className="nm">Kometa</div>
-                  <div className="meta">FLOW · 2.3 km · ↓184 m</div>
-                  <div className="df med">MEDIUM</div>
-                  <div className="podium">
-                    <span className="plabel">TOP 3 · PODIUM</span>
-                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
-                  </div>
+                <div className="pm-trail">
+                  <span className="dot c-blue" />
+                  <span className="nm">Kometa</span>
+                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
                 </div>
-                <div className="trail">
-                  <div className="ix">04</div>
-                  <div className="nm">Dzida</div>
-                  <div className="meta">TECH · 1.5 km · ↓165 m</div>
-                  <div className="df hard">HARD</div>
-                  <div className="podium">
-                    <span className="plabel">TOP 3 · PODIUM</span>
-                    <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
-                  </div>
+                <div className="pm-trail">
+                  <span className="dot c-red" />
+                  <span className="nm">Dzida</span>
+                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
                 </div>
               </div>
-              <div className="dossier-foot">
-                <span className="dot" />
-                4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE
+              <div className="pm-foot">
+                <span className="pulse" />
+                4 × TOP 3 = 12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE
               </div>
             </div>
           </div>
