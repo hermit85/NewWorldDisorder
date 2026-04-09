@@ -71,7 +71,11 @@ export default function HomePage() {
                   className="lp-hero-icon"
                 />
                 <div className="lp-hero-icon-meta">
-                  <span className="t1">LIGA GRAVITY · iOS · SEZON 01</span>
+                  <span className="t1">LIGA GRAVITY · SEZON 01 / 2026</span>
+                  <span className="t2">
+                    <span className="live-dot" />
+                    12 miejsc na podium · wszystkie otwarte
+                  </span>
                 </div>
               </div>
 
@@ -82,16 +86,15 @@ export default function HomePage() {
               </h1>
 
               <p className="lp-stage-sub">
-                Liga gravity na prawdziwych trasach. Weryfikowane czasy,
-                sezonowa tablica, podium.
-                <strong> Twoi znajomi już ustawiają rower na weekend.</strong>
+                Liga gravity. Weryfikowane czasy, sezonowa tablica, podium.
+                <strong> Twoi kumple już wiedzą, że w weekend jest bitwa.</strong>
               </p>
 
               <div className="lp-cta-row3">
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
                     <span className="big">Wejdź do ligi</span>
-                    <span className="small">Pierwsze podium Sezonu 01 · Zawalcz o #1</span>
+                    <span className="small">12 miejsc na podium · Zgarnij #1 · Sezon 01</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -100,9 +103,25 @@ export default function HomePage() {
                   Jak to działa
                 </a>
               </div>
+
+              {/* Live ranking pressure strip — sits under the CTA row */}
+              <div className="lp-hero-stakes" aria-hidden="true">
+                <div className="stake">
+                  <span className="k">TWOJA POZYCJA</span>
+                  <span className="v">#7 / 23</span>
+                </div>
+                <div className="stake">
+                  <span className="k">RYWAL NAD TOBĄ</span>
+                  <span className="v">+0.76s</span>
+                </div>
+                <div className="stake gold">
+                  <span className="k">DO PODIUM</span>
+                  <span className="v">4 POZ.</span>
+                </div>
+              </div>
             </div>
 
-            {/* HUD result tower — league-first framing */}
+            {/* HUD result tower — ranking pressure dominant */}
             <div style={{ position: 'relative' }}>
               <div className="lp-hud" aria-hidden="true">
                 <div className="lp-hud-head">
@@ -111,10 +130,6 @@ export default function HomePage() {
                 </div>
                 <div className="lp-hud-body">
                   <div className="lp-hud-trail">GAŁGAN · TABLICA SEZONOWA</div>
-                  <div className="lp-hud-stat-line">
-                    <span className="check">✓</span>
-                    ZWERYFIKOWANY · ZALICZONY DO LIGI
-                  </div>
                   <div className="lp-hud-time">
                     02:14<span className="ms">.86</span>
                   </div>
@@ -123,19 +138,25 @@ export default function HomePage() {
                     −1.4s · +3 POZYCJE W SEZONIE
                   </div>
 
-                  {/* Rival strip — the league pressure moment */}
-                  <div className="lp-hud-rival">
+                  {/* Rival strip — the page's loudest league moment */}
+                  <div className="lp-hud-rival big">
                     <div className="rv-head">
-                      <span className="lb">CEL · RYWAL NAD TOBĄ</span>
-                      <span className="tag">#6</span>
+                      <span className="lb">
+                        <span className="warn" />
+                        RYWAL NAD TOBĄ
+                      </span>
+                      <span className="tag">#6 · w.bronk</span>
                     </div>
-                    <div className="rv-row">
-                      <div className="rv-name">w.bronk</div>
-                      <div className="rv-gap">+0.76s</div>
-                    </div>
-                    <div className="rv-row sub">
-                      <div className="rv-name">DO PODIUM · #3 slayer22</div>
-                      <div className="rv-gap">+3.46s</div>
+                    <div className="rv-gap-big">+0.76<span className="s">s</span></div>
+                    <div className="rv-footer">
+                      <div className="kv">
+                        <span className="k">TY</span>
+                        <span className="v">#7 · 02:14.86</span>
+                      </div>
+                      <div className="kv podium">
+                        <span className="k">DO PODIUM</span>
+                        <span className="v">+3.46s · 4 POZ.</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -149,7 +170,7 @@ export default function HomePage() {
                     <span className="value up">✓</span>
                   </div>
                   <div>
-                    <span className="label">DO PODIUM</span>
+                    <span className="label">PODIUM</span>
                     <span className="value gold">4 POZ.</span>
                   </div>
                 </div>
@@ -337,6 +358,11 @@ export default function HomePage() {
 
             {/* ═══ PHONE 02 // TABLICA — the centerpiece, hero phone ═══ */}
             <div className="lp-scr-wrap center">
+              <div className="lp-scr-callout" aria-hidden="true">
+                <span className="k">GAP DO #6</span>
+                <span className="v">+0.76<span className="s">s</span></span>
+                <span className="rv">w.bronk</span>
+              </div>
               <div className="phone3">
                 <div className="phone3-screen scr-board">
                   <div className="scr-status">
@@ -548,22 +574,22 @@ export default function HomePage() {
           <div className="lp-finale">
             <div className="lp-finale-stamp">
               <span className="pulse" />
-              PIERWSZE PODIUM · SEZON 01 · WKRÓTCE W APP STORE
+              PIERWSZY WEEKEND · 12 MIEJSC · WSZYSTKIE OTWARTE
             </div>
             <h2 className="lp-finale-h">
               BRAMKA<br />
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Sezon 01 pisze się raz. Pierwsi riderzy wpisują się
-              do historii ligi — a pierwsze podium całego sezonu
-              wygrywa się w jeden weekend.
+              Pierwszy weekend Sezonu 01 decyduje o pierwszym podium
+              ligi. 12 miejsc na podium — wszystkie otwarte.
+              Pierwsi riderzy zostają w historii na zawsze.
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">WEJDŹ DO LIGI</span>
-                <span className="line2">Zgarnij #1 · Ścigaj się z kumplami od dnia zero</span>
+                <span className="line2">Ścigaj się z kumplami · Zgarnij #1 · Dzień zero</span>
               </span>
               <span className="arr">→</span>
             </Link>
