@@ -4928,8 +4928,53 @@ body:has(.landing) .footer { display: none; }
   .lp-hero-status { opacity: 1 !important; animation: none !important; }
 }
 
-/* Hero h1 lockup: tighter letter-spacing to bind diacritics */
-.landing .lp-stage-h1 { letter-spacing: -0.028em; }
+/* ── Hero SVG lockup — replaces all previous h1 text overrides ── */
+.landing .lp-stage-h1 {
+  font-size: 0;         /* hide any leftover text nodes */
+  line-height: 0;
+  padding: 0;
+  margin: 0 0 36px;
+  overflow: visible;
+  display: block;
+}
+.lp-lockup {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  overflow: visible;
+}
+.lk-line {
+  font-family: 'Orbitron', 'Inter', 'Helvetica Neue', sans-serif;
+  font-weight: 900;
+  font-size: 126px;
+  fill: var(--lp-text);
+  letter-spacing: -0.028em;
+  text-rendering: geometricPrecision;
+}
+.lk-green {
+  fill: var(--lp-accent);
+}
+
+/* Responsive: on narrow viewports the SVG scales down naturally
+   via viewBox. No breakpoints needed — it's vector. But let the
+   max-width breathe a bit wider on big screens. */
+@media (min-width: 1400px) { .lp-lockup { max-width: 740px; } }
+@media (max-width: 720px)  { .lp-lockup { max-width: 100%; } }
+
+/* Kill all the old h1 text/line overrides so they don't conflict */
+.landing .lp-stage-h1 .line { display: none; }
+.landing .lp-stage-h1 .dot { display: none; }
+.landing .lp-stage-h1 .red { display: none; }
+
+/* SVG lockup entrance — single fade+rise on the whole wordmark */
+.landing .lp-lockup {
+  opacity: 0;
+  animation: lp-rise 700ms cubic-bezier(.2,.7,.2,1) 300ms forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .lp-lockup { opacity: 1 !important; animation: none !important; }
+}
 
 /* Podium map: jewel radius + gold halo */
 .lp-podium-map.compact {

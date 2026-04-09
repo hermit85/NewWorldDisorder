@@ -79,10 +79,23 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <h1 className="lp-stage-h1">
-                <span className="line">WJEDŹ.</span>
-                <span className="line">ZJEDŹ.</span>
-                <span className="line">WRÓĆ <span className="red">NA GÓRĘ<span className="dot" /></span></span>
+              {/* Hero lockup — SVG wordmark. No line-height clipping,
+                  no browser diacritic variance. Each line is a <text>
+                  element positioned absolutely in the viewBox so
+                  Polish acutes (Ź Ó Ć) and ogoneks (Ę) have infinite
+                  room and render at their natural font metrics. */}
+              <h1 className="lp-stage-h1" aria-label="Wjedź. Zjedź. Wróć na górę.">
+                <svg
+                  viewBox="0 0 1060 430"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="lp-lockup"
+                  role="img"
+                  aria-hidden="true"
+                >
+                  <text className="lk-line" x="0" y="126">WJEDŹ.</text>
+                  <text className="lk-line" x="0" y="266">ZJEDŹ.</text>
+                  <text className="lk-line" x="0" y="406">WRÓĆ <tspan className="lk-green">NA GÓRĘ.</tspan></text>
+                </svg>
               </h1>
 
               <p className="lp-stage-sub">
