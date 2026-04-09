@@ -105,20 +105,9 @@ export default function HomePage() {
                 </a>
               </div>
 
-              {/* Live ranking pressure strip — sits under the CTA row */}
-              <div className="lp-hero-stakes" aria-hidden="true">
-                <div className="stake">
-                  <span className="k">TWOJA POZYCJA</span>
-                  <span className="v">#7 / 23</span>
-                </div>
-                <div className="stake">
-                  <span className="k">RYWAL NAD TOBĄ</span>
-                  <span className="v">+0.76s</span>
-                </div>
-                <div className="stake gold">
-                  <span className="k">DO PODIUM</span>
-                  <span className="v">4 POZ.</span>
-                </div>
+              {/* Quiet status line under CTA */}
+              <div className="lp-hero-status" aria-hidden="true">
+                #7 / 23 · rywal +0.76s · 4 pozycje do podium
               </div>
             </div>
 
@@ -603,9 +592,7 @@ export default function HomePage() {
                 {/* Gałgan — LIVE podium */}
                 <div className="pm-trail live">
                   <span className="dot c-blue" />
-                  <div className="info">
-                    <span className="nm">Gałgan</span>
-                  </div>
+                  <span className="nm">Gałgan</span>
                   <div className="pm-podium">
                     <div className="pm-row gold"><span className="pos">#1</span><span className="rider">m.dropek</span><span className="time">02:08</span></div>
                     <div className="pm-row silver"><span className="pos">#2</span><span className="rider">apex.pl</span><span className="time">02:09</span></div>

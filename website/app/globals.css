@@ -4907,3 +4907,73 @@ body:has(.landing) .footer { display: none; }
   border: none;
 }
 .footer-links a:hover { color: var(--text); }
+
+/* ═══════════════════════════════════════════════════════════
+   LANDING VFINAL — ABSOLUTE FINAL PASS
+   ═══════════════════════════════════════════════════════════ */
+
+/* Kill the old boxed stakes strip, replace with quiet mono line */
+.lp-hero-stakes { display: none !important; }
+
+.lp-hero-status {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--lp-text-4);
+  margin-top: 22px;
+  opacity: 0;
+  animation: lp-fade 600ms ease-out 880ms forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-hero-status { opacity: 1 !important; animation: none !important; }
+}
+
+/* Hero h1 lockup: tighter letter-spacing to bind diacritics */
+.landing .lp-stage-h1 { letter-spacing: -0.028em; }
+
+/* Podium map: jewel radius + gold halo */
+.lp-podium-map.compact {
+  border-radius: 14px;
+  box-shadow:
+    0 40px 100px -28px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 215, 0, 0.06);
+}
+.lp-podium-map.compact::before {
+  left: 32px; right: 32px;
+  background: linear-gradient(90deg, transparent, var(--lp-gold) 40%, var(--lp-gold) 60%, transparent);
+  opacity: 0.40;
+}
+
+/* Live trail: stronger name, green-tinted bg */
+.lp-podium-map.compact .pm-trail.live {
+  background: linear-gradient(180deg, rgba(0, 255, 136, 0.04) 0%, transparent 100%);
+  border-bottom: 1px solid var(--lp-line-2);
+}
+.lp-podium-map.compact .pm-trail.live .nm {
+  font-size: 20px;
+  color: var(--lp-text);
+}
+
+/* Open trails: quieter, recessive */
+.lp-podium-map.compact .pm-trail-compact {
+  padding: 13px 28px;
+  border-bottom-color: rgba(255, 255, 255, 0.03);
+}
+.lp-podium-map.compact .pm-trail-compact .nm {
+  font-size: 14px;
+  color: var(--lp-text-3);
+}
+.lp-podium-map.compact .pm-trail-compact .open-slots {
+  color: var(--lp-text-4);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+}
+
+/* Finale: tighter CTA breathing */
+.landing .lp-finale-sub { margin-bottom: 36px; }
+.landing .lp-btn-finale { margin-bottom: 44px; }
+
+/* Optical grid: cleaner dividers */
+.landing .lp-block.finale { border-top-color: var(--lp-line); }
+.landing .lp-marquee { border-color: rgba(255, 255, 255, 0.04); }
+.lp-quote { border-color: rgba(255, 255, 255, 0.04); }
