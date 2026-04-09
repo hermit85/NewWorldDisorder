@@ -574,102 +574,65 @@ export default function HomePage() {
         </div>
         <div className="lp-wide">
           <div className="lp-finale">
-            <div className="lp-finale-stamp">
-              <span className="pulse" />
-              4 TRASY · TOP 3 NA KAŻDEJ · 12 MIEJSC NA PODIUM
-            </div>
             <h2 className="lp-finale-h">
               BRAMKA<br />
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Cztery oficjalne trasy. Każda z własną tablicą. Top 3
-              na każdej = podium sezonu. <strong>Wyślij link kumplom.
-              Ustalcie kto jest najszybszy.</strong>
+              <strong>Wyślij link kumplom. Ustalcie kto jest najszybszy.</strong>
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">WEJDŹ DO LIGI</span>
-                <span className="line2">Wyślij kumplom · Ścigajcie się w Słotwinach · Weekend</span>
+                <span className="line2">Wyślij kumplom · Ścigajcie się w weekend</span>
               </span>
               <span className="arr">→</span>
             </Link>
 
-            {/* Podium map — Gałgan populated, rest open */}
-            <div className="lp-podium-map" aria-label="Podium map — Słotwiny Arena">
+            {/* Compact podium map — one live trail + 3 open as inline rows */}
+            <div className="lp-podium-map compact" aria-label="Podium — Słotwiny Arena">
               <div className="pm-head">
                 <div className="left">
                   <div className="tag">
                     <Image src={APP_ICON} alt="" width={14} height={14} className="ico" />
-                    SŁOTWINY ARENA · SEZON 01
+                    SŁOTWINY ARENA
                   </div>
                 </div>
                 <div className="right">
-                  <span className="k">4 trasy</span>
-                  <span className="sep">·</span>
-                  <span className="k">każda ma własne podium</span>
-                  <span className="sep">·</span>
-                  <span className="v gold">12 miejsc</span>
+                  <span className="k">4 trasy · każda ma podium ·</span>
+                  <span className="v gold">9 do zajęcia</span>
                 </div>
               </div>
               <div className="pm-grid">
-
-                {/* Gałgan — LIVE podium, teaches by example */}
+                {/* Gałgan — LIVE, teaches what a podium looks like */}
                 <div className="pm-trail live">
                   <span className="dot c-blue" />
                   <div className="info">
                     <span className="nm">Gałgan</span>
-                    <span className="label live-label">PODIUM TRASY · LIVE</span>
                   </div>
                   <div className="pm-podium">
-                    <div className="pm-row gold"><span className="pos">#1</span><span className="rider">m.dropek</span><span className="time">02:08.12</span></div>
-                    <div className="pm-row silver"><span className="pos">#2</span><span className="rider">apex.pl</span><span className="time">02:09.55</span></div>
-                    <div className="pm-row bronze"><span className="pos">#3</span><span className="rider">slayer22</span><span className="time">02:11.40</span></div>
+                    <div className="pm-row gold"><span className="pos">#1</span><span className="rider">m.dropek</span><span className="time">02:08</span></div>
+                    <div className="pm-row silver"><span className="pos">#2</span><span className="rider">apex.pl</span><span className="time">02:09</span></div>
+                    <div className="pm-row bronze"><span className="pos">#3</span><span className="rider">slayer22</span><span className="time">02:11</span></div>
                   </div>
                 </div>
-
-                {/* Remaining 3 trails — open, waiting for first times */}
-                <div className="pm-trail open">
+                {/* Open trails — single compact row each */}
+                <div className="pm-trail-compact">
                   <span className="dot c-green" />
-                  <div className="info">
-                    <span className="nm">Dookoła Świata</span>
-                    <span className="label">PODIUM TRASY</span>
-                  </div>
-                  <div className="pm-podium empty">
-                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                  </div>
+                  <span className="nm">Dookoła Świata</span>
+                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
                 </div>
-                <div className="pm-trail open">
+                <div className="pm-trail-compact">
                   <span className="dot c-blue" />
-                  <div className="info">
-                    <span className="nm">Kometa</span>
-                    <span className="label">PODIUM TRASY</span>
-                  </div>
-                  <div className="pm-podium empty">
-                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                  </div>
+                  <span className="nm">Kometa</span>
+                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
                 </div>
-                <div className="pm-trail open">
+                <div className="pm-trail-compact">
                   <span className="dot c-red" />
-                  <div className="info">
-                    <span className="nm">Dzida</span>
-                    <span className="label">PODIUM TRASY</span>
-                  </div>
-                  <div className="pm-podium empty">
-                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
-                  </div>
+                  <span className="nm">Dzida</span>
+                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
                 </div>
-              </div>
-              <div className="pm-foot">
-                <span className="pulse" />
-                4 trasy × 3 miejsca = 12 miejsc na podium · 9 do zajęcia
               </div>
             </div>
           </div>

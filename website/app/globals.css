@@ -4807,6 +4807,61 @@ body:has(.landing) .footer { display: none; }
   .pm-open { flex-wrap: wrap; gap: 8px; }
 }
 
+/* ── Compact open trail row — one line per trail ── */
+.pm-trail-compact {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--lp-line);
+}
+.pm-trail-compact:last-child { border-bottom: none; }
+.pm-trail-compact .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.pm-trail-compact .dot.c-blue  { background: #4A9EFF; }
+.pm-trail-compact .dot.c-green { background: #00FF88; }
+.pm-trail-compact .dot.c-red   { background: #FF3B30; }
+.pm-trail-compact .nm {
+  font-family: var(--lp-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  color: var(--lp-text-2);
+  text-transform: uppercase;
+}
+.pm-trail-compact .open-slots {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--lp-text-4);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pm-trail-compact .open-slots em {
+  font-style: normal;
+  color: var(--lp-gold);
+  font-weight: 700;
+  margin-right: 1px;
+}
+
+/* ── Compact variant overrides ── */
+.lp-podium-map.compact { margin-top: 8px; }
+.lp-podium-map.compact .pm-trail.live { padding: 20px 28px; }
+.lp-podium-map.compact .pm-trail .info .label { display: none; }
+
+/* ── Tighter finale with no stamp ── */
+.landing .lp-finale { padding-top: 88px; padding-bottom: 72px; }
+.landing .lp-finale-stamp { display: none; }
+.landing .lp-btn-finale { margin-bottom: 48px; }
+
+@media (max-width: 600px) {
+  .pm-trail-compact { padding: 12px 20px; gap: 10px; }
+  .pm-trail-compact .nm { font-size: 13px; }
+}
+
 /* Scroll-linked entrance for the podium map */
 @supports (animation-timeline: view()) {
   .lp-podium-map {
