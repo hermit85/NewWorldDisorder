@@ -186,19 +186,15 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
         <div className="lp-marquee-track">
-          <span>4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM</span><span className="star">▸</span>
-          <span>GAŁGAN · TOP 3 PUSTE</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA · TOP 3 PUSTE</span><span className="star">▸</span>
-          <span>KOMETA · TOP 3 PUSTE</span><span className="star">◆</span>
-          <span>DZIDA · TOP 3 PUSTE</span><span className="star">▸</span>
-          <span>PIERWSZY WEEKEND SEZONU 01</span><span className="star">◆</span>
+          <span>SEZON 01</span><span className="star">▸</span>
+          <span>GAŁGAN LIVE · 3 TRASY OTWARTE</span><span className="star">◆</span>
+          <span>9 MIEJSC NA PODIUM DO ZAJĘCIA</span><span className="star">▸</span>
+          <span>PIERWSZY WEEKEND</span><span className="star">◆</span>
           {/* loop dup */}
-          <span>4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM</span><span className="star">▸</span>
-          <span>GAŁGAN · TOP 3 PUSTE</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA · TOP 3 PUSTE</span><span className="star">▸</span>
-          <span>KOMETA · TOP 3 PUSTE</span><span className="star">◆</span>
-          <span>DZIDA · TOP 3 PUSTE</span><span className="star">▸</span>
-          <span>PIERWSZY WEEKEND SEZONU 01</span><span className="star">◆</span>
+          <span>SEZON 01</span><span className="star">▸</span>
+          <span>GAŁGAN LIVE · 3 TRASY OTWARTE</span><span className="star">◆</span>
+          <span>9 MIEJSC NA PODIUM DO ZAJĘCIA</span><span className="star">▸</span>
+          <span>PIERWSZY WEEKEND</span><span className="star">◆</span>
         </div>
       </div>
 
@@ -596,16 +592,15 @@ export default function HomePage() {
                 <div className="left">
                   <div className="tag">
                     <Image src={APP_ICON} alt="" width={14} height={14} className="ico" />
-                    SŁOTWINY ARENA
+                    SŁOTWINY ARENA · SEZON 01
                   </div>
                 </div>
                 <div className="right">
-                  <span className="k">4 trasy · każda ma podium ·</span>
-                  <span className="v gold">9 do zajęcia</span>
+                  <span className="v gold">9 miejsc do zajęcia</span>
                 </div>
               </div>
               <div className="pm-grid">
-                {/* Gałgan — LIVE, teaches what a podium looks like */}
+                {/* Gałgan — LIVE podium */}
                 <div className="pm-trail live">
                   <span className="dot c-blue" />
                   <div className="info">
@@ -617,21 +612,21 @@ export default function HomePage() {
                     <div className="pm-row bronze"><span className="pos">#3</span><span className="rider">slayer22</span><span className="time">02:11</span></div>
                   </div>
                 </div>
-                {/* Open trails — single compact row each */}
+                {/* 3 open trails — one line each */}
                 <div className="pm-trail-compact">
                   <span className="dot c-green" />
                   <span className="nm">Dookoła Świata</span>
-                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
+                  <span className="open-slots">3 miejsca otwarte</span>
                 </div>
                 <div className="pm-trail-compact">
                   <span className="dot c-blue" />
                   <span className="nm">Kometa</span>
-                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
+                  <span className="open-slots">3 miejsca otwarte</span>
                 </div>
                 <div className="pm-trail-compact">
                   <span className="dot c-red" />
                   <span className="nm">Dzida</span>
-                  <span className="open-slots"><em>#1</em> <em>#2</em> <em>#3</em> do zajęcia</span>
+                  <span className="open-slots">3 miejsca otwarte</span>
                 </div>
               </div>
             </div>
