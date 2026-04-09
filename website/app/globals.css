@@ -4609,16 +4609,15 @@ body:has(.landing) .footer { display: none; }
 .pm-head .right {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   font-family: var(--lp-mono);
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.8px;
 }
-.pm-head .right .k { color: var(--lp-text-4); font-weight: 500; }
+.pm-head .right .k { color: var(--lp-text-2); font-weight: 500; }
 .pm-head .right .v { color: var(--lp-text); font-weight: 700; }
-.pm-head .right .v.gold { color: var(--lp-gold); }
-.pm-head .right .sep { color: var(--lp-text-4); margin: 0 4px; }
+.pm-head .right .v.gold { color: var(--lp-gold); font-weight: 800; }
+.pm-head .right .sep { color: var(--lp-text-4); margin: 0 3px; }
 
 .pm-grid {
   display: grid;
@@ -4628,8 +4627,8 @@ body:has(.landing) .footer { display: none; }
   display: grid;
   grid-template-columns: 12px 1fr auto;
   align-items: center;
-  gap: 16px;
-  padding: 20px 28px;
+  gap: 18px;
+  padding: 22px 28px;
   border-bottom: 1px solid var(--lp-line);
   transition: background 180ms ease;
 }
@@ -4640,11 +4639,18 @@ body:has(.landing) .footer { display: none; }
 .pm-trail .dot {
   width: 10px; height: 10px; border-radius: 50%;
   flex-shrink: 0;
+  align-self: start;
+  margin-top: 5px;
 }
 .pm-trail .dot.c-blue  { background: #4A9EFF; box-shadow: 0 0 8px rgba(74, 158, 255, 0.4); }
 .pm-trail .dot.c-green { background: #00FF88; box-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
 .pm-trail .dot.c-red   { background: #FF3B30; box-shadow: 0 0 8px rgba(255, 59, 48, 0.4); }
 
+.pm-trail .info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 .pm-trail .nm {
   font-family: var(--lp-display);
   font-weight: 800;
@@ -4652,20 +4658,36 @@ body:has(.landing) .footer { display: none; }
   letter-spacing: 0.5px;
   color: var(--lp-text);
   text-transform: uppercase;
+  line-height: 1;
 }
-.pm-trail .slots {
+.pm-trail .label {
   font-family: var(--lp-mono);
-  font-size: 12px;
-  letter-spacing: 0.8px;
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  color: var(--lp-text-4);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.pm-trail .places {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.pm-trail .place {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
   color: var(--lp-text-3);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
 }
-.pm-trail .slots em {
+.pm-trail .place em {
   font-style: normal;
   color: var(--lp-gold);
   font-weight: 700;
-  margin-right: 2px;
+  margin-right: 3px;
+  font-size: 12px;
 }
 
 .pm-foot {

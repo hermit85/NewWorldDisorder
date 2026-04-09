@@ -597,7 +597,7 @@ export default function HomePage() {
               <span className="arr">→</span>
             </Link>
 
-            {/* Podium map — one row per trail, focused on empty slots */}
+            {/* Podium map — each trail shows its own 3 open podium places */}
             <div className="lp-podium-map" aria-label="Podium map — Słotwiny Arena">
               <div className="pm-head">
                 <div className="left">
@@ -607,38 +607,66 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="right">
-                  <span className="k">TRASY</span><span className="v">4</span>
+                  <span className="k">4 trasy</span>
                   <span className="sep">·</span>
-                  <span className="k">PODIUM / TRASA</span><span className="v">TOP 3</span>
+                  <span className="k">każda ma własne podium</span>
                   <span className="sep">·</span>
-                  <span className="k">RAZEM</span><span className="v gold">12</span>
+                  <span className="v gold">12 miejsc</span>
                 </div>
               </div>
               <div className="pm-grid">
                 <div className="pm-trail">
                   <span className="dot c-blue" />
-                  <span className="nm">Gałgan</span>
-                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
+                  <div className="info">
+                    <span className="nm">Gałgan</span>
+                    <span className="label">PODIUM TRASY</span>
+                  </div>
+                  <div className="places">
+                    <span className="place"><em>#1</em> wolne</span>
+                    <span className="place"><em>#2</em> wolne</span>
+                    <span className="place"><em>#3</em> wolne</span>
+                  </div>
                 </div>
                 <div className="pm-trail">
                   <span className="dot c-green" />
-                  <span className="nm">Dookoła Świata</span>
-                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
+                  <div className="info">
+                    <span className="nm">Dookoła Świata</span>
+                    <span className="label">PODIUM TRASY</span>
+                  </div>
+                  <div className="places">
+                    <span className="place"><em>#1</em> wolne</span>
+                    <span className="place"><em>#2</em> wolne</span>
+                    <span className="place"><em>#3</em> wolne</span>
+                  </div>
                 </div>
                 <div className="pm-trail">
                   <span className="dot c-blue" />
-                  <span className="nm">Kometa</span>
-                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
+                  <div className="info">
+                    <span className="nm">Kometa</span>
+                    <span className="label">PODIUM TRASY</span>
+                  </div>
+                  <div className="places">
+                    <span className="place"><em>#1</em> wolne</span>
+                    <span className="place"><em>#2</em> wolne</span>
+                    <span className="place"><em>#3</em> wolne</span>
+                  </div>
                 </div>
                 <div className="pm-trail">
                   <span className="dot c-red" />
-                  <span className="nm">Dzida</span>
-                  <span className="slots"><em>1</em> — <em>2</em> — <em>3</em> —</span>
+                  <div className="info">
+                    <span className="nm">Dzida</span>
+                    <span className="label">PODIUM TRASY</span>
+                  </div>
+                  <div className="places">
+                    <span className="place"><em>#1</em> wolne</span>
+                    <span className="place"><em>#2</em> wolne</span>
+                    <span className="place"><em>#3</em> wolne</span>
+                  </div>
                 </div>
               </div>
               <div className="pm-foot">
                 <span className="pulse" />
-                4 × TOP 3 = 12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE
+                4 trasy × 3 miejsca = 12 miejsc na podium · wszystkie wolne
               </div>
             </div>
           </div>
