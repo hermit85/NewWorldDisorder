@@ -35,9 +35,9 @@ begin
   -- Compute new rank from XP thresholds
   v_new_rank := case
     when v_new_xp >= 30000 then 'legend'
-    when v_new_xp >= 12000 then 'apex'
-    when v_new_xp >= 5000 then 'slayer'
-    when v_new_xp >= 2000 then 'hunter'
+    when v_new_xp >= 12000 then 'charger'
+    when v_new_xp >= 5000 then 'ripper'
+    when v_new_xp >= 2000 then 'sender'
     when v_new_xp >= 500 then 'rider'
     else 'rookie'
   end;

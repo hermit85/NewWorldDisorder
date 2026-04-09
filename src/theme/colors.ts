@@ -48,9 +48,9 @@ export const colors = {
   // Rank colors
   rankRookie: '#B4B4C2',
   rankRider: '#007AFF',
-  rankHunter: '#FF9500',
-  rankSlayer: '#FF3B30',
-  rankApex: '#FFD700',
+  rankSender: '#FF9500',
+  rankRipper: '#FF3B30',
+  rankCharger: '#FFD700',
   rankLegend: '#00FF88',
 
   // Difficulty

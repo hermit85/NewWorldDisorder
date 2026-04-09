@@ -162,10 +162,10 @@ export const resultScenarios: ResultScenario[] = [
     rankUp: null,
   },
 
-  // 7. Rank up (Rider -> Hunter)
+  // 7. Rank up (Rider -> Sender)
   {
     id: 'rank-up',
-    name: 'Rank up — Rider to Hunter',
+    name: 'Rank up — Rider to Sender',
     trailId: 'dzida-czerwona',
     trailName: 'Dzida Czerwona',
     durationMs: 138500,
@@ -183,7 +183,7 @@ export const resultScenarios: ResultScenario[] = [
     challengeProgress: null,
     rankUp: {
       from: 'rider',
-      to: 'hunter',
+      to: 'sender',
     },
   },
 

@@ -6,7 +6,7 @@ export type ValidationStatus = 'valid' | 'suspicious' | 'rejected';
 export type PeriodType = 'day' | 'weekend' | 'all_time';
 export type ChallengeType = 'fastest_time' | 'run_count' | 'pb_improvement' | 'multi_trail';
 
-export type RankId = 'rookie' | 'rider' | 'hunter' | 'slayer' | 'apex' | 'legend';
+export type RankId = 'rookie' | 'rider' | 'sender' | 'ripper' | 'charger' | 'legend';
 
 // ── Run state machine ──
 

@@ -4,9 +4,9 @@ import { colors } from '@/theme/colors';
 export const ranks: Rank[] = [
   { id: 'rookie', name: 'Rookie', xpThreshold: 0, color: colors.rankRookie, icon: '◇' },
   { id: 'rider', name: 'Rider', xpThreshold: 500, color: colors.rankRider, icon: '◆' },
-  { id: 'hunter', name: 'Hunter', xpThreshold: 2000, color: colors.rankHunter, icon: '▲' },
-  { id: 'slayer', name: 'Slayer', xpThreshold: 5000, color: colors.rankSlayer, icon: '★' },
-  { id: 'apex', name: 'Apex', xpThreshold: 12000, color: colors.rankApex, icon: '♛' },
+  { id: 'sender', name: 'Sender', xpThreshold: 2000, color: colors.rankSender, icon: '▼' },
+  { id: 'ripper', name: 'Ripper', xpThreshold: 5000, color: colors.rankRipper, icon: '★' },
+  { id: 'charger', name: 'Charger', xpThreshold: 12000, color: colors.rankCharger, icon: '⚡' },
   { id: 'legend', name: 'Legend', xpThreshold: 30000, color: colors.rankLegend, icon: '✦' },
 ];
 

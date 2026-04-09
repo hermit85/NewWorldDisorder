@@ -2,11 +2,11 @@ import { LeaderboardEntry } from '../types';
 
 // Generate mock leaderboard for Dzida Czerwona — all-time
 const entries: LeaderboardEntry[] = [
-  entry('user-wolf', 'WolfRider', 'slayer', 1, 1, 132400, 0),
-  entry('user-kuba', 'KubaShreds', 'hunter', 2, 2, 134200, 1800),
-  entry('user-marek', 'MarekDH', 'hunter', 3, 5, 135100, 2700),
+  entry('user-wolf', 'WolfRider', 'ripper', 1, 1, 132400, 0),
+  entry('user-kuba', 'KubaShreds', 'sender', 2, 2, 134200, 1800),
+  entry('user-marek', 'MarekDH', 'sender', 3, 5, 135100, 2700),
   entry('user-asia', 'AsiaMTB', 'rider', 4, 3, 136800, 4400),
-  entry('user-piotrek', 'PiotrekG', 'hunter', 5, 4, 137500, 5100),
+  entry('user-piotrek', 'PiotrekG', 'sender', 5, 4, 137500, 5100),
   entry('user-tomek', 'TomekEnduro', 'rider', 6, 6, 139200, 6800),
   entry('user-ania', 'AniaRider', 'rider', 7, 9, 140100, 7700),
   entry('user-bartek', 'BartekFR', 'rider', 8, 7, 141300, 8900),

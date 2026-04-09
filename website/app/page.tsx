@@ -301,7 +301,7 @@ export default function HomePage() {
                     <div className="scr-rider-name">Hermit</div>
                     <div className="scr-rider-rank">
                       <span className="lvl">12</span>
-                      <span className="rname">HUNTER</span>
+                      <span className="rname">SENDER</span>
                     </div>
                     <div className="scr-rider-xp">
                       <div className="bar"><i style={{ width: '62%' }} /></div>
@@ -310,9 +310,9 @@ export default function HomePage() {
                     <div className="scr-rider-rankprog">
                       <div className="bar"><i style={{ width: '34%' }} /></div>
                       <div className="cap">
-                        <span className="from">▲ HUNTER</span>
+                        <span className="from">▼ SENDER</span>
                         <span className="arrow">→</span>
-                        <span className="to">★ SLAYER</span>
+                        <span className="to">★ RIPPER</span>
                         <span className="need">· 760 XP</span>
                       </div>
                     </div>
@@ -354,7 +354,7 @@ export default function HomePage() {
               <div className="lp-scr-cap">
                 <span className="ix">01 / 03</span>
                 <span className="ttl">RIDER</span>
-                <span className="tag">HUNTER · LVL 12</span>
+                <span className="tag">SENDER · LVL 12</span>
               </div>
             </div>
 
@@ -404,7 +404,7 @@ export default function HomePage() {
                       <div className="pos">1</div>
                       <div className="who">
                         <div className="nm">m.dropek</div>
-                        <div className="rk">★ SLAYER</div>
+                        <div className="rk">★ RIPPER</div>
                       </div>
                       <div className="t">02:08.12</div>
                     </div>
@@ -412,7 +412,7 @@ export default function HomePage() {
                       <div className="pos">2</div>
                       <div className="who">
                         <div className="nm">apex.pl</div>
-                        <div className="rk">★ SLAYER</div>
+                        <div className="rk">★ RIPPER</div>
                       </div>
                       <div className="t">02:09.55</div>
                     </div>
@@ -420,7 +420,7 @@ export default function HomePage() {
                       <div className="pos">3</div>
                       <div className="who">
                         <div className="nm">slayer22</div>
-                        <div className="rk">▲ HUNTER</div>
+                        <div className="rk">▼ SENDER</div>
                       </div>
                       <div className="t">02:11.40</div>
                     </div>
@@ -492,8 +492,8 @@ export default function HomePage() {
                       <div className="league">LIGA GRAVITY</div>
                     </div>
                     <div className="rankpill">
-                      <span className="ico">▲</span>
-                      <span className="nm">HUNTER</span>
+                      <span className="ico">▼</span>
+                      <span className="nm">SENDER</span>
                       <span className="bar"><i style={{ width: '62%' }} /></span>
                     </div>
                   </div>
