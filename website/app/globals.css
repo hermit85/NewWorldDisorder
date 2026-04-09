@@ -2174,6 +2174,15 @@ body:has(.landing) .nav-links a:hover { color: var(--lp-accent); }
   margin: 0 auto 14px;
   box-shadow: 0 0 0 4px rgba(255, 149, 0, 0.10);
 }
+/* Rider photo slot — the photo (if present) covers the letter
+   fallback. If /rider/hermit.jpg 404s, the "H" letter shows
+   on the dark gradient. background-image is first in the stack
+   so it paints on top of the gradient + the text. */
+.scr-rider-avatar.has-photo {
+  background: url('/rider/hermit.jpg') center/cover no-repeat, radial-gradient(circle at 30% 28%, #22222F, #0a0a10);
+  color: transparent;
+  overflow: hidden;
+}
 .scr-rider-name {
   font-family: var(--lp-display);
   font-weight: 800;

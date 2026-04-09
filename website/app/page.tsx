@@ -297,8 +297,8 @@ export default function HomePage() {
                     <span className="ind">●●●●●</span>
                   </div>
                   <div className="scr-rider-card">
-                    <div className="scr-rider-avatar">▲</div>
-                    <div className="scr-rider-name">k.rajder</div>
+                    <div className="scr-rider-avatar has-photo">H</div>
+                    <div className="scr-rider-name">Hermit</div>
                     <div className="scr-rider-rank">
                       <span className="lvl">12</span>
                       <span className="rname">HUNTER</span>
@@ -457,7 +457,7 @@ export default function HomePage() {
                     </div>
                     <div className="brow you">
                       <div className="pos">7</div>
-                      <div className="nm">k.rajder <em>TY</em></div>
+                      <div className="nm">Hermit <em>TY</em></div>
                       <div className="up">↑3</div>
                       <div className="t">02:14.86</div>
                     </div>
