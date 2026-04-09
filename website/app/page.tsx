@@ -74,7 +74,7 @@ export default function HomePage() {
                   <span className="t1">LIGA GRAVITY · SEZON 01 / 2026</span>
                   <span className="t2">
                     <span className="live-dot" />
-                    12 miejsc na podium · wszystkie otwarte
+                    4 trasy × top 3 = 12 miejsc na podium · otwarte
                   </span>
                 </div>
               </div>
@@ -86,15 +86,16 @@ export default function HomePage() {
               </h1>
 
               <p className="lp-stage-sub">
-                Liga gravity. Weryfikowane czasy, sezonowa tablica, podium.
-                <strong> Twoi kumple już wiedzą, że w weekend jest bitwa.</strong>
+                Zjeżdżasz oficjalną trasę. GPS zalicza czas. Twój czas wchodzi
+                na sezonową tablicę tej trasy.
+                <strong> Top 3 na każdej z 4 tras = 12 miejsc na podium sezonu.</strong>
               </p>
 
               <div className="lp-cta-row3">
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
                     <span className="big">Wejdź do ligi</span>
-                    <span className="small">12 miejsc na podium · Zgarnij #1 · Sezon 01</span>
+                    <span className="small">4 trasy · 12 miejsc na podium · Wszystkie otwarte</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -129,7 +130,7 @@ export default function HomePage() {
                   <span className="dotline">RANKING</span>
                 </div>
                 <div className="lp-hud-body">
-                  <div className="lp-hud-trail">GAŁGAN · TABLICA SEZONOWA</div>
+                  <div className="lp-hud-trail">GAŁGAN · TRASA 1 / 4 · TABLICA SEZONU</div>
                   <div className="lp-hud-time">
                     02:14<span className="ms">.86</span>
                   </div>
@@ -185,19 +186,19 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
         <div className="lp-marquee-track">
-          <span>SEZON 01 · PIERWSZE PODIUM OTWARTE</span><span className="star">▸</span>
-          <span>GAŁGAN #1 · —</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA #1 · —</span><span className="star">▸</span>
-          <span>KOMETA #1 · —</span><span className="star">◆</span>
-          <span>DZIDA #1 · —</span><span className="star">▸</span>
-          <span>12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE</span><span className="star">◆</span>
+          <span>4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM</span><span className="star">▸</span>
+          <span>GAŁGAN · TOP 3 PUSTE</span><span className="star">◆</span>
+          <span>DOOKOŁA ŚWIATA · TOP 3 PUSTE</span><span className="star">▸</span>
+          <span>KOMETA · TOP 3 PUSTE</span><span className="star">◆</span>
+          <span>DZIDA · TOP 3 PUSTE</span><span className="star">▸</span>
+          <span>PIERWSZY WEEKEND SEZONU 01</span><span className="star">◆</span>
           {/* loop dup */}
-          <span>SEZON 01 · PIERWSZE PODIUM OTWARTE</span><span className="star">▸</span>
-          <span>GAŁGAN #1 · —</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA #1 · —</span><span className="star">▸</span>
-          <span>KOMETA #1 · —</span><span className="star">◆</span>
-          <span>DZIDA #1 · —</span><span className="star">▸</span>
-          <span>12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE</span><span className="star">◆</span>
+          <span>4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM</span><span className="star">▸</span>
+          <span>GAŁGAN · TOP 3 PUSTE</span><span className="star">◆</span>
+          <span>DOOKOŁA ŚWIATA · TOP 3 PUSTE</span><span className="star">▸</span>
+          <span>KOMETA · TOP 3 PUSTE</span><span className="star">◆</span>
+          <span>DZIDA · TOP 3 PUSTE</span><span className="star">▸</span>
+          <span>PIERWSZY WEEKEND SEZONU 01</span><span className="star">◆</span>
         </div>
       </div>
 
@@ -250,8 +251,8 @@ export default function HomePage() {
             TO <span className="red">LIGA</span>.
           </h2>
           <p className="sub">
-            Każdy zjazd idzie na tablicę. Każda tablica ma #1.
-            Każde #1 ma kogoś, kto je zabierze.
+            Cztery trasy. Cztery sezonowe tablice. Top 3 na każdej
+            = podium. 12 miejsc — i ktoś je zajmie jako pierwszy.
           </p>
         </div>
       </section>
@@ -265,12 +266,13 @@ export default function HomePage() {
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2 lp-h2-show">
-            CZAS. POZYCJA.<br />
-            <span className="red">RYWAL.</span>
+            TRASA. CZAS.<br />
+            <span className="red">TABLICA.</span>
           </h2>
           <p className="lp-h2-show-sub">
-            Tablica jest w centrum. Profil po jednej stronie, ośrodek
-            po drugiej. A na środku — lista, na której Cię jeszcze nie ma.
+            Wybierasz jedną z 4 oficjalnych tras. Jedziesz. GPS zalicza
+            czas. Twój czas trafia na sezonową tablicę tej trasy — tę,
+            na której jeszcze Cię nie ma.
           </p>
 
           {/* ──────────────────────────────────────────────
@@ -574,22 +576,23 @@ export default function HomePage() {
           <div className="lp-finale">
             <div className="lp-finale-stamp">
               <span className="pulse" />
-              PIERWSZY WEEKEND · 12 MIEJSC · WSZYSTKIE OTWARTE
+              4 TRASY · TOP 3 NA KAŻDEJ · 12 MIEJSC NA PODIUM
             </div>
             <h2 className="lp-finale-h">
               BRAMKA<br />
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Pierwszy weekend Sezonu 01 decyduje o pierwszym podium
-              ligi. 12 miejsc na podium — wszystkie otwarte.
-              Pierwsi riderzy zostają w historii na zawsze.
+              Cztery oficjalne trasy w Słotwinach. Każda z własną
+              sezonową tablicą. Top 3 na każdej tablicy = podium
+              sezonu. Razem <strong>12 miejsc — wszystkie puste</strong>.
+              Pierwszy weekend decyduje, kto je zajmie.
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">WEJDŹ DO LIGI</span>
-                <span className="line2">Ścigaj się z kumplami · Zgarnij #1 · Dzień zero</span>
+                <span className="line2">4 trasy · 12 miejsc na podium · Ścigaj się z kumplami</span>
               </span>
               <span className="arr">→</span>
             </Link>
@@ -600,15 +603,15 @@ export default function HomePage() {
                 <div className="left">
                   <div className="tag gold">
                     <Image src={APP_ICON} alt="" width={16} height={16} className="ico" />
-                    STAGE 01 · HALL OF FAME OPEN
+                    STAGE 01 · ZASADY LIGI
                   </div>
                   <div className="name">Słotwiny Arena</div>
-                  <div className="region">Krynica-Zdrój · Sezon 01 / 2026</div>
+                  <div className="region">4 trasy · każda z własną tablicą sezonu · top 3 na każdej = podium</div>
                 </div>
                 <div className="right">
-                  <div className="kv"><span className="k">SEZON</span><span className="v">01 / 2026</span></div>
                   <div className="kv"><span className="k">TRASY</span><span className="v">4 OFICJALNE</span></div>
-                  <div className="kv"><span className="k">WERYFIKACJA</span><span className="v">GPS · LIVE</span></div>
+                  <div className="kv"><span className="k">PODIUM / TRASA</span><span className="v">TOP 3</span></div>
+                  <div className="kv"><span className="k">RAZEM</span><span className="v">12 MIEJSC</span></div>
                 </div>
               </div>
               <div className="dossier-trails">
@@ -618,7 +621,7 @@ export default function HomePage() {
                   <div className="meta">FLOW · 2.4 km · ↓180 m</div>
                   <div className="df easy">EASY</div>
                   <div className="podium">
-                    <span className="plabel">PODIUM</span>
+                    <span className="plabel">TOP 3 · PODIUM</span>
                     <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
                   </div>
                 </div>
@@ -628,7 +631,7 @@ export default function HomePage() {
                   <div className="meta">FLOW · 3.1 km · ↓155 m</div>
                   <div className="df easy">EASY</div>
                   <div className="podium">
-                    <span className="plabel">PODIUM</span>
+                    <span className="plabel">TOP 3 · PODIUM</span>
                     <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
                   </div>
                 </div>
@@ -638,7 +641,7 @@ export default function HomePage() {
                   <div className="meta">FLOW · 2.3 km · ↓184 m</div>
                   <div className="df med">MEDIUM</div>
                   <div className="podium">
-                    <span className="plabel">PODIUM</span>
+                    <span className="plabel">TOP 3 · PODIUM</span>
                     <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
                   </div>
                 </div>
@@ -648,14 +651,14 @@ export default function HomePage() {
                   <div className="meta">TECH · 1.5 km · ↓165 m</div>
                   <div className="df hard">HARD</div>
                   <div className="podium">
-                    <span className="plabel">PODIUM</span>
+                    <span className="plabel">TOP 3 · PODIUM</span>
                     <span className="slots"><em>1</em> — · <em>2</em> — · <em>3</em> —</span>
                   </div>
                 </div>
               </div>
               <div className="dossier-foot">
                 <span className="dot" />
-                12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE · SEZON PISZE SIĘ RAZ
+                4 TRASY × TOP 3 = 12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE
               </div>
             </div>
           </div>
