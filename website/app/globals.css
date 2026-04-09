@@ -3922,15 +3922,19 @@ body:has(.landing) .footer { display: none; }
    proper text rendering. Fallback stack lands on Inter (which
    has excellent Polish coverage) if Orbitron's latin-ext
    payload fails to load. */
+/* Hero lockup: capped at 140px so Orbitron's high-mounted
+   Polish acutes (Ź Ó Ć Ę) stay optically attached at display
+   sizes. line-height 1.0 gives each line a full em-box —
+   diacritics never clip, lines never crowd. */
 .landing .lp-stage-h1 {
   font-family: 'Orbitron', 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   font-weight: 900;
-  font-size: clamp(56px, 10.2vw, 156px);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  padding-block: 0.08em 0.12em;
-  margin-top: -0.08em;
-  margin-bottom: 32px;
+  font-size: clamp(52px, 9.6vw, 140px);
+  line-height: 1.0;
+  letter-spacing: -0.025em;
+  padding: 0;
+  margin-top: 0;
+  margin-bottom: 36px;
   text-rendering: geometricPrecision;
   font-feature-settings: "kern" 1, "liga" 1;
   -webkit-font-smoothing: antialiased;
@@ -3938,7 +3942,6 @@ body:has(.landing) .footer { display: none; }
 }
 .landing .lp-stage-h1 .line {
   display: block;
-  padding-block: 0.02em 0.04em;
   overflow: visible;
 }
 /* Tune the bullet dot so it lands on the cap-line of "GÓRĘ"
@@ -4772,33 +4775,29 @@ body:has(.landing) .footer { display: none; }
 .pm-row.bronze { border-color: rgba(205, 127, 50, 0.20); }
 .pm-row.bronze .pos { color: #CD7F32; }
 
-/* ── Open trail rows — "do zajęcia" slots ── */
-.pm-open {
-  display: flex;
-  gap: 14px;
-  align-items: center;
+/* ── Empty podium rows — same grid as live rows, ghost state ── */
+.pm-row.empty {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
 }
-.pm-open .slot {
-  font-family: var(--lp-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  color: var(--lp-gold);
-  white-space: nowrap;
-}
-.pm-open .slot em {
-  font-style: normal;
-  font-weight: 500;
+.pm-row.empty .rider.ghost {
   color: var(--lp-text-4);
-  margin-left: 3px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+}
+.pm-row.empty .time.ghost {
+  color: var(--lp-text-4);
+  opacity: 0.5;
+  letter-spacing: 1px;
 }
 
 @media (max-width: 720px) {
-  .pm-trail.live { grid-template-columns: 1fr; gap: 14px; padding: 20px 20px; }
-  .pm-trail.live .dot { display: none; }
+  .pm-trail.live,
+  .pm-trail.open { grid-template-columns: 1fr; gap: 14px; padding: 20px 20px; }
+  .pm-trail .dot { display: none; }
   .pm-podium { min-width: 0; }
-  .pm-trail.open { grid-template-columns: 12px 1fr; gap: 12px; }
-  .pm-trail.open .pm-open { grid-column: 1 / -1; }
+  .pm-trail .pm-podium { grid-column: 1 / -1; }
 }
 @media (max-width: 600px) {
   .pm-head { padding: 16px 20px; }

@@ -88,14 +88,14 @@ export default function HomePage() {
               <p className="lp-stage-sub">
                 Zjeżdżasz oficjalną trasę. GPS zalicza czas. Twój czas wchodzi
                 na sezonową tablicę tej trasy.
-                <strong> Top 3 na każdej z 4 tras = 12 miejsc na podium sezonu.</strong>
+                <strong> Top 3 na każdej z 4 tras = podium sezonu.</strong>
               </p>
 
               <div className="lp-cta-row3">
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
                     <span className="big">Wejdź do ligi</span>
-                    <span className="small">4 trasy · 12 miejsc na podium · Wszystkie otwarte</span>
+                    <span className="small">Wyślij link kumplom · Ścigajcie się w weekend</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -583,16 +583,15 @@ export default function HomePage() {
               <span className="red">OTWARTA</span>.
             </h2>
             <p className="lp-finale-sub">
-              Cztery oficjalne trasy w Słotwinach. Każda z własną
-              sezonową tablicą. Top 3 na każdej tablicy = podium
-              sezonu. Razem <strong>12 miejsc — wszystkie puste</strong>.
-              Pierwszy weekend decyduje, kto je zajmie.
+              Cztery oficjalne trasy. Każda z własną tablicą. Top 3
+              na każdej = podium sezonu. <strong>Wyślij link kumplom.
+              Ustalcie kto jest najszybszy.</strong>
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
                 <span className="line1">WEJDŹ DO LIGI</span>
-                <span className="line2">4 trasy · 12 miejsc na podium · Ścigaj się z kumplami</span>
+                <span className="line2">Wyślij kumplom · Ścigajcie się w Słotwinach · Weekend</span>
               </span>
               <span className="arr">→</span>
             </Link>
@@ -637,10 +636,10 @@ export default function HomePage() {
                     <span className="nm">Dookoła Świata</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="pm-open">
-                    <span className="slot">#1 <em>do zajęcia</em></span>
-                    <span className="slot">#2 <em>do zajęcia</em></span>
-                    <span className="slot">#3 <em>do zajęcia</em></span>
+                  <div className="pm-podium empty">
+                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
                   </div>
                 </div>
                 <div className="pm-trail open">
@@ -649,10 +648,10 @@ export default function HomePage() {
                     <span className="nm">Kometa</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="pm-open">
-                    <span className="slot">#1 <em>do zajęcia</em></span>
-                    <span className="slot">#2 <em>do zajęcia</em></span>
-                    <span className="slot">#3 <em>do zajęcia</em></span>
+                  <div className="pm-podium empty">
+                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
                   </div>
                 </div>
                 <div className="pm-trail open">
@@ -661,10 +660,10 @@ export default function HomePage() {
                     <span className="nm">Dzida</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="pm-open">
-                    <span className="slot">#1 <em>do zajęcia</em></span>
-                    <span className="slot">#2 <em>do zajęcia</em></span>
-                    <span className="slot">#3 <em>do zajęcia</em></span>
+                  <div className="pm-podium empty">
+                    <div className="pm-row empty gold"><span className="pos">#1</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty silver"><span className="pos">#2</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
+                    <div className="pm-row empty bronze"><span className="pos">#3</span><span className="rider ghost">do zajęcia</span><span className="time ghost">——:——</span></div>
                   </div>
                 </div>
               </div>
