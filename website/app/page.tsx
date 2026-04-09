@@ -597,7 +597,7 @@ export default function HomePage() {
               <span className="arr">→</span>
             </Link>
 
-            {/* Podium map — each trail shows its own 3 open podium places */}
+            {/* Podium map — Gałgan populated, rest open */}
             <div className="lp-podium-map" aria-label="Podium map — Słotwiny Arena">
               <div className="pm-head">
                 <div className="left">
@@ -615,58 +615,62 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="pm-grid">
-                <div className="pm-trail">
+
+                {/* Gałgan — LIVE podium, teaches by example */}
+                <div className="pm-trail live">
                   <span className="dot c-blue" />
                   <div className="info">
                     <span className="nm">Gałgan</span>
-                    <span className="label">PODIUM TRASY</span>
+                    <span className="label live-label">PODIUM TRASY · LIVE</span>
                   </div>
-                  <div className="places">
-                    <span className="place"><em>#1</em> wolne</span>
-                    <span className="place"><em>#2</em> wolne</span>
-                    <span className="place"><em>#3</em> wolne</span>
+                  <div className="pm-podium">
+                    <div className="pm-row gold"><span className="pos">#1</span><span className="rider">m.dropek</span><span className="time">02:08.12</span></div>
+                    <div className="pm-row silver"><span className="pos">#2</span><span className="rider">apex.pl</span><span className="time">02:09.55</span></div>
+                    <div className="pm-row bronze"><span className="pos">#3</span><span className="rider">slayer22</span><span className="time">02:11.40</span></div>
                   </div>
                 </div>
-                <div className="pm-trail">
+
+                {/* Remaining 3 trails — open, waiting for first times */}
+                <div className="pm-trail open">
                   <span className="dot c-green" />
                   <div className="info">
                     <span className="nm">Dookoła Świata</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="places">
-                    <span className="place"><em>#1</em> wolne</span>
-                    <span className="place"><em>#2</em> wolne</span>
-                    <span className="place"><em>#3</em> wolne</span>
+                  <div className="pm-open">
+                    <span className="slot">#1 <em>do zajęcia</em></span>
+                    <span className="slot">#2 <em>do zajęcia</em></span>
+                    <span className="slot">#3 <em>do zajęcia</em></span>
                   </div>
                 </div>
-                <div className="pm-trail">
+                <div className="pm-trail open">
                   <span className="dot c-blue" />
                   <div className="info">
                     <span className="nm">Kometa</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="places">
-                    <span className="place"><em>#1</em> wolne</span>
-                    <span className="place"><em>#2</em> wolne</span>
-                    <span className="place"><em>#3</em> wolne</span>
+                  <div className="pm-open">
+                    <span className="slot">#1 <em>do zajęcia</em></span>
+                    <span className="slot">#2 <em>do zajęcia</em></span>
+                    <span className="slot">#3 <em>do zajęcia</em></span>
                   </div>
                 </div>
-                <div className="pm-trail">
+                <div className="pm-trail open">
                   <span className="dot c-red" />
                   <div className="info">
                     <span className="nm">Dzida</span>
                     <span className="label">PODIUM TRASY</span>
                   </div>
-                  <div className="places">
-                    <span className="place"><em>#1</em> wolne</span>
-                    <span className="place"><em>#2</em> wolne</span>
-                    <span className="place"><em>#3</em> wolne</span>
+                  <div className="pm-open">
+                    <span className="slot">#1 <em>do zajęcia</em></span>
+                    <span className="slot">#2 <em>do zajęcia</em></span>
+                    <span className="slot">#3 <em>do zajęcia</em></span>
                   </div>
                 </div>
               </div>
               <div className="pm-foot">
                 <span className="pulse" />
-                4 trasy × 3 miejsca = 12 miejsc na podium · wszystkie wolne
+                4 trasy × 3 miejsca = 12 miejsc na podium · 9 do zajęcia
               </div>
             </div>
           </div>

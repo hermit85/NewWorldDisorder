@@ -4712,11 +4712,100 @@ body:has(.landing) .footer { display: none; }
   flex-shrink: 0;
 }
 
+/* ── Live trail row — has real riders + times ── */
+.pm-trail.live {
+  align-items: start;
+  padding: 24px 28px;
+  background:
+    linear-gradient(180deg, rgba(0, 255, 136, 0.04) 0%, transparent 100%);
+  border-bottom: 1px solid var(--lp-line);
+}
+.pm-trail .live-label {
+  color: var(--lp-accent);
+  font-weight: 700;
+}
+
+.pm-podium {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+.pm-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.pm-row .pos {
+  font-family: var(--lp-display);
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--lp-text-3);
+}
+.pm-row .rider {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lp-text);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.pm-row .time {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lp-text-3);
+  letter-spacing: -0.02em;
+}
+
+/* Medal colors */
+.pm-row.gold { border-color: rgba(255, 215, 0, 0.25); background: rgba(255, 215, 0, 0.06); }
+.pm-row.gold .pos { color: var(--lp-gold); }
+.pm-row.gold .time { color: var(--lp-gold); }
+.pm-row.silver { border-color: rgba(192, 192, 192, 0.20); }
+.pm-row.silver .pos { color: #C0C0C0; }
+.pm-row.bronze { border-color: rgba(205, 127, 50, 0.20); }
+.pm-row.bronze .pos { color: #CD7F32; }
+
+/* ── Open trail rows — "do zajęcia" slots ── */
+.pm-open {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.pm-open .slot {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--lp-gold);
+  white-space: nowrap;
+}
+.pm-open .slot em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--lp-text-4);
+  margin-left: 3px;
+}
+
+@media (max-width: 720px) {
+  .pm-trail.live { grid-template-columns: 1fr; gap: 14px; padding: 20px 20px; }
+  .pm-trail.live .dot { display: none; }
+  .pm-podium { min-width: 0; }
+  .pm-trail.open { grid-template-columns: 12px 1fr; gap: 12px; }
+  .pm-trail.open .pm-open { grid-column: 1 / -1; }
+}
 @media (max-width: 600px) {
   .pm-head { padding: 16px 20px; }
   .pm-trail { padding: 16px 20px; gap: 12px; }
   .pm-trail .nm { font-size: 15px; }
   .pm-foot { padding: 14px 20px; font-size: 9px; }
+  .pm-open { flex-wrap: wrap; gap: 8px; }
 }
 
 /* Scroll-linked entrance for the podium map */
