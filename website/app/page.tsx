@@ -82,15 +82,16 @@ export default function HomePage() {
               </h1>
 
               <p className="lp-stage-sub">
-                Arcade racing na prawdziwej górze. Twój czas staje obok
-                innych. <strong>Twój rywal już wie, że pojedzie w weekend.</strong>
+                Liga gravity na prawdziwych trasach. Weryfikowane czasy,
+                sezonowa tablica, podium.
+                <strong> Twoi znajomi już ustawiają rower na weekend.</strong>
               </p>
 
               <div className="lp-cta-row3">
                 <a className="lp-btn-mega" href="#cta">
                   <span className="label">
-                    <span className="big">Dołącz do ligi</span>
-                    <span className="small">Zapisz się zanim zapiszą cię inni · Sezon 01</span>
+                    <span className="big">Wejdź do ligi</span>
+                    <span className="small">Pierwsze podium Sezonu 01 · Zawalcz o #1</span>
                   </span>
                   <span className="arr">→</span>
                 </a>
@@ -101,25 +102,41 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* HUD result tower */}
+            {/* HUD result tower — league-first framing */}
             <div style={{ position: 'relative' }}>
               <div className="lp-hud" aria-hidden="true">
                 <div className="lp-hud-head">
-                  <span>RESULT // GAŁGAN // STAGE 01</span>
-                  <span className="dotline">LIVE</span>
+                  <span>LIVE // GAŁGAN // SEZON 01</span>
+                  <span className="dotline">RANKING</span>
                 </div>
                 <div className="lp-hud-body">
-                  <div className="lp-hud-trail">GAŁGAN · DROP 220m</div>
+                  <div className="lp-hud-trail">GAŁGAN · TABLICA SEZONOWA</div>
                   <div className="lp-hud-stat-line">
                     <span className="check">✓</span>
-                    ZWERYFIKOWANY · RANKING
+                    ZWERYFIKOWANY · ZALICZONY DO LIGI
                   </div>
                   <div className="lp-hud-time">
                     02:14<span className="ms">.86</span>
                   </div>
                   <div className="lp-hud-pb">
                     <span className="pill">PB</span>
-                    −1.4s LEPIEJ NIŻ POPRZEDNIO
+                    −1.4s · +3 POZYCJE W SEZONIE
+                  </div>
+
+                  {/* Rival strip — the league pressure moment */}
+                  <div className="lp-hud-rival">
+                    <div className="rv-head">
+                      <span className="lb">CEL · RYWAL NAD TOBĄ</span>
+                      <span className="tag">#6</span>
+                    </div>
+                    <div className="rv-row">
+                      <div className="rv-name">w.bronk</div>
+                      <div className="rv-gap">+0.76s</div>
+                    </div>
+                    <div className="rv-row sub">
+                      <div className="rv-name">DO PODIUM · #3 slayer22</div>
+                      <div className="rv-gap">+3.46s</div>
+                    </div>
                   </div>
                 </div>
                 <div className="lp-hud-grid3">
@@ -128,12 +145,12 @@ export default function HomePage() {
                     <span className="value up">#7</span>
                   </div>
                   <div>
-                    <span className="label">Δ SEZON</span>
-                    <span className="value up">↑3</span>
+                    <span className="label">TOP 10</span>
+                    <span className="value up">✓</span>
                   </div>
                   <div>
-                    <span className="label">RANGA</span>
-                    <span className="value">HUNTER</span>
+                    <span className="label">DO PODIUM</span>
+                    <span className="value gold">4 POZ.</span>
                   </div>
                 </div>
               </div>
@@ -147,19 +164,19 @@ export default function HomePage() {
          ════════════════════════════════════════════════ */}
       <div className="lp-marquee" aria-hidden="true">
         <div className="lp-marquee-track">
-          <span>STAGE 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span>GAŁGAN — 02:14.86</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA — 03:08.42</span><span className="star">▸</span>
-          <span>KOMETA — 02:46.15</span><span className="star">◆</span>
-          <span>DZIDA — 01:58.07</span><span className="star">▸</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
+          <span>SEZON 01 · PIERWSZE PODIUM OTWARTE</span><span className="star">▸</span>
+          <span>GAŁGAN #1 · —</span><span className="star">◆</span>
+          <span>DOOKOŁA ŚWIATA #1 · —</span><span className="star">▸</span>
+          <span>KOMETA #1 · —</span><span className="star">◆</span>
+          <span>DZIDA #1 · —</span><span className="star">▸</span>
+          <span>12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE</span><span className="star">◆</span>
           {/* loop dup */}
-          <span>STAGE 01 // SŁOTWINY ARENA</span><span className="star">▸</span>
-          <span>GAŁGAN — 02:14.86</span><span className="star">◆</span>
-          <span>DOOKOŁA ŚWIATA — 03:08.42</span><span className="star">▸</span>
-          <span>KOMETA — 02:46.15</span><span className="star">◆</span>
-          <span>DZIDA — 01:58.07</span><span className="star">▸</span>
-          <span>JESZCZE JEDEN ZJAZD</span><span className="star">◆</span>
+          <span>SEZON 01 · PIERWSZE PODIUM OTWARTE</span><span className="star">▸</span>
+          <span>GAŁGAN #1 · —</span><span className="star">◆</span>
+          <span>DOOKOŁA ŚWIATA #1 · —</span><span className="star">▸</span>
+          <span>KOMETA #1 · —</span><span className="star">◆</span>
+          <span>DZIDA #1 · —</span><span className="star">▸</span>
+          <span>12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE</span><span className="star">◆</span>
         </div>
       </div>
 
@@ -212,8 +229,8 @@ export default function HomePage() {
             TO <span className="red">LIGA</span>.
           </h2>
           <p className="sub">
-            Twój czas to Twoja pozycja. Twoja pozycja to Twój rywal.
-            Twój rywal czeka na weekend.
+            Każdy zjazd idzie na tablicę. Każda tablica ma #1.
+            Każde #1 ma kogoś, kto je zabierze.
           </p>
         </div>
       </section>
@@ -227,12 +244,12 @@ export default function HomePage() {
         </div>
         <div className="lp-wide">
           <h2 className="lp-h2-2 lp-h2-show">
-            TRZY EKRANY.<br />
-            <span className="red">JEDNO PYTANIE.</span>
+            CZAS. POZYCJA.<br />
+            <span className="red">RYWAL.</span>
           </h2>
           <p className="lp-h2-show-sub">
-            Start. Wynik. Tablica. Cała liga mieści się w trzech ekranach
-            — i w jednym pytaniu, które zadaje Ci meta.
+            Tablica jest w centrum. Profil po jednej stronie, ośrodek
+            po drugiej. A na środku — lista, na której Cię jeszcze nie ma.
           </p>
 
           {/* ──────────────────────────────────────────────
@@ -318,92 +335,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* ═══ PHONE 02 // START — Słotwiny ═══ */}
+            {/* ═══ PHONE 02 // TABLICA — the centerpiece, hero phone ═══ */}
             <div className="lp-scr-wrap center">
-              <div className="phone3">
-                <div className="phone3-screen scr-start">
-                  <div className="scr-status">
-                    <span>9:41</span>
-                    <span className="ind">●●●●●</span>
-                  </div>
-                  <div className="scr-start-head">
-                    <div>
-                      <div className="brand">NWD</div>
-                      <div className="league">LIGA GRAVITY</div>
-                    </div>
-                    <div className="rankpill">
-                      <span className="ico">▲</span>
-                      <span className="nm">HUNTER</span>
-                      <span className="bar"><i style={{ width: '62%' }} /></span>
-                    </div>
-                  </div>
-
-                  <div className="scr-venue-rail">
-                    <div className="vchip active">
-                      SŁOTWINY<div className="under" />
-                    </div>
-                    <div className="vchip">KASINA</div>
-                  </div>
-
-                  <div className="scr-venue-card">
-                    <div className="tag">OŚRODEK · SEZON 01</div>
-                    <div className="name">SŁOTWINY ARENA</div>
-                    <div className="region">Krynica-Zdrój</div>
-                    <div className="stats">
-                      <div className="s">
-                        <div className="v">4</div>
-                        <div className="l">TRAS</div>
-                      </div>
-                      <div className="div" />
-                      <div className="s">
-                        <div className="v on">23</div>
-                        <div className="l">ZJAZDÓW</div>
-                      </div>
-                      <div className="div" />
-                      <div className="s">
-                        <div className="v on">8</div>
-                        <div className="l">RIDERÓW</div>
-                      </div>
-                    </div>
-                    <div className="cta">WEJDŹ DO OŚRODKA</div>
-                  </div>
-
-                  <div className="scr-section-label">TWÓJ STATUS</div>
-                  <div className="scr-rider-mini">
-                    <div className="cell"><div className="v">23</div><div className="l">ZJAZDÓW</div></div>
-                    <div className="cell"><div className="v">4</div><div className="l">REKORDÓW</div></div>
-                    <div className="cell"><div className="v on">#7</div><div className="l">POZYCJA</div></div>
-                  </div>
-
-                  <div className="scr-trail-row">
-                    <div className="dot blue" />
-                    <div className="info">
-                      <div className="nm">Gałgan</div>
-                      <div className="meta">EASY · 2400m · ↓180m</div>
-                    </div>
-                    <div className="right">
-                      <div className="pb">02:14.86</div>
-                      <div className="pos">#7</div>
-                    </div>
-                  </div>
-
-                  <div className="scr-tabbar">
-                    <div className="tab active">START</div>
-                    <div className="tab">ZJAZDY</div>
-                    <div className="tab">TABLICA</div>
-                    <div className="tab">RIDER</div>
-                  </div>
-                </div>
-              </div>
-              <div className="lp-scr-cap">
-                <span className="ix">02 / 03</span>
-                <span className="ttl">START</span>
-                <span className="tag">SŁOTWINY · S01</span>
-              </div>
-            </div>
-
-            {/* ═══ PHONE 03 // TABLICA ═══ */}
-            <div className="lp-scr-wrap">
               <div className="phone3">
                 <div className="phone3-screen scr-board">
                   <div className="scr-status">
@@ -412,7 +345,7 @@ export default function HomePage() {
                   </div>
                   <div className="scr-board-head">
                     <div className="title">TABLICA WYNIKÓW<span className="dot" /></div>
-                    <div className="sub">TYLKO ZWERYFIKOWANE ZJAZDY</div>
+                    <div className="sub">SEZON 01 · TYLKO ZWERYFIKOWANE</div>
                   </div>
 
                   <div className="scr-board-tabs">
@@ -511,9 +444,93 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="lp-scr-cap">
-                <span className="ix">03 / 03</span>
+                <span className="ix">02 / 03</span>
                 <span className="ttl">TABLICA</span>
-                <span className="tag">SEZON 01</span>
+                <span className="tag">LIGA · #7 / 23</span>
+              </div>
+            </div>
+
+            {/* ═══ PHONE 03 // OŚRODEK — Słotwiny start ═══ */}
+            <div className="lp-scr-wrap">
+              <div className="phone3">
+                <div className="phone3-screen scr-start">
+                  <div className="scr-status">
+                    <span>9:41</span>
+                    <span className="ind">●●●●●</span>
+                  </div>
+                  <div className="scr-start-head">
+                    <div>
+                      <div className="brand">NWD</div>
+                      <div className="league">LIGA GRAVITY</div>
+                    </div>
+                    <div className="rankpill">
+                      <span className="ico">▲</span>
+                      <span className="nm">HUNTER</span>
+                      <span className="bar"><i style={{ width: '62%' }} /></span>
+                    </div>
+                  </div>
+
+                  <div className="scr-venue-rail">
+                    <div className="vchip active">
+                      SŁOTWINY<div className="under" />
+                    </div>
+                    <div className="vchip">KASINA</div>
+                  </div>
+
+                  <div className="scr-venue-card">
+                    <div className="tag">OŚRODEK · SEZON 01</div>
+                    <div className="name">SŁOTWINY ARENA</div>
+                    <div className="region">Krynica-Zdrój</div>
+                    <div className="stats">
+                      <div className="s">
+                        <div className="v">4</div>
+                        <div className="l">TRAS</div>
+                      </div>
+                      <div className="div" />
+                      <div className="s">
+                        <div className="v on">23</div>
+                        <div className="l">ZJAZDÓW</div>
+                      </div>
+                      <div className="div" />
+                      <div className="s">
+                        <div className="v on">8</div>
+                        <div className="l">RIDERÓW</div>
+                      </div>
+                    </div>
+                    <div className="cta">WEJDŹ DO OŚRODKA</div>
+                  </div>
+
+                  <div className="scr-section-label">TWÓJ STATUS</div>
+                  <div className="scr-rider-mini">
+                    <div className="cell"><div className="v">23</div><div className="l">ZJAZDÓW</div></div>
+                    <div className="cell"><div className="v">4</div><div className="l">REKORDÓW</div></div>
+                    <div className="cell"><div className="v on">#7</div><div className="l">POZYCJA</div></div>
+                  </div>
+
+                  <div className="scr-trail-row">
+                    <div className="dot blue" />
+                    <div className="info">
+                      <div className="nm">Gałgan</div>
+                      <div className="meta">EASY · 2400m · ↓180m</div>
+                    </div>
+                    <div className="right">
+                      <div className="pb">02:14.86</div>
+                      <div className="pos">#7</div>
+                    </div>
+                  </div>
+
+                  <div className="scr-tabbar">
+                    <div className="tab active">START</div>
+                    <div className="tab">ZJAZDY</div>
+                    <div className="tab">TABLICA</div>
+                    <div className="tab">RIDER</div>
+                  </div>
+                </div>
+              </div>
+              <div className="lp-scr-cap">
+                <span className="ix">03 / 03</span>
+                <span className="ttl">OŚRODEK</span>
+                <span className="tag">SŁOTWINY · S01</span>
               </div>
             </div>
           </div>
@@ -531,7 +548,7 @@ export default function HomePage() {
           <div className="lp-finale">
             <div className="lp-finale-stamp">
               <span className="pulse" />
-              SEZON 01 ▸ iOS ▸ WKRÓTCE W APP STORE
+              PIERWSZE PODIUM · SEZON 01 · WKRÓTCE W APP STORE
             </div>
             <h2 className="lp-finale-h">
               BRAMKA<br />
@@ -539,14 +556,14 @@ export default function HomePage() {
             </h2>
             <p className="lp-finale-sub">
               Sezon 01 pisze się raz. Pierwsi riderzy wpisują się
-              do historii ligi. Weekend w Słotwinach decyduje
-              o pierwszym podium całego sezonu.
+              do historii ligi — a pierwsze podium całego sezonu
+              wygrywa się w jeden weekend.
             </p>
 
             <Link className="lp-btn-finale" href="/support">
               <span className="left">
-                <span className="line1">DOŁĄCZ DO LIGI</span>
-                <span className="line2">Podium otwarte · Wejdź zanim zajmą</span>
+                <span className="line1">WEJDŹ DO LIGI</span>
+                <span className="line2">Zgarnij #1 · Ścigaj się z kumplami od dnia zero</span>
               </span>
               <span className="arr">→</span>
             </Link>
@@ -557,10 +574,10 @@ export default function HomePage() {
                 <div className="left">
                   <div className="tag gold">
                     <Image src={APP_ICON} alt="" width={16} height={16} className="ico" />
-                    STAGE 01 · LAUNCH WORLD
+                    STAGE 01 · HALL OF FAME OPEN
                   </div>
                   <div className="name">Słotwiny Arena</div>
-                  <div className="region">Krynica-Zdrój · Polska</div>
+                  <div className="region">Krynica-Zdrój · Sezon 01 / 2026</div>
                 </div>
                 <div className="right">
                   <div className="kv"><span className="k">SEZON</span><span className="v">01 / 2026</span></div>
@@ -612,7 +629,7 @@ export default function HomePage() {
               </div>
               <div className="dossier-foot">
                 <span className="dot" />
-                WSZYSTKIE MIEJSCA NA PODIUM OTWARTE · SEZON 01 / 2026
+                12 MIEJSC NA PODIUM · WSZYSTKIE OTWARTE · SEZON PISZE SIĘ RAZ
               </div>
             </div>
           </div>

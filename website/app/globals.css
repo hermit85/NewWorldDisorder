@@ -4129,6 +4129,142 @@ body:has(.landing) .footer { display: none; }
 /* End transmission: slightly more silence before the fade */
 .landing .lp-end { padding: 112px 0 80px; }
 
+/* ═══════════════════════════════════════════════════════════
+   LANDING V8 — LEAGUE PRESSURE PASS
+   - Rival strip inside the HUD result card
+   - Gold "DO PODIUM" emphasis in the HUD stat grid
+   - TABLICA phone promoted as the centerpiece (hero phone)
+   - Podium scope chip styling carrying "#1 · —" placeholders
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── HUD rival strip — the moment the card becomes a league ── */
+.lp-hud-rival {
+  margin-top: 8px;
+  padding: 14px 16px 12px;
+  background: rgba(0, 255, 136, 0.04);
+  border: 1px solid rgba(0, 255, 136, 0.18);
+  border-radius: 8px;
+  position: relative;
+}
+.lp-hud-rival::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--lp-accent), transparent);
+  opacity: 0.5;
+}
+.lp-hud-rival .rv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.lp-hud-rival .rv-head .lb {
+  font-family: var(--lp-mono);
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--lp-text-4);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.lp-hud-rival .rv-head .tag {
+  font-family: var(--lp-display);
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--lp-accent);
+  letter-spacing: 0;
+}
+.lp-hud-rival .rv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+}
+.lp-hud-rival .rv-row .rv-name {
+  font-family: var(--lp-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--lp-text);
+  text-transform: uppercase;
+}
+.lp-hud-rival .rv-row .rv-gap {
+  font-family: var(--lp-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lp-accent);
+  letter-spacing: -0.01em;
+}
+.lp-hud-rival .rv-row.sub {
+  padding-top: 6px;
+  margin-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.lp-hud-rival .rv-row.sub .rv-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--lp-text-3);
+  letter-spacing: 1.2px;
+}
+.lp-hud-rival .rv-row.sub .rv-gap {
+  font-size: 10px;
+  color: var(--lp-gold);
+}
+
+/* Tighten the HUD body so the rival strip has room */
+.landing .lp-hud-body { padding: 24px 24px 20px; }
+.landing .lp-hud-pb { margin-bottom: 16px; }
+
+/* ── HUD grid3: gold accent on "DO PODIUM" ── */
+.lp-hud-grid3 .value.gold {
+  color: var(--lp-gold);
+  letter-spacing: -0.5px;
+}
+
+/* ── §03 TABLICA center-phone: subtle extra prominence ── */
+.landing .lp-block.showcase .lp-scr-wrap.center .phone3 {
+  box-shadow:
+    0 110px 200px -42px rgba(0, 0, 0, 0.95),
+    0 70px 160px -40px rgba(0, 255, 136, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(0, 255, 136, 0.10);
+}
+.landing .lp-block.showcase .lp-scr-wrap.center .lp-scr-cap .ttl {
+  color: var(--lp-accent);
+}
+.landing .lp-block.showcase .lp-scr-wrap.center .lp-scr-cap .ix {
+  color: var(--lp-accent);
+}
+
+/* Widen the center phone very slightly so it reads as hero */
+@media (min-width: 981px) {
+  .landing .lp-block.showcase .lp-screens3 {
+    grid-template-columns: 1fr 1.08fr 1fr;
+  }
+}
+
+/* ── Finale stamp: small gold flourish ── */
+.landing .lp-finale-stamp {
+  color: var(--lp-gold);
+  border-color: rgba(255, 215, 0, 0.40);
+  background: rgba(255, 215, 0, 0.05);
+}
+.landing .lp-finale-stamp .pulse {
+  background: var(--lp-gold);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.65);
+}
+
+/* ── Finale mega CTA line2 tighter for the new longer sub ── */
+.lp-btn-finale .line2 {
+  letter-spacing: 1.1px;
+}
+
+/* ── Dossier head: tighter alignment ── */
+.landing .dossier-head .tag.gold {
+  color: var(--lp-gold);
+}
+
 /* ── Footer ── */
 .footer {
   margin-top: 96px;
