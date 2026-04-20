@@ -484,6 +484,85 @@ export async function submitRunToBackend(params: api.SubmitRunParams): Promise<a
 }
 
 // ══════════════════════════════════════════════════════════
+// SPOT SUBMISSION (Sprint 2)
+// ══════════════════════════════════════════════════════════
+
+export type PendingSpotsStatus = 'loading' | 'ok' | 'empty' | 'error' | 'unauthorized' | 'signed_out';
+
+/** Curator-only view of the pending-spots queue. Returns `unauthorized`
+ *  for non-curator/non-moderator profiles so the screen can redirect. */
+export function usePendingSpots(role: string | null | undefined, userId?: string) {
+  const [spots, setSpots] = useState<api.PendingSpot[]>([]);
+  const [status, setStatus] = useState<PendingSpotsStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (DEMO_MODE) {
+      setSpots([]);
+      setStatus('empty');
+      return;
+    }
+    if (!userId) {
+      setSpots([]);
+      setStatus('signed_out');
+      return;
+    }
+    if (role !== 'curator' && role !== 'moderator') {
+      setSpots([]);
+      setStatus('unauthorized');
+      return;
+    }
+
+    const res = await api.listPendingSpots();
+    if (!res.ok) {
+      setSpots([]);
+      setStatus('error');
+      return;
+    }
+    setSpots(res.data);
+    setStatus(res.data.length > 0 ? 'ok' : 'empty');
+  }, [role, userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { spots, status, loading: status === 'loading', refresh };
+}
+
+/** Rider's own pending + rejected spots. Used for the "oczekuje" / "odrzucone"
+ *  strip on home. */
+export function useMyPendingSpots(userId?: string) {
+  const [spots, setSpots] = useState<api.PendingSpot[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (DEMO_MODE) {
+      setSpots([]);
+      setStatus('empty');
+      return;
+    }
+    if (!userId) {
+      setSpots([]);
+      setStatus('signed_out');
+      return;
+    }
+
+    const res = await api.listMyPendingSpots(userId);
+    if (!res.ok) {
+      setSpots([]);
+      setStatus('error');
+      return;
+    }
+    setSpots(res.data);
+    setStatus(res.data.length > 0 ? 'ok' : 'empty');
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { spots, status, loading: status === 'loading', refresh };
+}
+
+// ══════════════════════════════════════════════════════════
 // Mock mappers — DEMO_MODE only
 // ══════════════════════════════════════════════════════════
 

@@ -23,7 +23,7 @@ import { DEFAULT_SPOT_ID } from '@/constants';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement } from '@/hooks/useBackend';
+import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement, usePendingSpots, useMyPendingSpots } from '@/hooks/useBackend';
 import { LeagueSignal } from '@/systems/leagueMovement';
 import { useVenueContext } from '@/hooks/useVenueContext';
 
@@ -62,6 +62,11 @@ export default function HomeScreen() {
   const venueCtx = useVenueContext(true);
 
   const { signals: leagueSignals } = useLeagueMovement(authProfile?.id, venueActivity);
+
+  // Sprint 2: spot submission wiring
+  const { spots: curatorPending } = usePendingSpots(authProfile?.role ?? null, authProfile?.id);
+  const { spots: myPending } = useMyPendingSpots(authProfile?.id);
+  const isCurator = authProfile?.role === 'curator' || authProfile?.role === 'moderator';
 
   // ── Pending saves indicator ──
   const [pendingSaves, setPendingSaves] = useState(getPendingSaveCount());
@@ -151,6 +156,55 @@ export default function HomeScreen() {
             </Text>
             <Text style={styles.pendingAction}>WYŚLIJ</Text>
           </Pressable>
+        )}
+
+        {/* ═══ CURATOR: PENDING SPOTS QUEUE ═══ */}
+        {isCurator && curatorPending.length > 0 && (
+          <Pressable
+            style={styles.curatorBanner}
+            onPress={() => { tapLight(); router.push('/spot/pending'); }}
+          >
+            <Text style={styles.curatorBannerDot}>●</Text>
+            <Text style={styles.curatorBannerText}>
+              Pending spots: {curatorPending.length}
+            </Text>
+            <Text style={styles.curatorBannerAction}>ZOBACZ</Text>
+          </Pressable>
+        )}
+
+        {/* ═══ RIDER: SUBMIT NEW SPOT CTA ═══ */}
+        {isAuthenticated && (
+          <Pressable
+            style={styles.submitSpotCta}
+            onPress={() => { tapLight(); router.push('/spot/new'); }}
+          >
+            <Text style={styles.submitSpotLabel}>+ ZGŁOŚ NOWY SPOT</Text>
+          </Pressable>
+        )}
+
+        {/* ═══ RIDER: MY PENDING / REJECTED SPOTS ═══ */}
+        {myPending.length > 0 && (
+          <View style={styles.myPendingBlock}>
+            <Text style={styles.myPendingTitle}>TWOJE ZGŁOSZENIA</Text>
+            {myPending.map((s) => (
+              <View key={s.id} style={styles.myPendingCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.myPendingName}>{s.name}</Text>
+                  <Text style={styles.myPendingStatus}>
+                    {s.status === 'pending' ? 'Oczekuje na zatwierdzenie' : `Odrzucony: ${s.rejectionReason ?? '—'}`}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.myPendingBadge,
+                  s.status === 'rejected' && styles.myPendingBadgeRejected,
+                ]}>
+                  <Text style={styles.myPendingBadgeText}>
+                    {s.status === 'pending' ? 'OCZEKUJE' : 'ODRZUCONY'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* ═══ START-ZONE PROMPT — highest priority when at a start gate ═══ */}
@@ -473,6 +527,55 @@ const styles = StyleSheet.create({
   pendingDot: { fontSize: 8, color: colors.gold },
   pendingText: { flex: 1, ...typography.bodySmall, color: colors.gold, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   pendingAction: { ...typography.labelSmall, color: colors.gold, letterSpacing: 2, fontSize: 9 },
+
+  // Curator banner — pending spots queue
+  curatorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  curatorBannerDot: { fontSize: 8, color: colors.accent },
+  curatorBannerText: { flex: 1, ...typography.bodySmall, color: colors.accent, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  curatorBannerAction: { ...typography.labelSmall, color: colors.accent, letterSpacing: 2, fontSize: 9 },
+
+  // Rider: my pending submissions
+  myPendingBlock: { marginBottom: spacing.lg },
+  myPendingTitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.sm, fontSize: 10 },
+  myPendingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    opacity: 0.8,
+  },
+  myPendingName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+  myPendingStatus: { ...typography.bodySmall, color: colors.textTertiary, marginTop: 2 },
+  myPendingBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.sm, backgroundColor: colors.accentDim },
+  myPendingBadgeRejected: { backgroundColor: colors.redDim },
+  myPendingBadgeText: { ...typography.labelSmall, color: colors.textPrimary, fontSize: 9, letterSpacing: 1.5 },
+
+  // Submit-new-spot CTA (persistent on home)
+  submitSpotCta: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    backgroundColor: colors.bgCard,
+  },
+  submitSpotLabel: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 3, fontSize: 11 },
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },

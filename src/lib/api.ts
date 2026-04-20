@@ -823,3 +823,108 @@ export async function fetchTrails(spotId: string) {
 
   return data ?? [];
 }
+
+// ═══════════════════════════════════════════════════════════
+// SPOT SUBMISSION (Sprint 2)
+// ═══════════════════════════════════════════════════════════
+
+// Discriminated-union result for spot submission paths.
+export type ApiOk<T>  = { ok: true;  data: T };
+export type ApiErr    = { ok: false; code: string; message?: string; extra?: Record<string, unknown> };
+export type ApiResult<T> = ApiOk<T> | ApiErr;
+
+export interface PendingSpot {
+  id: string;
+  name: string;
+  status: 'pending' | 'active' | 'rejected';
+  submittedBy: string | null;
+  submitterUsername: string | null;
+  submittedAt: string;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  centerLat: number | null;
+  centerLng: number | null;
+}
+
+function mapPendingSpot(row: any): PendingSpot {
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    submittedBy: row.submitted_by ?? null,
+    submitterUsername: row.submitter?.username ?? null,
+    submittedAt: row.created_at,
+    approvedAt: row.approved_at ?? null,
+    rejectionReason: row.rejection_reason ?? null,
+    centerLat: row.center_lat ?? null,
+    centerLng: row.center_lng ?? null,
+  };
+}
+
+export async function submitSpot(params: {
+  name: string;
+  lat: number;
+  lng: number;
+}): Promise<ApiResult<{ spotId: string }>> {
+  const { data, error } = await db().rpc('submit_spot', {
+    p_name: params.name,
+    p_lat: params.lat,
+    p_lng: params.lng,
+  });
+
+  if (error) {
+    return { ok: false, code: 'rpc_error', message: error.message };
+  }
+  const res = data as any;
+  if (res?.ok === true) {
+    return { ok: true, data: { spotId: res.spot_id } };
+  }
+  return {
+    ok: false,
+    code: res?.code ?? 'unknown',
+    extra: {
+      nearSpotId: res?.near_spot_id,
+      nearSpotName: res?.near_spot_name,
+      distanceM: res?.distance_m,
+    },
+  };
+}
+
+export async function listPendingSpots(): Promise<ApiResult<PendingSpot[]>> {
+  const { data, error } = await db()
+    .from('spots')
+    .select('id, name, status, submitted_by, approved_at, rejection_reason, center_lat, center_lng, created_at, submitter:profiles!spots_submitted_by_fkey(username)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  return { ok: true, data: (data ?? []).map(mapPendingSpot) };
+}
+
+export async function listMyPendingSpots(userId: string): Promise<ApiResult<PendingSpot[]>> {
+  const { data, error } = await db()
+    .from('spots')
+    .select('id, name, status, submitted_by, approved_at, rejection_reason, center_lat, center_lng, created_at')
+    .eq('submitted_by', userId)
+    .in('status', ['pending', 'rejected'])
+    .order('created_at', { ascending: false });
+
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  return { ok: true, data: (data ?? []).map(mapPendingSpot) };
+}
+
+export async function approveSpot(spotId: string): Promise<ApiResult<void>> {
+  const { data, error } = await db().rpc('approve_spot', { p_spot_id: spotId });
+  if (error) return { ok: false, code: 'rpc_error', message: error.message };
+  const res = data as any;
+  if (res?.ok === true) return { ok: true, data: undefined };
+  return { ok: false, code: res?.code ?? 'unknown' };
+}
+
+export async function rejectSpot(spotId: string, reason: string): Promise<ApiResult<void>> {
+  const { data, error } = await db().rpc('reject_spot', { p_spot_id: spotId, p_reason: reason });
+  if (error) return { ok: false, code: 'rpc_error', message: error.message };
+  const res = data as any;
+  if (res?.ok === true) return { ok: true, data: undefined };
+  return { ok: false, code: res?.code ?? 'unknown' };
+}
