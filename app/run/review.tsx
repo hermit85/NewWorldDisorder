@@ -43,7 +43,16 @@ const SVG_PAD = 12;
 
 // ── Helpers ───────────────────────────────────────────────
 
+const INVALID_TIME_PLACEHOLDER = '—:—.—';
+/** Minimum points to render the review screen at all. Below this the
+ *  geometry would be nonsense (timer could go negative, polyline is a
+ *  single dot). 30 is the Pioneer-submission threshold — separate. */
+const MIN_POINTS_FOR_REVIEW = 5;
+
 function formatTimer(ms: number): string {
+  // Guard against 0-point buffers (durationS can be 0 → fine) and
+  // clock-skew / race cases that previously rendered "-1:-1.-8".
+  if (!Number.isFinite(ms) || ms < 0) return INVALID_TIME_PLACEHOLDER;
   const totalSec = Math.floor(ms / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
@@ -98,6 +107,7 @@ function buildPolylinePoints(points: BufferedPoint[]): string {
 type ViewState =
   | { kind: 'loading' }
   | { kind: 'no_buffer' }
+  | { kind: 'invalid_too_few'; count: number }
   | { kind: 'ready' }
   | { kind: 'submitting' };
 
@@ -132,7 +142,14 @@ export default function ReviewScreen() {
         if (persisted && persisted.trailId === trailId && persisted.points.length > 0) {
           setPoints(persisted.points);
           setStartedAt(persisted.startedAt);
-          setViewState({ kind: 'ready' });
+          // Buffer present but too short to render anything useful —
+          // intercept before the rest of the screen mounts so we don't
+          // flash nonsense stats (negative time, empty polyline).
+          if (persisted.points.length < MIN_POINTS_FOR_REVIEW) {
+            setViewState({ kind: 'invalid_too_few', count: persisted.points.length });
+          } else {
+            setViewState({ kind: 'ready' });
+          }
           return;
         }
 
@@ -156,6 +173,29 @@ export default function ReviewScreen() {
     }, 800);
     return () => clearTimeout(t);
   }, [viewState.kind, trailId, router]);
+
+  // ── Invalid recording (< MIN_POINTS_FOR_REVIEW) → alert + redirect.
+  //    Kept here (not as an in-body early return) so hook order stays
+  //    stable across renders.
+  useEffect(() => {
+    if (viewState.kind !== 'invalid_too_few') return;
+    void recordingStore.clearBuffer();
+    Alert.alert(
+      'Nagranie nieważne',
+      `Zebrano tylko ${viewState.count} ${viewState.count === 1 ? 'punkt' : 'punkty'} GPS. ` +
+      `Minimum ${MIN_POINTS_FOR_REVIEW} aby zobaczyć podgląd, minimum 30 aby zatwierdzić ` +
+      'jako Pioniera. Zjedź ponownie w aktywnym sygnale GPS.',
+      [
+        {
+          text: 'Wróć do trasy',
+          onPress: () => {
+            if (trailId) router.replace(`/trail/${trailId}`);
+            else router.back();
+          },
+        },
+      ],
+    );
+  }, [viewState, trailId, router]);
 
   // ── Derived geometry + validation ──────────────────────
   const geometry = useMemo<PioneerGeometry | null>(() => {
@@ -307,6 +347,24 @@ export default function ReviewScreen() {
     );
   }
 
+  // invalid_too_few: show a minimal placeholder while the Alert is up.
+  // Alert.onPress handles the redirect.
+  if (viewState.kind === 'invalid_too_few') {
+    return (
+      <View style={styles.root}>
+        <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.centered}>
+            <Text style={styles.noBufferTitle}>NAGRANIE NIEWAŻNE</Text>
+            <Text style={styles.noBufferBody}>
+              {viewState.count} {viewState.count === 1 ? 'punkt' : 'punkty'} GPS — za mało.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   // viewState === 'ready' | 'submitting'
   const isSubmitting = viewState.kind === 'submitting';
   const canSubmit = geometry !== null && validationError === null && !isSubmitting;
@@ -346,8 +404,14 @@ export default function ReviewScreen() {
           {/* SVG GEOMETRY PREVIEW */}
           <View style={styles.svgFrame}>
             <Text style={styles.svgLabel}>TOR · PODGLĄD</Text>
-            <Svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`}>
-              {polylinePoints && (
+            {points.length < 2 ? (
+              <View style={[styles.polylineEmpty, { width: SVG_W, height: SVG_H }]}>
+                <Text style={styles.polylineEmptyText}>
+                  Za mało punktów aby narysować tor
+                </Text>
+              </View>
+            ) : (
+              <Svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`}>
                 <Polyline
                   points={polylinePoints}
                   fill="none"
@@ -356,15 +420,15 @@ export default function ReviewScreen() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              )}
-            </Svg>
+              </Svg>
+            )}
           </View>
 
           {/* VALIDATION WARNINGS */}
           {validationError === 'too_few_points' && (
             <View style={styles.warnBanner}>
               <Text style={styles.warnBannerText}>
-                ⚠ Za mało punktów GPS — zjedź dłużej, żeby wyznaczyć tor.
+                ⚠ Za mało punktów GPS ({points.length}/30). Nie można zatwierdzić jako Pioniera — zjedź ponownie w lepszym sygnale.
               </Text>
             </View>
           )}
@@ -405,7 +469,14 @@ export default function ReviewScreen() {
             {isSubmitting ? (
               <ActivityIndicator color={hudColors.terrainDark} />
             ) : (
-              <Text style={styles.primaryCtaLabel}>ZATWIERDŹ JAKO PIONIER</Text>
+              <Text
+                style={[
+                  styles.primaryCtaLabel,
+                  !canSubmit && styles.primaryCtaLabelDisabled,
+                ]}
+              >
+                ZATWIERDŹ JAKO PIONIER
+              </Text>
             )}
           </Pressable>
 
@@ -588,7 +659,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryCtaDisabled: { opacity: 0.3 },
+  primaryCtaDisabled: {
+    // Visible gray — not just dimmed green — so the CTA communicates
+    // "not valid yet" at a glance, not "pressed state of the success
+    // action". Overrides backgroundColor from primaryCta.
+    backgroundColor: 'rgba(232, 255, 240, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(232, 255, 240, 0.12)',
+    opacity: 0.6,
+  },
+  primaryCtaLabelDisabled: {
+    color: 'rgba(232, 255, 240, 0.40)',
+  },
+  polylineEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed' as const,
+    borderColor: 'rgba(232, 255, 240, 0.12)',
+    borderRadius: radii.md,
+  },
+  polylineEmptyText: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
   primaryCtaLabel: {
     ...hudTypography.action,
     fontSize: 16,
