@@ -11,6 +11,8 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { useTrail, useSpot, useDeleteTrail } from '@/hooks/useBackend';
+import { TrustBadge } from '@/components/game/TrustBadge';
+import { PioneerBadge } from '@/components/game/PioneerBadge';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { Difficulty, PeriodType } from '@/data/types';
@@ -18,6 +20,32 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard, useUserTrailStats } from '@/hooks/useBackend';
 import { tapMedium, tapLight } from '@/systems/haptics';
 import { reportRider } from '@/services/moderation';
+
+/** Polish trust-disclosure copy shown above the leaderboard.
+ *  GPT Rule 2: the user must always see why we trust (or don't trust)
+ *  a result before they see the ranking. Curator-seeded provisional
+ *  parks get softer language than rider-seeded ones because curator
+ *  status commands more initial confidence (ADR-012 Final §Philosophy). */
+function getTrustDisclosure(
+  source: 'curator' | 'rider',
+  tier: 'provisional' | 'verified' | 'disputed',
+): string {
+  if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
+  if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
+  if (source === 'curator') {
+    return 'Trasa kuratora · czasy orientacyjne dopóki społeczność nie potwierdzi';
+  }
+  return 'Trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi';
+}
+
+/** Polish relative date for Pioneer identity row. Keeps it short —
+ *  "28 kwi 2026" — so it doesn't wrap the row on narrow devices. */
+function formatPioneerDate(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const months = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
 
 const difficultyColors: Record<Difficulty, string> = {
   easy: colors.diffEasy,
@@ -198,6 +226,24 @@ export default function TrailDetailScreen() {
         <View style={styles.hero}>
           <Text style={styles.trailKicker}>⟣ TRASA</Text>
           <Text style={[styles.trailName, { marginTop: spacing.xs }]}>{trail.name}</Text>
+
+          {/* Trust disclosure (Sprint 4 / ADR-012). Null on drafts — component renders nothing. */}
+          <View style={styles.trustRow}>
+            <TrustBadge seedSource={trail.seedSource} trustTier={trail.trustTier} />
+          </View>
+
+          {/* Pioneer identity row — visible only when trail has a Pioneer assigned */}
+          {trail.pioneerUsername && (
+            <View style={styles.pioneerRow}>
+              <PioneerBadge size="sm" />
+              <Text style={styles.pioneerLabel}>Pioneer:</Text>
+              <Text style={styles.pioneerName}>@{trail.pioneerUsername}</Text>
+              {trail.pioneeredAt && (
+                <Text style={styles.pioneerDate}>· {formatPioneerDate(trail.pioneeredAt)}</Text>
+              )}
+            </View>
+          )}
+
           <View style={[styles.badges, { marginTop: spacing.md }]}>
             <View style={[styles.badge, { borderColor: diffColor }]}>
               <Text style={[styles.badgeText, { color: diffColor }]}>{trail.difficulty.toUpperCase()}</Text>
@@ -265,6 +311,20 @@ export default function TrailDetailScreen() {
           </Pressable>
         )}
 
+        {/* ═══ TRUST DISCLOSURE BANNER (GPT Rule 2) ═══ */}
+        {trail.seedSource && trail.trustTier && (
+          <View style={styles.disclosureBanner}>
+            <TrustBadge
+              seedSource={trail.seedSource}
+              trustTier={trail.trustTier}
+              size="sm"
+            />
+            <Text style={styles.disclosureText}>
+              {getTrustDisclosure(trail.seedSource, trail.trustTier)}
+            </Text>
+          </View>
+        )}
+
         {/* ═══ BOARD — top riders ═══ */}
         <View style={styles.boardSection}>
           <View style={styles.boardHeader}>
@@ -314,6 +374,9 @@ export default function TrailDetailScreen() {
               <Text style={[styles.lbName, entry.isCurrentUser && { color: colors.accent }]} numberOfLines={1}>
                 {entry.username}
               </Text>
+              {/* Pioneer mark stays on Pioneer's row regardless of rank position —
+                  identity, not ranking. */}
+              {entry.userId === trail.pioneerUserId && <PioneerBadge size="sm" />}
               <Text style={styles.lbTime}>{formatTimeShort(entry.bestDurationMs)}</Text>
             </Pressable>
           ))}
@@ -399,6 +462,57 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 3,
     color: '#00FF8C',
+  },
+
+  // Sprint 4 — trust + pioneer rows under the trail name
+  trustRow: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  pioneerRow: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
+  pioneerLabel: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    letterSpacing: 1,
+    marginLeft: 2,
+  },
+  pioneerName: {
+    fontFamily: 'Rajdhani_600SemiBold',
+    color: '#00FF8C',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  pioneerDate: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    fontSize: 10,
+  },
+  disclosureBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  disclosureText: {
+    ...typography.labelSmall,
+    color: colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+    letterSpacing: 0,
+    fontSize: 11,
+    lineHeight: 15,
   },
   venueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginBottom: spacing.md, fontSize: 9 },
   badges: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },

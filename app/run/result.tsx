@@ -714,10 +714,27 @@ function PioneerResultScreen({ runId }: { runId: string }) {
             </Svg>
           </Animated.View>
 
-          <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
-          <Text style={pioneerStyles.heroSubtitle}>
-            Ta trasa zostanie pamiętana jako twoja kalibracja
-          </Text>
+          {/* Sprint 4 / ADR-012: copy adapts to seed_source.
+              Curator seeds get softer "welcome to the league" framing;
+              rider seeds get the community-confirmation prompt.
+              Both preserve permanent Pioneer messaging. */}
+          {trail?.seedSource === 'curator' ? (
+            <>
+              <Text style={pioneerStyles.heroTitle}>TWOJA TRASA{'\n'}DOŁĄCZA DO LIGI</Text>
+              <Text style={pioneerStyles.heroSubtitle}>
+                Jako kurator utworzyłeś trasę kuratora. Liga działa od razu.
+                Pioneer należy do ciebie — na zawsze.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
+              <Text style={pioneerStyles.heroSubtitle}>
+                Trasa w fazie testowej. Potrzeba 5 riderów aby została
+                potwierdzona. Twoje imię zostanie zapisane jako Pioneer.
+              </Text>
+            </>
+          )}
 
           <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
           <Text style={pioneerStyles.rankLabel}>#1 WSZECH CZASÓW</Text>
