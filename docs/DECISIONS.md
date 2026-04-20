@@ -67,3 +67,36 @@ Format: each ADR has **Status**, **Context**, **Decision**, **Consequences**. Ke
 **Changed**: every Polish user-facing string across the mobile app — titles, kickers, breadcrumbs, form labels, status pills, error copy, alerts. See the hotfix commit `fix(sprint-3): delete RPC + error propagation + bike park copy cleanup (ADR-009)` for the full list.
 
 **Consequences**: a dev reading `spotId` in code and `bike park` on the screen needs to know they refer to the same thing. The header comments next to `Spot.submissionStatus` and in `deleteSpot` explain this. Accepted — full rename of the DB/API surface is a large cost for a naming win alone. Reopen if the dual vocabulary starts producing bugs (e.g. copy drift as the product grows).
+
+---
+
+## Backlog — Sprint 5+ considerations
+
+### Trailforks GPX/KML import as Pioneer alternative
+
+User flagged Trailforks pro PDF as potential trail data source
+(not moodboard). Analysis for future decision:
+
+**Value:**
+- Bypass physical Pioneer calibration for 1000s of trails
+  globally — scale problem solved on day 1
+- Trailforks has high-quality GPS traces from verified park
+  partnerships
+
+**Risks to Pioneer model (ADR-005):**
+- Pioneer tier system works because Pioneers earn status
+  physically. Auto-import = instant devaluation of Pioneer badges
+- Country First / Territory mechanics break if trails pre-exist
+- Community motivation for Founding Pioneers Program falls off
+  if app is pre-loaded
+
+**Possible hybrid (Sprint 5+):**
+- Trailforks import creates 'unverified candidate' trails
+- First human Pioneer who rides within N meter corridor of
+  imported line → claims Pioneer status, overrides to canonical
+- Community can flag import accuracy via tracking overlap metrics
+
+**Decision:** DEFER to Sprint 5+. MVP + Founding Pioneers Program
+first. Revisit when 50+ trails calibrated manually and scaling
+pain becomes real. Do not build import pipeline early — risks
+breaking core gameplay loop.
