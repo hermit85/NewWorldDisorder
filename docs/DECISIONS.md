@@ -51,3 +51,19 @@ Format: each ADR has **Status**, **Context**, **Decision**, **Consequences**. Ke
 **Decision**: For Sprint 2's 500 m duplicate check, plain haversine over `double precision` columns is accurate to well under a metre at the latitudes we care about — good enough for a coarse dedup. Trails' `geometry` column is `jsonb` of `{lat,lng,altitude}` points for now; this is the simplest thing that can feed the existing client-side gate engine unchanged.
 
 **Consequences**: No spatial indexes, so the proximity check is a sequential scan. Fine at O(10–100) spots; revisit at O(10 000). When Sprint 3 starts calibration work requiring on-path distance / corridor math, enable PostGIS, convert `trails.geometry` to `geography(LINESTRING)`, and supersede this ADR.
+
+---
+
+## ADR-009 — Bike park terminology (2026-04-20)
+
+**Status**: Accepted (2026-04-20, post Sprint 3 MVP).
+
+**Context**: Sprint 3 UI shipped with mixed user-facing terms: `ośrodek`, `spot`, `SPOT`, `POZA OŚRODKIEM`. `Ośrodek` (Polish for bike park) collides with resort / spa / wellness — ambiguous to a first-time user. `Spot` is international MTB jargon (Strava, Trailforks) but too generic for screen labels and alien to the Polish audience we target. The rest of the product (Phase 0–3 positioning) is bike-parks-first.
+
+**Decision**: User-facing copy uses **`bike park`** as the single canonical term. Internal code, DB schema, API function names, routes, filenames retain `spot` as the legacy identifier. Split the surface (user-visible) from the implementation (developer-visible).
+
+**Unchanged**: routes (`/spot/[id]`, `/spot/new`, `/spot/pending`), vars (`spotId`, `useSpot`, `activeSpots`), tables (`spots`), APIs (`submitSpot`, `approveSpot`, `deleteSpot`), filenames (`app/spot/*.tsx`), migration names.
+
+**Changed**: every Polish user-facing string across the mobile app — titles, kickers, breadcrumbs, form labels, status pills, error copy, alerts. See the hotfix commit `fix(sprint-3): delete RPC + error propagation + bike park copy cleanup (ADR-009)` for the full list.
+
+**Consequences**: a dev reading `spotId` in code and `bike park` on the screen needs to know they refer to the same thing. The header comments next to `Spot.submissionStatus` and in `deleteSpot` explain this. Accepted — full rename of the DB/API surface is a large cost for a naming win alone. Reopen if the dual vocabulary starts producing bugs (e.g. copy drift as the product grows).
