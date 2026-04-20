@@ -18,8 +18,6 @@ import { SubmitRunResult } from '@/lib/api';
 import { calculateRunXp } from './xp';
 import { logDebugEvent } from './debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
-import { DEFAULT_SPOT_ID } from '@/constants';
-import { getVenueForTrail } from '@/data/venueConfig';
 
 export interface RetryResult {
   success: boolean;

@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════════
 // useBackend — typed result states: loading / data / error / signed-out
 // NEVER collapses backend failure into fake empty state.
-// Mock data ONLY when Supabase is not configured (DEMO_MODE).
+// Post-Checkpoint-C: no mock fallbacks. When Supabase is not
+// configured, hooks return 'error' so the UI can tell the user
+// something is off instead of showing a fake empty world.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,12 +12,6 @@ import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
 import { useRefreshSignal } from './useRefresh';
 
-// Mock fallback — ONLY in DEMO_MODE
-import { mockLeaderboard } from '@/data/mock/leaderboard';
-import { mockTrails } from '@/data/mock/trails';
-import { mockChallenges } from '@/data/mock/challenges';
-import { mockUser } from '@/data/mock/user';
-import { getUserTrailStats } from '@/data/mock/userTrailStats';
 import { LeaderboardEntry, PeriodType, Challenge, User, Achievement, Spot, Trail } from '@/data/types';
 
 import { logDebugEvent } from '@/systems/debugEvents';
@@ -27,9 +23,6 @@ export function isBackendConfigured(): boolean {
 
 /** True when production build has no backend — app should show blocking error */
 export const isProductionMisconfigured = !isSupabaseConfigured && !__DEV__;
-
-// DEMO_MODE: only in dev. Production without env vars = hard fail, not mock league.
-const DEMO_MODE = !isSupabaseConfigured && __DEV__;
 
 // ── Typed fetch status ──
 export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';
@@ -57,13 +50,6 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
     setStatus('loading');
     setError(null);
     logDebugEvent('fetch', 'leaderboard_start', 'start', { trailId, payload: { periodType } });
-
-    if (DEMO_MODE) {
-      const data = mockLeaderboardForTrail(trailId);
-      setEntries(data);
-      setStatus(data.length > 0 ? 'ok' : 'empty');
-      return;
-    }
 
     // ── Simulation override ──
     if (shouldSimFetchFail('leaderboard')) {
@@ -113,12 +99,6 @@ export function useUserTrailStats(userId?: string) {
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE) {
-      setStats(buildMockTrailStats());
-      setStatus('ok');
-      return;
-    }
-
     if (!userId) {
       setStats(new Map());
       setStatus('signed_out');
@@ -151,12 +131,6 @@ export function useChallenges(spotId: string, userId?: string) {
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE) {
-      setChallenges(mockChallenges);
-      setStatus('ok');
-      return;
-    }
-
     try {
       const data = await api.fetchActiveChallenges(spotId);
       const progressMap = userId
@@ -201,12 +175,6 @@ export function useProfile(userId?: string) {
 
   const refresh = useCallback(async () => {
     logDebugEvent('fetch', 'profile_start', 'start', { sessionId: userId });
-
-    if (DEMO_MODE) {
-      setProfile(mockUser);
-      setStatus('ok');
-      return;
-    }
 
     if (!userId) {
       setProfile(null);
@@ -269,47 +237,50 @@ import {
   VenueActivityContext,
 } from '@/systems/leagueMovement';
 
-export function useLeagueMovement(userId?: string, venueActivity?: VenueActivity | null) {
+/**
+ * League movement signals for a rider across a specific trail set.
+ * Checkpoint C: `trails` is passed in from the caller (derived from
+ * the active spot's DB trails). Previously sourced from the mock/
+ * catalogue which no longer exists.
+ * TODO Sprint 3: resolve venueName from DB instead of venue registry.
+ */
+export function useLeagueMovement(
+  userId?: string,
+  venueActivity?: VenueActivity | null,
+  trails?: Trail[],
+) {
   const [signals, setSignals] = useState<LeagueSignal[]>([]);
   const [status, setStatus] = useState<FetchStatus>('loading');
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE || !userId) {
+    if (!userId) {
       setSignals([]);
-      setStatus(userId ? 'empty' : 'signed_out');
+      setStatus('signed_out');
+      return;
+    }
+    const trailList = trails ?? [];
+    if (trailList.length === 0) {
+      setSignals([]);
+      setStatus('empty');
       return;
     }
 
     try {
-      const trailIds = mockTrails.map(t => t.id);
+      const trailIds = trailList.map(t => t.id);
       const boardData = await api.fetchRiderBoardContext(userId, trailIds);
 
       const trailNames: Record<string, string> = {};
-      for (const t of mockTrails) trailNames[t.id] = t.name;
+      for (const t of trailList) trailNames[t.id] = t.name;
 
       const riderBoards: RiderBoardContext[] = boardData.map(b => ({
         ...b,
         trailName: trailNames[b.trailId] ?? b.trailId,
       }));
 
-      // Resolve venue name from registry instead of hardcoding
-      const _venueMatch = venueActivity ? (() => {
-        const { getVenue, getAllVenues } = require('@/data/venues');
-        // Try to find which venue this activity belongs to by hotTrailId
-        if (venueActivity.hotTrailId) {
-          const { getVenueForTrail } = require('@/data/venueConfig');
-          const match = getVenueForTrail(venueActivity.hotTrailId);
-          if (match) return { id: match.venueId, name: match.venue.name };
-        }
-        // Fallback: first venue
-        const all = getAllVenues();
-        return all.length > 0 ? { id: all[0].id, name: all[0].name } : { id: 'unknown', name: 'Arena' };
-      })() : null;
-
-      const venueCtx: VenueActivityContext | null = venueActivity && _venueMatch ? {
-        venueId: _venueMatch.id,
-        venueName: _venueMatch.name,
+      const venueCtx: VenueActivityContext | null = venueActivity ? {
+        venueId: 'unknown',
+        venueName: 'Arena',
         verifiedRunsToday: venueActivity.verifiedRunsToday,
         activeRidersToday: venueActivity.activeRidersToday,
         hotTrailId: venueActivity.hotTrailId,
@@ -326,7 +297,7 @@ export function useLeagueMovement(userId?: string, venueActivity?: VenueActivity
       setSignals([]);
       setStatus('error');
     }
-  }, [userId, venueActivity, refreshSignal]);
+  }, [userId, venueActivity, trails, refreshSignal]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -348,7 +319,7 @@ export function useResultImpact(userId?: string, trailId?: string, saved?: boole
   const [status, setStatus] = useState<FetchStatus>('loading');
 
   useEffect(() => {
-    if (!userId || !trailId || !saved || DEMO_MODE) {
+    if (!userId || !trailId || !saved) {
       setImpact([]);
       setStatus('empty');
       return;
@@ -402,12 +373,6 @@ export function useVenueActivity(spotId: string) {
   const refresh = useCallback(async () => {
     logDebugEvent('fetch', 'venue_activity_start', 'start', { venueId: spotId });
 
-    if (DEMO_MODE) {
-      setActivity(null);
-      setStatus('empty');
-      return;
-    }
-
     if (shouldSimFetchFail('venueActivity')) {
       logDebugEvent('fetch', 'venue_activity_sim_fail', 'fail', { venueId: spotId });
       setActivity(null);
@@ -442,13 +407,6 @@ export function useAchievements(userId?: string) {
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE) {
-      // Demo mode: no fake achievements — show empty
-      setAchievements([]);
-      setStatus('empty');
-      return;
-    }
-
     if (!userId) {
       setAchievements([]);
       setStatus('signed_out');
@@ -485,10 +443,6 @@ export function useAchievements(userId?: string) {
 // ══════════════════════════════════════════════════════════
 
 export async function submitRunToBackend(params: api.SubmitRunParams): Promise<api.SubmitRunResult | null> {
-  if (DEMO_MODE) {
-    console.log('[NWD] Demo mode — run saved locally only');
-    return null;
-  }
   return api.submitRun(params);
 }
 
@@ -506,11 +460,6 @@ export function usePendingSpots(role: string | null | undefined, userId?: string
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE) {
-      setSpots([]);
-      setStatus('empty');
-      return;
-    }
     if (!userId) {
       setSpots([]);
       setStatus('signed_out');
@@ -545,11 +494,6 @@ export function useMyPendingSpots(userId?: string) {
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
-    if (DEMO_MODE) {
-      setSpots([]);
-      setStatus('empty');
-      return;
-    }
     if (!userId) {
       setSpots([]);
       setStatus('signed_out');
@@ -571,9 +515,7 @@ export function useMyPendingSpots(userId?: string) {
   return { spots, status, loading: status === 'loading', refresh };
 }
 
-// ══════════════════════════════════════════════════════════
-// Mock mappers — DEMO_MODE only
-// ══════════════════════════════════════════════════════════
+// ── DB row → app type mapper ──
 
 function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
   return {
@@ -591,21 +533,6 @@ function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
     isCurrentUser: row.isCurrentUser,
     avatarUrl: (row as any).avatarUrl ?? null,
   };
-}
-
-function mockLeaderboardForTrail(trailId: string): LeaderboardEntry[] {
-  return mockLeaderboard
-    .filter(e => e.trailId === trailId || trailId === 'all')
-    .sort((a, b) => a.currentPosition - b.currentPosition);
-}
-
-function buildMockTrailStats(): Map<string, { pbMs: number | null; position: number | null }> {
-  const map = new Map();
-  for (const trail of mockTrails) {
-    const stats = getUserTrailStats(trail.id);
-    if (stats) map.set(trail.id, { pbMs: stats.pbMs, position: stats.position });
-  }
-  return map;
 }
 
 // ══════════════════════════════════════════════════════════

@@ -15,7 +15,6 @@ import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp, fetchProfile } from '@/lib/api';
 import { calculateRunXp, type XpBreakdown } from './xp';
-import { DEFAULT_SPOT_ID } from '@/constants';
 import { getVenueForTrail } from '@/data/venueConfig';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';

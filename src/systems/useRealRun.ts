@@ -51,7 +51,7 @@ import {
   VerificationResult,
   Checkpoint,
 } from '@/data/verificationTypes';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { TrailGeoSeed } from '@/data/venueConfig';
 import { isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult } from '@/lib/api';
 import { createRunSessionId, setFinalizedRun } from './runStore';

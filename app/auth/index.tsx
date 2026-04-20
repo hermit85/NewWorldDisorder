@@ -344,7 +344,7 @@ export default function AuthScreen() {
 
         {/* Season badge */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>SEZON 01 · SŁOTWINY ARENA</Text>
+          <Text style={styles.footerText}>NWD · LIGA GRAVITY</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

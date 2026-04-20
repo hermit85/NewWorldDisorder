@@ -16,10 +16,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
-import { mockSpots } from '@/data/mock/spots';
-import { getTrailsForSpot } from '@/data/mock/trails';
 import { getAllVenues, getVenue } from '@/data/venues';
-import { DEFAULT_SPOT_ID } from '@/constants';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -34,7 +31,7 @@ export default function HomeScreen() {
   const { profile: authProfile, isAuthenticated } = useAuthContext();
 
   // ── Venue selection (persisted) ──
-  const [selectedVenueId, setSelectedVenueId] = useState(DEFAULT_SPOT_ID);
+  const [selectedVenueId, setSelectedVenueId] = useState('');
   useEffect(() => {
     AsyncStorage.getItem(VENUE_STORAGE_KEY).then((stored) => {
       if (stored && getVenue(stored)) setSelectedVenueId(stored);
@@ -84,7 +81,7 @@ export default function HomeScreen() {
   const { activity: venueActivity, status: venueActivityStatus } = useVenueActivity(selectedVenueId);
   const venueCtx = useVenueContext(true);
 
-  const { signals: leagueSignals } = useLeagueMovement(authProfile?.id, venueActivity);
+  const { signals: leagueSignals } = useLeagueMovement(authProfile?.id, venueActivity, venueTrails);
 
   // Sprint 2: spot submission wiring
   const { spots: curatorPending } = usePendingSpots(authProfile?.role ?? null, authProfile?.id);

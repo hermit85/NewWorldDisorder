@@ -2,7 +2,7 @@
 
 import { TruthMapData, VerificationResult } from '@/data/verificationTypes';
 import { GpsPoint } from './gps';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { TrailGeoSeed } from '@/data/venueConfig';
 
 export function buildRealTruthMap(
   geo: TrailGeoSeed,

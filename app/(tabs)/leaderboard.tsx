@@ -7,9 +7,7 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTrailColor } from '@/theme/map';
-import { getTrailsForSpot } from '@/data/mock/trails'; // Checkpoint C cleanup
 import { getVenue, getAllVenues } from '@/data/venues';
-import { DEFAULT_SPOT_ID } from '@/constants';
 import { formatTimeShort } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
 import { RiderAvatar } from '@/components/RiderAvatar';
@@ -38,7 +36,7 @@ export default function LeaderboardScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(
     (params.scope as PeriodType) || 'all_time',
   );
-  const [selectedVenueId, setSelectedVenueId] = useState(DEFAULT_SPOT_ID);
+  const [selectedVenueId, setSelectedVenueId] = useState('');
   const venue = getVenue(selectedVenueId);
   // Checkpoint A: trail list from DB; venue picker rail still seed-sourced
   // (Checkpoint B rewires).

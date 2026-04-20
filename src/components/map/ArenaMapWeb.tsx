@@ -9,7 +9,10 @@ import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
 import { Trail } from '@/data/types';
 import { formatTimeShort } from '@/content/copy';
-import { slotwinyTrails, OfficialTrail } from '@/data/seed/slotwinyOfficial';
+// Checkpoint C: slotwinyTrails seed removed. `getOfficialTrail` now
+// always returns undefined; callers already handle that via `?.` chain.
+// TODO Sprint 3: accept official-trail metadata via props.
+type OfficialTrail = { gameLabel?: string; gameDifficulty?: string; officialName?: string; colorClass?: string; shortName?: string };
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -23,9 +26,8 @@ interface Props {
   onMapPress: () => void;
 }
 
-// Get seed data for game labels
-function getOfficialTrail(id: string): OfficialTrail | undefined {
-  return slotwinyTrails.find((t) => t.id === id);
+function getOfficialTrail(_id: string): OfficialTrail | undefined {
+  return undefined;
 }
 
 export function ArenaMapWeb({

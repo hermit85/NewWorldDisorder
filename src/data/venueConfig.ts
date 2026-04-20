@@ -36,6 +36,10 @@ export interface TrailGeo {
   labelAnchor?: GeoPoint;
 }
 
+/** Alias kept for run-layer modules that predate the venue registry.
+ *  Structurally identical to TrailGeo. */
+export type TrailGeoSeed = TrailGeo;
+
 // ── Trail metadata ──
 
 export interface VenueTrail {

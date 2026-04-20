@@ -10,7 +10,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { getTrail } from '@/data/mock/trails'; // Checkpoint C cleanup
 import { useTrail } from '@/hooks/useBackend';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';

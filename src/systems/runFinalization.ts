@@ -18,7 +18,7 @@ import { GpsPoint } from './gps';
 import { verifyRealRun, type GateTruth } from './realVerification';
 import { RunTrace } from './traceCapture';
 import { VerificationResult, RunPhaseV2, GpsReadiness } from '@/data/verificationTypes';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { TrailGeoSeed } from '@/data/venueConfig';
 import { type RunQualityAssessment } from '@/features/run';
 import { logDebugEvent } from './debugEvents';
 

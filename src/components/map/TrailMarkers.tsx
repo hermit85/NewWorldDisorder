@@ -5,8 +5,13 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
 import { Trail } from '@/data/types';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
-import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
+import { TrailGeoSeed } from '@/data/venueConfig';
+
+// Checkpoint C: slotwinyTrails removed. `colorClass` from official
+// trail metadata is no longer available here; getTrailColor falls
+// back to the trail's difficulty only.
+// TODO Sprint 3: accept official-trail metadata via props.
+const slotwinyTrails: Array<{ id: string; colorClass?: string; shortName?: string }> = [];
 
 interface Props {
   trails: Trail[];

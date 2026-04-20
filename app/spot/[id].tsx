@@ -7,8 +7,6 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
-import { getSpot } from '@/data/mock/spots'; // Checkpoint C cleanup
-import { getTrailsForSpot } from '@/data/mock/trails'; // Checkpoint C cleanup
 import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useUserTrailStats, useChallenges, useSpot, useTrails } from '@/hooks/useBackend';
@@ -16,6 +14,7 @@ import { useVenueContext } from '@/hooks/useVenueContext';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
 import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
+import { EmptyMapPlaceholder } from '@/components/map/EmptyMapPlaceholder';
 import { distanceMeters } from '@/systems/gps';
 import { getVenue } from '@/data/venues';
 
@@ -188,11 +187,7 @@ export default function SpotScreen() {
           />
         )
       ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-          <Text style={{ color: colors.textTertiary, textAlign: 'center' }}>
-            Mapa pojawi się po pierwszym zjeździe Pioniera
-          </Text>
-        </View>
+        <EmptyMapPlaceholder />
       )}
 
       {/* Empty state — spot has no trails yet (pre-Sprint-3 calibration) */}
