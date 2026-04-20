@@ -91,7 +91,7 @@ export interface Database {
           official_name: string;
           short_name: string;
           game_label: string;
-          difficulty: string;
+          difficulty: 'easy' | 'medium' | 'hard' | 'expert';
           trail_type: string;
           distance_m: number;
           avg_grade_pct: number;
@@ -101,6 +101,11 @@ export interface Database {
           is_race_trail: boolean;
           is_active: boolean;
           sort_order: number;
+          pioneer_user_id: string | null;
+          calibration_status: 'draft' | 'calibrating' | 'verified' | 'locked';
+          geometry: Json | null;
+          pioneered_at: string | null;
+          runs_contributed: number;
           created_at: string;
         };
         Insert: {
@@ -297,6 +302,23 @@ export interface Database {
       };
       reject_spot: {
         Args: { p_spot_id: string; p_reason: string };
+        Returns: Json;
+      };
+      create_trail: {
+        Args: {
+          p_spot_id: string;
+          p_name: string;
+          p_difficulty: string;
+          p_trail_type: string;
+        };
+        Returns: Json;
+      };
+      finalize_pioneer_run: {
+        Args: {
+          p_trail_id: string;
+          p_run_payload: Json;
+          p_geometry: Json;
+        };
         Returns: Json;
       };
     };
