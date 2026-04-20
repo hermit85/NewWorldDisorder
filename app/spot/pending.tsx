@@ -42,7 +42,7 @@ export default function PendingSpotsScreen() {
         <Pressable onPress={() => router.back()} style={styles.back} hitSlop={16}>
           <Text style={styles.backLabel}>← Wróć</Text>
         </Pressable>
-        <Text style={styles.title}>KOLEJKA SPOTÓW</Text>
+        <Text style={styles.title}>KOLEJKA BIKE PARKÓW</Text>
         {status === 'ok' && (
           <Text style={styles.subtitle}>{spots.length} do zatwierdzenia</Text>
         )}
@@ -56,7 +56,7 @@ export default function PendingSpotsScreen() {
 
       {status === 'empty' && (
         <View style={styles.center}>
-          <Text style={styles.emptyTitle}>Brak spotów w kolejce</Text>
+          <Text style={styles.emptyTitle}>Brak bike parków w kolejce</Text>
           <Text style={styles.emptyBody}>Wszystko na bieżąco.</Text>
         </View>
       )}
@@ -198,7 +198,7 @@ function PendingCard({ spot, onDone }: { spot: PendingSpot; onDone: () => void }
 function errorLabel(code: string): string {
   switch (code) {
     case 'not_curator':   return 'Brak uprawnień.';
-    case 'not_found':     return 'Spot już nie istnieje.';
+    case 'not_found':     return 'Bike park już nie istnieje.';
     case 'not_pending':   return 'Ktoś już go obsłużył.';
     case 'reason_too_short': return 'Powód musi mieć min. 3 znaki.';
     default:              return 'Nie udało się zapisać. Spróbuj ponownie.';

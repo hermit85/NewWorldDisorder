@@ -30,6 +30,10 @@ export interface Spot {
   isOfficial: boolean;
   coverImage: string;
   status: 'active' | 'closed' | 'seasonal';
+  /** Raw DB submission state — surfaces the 'pending' / 'rejected' cases
+   *  that `status` collapses to 'closed' for public consumers. Curator
+   *  UI uses this to label the bike-park status pill. */
+  submissionStatus: 'pending' | 'active' | 'rejected';
   activeRidersToday: number;
   trailCount: number;
 }

@@ -817,6 +817,7 @@ function mapSpot(row: DbSpot): Spot {
     // App-side `Spot.status` only models public visibility; DB's
     // 'pending' | 'rejected' collapse to 'closed' for the consumer.
     status: row.status === 'active' ? 'active' : 'closed',
+    submissionStatus: row.status,
     activeRidersToday: 0,
     trailCount: 0,
   };
@@ -1062,7 +1063,7 @@ const CREATE_TRAIL_ERRORS: Record<string, string> = {
   name_too_long: 'Nazwa trasy może mieć maksimum 60 znaków',
   invalid_difficulty: 'Nieprawidłowa trudność',
   invalid_trail_type: 'Nieprawidłowy typ trasy',
-  duplicate_name_in_spot: 'Trasa o tej nazwie już istnieje w tym spocie',
+  duplicate_name_in_spot: 'Trasa o tej nazwie już istnieje w tym bike parku',
   rpc_failed: 'Nie udało się utworzyć trasy. Spróbuj ponownie.',
 };
 
@@ -1140,27 +1141,86 @@ export async function fetchRun(runId: string): Promise<ApiResult<DbRun>> {
 }
 
 // ── deleteSpot / deleteTrail (curator cleanup, migration 009) ──
+//
+// Error propagation: the RPC layer can fail in three distinct ways and
+// each deserves its own code so the UI alert surfaces something the
+// curator can act on instead of the opaque "spróbuj ponownie":
+//   1. PostgREST / network error (e.g. RPC missing, RLS block) → the
+//      Supabase client returns `error` with `.message` / `.code`.
+//      Preserve both into the ApiErr.extra so __DEV__ callers can log.
+//   2. RPC returns { ok: false, code: '...' } (application-level —
+//      unauthenticated, unauthorized, …). Map via CLEANUP_ERRORS.
+//   3. Thrown exception (rare — JSON parse, etc). Caught below.
 
 const CLEANUP_ERRORS: Record<string, string> = {
-  unauthenticated: 'Sesja wygasła. Zaloguj się ponownie.',
-  unauthorized:    'Tylko kurator może usuwać ośrodki i trasy',
-  rpc_failed:      'Nie udało się usunąć. Spróbuj ponownie.',
+  unauthenticated:   'Zaloguj się ponownie',
+  unauthorized:      'Tylko curator może usuwać bike parki',
+  not_curator:       'Tylko curator może usuwać bike parki',
+  spot_not_found:    'Bike park już nie istnieje',
+  has_active_trails: 'Bike park ma aktywne trasy — najpierw usuń trasy',
+  rpc_missing:       'RPC nie istnieje w bazie (apply migration 009)',
+  rpc_exception:     'Błąd bazy',
+  rpc_failed:        'RPC zwrócił błąd',
 };
 
+function cleanupError(
+  code: string,
+  extra?: Record<string, unknown>,
+): ApiErr {
+  return {
+    ok: false,
+    code,
+    message: CLEANUP_ERRORS[code] ?? CLEANUP_ERRORS.rpc_failed,
+    ...(extra ? { extra } : {}),
+  };
+}
+
+/** Shared body for deleteSpot + deleteTrail. Both hit SECURITY DEFINER
+ *  RPCs with the same response shape {ok, code} and the same failure
+ *  modes. Keeping them in one place avoids drift. */
+async function callCleanupRpc(
+  rpcName: 'delete_spot_cascade' | 'delete_trail_cascade',
+  params: Record<string, string>,
+): Promise<ApiResult<void>> {
+  try {
+    const { data, error } = await db().rpc(rpcName, params);
+
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${rpcName}] raw response:`, { data, error });
+    }
+
+    if (error) {
+      // PostgREST 42883 = function does not exist (migration 009 missing)
+      const isMissing = /function .*does not exist/i.test(error.message ?? '')
+        || error.code === '42883';
+      const code = isMissing ? 'rpc_missing' : 'rpc_failed';
+      return cleanupError(code, {
+        pgCode: error.code,
+        pgMessage: error.message,
+        pgDetails: (error as any).details,
+        pgHint: (error as any).hint,
+      });
+    }
+
+    const res = data as { ok?: boolean; code?: string } | null;
+    if (res?.ok === true) return { ok: true, data: undefined };
+    return cleanupError(res?.code ?? 'rpc_failed', { rpcResponse: res });
+  } catch (e: any) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${rpcName}] threw:`, e);
+    }
+    return cleanupError('rpc_exception', { threw: e?.message ?? String(e) });
+  }
+}
+
 export async function deleteSpot(spotId: string): Promise<ApiResult<void>> {
-  const { data, error } = await db().rpc('delete_spot_cascade', { p_spot_id: spotId });
-  if (error) return polishError('rpc_failed', CLEANUP_ERRORS);
-  const res = data as any;
-  if (res?.ok === true) return { ok: true, data: undefined };
-  return polishError(res?.code ?? 'rpc_failed', CLEANUP_ERRORS);
+  return callCleanupRpc('delete_spot_cascade', { p_spot_id: spotId });
 }
 
 export async function deleteTrail(trailId: string): Promise<ApiResult<void>> {
-  const { data, error } = await db().rpc('delete_trail_cascade', { p_trail_id: trailId });
-  if (error) return polishError('rpc_failed', CLEANUP_ERRORS);
-  const res = data as any;
-  if (res?.ok === true) return { ok: true, data: undefined };
-  return polishError(res?.code ?? 'rpc_failed', CLEANUP_ERRORS);
+  return callCleanupRpc('delete_trail_cascade', { p_trail_id: trailId });
 }
 
 // ── finalizePioneerRun ──

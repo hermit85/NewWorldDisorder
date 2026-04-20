@@ -83,7 +83,7 @@ export default function NewTrailScreen() {
       return;
     }
     if (!spotId) {
-      Alert.alert('Brak spota', 'Spróbuj ponownie z ekranu spotu.', [
+      Alert.alert('Brak bike parku', 'Spróbuj ponownie z ekranu bike parku.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     }
@@ -130,7 +130,7 @@ export default function NewTrailScreen() {
       return;
     }
     if (result.code === 'spot_not_active') {
-      Alert.alert('Spot nieaktywny', message, [
+      Alert.alert('Bike park nieaktywny', message, [
         { text: 'OK', onPress: () => router.back() },
       ]);
       setScreen({ kind: 'idle' });
