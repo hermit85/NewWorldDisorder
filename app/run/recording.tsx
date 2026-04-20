@@ -234,7 +234,7 @@ export default function RecordingScreen() {
       : 0;
     const startedAt = Date.now() - Math.round(lastT * 1000);
 
-    (async () => {
+    const proceedToReview = async () => {
       await recordingStore.saveBuffer({
         trailId,
         spotId,
@@ -242,7 +242,36 @@ export default function RecordingScreen() {
         points: state.points,
       });
       router.replace(`/run/review?trailId=${trailId}&spotId=${spotId}`);
-    })();
+    };
+
+    // Sanity guard: a STOP that captured almost no points usually means
+    // permissions failed, the rider tapped too fast, or GPS never locked.
+    // Surface it before /run/review so the user isn't confused by
+    // negative timers / empty polylines downstream.
+    if (state.points.length < 5) {
+      Alert.alert(
+        'Nagranie nieważne',
+        `Zebrano ${state.points.length} ${state.points.length === 1 ? 'punkt' : 'punkty'} GPS. ` +
+        'Zjedź dłużej albo sprawdź pozwolenia GPS.',
+        [
+          {
+            text: 'Wróć do trasy',
+            style: 'cancel',
+            onPress: () => {
+              void recordingStore.clearBuffer();
+              router.back();
+            },
+          },
+          {
+            text: 'Kontynuuj mimo to',
+            onPress: () => { void proceedToReview(); },
+          },
+        ],
+      );
+      return;
+    }
+
+    void proceedToReview();
   }, [state, router, trailId, spotId]);
 
   // ── Handlers ─────────────────────────────────────────────
