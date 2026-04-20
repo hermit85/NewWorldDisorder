@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import * as api from '@/lib/api';
 import { LeaderboardRow } from '@/lib/api';
-import { useRefreshSignal } from './useRefresh';
+import { useRefreshSignal, triggerRefresh } from './useRefresh';
 
 import { LeaderboardEntry, PeriodType, Challenge, User, Achievement, Spot, Trail } from '@/data/types';
 
@@ -636,4 +636,31 @@ export function useTrail(id: string | null) {
   useEffect(() => { refresh(); }, [refresh]);
 
   return { trail, status, loading: status === 'loading', refresh };
+}
+
+// ══════════════════════════════════════════════════════════
+// PIONEER TRAIL FLOW (Sprint 3)
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Imperative create-trail wrapper.
+ * Returns the raw ApiResult so the caller (e.g. /trail/new screen)
+ * can decide how to surface error copy — the Polish message is
+ * already populated by api.createTrail. On success, triggers a
+ * global refresh so useTrails / useSpot across the app re-query.
+ *
+ * No finalizePioneerRun hook — that call happens inline inside the
+ * recording flow where the UI needs fine-grained error handling
+ * (weak-signal retry, already-pioneered messaging). See Sprint 3 §2.
+ */
+export function useCreateTrail() {
+  const submit = useCallback(async (params: api.CreateTrailParams) => {
+    const result = await api.createTrail(params);
+    if (result.ok) {
+      triggerRefresh();
+    }
+    return result;
+  }, []);
+
+  return { submit };
 }

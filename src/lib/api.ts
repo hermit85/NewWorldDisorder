@@ -987,3 +987,151 @@ export async function rejectSpot(spotId: string, reason: string): Promise<ApiRes
   if (res?.ok === true) return { ok: true, data: undefined };
   return { ok: false, code: res?.code ?? 'unknown' };
 }
+
+// ═══════════════════════════════════════════════════════════
+// PIONEER TRAIL FLOW (Sprint 3)
+// ═══════════════════════════════════════════════════════════
+
+// ── Param + result types ──
+
+export interface CreateTrailParams {
+  spotId: string;
+  name: string;
+  difficulty: 'easy' | 'medium' | 'hard' | 'expert';
+  trailType: 'downhill' | 'flow' | 'tech' | 'jump';
+}
+
+export interface PioneerGeometryPoint {
+  lat: number;
+  lng: number;
+  alt?: number | null;
+  t: number;
+}
+
+export interface PioneerGeometry {
+  version: 1;
+  points: PioneerGeometryPoint[];
+  meta: {
+    totalDistanceM: number;
+    totalDescentM: number;
+    durationS: number;
+    medianAccuracyM: number;
+    pioneerRunId?: string;
+  };
+}
+
+export interface PioneerRunPayload {
+  spot_id: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  mode: 'ranked' | 'practice';
+  verification_status: 'verified' | 'weak_signal';
+  verification_summary?: unknown;
+  gps_trace?: unknown;
+  quality_tier?: 'perfect' | 'valid' | 'rough';
+  median_accuracy_m: number;
+}
+
+export interface FinalizePioneerRunParams {
+  trailId: string;
+  runPayload: PioneerRunPayload;
+  geometry: PioneerGeometry;
+}
+
+export interface PioneerRunResult {
+  runId: string;
+  isPioneer: true;
+  trailStatus: 'calibrating';
+  leaderboardPosition: number;
+}
+
+// ── Polish error-code → copy maps ──
+//
+// Keep the strings next to the API surface so UI callers do not
+// re-invent copy per screen. `rpc_failed` is the generic network /
+// SDK-level fallback; specific server codes come from migration 008.
+
+const CREATE_TRAIL_ERRORS: Record<string, string> = {
+  unauthenticated: 'Sesja wygasła. Zaloguj się ponownie.',
+  spot_not_found: 'Spot nie istnieje',
+  spot_not_active: 'Spot nie jest jeszcze aktywny',
+  name_too_short: 'Nazwa trasy musi mieć minimum 3 znaki',
+  name_too_long: 'Nazwa trasy może mieć maksimum 60 znaków',
+  invalid_difficulty: 'Nieprawidłowa trudność',
+  invalid_trail_type: 'Nieprawidłowy typ trasy',
+  duplicate_name_in_spot: 'Trasa o tej nazwie już istnieje w tym spocie',
+  rpc_failed: 'Nie udało się utworzyć trasy. Spróbuj ponownie.',
+};
+
+const FINALIZE_PIONEER_ERRORS: Record<string, string> = {
+  unauthenticated: 'Sesja wygasła. Zaloguj się ponownie.',
+  trail_not_found: 'Trasa nie istnieje',
+  trail_not_draft: 'Ta trasa została już skalibrowana',
+  already_pioneered: 'Ktoś właśnie cię wyprzedził — zjedź jeszcze raz, będziesz #2',
+  spot_mismatch: 'Niezgodność spota — odśwież aplikację',
+  invalid_geometry: 'Zbyt krótkie nagranie — zjedź dłużej i spróbuj ponownie',
+  weak_signal_pioneer:
+    'Słaby sygnał GPS. Pierwszy zjazd wyznacza linię dla wszystkich — ' +
+    'nie chcemy żeby szum w GPS zniekształcił tor. Spróbuj ponownie.',
+  rpc_failed: 'Nie udało się zapisać zjazdu. Spróbuj ponownie.',
+};
+
+function polishError(code: string, map: Record<string, string>): ApiErr {
+  return {
+    ok: false,
+    code,
+    message: map[code] ?? map.rpc_failed ?? 'Błąd',
+  };
+}
+
+// ── createTrail ──
+
+export async function createTrail(
+  params: CreateTrailParams,
+): Promise<ApiResult<{ trailId: string }>> {
+  const { data, error } = await db().rpc('create_trail', {
+    p_spot_id: params.spotId,
+    p_name: params.name,
+    p_difficulty: params.difficulty,
+    p_trail_type: params.trailType,
+  });
+
+  if (error) {
+    return polishError('rpc_failed', CREATE_TRAIL_ERRORS);
+  }
+  const res = data as any;
+  if (res?.ok === true) {
+    return { ok: true, data: { trailId: res.trail_id as string } };
+  }
+  return polishError(res?.code ?? 'rpc_failed', CREATE_TRAIL_ERRORS);
+}
+
+// ── finalizePioneerRun ──
+
+export async function finalizePioneerRun(
+  params: FinalizePioneerRunParams,
+): Promise<ApiResult<PioneerRunResult>> {
+  const { data, error } = await db().rpc('finalize_pioneer_run', {
+    p_trail_id: params.trailId,
+    p_run_payload: params.runPayload as any,
+    p_geometry: params.geometry as any,
+  });
+
+  if (error) {
+    return polishError('rpc_failed', FINALIZE_PIONEER_ERRORS);
+  }
+  const res = data as any;
+  if (res?.ok === true) {
+    return {
+      ok: true,
+      data: {
+        runId: res.run_id as string,
+        isPioneer: true,
+        trailStatus: 'calibrating',
+        leaderboardPosition: res.leaderboard_position as number,
+      },
+    };
+  }
+  return polishError(res?.code ?? 'rpc_failed', FINALIZE_PIONEER_ERRORS);
+}
