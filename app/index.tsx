@@ -67,7 +67,7 @@ const blockStyles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
   },
   title: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 32,
     color: colors.textPrimary,
     letterSpacing: 8,

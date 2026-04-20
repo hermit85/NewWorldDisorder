@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -60 }],
   },
   arenaLabelTitle: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.30)',
     letterSpacing: 4,
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   liftLabelText: {
-    fontFamily: 'Orbitron_400Regular',
+    fontFamily: 'Rajdhani_400Regular',
     fontSize: 7,
     color: 'rgba(80, 80, 96, 0.5)',
     letterSpacing: 3,
@@ -776,7 +776,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startText: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
   },
 
@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   trailLabelText: {
-    fontFamily: 'Orbitron_400Regular',
+    fontFamily: 'Rajdhani_400Regular',
     color: 'rgba(255, 255, 255, 0.55)',
     fontSize: 9,
     letterSpacing: 1.5,
@@ -831,11 +831,11 @@ const styles = StyleSheet.create({
   trailLabelTextSelected: {
     fontSize: 11,
     letterSpacing: 2,
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     color: '#070710',
   },
   badge: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 7,
     color: colors.orange,
     letterSpacing: 1,

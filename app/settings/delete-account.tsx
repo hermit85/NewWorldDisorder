@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
   backBtn: { marginBottom: spacing.lg },
   backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
-  title: { fontFamily: 'Orbitron_700Bold', fontSize: 22, color: colors.red, letterSpacing: 3, marginBottom: spacing.sm },
+  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 22, color: colors.red, letterSpacing: 3, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.xl },
 
   warnCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.red, marginBottom: spacing.lg },
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   note: { ...typography.bodySmall, color: colors.textTertiary, lineHeight: 20, marginBottom: spacing.xl },
 
   label: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
-  labelStrong: { color: colors.red, fontFamily: 'Orbitron_700Bold', letterSpacing: 2 },
+  labelStrong: { color: colors.red, fontFamily: 'Rajdhani_700Bold', letterSpacing: 2 },
   input: {
     backgroundColor: colors.bgCard,
     borderWidth: 1,
@@ -218,8 +218,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     color: colors.textPrimary,
-    fontFamily: 'Orbitron_700Bold',
-    fontSize: 16,
+    // Was Orbitron_700Bold (pre-ADR-011 swap) — even with the Rajdhani
+    // fix the canonical style for every TextInput is typography.input
+    // (Inter), so we reference it here regardless of display font.
+    ...typography.input,
     letterSpacing: 3,
     textAlign: 'center',
     marginBottom: spacing.lg,

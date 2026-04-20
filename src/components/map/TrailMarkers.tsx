@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startText: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 0,
   },
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   trailLabelTextSelected: {
     fontSize: 11,
     letterSpacing: 2,
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
   },
   badge: {
     ...typography.labelSmall,

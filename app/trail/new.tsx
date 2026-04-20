@@ -341,8 +341,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     color: hudColors.timerPrimary,
-    fontSize: 16,
-    fontFamily: 'Inter_500Medium',
+    ...hudTypography.input,
   },
   inputFooter: { marginTop: spacing.xs, minHeight: 18, alignItems: 'flex-end' },
   hint: { color: hudColors.textMuted, fontSize: 11, letterSpacing: 1 },
@@ -384,8 +383,8 @@ const styles = StyleSheet.create({
     borderColor: hudColors.gpsStrong,
     backgroundColor: 'rgba(0, 255, 140, 0.08)',
   },
-  // No explicit fontFamily — system font has wider Unicode coverage
-  // (Orbitron lacks glyphs like ⚙ / ∿).
+  // No explicit fontFamily — system font has wider symbolic-glyph
+  // coverage (our display fonts lack glyphs like ⚙ / ∿).
   typeGlyph: { fontSize: 22, marginBottom: 2 },
   typeLabel: { ...hudTypography.label, fontSize: 11, letterSpacing: 1.5 },
   typeSub: { color: hudColors.textMuted, fontSize: 8, letterSpacing: 1, marginTop: 1 },

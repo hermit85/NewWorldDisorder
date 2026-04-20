@@ -2,8 +2,8 @@ import { TextStyle } from 'react-native';
 
 // Font families — loaded via expo-font
 export const fonts = {
-  racing: 'Orbitron_700Bold',
-  racingLight: 'Orbitron_400Regular',
+  racing: 'Rajdhani_700Bold',
+  racingLight: 'Rajdhani_400Regular',
   body: 'Inter_400Regular',
   bodyMedium: 'Inter_500Medium',
   bodySemiBold: 'Inter_600SemiBold',
@@ -109,5 +109,15 @@ export const typography = {
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: 0.5,
+  } satisfies TextStyle,
+
+  // Form input — Inter-only, never a display font. Inter has full
+  // Polish coverage. The display font is now Rajdhani (ADR-011) which
+  // also covers Polish, but inputs still route through Inter for the
+  // softer humanist look that reads better at body sizes on iOS.
+  input: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 22,
   } satisfies TextStyle,
 } as const;

@@ -355,15 +355,24 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xl },
   header: { alignItems: 'center', marginBottom: spacing.huge },
-  brand: { fontFamily: 'Orbitron_700Bold', fontSize: 48, color: colors.textPrimary, letterSpacing: 12 },
+  brand: { fontFamily: 'Rajdhani_700Bold', fontSize: 48, color: colors.textPrimary, letterSpacing: 12 },
   subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.sm },
   tagline: { ...typography.label, color: colors.accent, letterSpacing: 6, marginTop: spacing.md },
   form: { gap: spacing.md },
   formTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', letterSpacing: 2 },
   formDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.md },
   label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.xxs },
-  input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, fontFamily: 'Inter_500Medium', fontSize: 16 },
-  codeInput: { textAlign: 'center', fontSize: 22, fontFamily: 'Orbitron_700Bold', letterSpacing: 6 },
+  input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, ...typography.input },
+  // OTP digits in Rajdhani at letterSpacing 6 render "7" as a near-slash —
+  // unreadable. Use Inter_700Bold + tabular-nums for normal digit shapes
+  // and crisp alignment; modest letterSpacing keeps the code-field feel.
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 4,
+    fontVariant: ['tabular-nums'] as any,
+  },
   error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
   ctaDisabled: { opacity: 0.5 },

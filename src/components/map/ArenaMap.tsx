@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   liftLabelText: {
-    fontFamily: 'Orbitron_400Regular',
+    fontFamily: 'Rajdhani_400Regular',
     fontSize: 7,
     color: 'rgba(90, 90, 106, 0.6)',
     letterSpacing: 3,
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs,
   },
   arenaLabelTitle: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.35)',
     letterSpacing: 4,

@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   // Header
   titleRow: { marginBottom: spacing.sm },
   titleMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.textPrimary, letterSpacing: 4 },
+  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.textPrimary, letterSpacing: 4 },
   trustDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, marginTop: spacing.xxs, fontSize: 9 },
 
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
   venueTab: { paddingVertical: spacing.xs },
   venueTabActive: {},
-  venueTabText: { fontFamily: 'Orbitron_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: 2 },
+  venueTabText: { fontFamily: 'Rajdhani_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: 2 },
   venueTabTextActive: { color: colors.textPrimary },
 
   // Scope tabs
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   // Loading / Empty
   loadingWrap: { paddingVertical: spacing.xxl, alignItems: 'center' },
   emptyWrap: { alignItems: 'center', paddingVertical: spacing.huge, gap: spacing.sm },
-  emptyLine: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textTertiary, letterSpacing: 8, marginBottom: spacing.xs },
+  emptyLine: { fontFamily: 'Rajdhani_700Bold', fontSize: 24, color: colors.textTertiary, letterSpacing: 8, marginBottom: spacing.xs },
   emptyTitle: { ...typography.label, color: colors.textTertiary, letterSpacing: 4, fontSize: 12 },
   emptyDesc: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
   retryBtn: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
@@ -578,12 +578,12 @@ const styles = StyleSheet.create({
   },
   podiumUser: { borderColor: colors.accent, backgroundColor: colors.accentDim },
   podiumPosRow: { width: 44, alignItems: 'center' },
-  podiumPos: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textSecondary },
+  podiumPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 24, color: colors.textSecondary },
   podiumInfo: { flex: 1, marginLeft: spacing.md },
   podiumNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   podiumRankIcon: { fontSize: 12 },
   podiumName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_700Bold', fontSize: 15 },
-  podiumTime: { fontFamily: 'Orbitron_700Bold', fontSize: 17, color: colors.textSecondary, marginTop: spacing.xxs, letterSpacing: 1 },
+  podiumTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 17, color: colors.textSecondary, marginTop: spacing.xxs, letterSpacing: 1 },
   podiumDelta: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   podiumDeltaText: { ...typography.labelSmall, color: colors.accent },
 
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.accent,
   },
   riderStatusMain: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  riderStatusPos: { fontFamily: 'Orbitron_700Bold', fontSize: 32, color: colors.accent },
+  riderStatusPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 32, color: colors.accent },
   riderStatusRight: { alignItems: 'flex-end', gap: spacing.xxs },
   riderStatusTier: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3 },
   riderStatusDelta: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1 },
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   entryRival: { backgroundColor: 'rgba(255, 149, 0, 0.06)' },
   positionCol: { width: 32 },
   avatarCol: { width: 34, alignItems: 'center' as const },
-  position: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textTertiary },
+  position: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textTertiary },
   deltaCol: { width: 36, alignItems: 'center' },
   deltaUp: { ...typography.labelSmall, color: colors.accent },
   deltaDown: { ...typography.labelSmall, color: colors.red },

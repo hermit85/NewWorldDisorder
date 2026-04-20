@@ -99,3 +99,28 @@ trails eliminate both.
 
 **Status:** Locked. Do not revisit without written license
 from Trailforks.
+
+---
+
+## ADR-011 — Orbitron → Rajdhani font swap
+
+**Status**: Accepted (2026-04-20, post-MVP hotfix).
+
+**Context**: Orbitron (Google Fonts build shipped via `@expo-google-fonts/orbitron`) has incomplete Polish Latin Extended-A coverage. Of the nine lowercase diacritics the app uses (ą ć ę ł ń ó ś ź ż) only `ó`/`Ó` are in the cmap — `ą ć ę ł ń ś ź ż` + caps are all missing. iOS falls back silently to a generic glyph, which on some renderers shows as `¬`. A trail named `Gałgan` rendered as `Ga¬gan`; HUD labels like `ZAKOŃCZ`, `KALIBRACJĘ`, `PIERWSZĄ`, `ODRZUĆ` were all affected. The app serves a Polish MTB community — broken trail names are a ship-blocker.
+
+**Decision**: Replace Orbitron with **Rajdhani** everywhere the display font is used (`hudTypography.*`, `typography.timeHero` / `h1` / `h2`, plus every inline `fontFamily: 'Orbitron_*'`). Inter stays for body text, labels that already used it, and every `TextInput` (see `typography.input`).
+
+**Rajdhani rationale**:
+- Full Latin Extended-A coverage confirmed via `fontTools.ttLib` (all 18 Polish diacritics present in 400/500/600/700 weights).
+- Sci-fi / tech aesthetic consistent with the existing game-HUD direction.
+- Condensed proportions fit longer Polish words on the narrow phone layouts without forcing line breaks.
+- SIL OFL license, distributed via `@expo-google-fonts/rajdhani`, drop-in compatible with the existing `useFonts()` pattern.
+
+**Unchanged**:
+- Inter for body + inputs (Polish-safe, humanist for readability at small sizes).
+- The `typography.input` / `hudTypography.input` canonical pick from the preceding hotfix.
+- `@expo-google-fonts/orbitron` removed from `package.json`.
+
+**Consequences**: A small visual shift — Rajdhani is narrower than Orbitron at the same point size, so HUD headings look slightly more condensed. Acceptable trade-off for correctness; if the proportions read wrong in specific screens we can bump sizes locally. Reopen the decision only if Rajdhani itself turns out to be missing glyphs we need.
+
+**Regression guard**: `app/__dev/polish-test.tsx` (route `/__dev/polish-test`, `__DEV__` only) renders every `typography.*` and `hudTypography.*` style with a full Polish sample + a live TextInput; used to verify on-device after the swap and guards against future font regressions.
