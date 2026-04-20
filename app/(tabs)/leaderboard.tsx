@@ -7,7 +7,7 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTrailColor } from '@/theme/map';
-import { getTrailsForSpot } from '@/data/mock/trails';
+import { getTrailsForSpot } from '@/data/mock/trails'; // Checkpoint C cleanup
 import { getVenue, getAllVenues } from '@/data/venues';
 import { DEFAULT_SPOT_ID } from '@/constants';
 import { formatTimeShort } from '@/content/copy';
@@ -15,7 +15,7 @@ import { getRank } from '@/systems/ranks';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useLeaderboard } from '@/hooks/useBackend';
+import { useLeaderboard, useTrails } from '@/hooks/useBackend';
 import { reportRider } from '@/services/moderation';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
@@ -40,7 +40,9 @@ export default function LeaderboardScreen() {
   );
   const [selectedVenueId, setSelectedVenueId] = useState(DEFAULT_SPOT_ID);
   const venue = getVenue(selectedVenueId);
-  const venueTrails = getTrailsForSpot(selectedVenueId);
+  // Checkpoint A: trail list from DB; venue picker rail still seed-sourced
+  // (Checkpoint B rewires).
+  const { trails: venueTrails } = useTrails(selectedVenueId || null);
   const allVenues = getAllVenues();
 
   // Load persisted venue selection
@@ -54,13 +56,13 @@ export default function LeaderboardScreen() {
     params.trailId ?? venueTrails[0]?.id ?? '',
   );
 
-  // When venue changes, reset to first trail of that venue
+  // When venue changes (or trails list arrives), reset to first trail
+  // of that venue if current selection is not in the list.
   useEffect(() => {
-    const vTrails = getTrailsForSpot(selectedVenueId);
-    if (vTrails.length > 0 && !vTrails.some(t => t.id === selectedTrailId)) {
-      setSelectedTrailId(vTrails[0].id);
+    if (venueTrails.length > 0 && !venueTrails.some(t => t.id === selectedTrailId)) {
+      setSelectedTrailId(venueTrails[0].id);
     }
-  }, [selectedVenueId]);
+  }, [selectedVenueId, venueTrails, selectedTrailId]);
 
   const { profile } = useAuthContext();
 

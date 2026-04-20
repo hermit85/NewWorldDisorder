@@ -16,7 +16,7 @@ import { mockTrails } from '@/data/mock/trails';
 import { mockChallenges } from '@/data/mock/challenges';
 import { mockUser } from '@/data/mock/user';
 import { getUserTrailStats } from '@/data/mock/userTrailStats';
-import { LeaderboardEntry, PeriodType, Challenge, User, Achievement } from '@/data/types';
+import { LeaderboardEntry, PeriodType, Challenge, User, Achievement, Spot, Trail } from '@/data/types';
 
 import { logDebugEvent } from '@/systems/debugEvents';
 import { shouldSimFetchFail, shouldSimFetchEmpty } from '@/systems/testMode';
@@ -45,6 +45,15 @@ export function useLeaderboard(trailId: string, periodType: PeriodType = 'all_ti
   const refreshSignal = useRefreshSignal();
 
   const refresh = useCallback(async () => {
+    // Guard: empty trailId → skip network. Lets the home screen pass ''
+    // for a featured board when no trail is actually active.
+    if (!trailId) {
+      setEntries([]);
+      setStatus('empty');
+      setError(null);
+      return;
+    }
+
     setStatus('loading');
     setError(null);
     logDebugEvent('fetch', 'leaderboard_start', 'start', { trailId, payload: { periodType } });
@@ -597,4 +606,107 @@ function buildMockTrailStats(): Map<string, { pbMs: number | null; position: num
     if (stats) map.set(trail.id, { pbMs: stats.pbMs, position: stats.position });
   }
   return map;
+}
+
+// ══════════════════════════════════════════════════════════
+// SPOTS & TRAILS (Checkpoint A — DB-backed, replace mock data)
+// ══════════════════════════════════════════════════════════
+
+export function useActiveSpots() {
+  const [spots, setSpots] = useState<Spot[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setSpots([]);
+      setStatus('error');
+      return;
+    }
+    setStatus('loading');
+    const res = await api.fetchSpots();
+    if (!res.ok) {
+      setSpots([]);
+      setStatus('error');
+      return;
+    }
+    setSpots(res.data);
+    setStatus(res.data.length > 0 ? 'ok' : 'empty');
+  }, [refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { spots, status, loading: status === 'loading', refresh };
+}
+
+export function useSpot(id: string | null) {
+  const [spot, setSpot] = useState<Spot | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!id) { setSpot(null); setStatus('empty'); return; }
+    if (!isSupabaseConfigured) { setSpot(null); setStatus('error'); return; }
+    setStatus('loading');
+    const res = await api.fetchSpot(id);
+    if (!res.ok) {
+      setSpot(null);
+      setStatus(res.code === 'not_found' ? 'empty' : 'error');
+      return;
+    }
+    setSpot(res.data);
+    setStatus('ok');
+  }, [id, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { spot, status, loading: status === 'loading', refresh };
+}
+
+export function useTrails(spotId: string | null) {
+  const [trails, setTrails] = useState<Trail[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!spotId) { setTrails([]); setStatus('empty'); return; }
+    if (!isSupabaseConfigured) { setTrails([]); setStatus('error'); return; }
+    setStatus('loading');
+    const res = await api.fetchTrails(spotId);
+    if (!res.ok) {
+      setTrails([]);
+      setStatus('error');
+      return;
+    }
+    setTrails(res.data);
+    setStatus(res.data.length > 0 ? 'ok' : 'empty');
+  }, [spotId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { trails, status, loading: status === 'loading', refresh };
+}
+
+export function useTrail(id: string | null) {
+  const [trail, setTrail] = useState<Trail | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!id) { setTrail(null); setStatus('empty'); return; }
+    if (!isSupabaseConfigured) { setTrail(null); setStatus('error'); return; }
+    setStatus('loading');
+    const res = await api.fetchTrail(id);
+    if (!res.ok) {
+      setTrail(null);
+      setStatus(res.code === 'not_found' ? 'empty' : 'error');
+      return;
+    }
+    setTrail(res.data);
+    setStatus('ok');
+  }, [id, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { trail, status, loading: status === 'loading', refresh };
 }

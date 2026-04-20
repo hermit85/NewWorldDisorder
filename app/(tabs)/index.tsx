@@ -23,7 +23,7 @@ import { DEFAULT_SPOT_ID } from '@/constants';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement, usePendingSpots, useMyPendingSpots } from '@/hooks/useBackend';
+import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement, usePendingSpots, useMyPendingSpots, useActiveSpots, useTrails } from '@/hooks/useBackend';
 import { LeagueSignal } from '@/systems/leagueMovement';
 import { useVenueContext } from '@/hooks/useVenueContext';
 
@@ -49,15 +49,38 @@ export default function HomeScreen() {
 
   const allVenues = getAllVenues();
   const venue = getVenue(selectedVenueId);
-  const spot = mockSpots.find((s) => s.id === selectedVenueId) ?? mockSpots[0];
-  const venueTrails = getTrailsForSpot(selectedVenueId);
+
+  // Checkpoint A: swap mock-sourced spot/trails to DB-backed hooks.
+  // Venue picker rail still uses getAllVenues() from seed registry —
+  // Checkpoint B will rewire it to the same active-spots source.
+  const { spots: activeSpots, status: activeSpotsStatus } = useActiveSpots();
+  const { trails: venueTrails } = useTrails(selectedVenueId || null);
+  const spot = activeSpots.find((s) => s.id === selectedVenueId) ?? activeSpots[0] ?? null;
+
+  // ADD 1: recover from stale AsyncStorage selection once the active
+  // list arrives. If the persisted ID is not in the DB, switch to the
+  // first active spot (or clear when DB is empty).
+  useEffect(() => {
+    if (activeSpotsStatus === 'loading') return;
+    const exists = activeSpots.some((s) => s.id === selectedVenueId);
+    if (!exists) {
+      const next = activeSpots[0]?.id ?? '';
+      setSelectedVenueId(next);
+      if (next) AsyncStorage.setItem(VENUE_STORAGE_KEY, next);
+      else AsyncStorage.removeItem(VENUE_STORAGE_KEY);
+    }
+  }, [activeSpotsStatus, activeSpots, selectedVenueId]);
 
   // Featured trail = first trail of selected venue (for board preview)
+  // ADD 2: guard against stale seed IDs that are not actually in the
+  // DB-backed trail list for this spot — skip the leaderboard call.
   const featuredTrailId = venue?.trails[0]?.id ?? venueTrails[0]?.id;
+  const featuredTrailExists = !!featuredTrailId && venueTrails.some((t) => t.id === featuredTrailId);
+  const featuredTrailIdForBoard = featuredTrailExists ? (featuredTrailId as string) : '';
 
   const { profile: user, status: profileStatus } = useProfile(authProfile?.id);
   const { stats: trailStats, status: trailStatsStatus } = useUserTrailStats(authProfile?.id);
-  const { entries: topBoard, status: boardStatus } = useLeaderboard(featuredTrailId, 'all_time', authProfile?.id);
+  const { entries: topBoard, status: boardStatus } = useLeaderboard(featuredTrailIdForBoard, 'all_time', authProfile?.id);
   const { activity: venueActivity, status: venueActivityStatus } = useVenueActivity(selectedVenueId);
   const venueCtx = useVenueContext(true);
 
@@ -285,7 +308,22 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ═══ VENUE HERO CARD ═══ */}
+        {/* ═══ EMPTY STATE — no active spots yet ═══ */}
+        {!spot && activeSpotsStatus === 'empty' && (
+          <View style={styles.emptyVenueBlock}>
+            <Text style={styles.emptyVenueTitle}>Brak spotów w pobliżu</Text>
+            <Text style={styles.emptyVenueBody}>Bądź pierwszym Pionierem.</Text>
+            <Pressable
+              style={styles.emptyVenueCta}
+              onPress={() => { tapLight(); router.push('/spot/new'); }}
+            >
+              <Text style={styles.emptyVenueCtaLabel}>ZGŁOŚ PIERWSZY SPOT</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ═══ VENUE HERO CARD (only when we have an active spot) ═══ */}
+        {spot && (<>
         <Pressable
           style={styles.venueCard}
           onPress={() => router.push(`/spot/${spot.id}`)}
@@ -473,6 +511,7 @@ export default function HomeScreen() {
             </Pressable>
           );
         })}
+        </>)}
       </ScrollView>
     </SafeAreaView>
   );
@@ -564,6 +603,41 @@ const styles = StyleSheet.create({
   myPendingBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.sm, backgroundColor: colors.accentDim },
   myPendingBadgeRejected: { backgroundColor: colors.redDim },
   myPendingBadgeText: { ...typography.labelSmall, color: colors.textPrimary, fontSize: 9, letterSpacing: 1.5 },
+
+  // Empty state — no active spots yet
+  emptyVenueBlock: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    padding: spacing.xxl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  emptyVenueTitle: {
+    ...typography.h2,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  emptyVenueBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyVenueCta: {
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  emptyVenueCtaLabel: {
+    ...typography.cta,
+    color: colors.bg,
+    letterSpacing: 3,
+    fontSize: 13,
+  },
 
   // Submit-new-spot CTA (persistent on home)
   submitSpotCta: {

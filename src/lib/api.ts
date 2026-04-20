@@ -799,29 +799,88 @@ export async function unlockAchievement(userId: string, achievementId: string): 
 }
 
 // ═══════════════════════════════════════════════════════════
-// SPOTS & TRAILS (read-only, from seed data)
+// SPOTS & TRAILS (backed by DB, app-type shape)
 // ═══════════════════════════════════════════════════════════
 
-export async function fetchSpots() {
-  const { data } = await db()
-    .from('spots')
-    .select('*')
-    .eq('is_active', true)
-    .order('name');
+import { Spot, Trail, Difficulty, TrailType } from '@/data/types';
+import { DbSpot, DbTrail } from './database.types';
 
-  return data ?? [];
+function mapSpot(row: DbSpot): Spot {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    region: row.region,
+    isOfficial: row.is_official,
+    coverImage: '',
+    // App-side `Spot.status` only models public visibility; DB's
+    // 'pending' | 'rejected' collapse to 'closed' for the consumer.
+    status: row.status === 'active' ? 'active' : 'closed',
+    activeRidersToday: 0,
+    trailCount: 0,
+  };
 }
 
-export async function fetchTrails(spotId: string) {
-  const { data } = await db()
+function mapTrail(row: DbTrail): Trail {
+  return {
+    id: row.id,
+    spotId: row.spot_id,
+    name: row.official_name,
+    slug: row.id,
+    description: row.description,
+    difficulty: row.difficulty as Difficulty,
+    trailType: row.trail_type as TrailType,
+    distanceM: row.distance_m,
+    elevationDropM: row.elevation_drop_m,
+    isOfficial: true,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
+  };
+}
+
+export async function fetchSpots(): Promise<ApiResult<Spot[]>> {
+  const { data, error } = await db()
+    .from('spots')
+    .select('*')
+    .eq('status', 'active')
+    .order('name');
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  return { ok: true, data: (data ?? []).map(mapSpot) };
+}
+
+export async function fetchSpot(id: string): Promise<ApiResult<Spot>> {
+  const { data, error } = await db()
+    .from('spots')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  if (!data) return { ok: false, code: 'not_found' };
+  return { ok: true, data: mapSpot(data) };
+}
+
+export async function fetchTrails(spotId: string): Promise<ApiResult<Trail[]>> {
+  const { data, error } = await db()
     .from('trails')
     .select('*')
     .eq('spot_id', spotId)
     .eq('is_active', true)
     .eq('is_race_trail', true)
     .order('sort_order');
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  return { ok: true, data: (data ?? []).map(mapTrail) };
+}
 
-  return data ?? [];
+export async function fetchTrail(id: string): Promise<ApiResult<Trail>> {
+  const { data, error } = await db()
+    .from('trails')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  if (!data) return { ok: false, code: 'not_found' };
+  return { ok: true, data: mapTrail(data) };
 }
 
 // ═══════════════════════════════════════════════════════════
