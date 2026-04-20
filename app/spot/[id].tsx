@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 149, 0, 0.20)',
   },
   trainingBannerText: {
-    fontFamily: 'Orbitron_400Regular',
+    fontFamily: 'Rajdhani_400Regular',
     fontSize: 8,
     color: 'rgba(255, 149, 0, 0.70)',
     letterSpacing: 2,
@@ -433,14 +433,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   spotKicker: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     color: '#00FF8C',
     letterSpacing: 3,
     marginBottom: spacing.xs,
   },
   spotTitle: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 30,
     color: colors.textPrimary,
     letterSpacing: 2,
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusPillLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
     color: 'rgba(232, 255, 240, 0.65)',
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   pioneerCtaLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 16,
     color: '#00FF8C',
     letterSpacing: 3,
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addTrailChipLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     color: '#00FF8C',
     letterSpacing: 2,

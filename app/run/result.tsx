@@ -162,7 +162,7 @@ const chipStyles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.accent + '30' },
   chipLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginBottom: spacing.xs },
-  chipPos: { fontFamily: 'Orbitron_700Bold', fontSize: 20, color: colors.textPrimary },
+  chipPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 20, color: colors.textPrimary },
   chipTotal: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, marginTop: 2 },
   chipOff: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 14, marginTop: spacing.xs },
 });
@@ -788,7 +788,7 @@ const pioneerStyles = StyleSheet.create({
     maxWidth: 320,
   },
   heroTime: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 48,
     color: hudColors.timerPrimary,
     letterSpacing: 2,
@@ -810,7 +810,7 @@ const pioneerStyles = StyleSheet.create({
     alignItems: 'center',
   },
   trailName: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
     color: hudColors.timerPrimary,
     letterSpacing: 2,
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
 
   // Time — hero
   timeContainer: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
-  timeHero: { fontFamily: 'Orbitron_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 3 },
+  timeHero: { fontFamily: 'Rajdhani_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 3 },
 
   // PB celebration
   pbCard: {
@@ -877,9 +877,9 @@ const styles = StyleSheet.create({
     borderColor: colors.accent + '60',
     gap: spacing.xxs,
   },
-  pbIcon: { fontFamily: 'Orbitron_700Bold', fontSize: 12, color: colors.accent },
-  pbLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.accent, letterSpacing: 5 },
-  pbDelta: { fontFamily: 'Orbitron_700Bold', fontSize: 11, color: colors.accent, letterSpacing: 1, marginTop: spacing.xs, opacity: 0.8 },
+  pbIcon: { fontFamily: 'Rajdhani_700Bold', fontSize: 12, color: colors.accent },
+  pbLabel: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.accent, letterSpacing: 5 },
+  pbDelta: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.accent, letterSpacing: 1, marginTop: spacing.xs, opacity: 0.8 },
 
   // Rank card
   rankCard: {
@@ -893,17 +893,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  rankPosition: { fontFamily: 'Orbitron_700Bold', fontSize: 40, color: colors.textPrimary },
+  rankPosition: { fontFamily: 'Rajdhani_700Bold', fontSize: 40, color: colors.textPrimary },
   rankDeltaBadge: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
-  rankDeltaText: { fontFamily: 'Orbitron_700Bold', color: colors.accent, fontSize: 16 },
+  rankDeltaText: { fontFamily: 'Rajdhani_700Bold', color: colors.accent, fontSize: 16 },
   deltaNew: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3 },
   rankSublabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.md, fontSize: 8 },
-  tierLabel: { fontFamily: 'Orbitron_700Bold', fontSize: 11, color: colors.textSecondary, letterSpacing: 4, marginTop: spacing.sm },
+  tierLabel: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.textSecondary, letterSpacing: 4, marginTop: spacing.sm },
   ambitionText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm },
 
   // XP
   xpRow: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xxs },
-  xpValue: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
+  xpValue: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.gold, letterSpacing: 2 },
   xpReasons: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
 
   // Level up
@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.accent + '50', gap: spacing.xxs,
   },
   levelUpLabel: { ...typography.labelSmall, color: colors.accent, letterSpacing: 4, fontSize: 10 },
-  levelUpNumber: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.accent, letterSpacing: 2 },
+  levelUpNumber: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.accent, letterSpacing: 2 },
 
   // Quality badge
   qualityRow: { alignItems: 'center', marginBottom: spacing.md },
@@ -1004,7 +1004,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentGlow,
     transform: [{ scale: 0.98 }],
   },
-  runAgainText: { fontFamily: 'Orbitron_700Bold', fontSize: 15, color: colors.bg, letterSpacing: 5 },
+  runAgainText: { fontFamily: 'Rajdhani_700Bold', fontSize: 15, color: colors.bg, letterSpacing: 5 },
   secondaryCtaRow: { flexDirection: 'row', gap: spacing.sm },
   secondaryBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
   secondaryBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },

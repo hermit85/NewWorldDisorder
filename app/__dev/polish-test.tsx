@@ -59,37 +59,37 @@ export default function PolishTestScreen() {
           </Text>
         </Section>
 
-        {/* ── typography (legacy, Inter-based body + Orbitron racing) ── */}
-        <SectionHeader>typography.* (legacy)</SectionHeader>
+        {/* ── typography (display = Rajdhani, body = Inter) ── */}
+        <SectionHeader>typography.*</SectionHeader>
 
-        <Sample name="timeHero (Orbitron)" style={typography.timeHero}>{POLISH_CHARS}</Sample>
-        <Sample name="h1 (Orbitron)"       style={typography.h1}>{SAMPLE_UPPER}</Sample>
-        <Sample name="h2 (Orbitron)"       style={typography.h2}>{SAMPLE_UPPER}</Sample>
-        <Sample name="h3 (Inter 600)"      style={typography.h3}>{SAMPLE_SENTENCE}</Sample>
-        <Sample name="body (Inter 400)"    style={typography.body}>{SAMPLE_SENTENCE}</Sample>
-        <Sample name="bodySmall (Inter)"   style={typography.bodySmall}>{SAMPLE_SENTENCE}</Sample>
-        <Sample name="label (Inter 600)"   style={typography.label}>{SAMPLE_UPPER}</Sample>
-        <Sample name="labelSmall (Inter)"  style={typography.labelSmall}>{SAMPLE_UPPER}</Sample>
-        <Sample name="cta (Inter 700)"     style={typography.cta}>{SAMPLE_UPPER}</Sample>
-        <Sample name="input (Inter 500)"   style={typography.input}>{SAMPLE_SENTENCE}</Sample>
+        <Sample name="timeHero (Rajdhani 700)" style={typography.timeHero}>{POLISH_CHARS}</Sample>
+        <Sample name="h1 (Rajdhani 700)"       style={typography.h1}>{SAMPLE_UPPER}</Sample>
+        <Sample name="h2 (Rajdhani 700)"       style={typography.h2}>{SAMPLE_UPPER}</Sample>
+        <Sample name="h3 (Inter 600)"          style={typography.h3}>{SAMPLE_SENTENCE}</Sample>
+        <Sample name="body (Inter 400)"        style={typography.body}>{SAMPLE_SENTENCE}</Sample>
+        <Sample name="bodySmall (Inter)"       style={typography.bodySmall}>{SAMPLE_SENTENCE}</Sample>
+        <Sample name="label (Inter 600)"       style={typography.label}>{SAMPLE_UPPER}</Sample>
+        <Sample name="labelSmall (Inter)"      style={typography.labelSmall}>{SAMPLE_UPPER}</Sample>
+        <Sample name="cta (Inter 700)"         style={typography.cta}>{SAMPLE_UPPER}</Sample>
+        <Sample name="input (Inter 500)"       style={typography.input}>{SAMPLE_SENTENCE}</Sample>
 
-        {/* ── hudTypography (game HUD, Orbitron display) ── */}
-        <SectionHeader>hudTypography.* (HUD / Orbitron)</SectionHeader>
+        {/* ── hudTypography (game HUD, Rajdhani display) ── */}
+        <SectionHeader>hudTypography.* (HUD / Rajdhani)</SectionHeader>
 
-        <Sample name="displayHuge (Orbitron)"    style={hudTypography.displayHuge}>0123 ĄĘ</Sample>
-        <Sample name="displayLarge (Orbitron)"   style={hudTypography.displayLarge}>PIERWSZĄ</Sample>
-        <Sample name="label (Orbitron)"          style={{ ...hudTypography.label, color: hudColors.gpsStrong }}>{SAMPLE_UPPER}</Sample>
-        <Sample name="labelSmall (Orbitron)"     style={{ ...hudTypography.labelSmall, color: hudColors.textMuted }}>{SAMPLE_UPPER}</Sample>
-        <Sample name="action (Orbitron)"         style={{ ...hudTypography.action, color: hudColors.gpsStrong }}>ZAKOŃCZ</Sample>
-        <Sample name="input (Inter, Polish-safe)" style={{ ...hudTypography.input, color: hudColors.timerPrimary }}>{SAMPLE_SENTENCE}</Sample>
+        <Sample name="displayHuge (Rajdhani 700)"    style={hudTypography.displayHuge}>0123 ĄĘŁŃ</Sample>
+        <Sample name="displayLarge (Rajdhani 700)"   style={hudTypography.displayLarge}>PIERWSZĄ</Sample>
+        <Sample name="label (Rajdhani 700)"          style={{ ...hudTypography.label, color: hudColors.gpsStrong }}>{SAMPLE_UPPER}</Sample>
+        <Sample name="labelSmall (Rajdhani 700)"     style={{ ...hudTypography.labelSmall, color: hudColors.textMuted }}>{SAMPLE_UPPER}</Sample>
+        <Sample name="action (Rajdhani 700)"         style={{ ...hudTypography.action, color: hudColors.gpsStrong }}>ZAKOŃCZ</Sample>
+        <Sample name="input (Inter 500)"             style={{ ...hudTypography.input, color: hudColors.timerPrimary }}>{SAMPLE_SENTENCE}</Sample>
 
         <Text style={styles.footerNote}>
-          Expected (per @expo-google-fonts metadata):{'\n'}
-          • Inter_* → every char renders correctly.{'\n'}
-          • Orbitron_* → only ó / Ó render; ą ć ę ł ń ś ź ż + caps fall back
-          to system glyph (may show as „¬" on iOS).{'\n'}
-          If an Inter block ever breaks, the font didn't load — check
-          useFonts() in app/_layout.tsx.
+          Post-ADR-011 expectation (per @expo-google-fonts metadata):{'\n'}
+          • Rajdhani_{'{'}400,500,600,700{'}'} → full Latin Extended-A coverage (all Polish OK).{'\n'}
+          • Inter_{'{'}400,500,600,700{'}'} → full Latin Extended-A coverage (all Polish OK).{'\n'}
+          Every sample above should render every diacritic correctly.
+          If a sample shows „¬" or a □ box the font didn't load —
+          check useFonts() in app/_layout.tsx.
         </Text>
       </ScrollView>
     </SafeAreaView>

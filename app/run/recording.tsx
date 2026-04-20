@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     ...hudShadows.glowGreen,
   },
-  lockGlyph: { fontSize: 42, color: hudColors.gpsStrong, fontFamily: 'Orbitron_700Bold' },
+  lockGlyph: { fontSize: 42, color: hudColors.gpsStrong, fontFamily: 'Rajdhani_700Bold' },
   permTitle: {
     ...hudTypography.displayLarge,
     fontSize: 36,
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timerText: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 64,
     letterSpacing: 2,
     color: hudColors.timerPrimary,
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 24,
   },
   timerSubLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     color: hudColors.gpsStrong,
     marginTop: spacing.sm,
     fontSize: 9,

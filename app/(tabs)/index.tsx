@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   venueChipText: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.55)',
     letterSpacing: 2,
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
 
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
-  brand: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 8 },
+  brand: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 8 },
   leagueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.xxs, fontSize: 8 },
   rankPill: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.bgCard, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.border },
   rankIcon: { fontSize: 14 },
@@ -661,10 +661,10 @@ const styles = StyleSheet.create({
   // Start-zone prompt
   startZoneCard: { backgroundColor: colors.bgCard, borderRadius: radii.xl, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 2, borderColor: colors.accent, alignItems: 'center' },
   startZoneTag: { ...typography.labelSmall, color: colors.accent, letterSpacing: 4, marginBottom: spacing.sm, fontSize: 10 },
-  startZoneTrail: { fontFamily: 'Orbitron_700Bold', fontSize: 22, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.lg },
+  startZoneTrail: { fontFamily: 'Rajdhani_700Bold', fontSize: 22, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.lg },
   startZoneActions: { flexDirection: 'row', gap: spacing.sm, width: '100%' },
   startZoneRanked: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
-  startZoneRankedText: { fontFamily: 'Orbitron_700Bold', fontSize: 13, color: colors.bg, letterSpacing: 3 },
+  startZoneRankedText: { fontFamily: 'Rajdhani_700Bold', fontSize: 13, color: colors.bg, letterSpacing: 3 },
   startZonePractice: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
   startZonePracticeText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2, fontSize: 11 },
   startZoneHint: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   venueCard: { backgroundColor: colors.bgCard, borderRadius: radii.xl, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent },
   venueHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   venueTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 9 },
-  venueName: { fontFamily: 'Orbitron_700Bold', fontSize: 24, color: colors.textPrimary, letterSpacing: 2 },
+  venueName: { fontFamily: 'Rajdhani_700Bold', fontSize: 24, color: colors.textPrimary, letterSpacing: 2 },
   venueRegion: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xxs },
   venueStats: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bgElevated, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   venueStat: { flex: 1, alignItems: 'center' },
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
   riderStatLabel: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 8, marginTop: 2 },
   riderBoardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   riderBoardLabel: { ...typography.bodySmall, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
-  riderBoardPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.accent },
+  riderBoardPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.accent },
 
   // Sign-in
   signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
@@ -728,9 +728,9 @@ const styles = StyleSheet.create({
   boardCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
   boardTag: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.md, fontSize: 9 },
   boardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.md },
-  boardPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textSecondary, width: 28 },
+  boardPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textSecondary, width: 28 },
   boardName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', flex: 1, fontSize: 14 },
-  boardTime: { fontFamily: 'Orbitron_700Bold', fontSize: 13, color: colors.textTertiary, letterSpacing: 1 },
+  boardTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 13, color: colors.textTertiary, letterSpacing: 1 },
   boardMore: { alignItems: 'center', paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.sm },
   boardMoreText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3 },
 

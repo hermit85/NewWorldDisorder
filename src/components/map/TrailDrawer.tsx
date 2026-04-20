@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   readinessLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 8,
     letterSpacing: 1.5,
   },
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   inlineActionText: {
-    fontFamily: 'Orbitron_400Regular',
+    fontFamily: 'Rajdhani_400Regular',
     fontSize: 7,
     color: 'rgba(255, 255, 255, 0.55)',
     letterSpacing: 2,

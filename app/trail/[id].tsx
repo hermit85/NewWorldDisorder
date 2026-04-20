@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   breadcrumbLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
     color: 'rgba(232, 255, 240, 0.45)',
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   breadcrumbArrow: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 12,
     color: '#00FF8C',
   },
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   // Hero
   hero: { marginBottom: spacing.xl },
   trailKicker: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
     color: '#00FF8C',
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   badge: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
   badgeText: { ...typography.labelSmall, color: colors.textSecondary },
-  trailName: { fontFamily: 'Orbitron_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 2 },
+  trailName: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 2 },
   venueSub: { ...typography.bodySmall, color: colors.textTertiary, marginTop: 2 },
   trainingTag: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 9, marginTop: spacing.sm },
   trailMeta: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, alignItems: 'center' },
@@ -414,15 +414,15 @@ const styles = StyleSheet.create({
   // Board status
   statusCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
   statusMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  statusPos: { fontFamily: 'Orbitron_700Bold', fontSize: 36, color: colors.accent },
+  statusPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 36, color: colors.accent },
   statusTier: { ...typography.labelSmall, letterSpacing: 3, marginTop: spacing.xxs, fontSize: 10 },
   statusRight: { alignItems: 'flex-end' },
   statusPbLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
-  statusPb: { fontFamily: 'Orbitron_700Bold', fontSize: 20, color: colors.textPrimary, marginTop: spacing.xxs },
+  statusPb: { fontFamily: 'Rajdhani_700Bold', fontSize: 20, color: colors.textPrimary, marginTop: spacing.xxs },
   statusPbScope: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginTop: 2 },
   rivalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   rivalLabel: { ...typography.bodySmall, color: colors.orange, fontFamily: 'Inter_600SemiBold' },
-  rivalGap: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.orange },
+  rivalGap: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.orange },
   ambition: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
   noResultState: { alignItems: 'center', paddingVertical: spacing.sm },
   noResultText: { ...typography.body, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
@@ -444,9 +444,9 @@ const styles = StyleSheet.create({
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
   lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   lbRowHighlight: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 0, marginVertical: spacing.xxs },
-  lbPos: { fontFamily: 'Orbitron_700Bold', fontSize: 16, color: colors.textTertiary, width: 36 },
+  lbPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textTertiary, width: 36 },
   lbName: { ...typography.body, color: colors.textPrimary, flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
-  lbTime: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.textSecondary, letterSpacing: 1 },
+  lbTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.textSecondary, letterSpacing: 1 },
   lbDots: { ...typography.body, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.xs },
   fullBoardBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
   fullBoardText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3 },
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   // CTAs
   ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.sm },
   rankedBtn: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
-  rankedBtnText: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
+  rankedBtnText: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
   practiceBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
   practiceBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
 
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
 
 const draftStyles = StyleSheet.create({
   eyebrow: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
     color: '#00FF8C',
@@ -505,7 +505,7 @@ const draftStyles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   ctaLabel: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 20,
     letterSpacing: 4,
     color: '#00FF8C',

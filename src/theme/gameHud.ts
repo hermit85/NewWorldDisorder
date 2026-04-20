@@ -38,18 +38,13 @@ export const hudColors = {
   textMuted: 'rgba(232, 255, 240, 0.55)',
 } as const;
 
-// Note: Orbitron_600SemiBold is not loaded in _layout.tsx (only 400 + 700).
-// For semi-bold labels we fall back to 700Bold — visually identical at
-// the 10–12pt sizes we use here.
-//
-// Polish coverage: Orbitron (Google Fonts build) is missing every Polish
-// diacritic except ó/Ó. Uppercase labels like "ZAKOŃCZ", "KALIBRACJĘ",
-// "PIERWSZĄ", "ODRZUĆ" fall through to the system fallback glyph and
-// can render as "¬" on iOS. Swap to a Polish-capable display font in a
-// future chunk (ADR candidate). For now, keep FONT_DISPLAY on Orbitron
-// for ASCII-only labels and use FONT_BODY (Inter) for inputs + anything
-// that could reasonably contain Polish diacritics.
-const FONT_DISPLAY = 'Orbitron_700Bold';
+// ADR-011: display font is Rajdhani (was Orbitron). Orbitron's
+// Google Fonts build was missing every Polish diacritic except ó/Ó,
+// so labels like "ZAKOŃCZ" / "KALIBRACJĘ" / "PIERWSZĄ" / "ODRZUĆ"
+// rendered with iOS fallback glyphs ("¬" on some devices). Rajdhani
+// has full Latin Extended-A coverage and a similar sci-fi/tech feel.
+// All four weights (400/500/600/700) are loaded in app/_layout.tsx.
+const FONT_DISPLAY = 'Rajdhani_700Bold';
 const FONT_BODY = 'Inter_500Medium';
 
 export const hudTypography = {

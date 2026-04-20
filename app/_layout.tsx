@@ -4,9 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import {
   useFonts,
-  Orbitron_400Regular,
-  Orbitron_700Bold,
-} from '@expo-google-fonts/orbitron';
+  Rajdhani_400Regular,
+  Rajdhani_500Medium,
+  Rajdhani_600SemiBold,
+  Rajdhani_700Bold,
+} from '@expo-google-fonts/rajdhani';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -42,7 +44,7 @@ class AppErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <View style={{ flex: 1, backgroundColor: '#0A0A0F', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
+          <Text style={{ fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
             CRASH
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
@@ -63,8 +65,10 @@ class AppErrorBoundary extends React.Component<
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Orbitron_400Regular,
-    Orbitron_700Bold,
+    Rajdhani_400Regular,
+    Rajdhani_500Medium,
+    Rajdhani_600SemiBold,
+    Rajdhani_700Bold,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,

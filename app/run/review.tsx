@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   trailTitle: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 24,
     color: hudColors.timerPrimary,
     letterSpacing: 2,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   timerText: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 64,
     letterSpacing: 2,
     color: hudColors.timerPrimary,
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statValue: {
-    fontFamily: 'Orbitron_700Bold',
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
     color: hudColors.timerPrimary,
     letterSpacing: 1,
