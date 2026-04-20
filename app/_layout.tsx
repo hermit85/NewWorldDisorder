@@ -130,7 +130,15 @@ export default function RootLayout() {
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
+            name="trail/new"
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
             name="run/active"
+            options={{ animation: 'fade', gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="run/recording"
             options={{ animation: 'fade', gestureEnabled: false }}
           />
           <Stack.Screen

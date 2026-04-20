@@ -18,6 +18,8 @@ export const mockTrails: Trail[] = [
     isOfficial: true,
     isActive: true,
     sortOrder: 1,
+    calibrationStatus: 'verified',
+    geometryMissing: false,
   },
   {
     id: 'dzida-czerwona',
@@ -32,6 +34,8 @@ export const mockTrails: Trail[] = [
     isOfficial: true,
     isActive: true,
     sortOrder: 4,
+    calibrationStatus: 'verified',
+    geometryMissing: false,
   },
   {
     id: 'kasina-black-dh-cup',
@@ -46,6 +50,8 @@ export const mockTrails: Trail[] = [
     isOfficial: true,
     isActive: true,
     sortOrder: 4,
+    calibrationStatus: 'verified',
+    geometryMissing: false,
   },
 ];
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
 import { selectionTick } from '@/systems/haptics';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
 import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats, useChallenges, useSpot, useTrails } from '@/hooks/useBackend';
+import { useUserTrailStats, useChallenges, useSpot, useTrails, useDeleteSpot } from '@/hooks/useBackend';
 import { useVenueContext } from '@/hooks/useVenueContext';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
 import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
@@ -34,6 +34,8 @@ export default function SpotScreen() {
   const { spot } = useSpot(id ?? null);
   const { trails, status: trailsStatus } = useTrails(id ?? null);
   const venue = id ? getVenue(id) : undefined;
+  const { submit: deleteSpot } = useDeleteSpot();
+  const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
   const { challenges } = useChallenges(spot?.id ?? id ?? '', profile?.id);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [highlightStart, setHighlightStart] = useState(false);
@@ -106,6 +108,38 @@ export default function SpotScreen() {
     setSelectedTrailId(null);
   }, []);
 
+  // ── Curator delete flow ──
+  const handleDeleteSpot = useCallback(() => {
+    if (!spot) return;
+    Alert.alert(
+      `Usunąć ośrodek ${spot.name}?`,
+      'Wszystkie trasy, czasy i wyzwania zostaną usunięte.',
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Usuń',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteSpot(spot.id);
+            if (result.ok) {
+              goBack();
+            } else {
+              Alert.alert('Nie udało się', result.message ?? 'Spróbuj ponownie');
+            }
+          },
+        },
+      ],
+    );
+  }, [spot, deleteSpot, goBack]);
+
+  // ── Aggregate spot state pill label ──
+  const spotStateLabel = useMemo(() => {
+    if (trails.length === 0) return { text: 'DRAFT', color: '#FFD93D' };
+    const hasVerified = trails.some((t) => t.calibrationStatus === 'verified');
+    if (hasVerified) return { text: 'AKTYWNY', color: '#00FF8C' };
+    return { text: 'KALIBRACJA', color: '#FFD93D' };
+  }, [trails]);
+
   if (!spot) {
     return (
       <SafeAreaView style={styles.container}>
@@ -128,20 +162,39 @@ export default function SpotScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Floating header overlay */}
+      {/* Floating header overlay — top row + OŚRODEK kicker/title/pills */}
       <SafeAreaView style={styles.headerOverlay} edges={['top']}>
         <View style={styles.headerRow}>
           <Pressable onPress={goBack} style={styles.backBtn}>
             <Text style={styles.backText}>←</Text>
           </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={styles.seasonLabel}>SEZON 01</Text>
-            <Text style={styles.spotTitle}>{spot.name}</Text>
-          </View>
+          <View style={{ flex: 1 }} />
           <View style={styles.ridersTag}>
             <Text style={styles.ridersCount}>S01</Text>
             <Text style={styles.ridersLabel}>LIGA</Text>
           </View>
+        </View>
+        <View style={styles.headerBlock}>
+          <Text style={styles.spotKicker}>⟣ OŚRODEK</Text>
+          <Text style={styles.spotTitle}>{spot.name}</Text>
+          <View style={styles.statusPillRow}>
+            <View style={styles.statusPill}>
+              <View style={[styles.statusDot, { backgroundColor: 'rgba(232, 255, 240, 0.55)' }]} />
+              <Text style={styles.statusPillLabel}>{trails.length} TRAS</Text>
+            </View>
+            <Text style={styles.statusDivider}>·</Text>
+            <View style={styles.statusPill}>
+              <View style={[styles.statusDot, { backgroundColor: spotStateLabel.color }]} />
+              <Text style={[styles.statusPillLabel, { color: spotStateLabel.color }]}>
+                {spotStateLabel.text}
+              </Text>
+            </View>
+          </View>
+          {isCurator && (
+            <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
+              <Text style={styles.curatorDeleteLabel}>Usuń ten ośrodek</Text>
+            </Pressable>
+          )}
         </View>
       </SafeAreaView>
 
@@ -190,12 +243,22 @@ export default function SpotScreen() {
         <EmptyMapPlaceholder />
       )}
 
-      {/* Empty state — spot has no trails yet (pre-Sprint-3 calibration) */}
+      {/* Empty state — spot has no trails yet. Tap to kick off the
+          Pioneer flow (Sprint 3 Chunk 4 routing). */}
       {!selectedTrail && trails.length === 0 && trailsStatus === 'empty' && (
         <View style={styles.trailStrip}>
-          <Text style={{ color: colors.textTertiary, ...typography.bodySmall, paddingHorizontal: spacing.lg }}>
-            Brak tras — czekamy na Pioniera
-          </Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.pioneerCta,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+            onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+          >
+            <Text style={styles.pioneerCtaLabel}>⟣ DODAJ PIERWSZĄ TRASĘ</Text>
+            <Text style={styles.pioneerCtaSub}>
+              Zostań pierwszym Pionierem tego spotu
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -239,6 +302,17 @@ export default function SpotScreen() {
                 </Pressable>
               );
             })}
+
+            {/* Secondary add-trail CTA — appended after the trail chips */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.addTrailChip,
+                pressed && { transform: [{ scale: 0.97 }], opacity: 0.8 },
+              ]}
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+            >
+              <Text style={styles.addTrailChipLabel}>+ DODAJ TRASĘ</Text>
+            </Pressable>
           </ScrollView>
         </View>
       )}
@@ -286,7 +360,7 @@ const styles = StyleSheet.create({
   // Training banner
   trainingBanner: {
     position: 'absolute' as const,
-    top: 100, // below header
+    top: 210, // below taller header with kicker + title + pills
     left: spacing.lg,
     right: spacing.lg,
     zIndex: 5,
@@ -344,9 +418,64 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     letterSpacing: 2,
   },
+  // New kicker/title/pill block (B1)
+  headerBlock: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  spotKicker: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 11,
+    color: '#00FF8C',
+    letterSpacing: 3,
+    marginBottom: spacing.xs,
+  },
   spotTitle: {
-    ...typography.h3,
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 30,
     color: colors.textPrimary,
+    letterSpacing: 2,
+    marginBottom: spacing.sm,
+  },
+  statusPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusPillLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 10,
+    letterSpacing: 2,
+    color: 'rgba(232, 255, 240, 0.65)',
+  },
+  statusDivider: {
+    color: 'rgba(232, 255, 240, 0.35)',
+    fontSize: 12,
+    paddingHorizontal: 2,
+  },
+  // Curator delete link
+  curatorDelete: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
+  },
+  curatorDeleteLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    color: 'rgba(255, 67, 101, 0.70)',
+    textDecorationLine: 'underline',
+    letterSpacing: 0.5,
   },
   ridersTag: {
     backgroundColor: colors.accentDim,
@@ -389,6 +518,54 @@ const styles = StyleSheet.create({
     minWidth: 110,
     maxWidth: 160,
     borderWidth: 0,
+  },
+  // Empty-state Pioneer CTA (trails.length === 0)
+  pioneerCta: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: 'rgba(20, 35, 26, 0.95)',
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: '#00FF8C',
+    alignItems: 'center',
+    shadowColor: '#00FF8C',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  pioneerCtaLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 16,
+    color: '#00FF8C',
+    letterSpacing: 3,
+    marginBottom: 4,
+  },
+  pioneerCtaSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: 'rgba(232, 255, 240, 0.55)',
+    letterSpacing: 0.5,
+  },
+  // Secondary "+ DODAJ TRASĘ" — appended chip when trails exist
+  addTrailChip: {
+    borderRadius: radii.sm + 2,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    minWidth: 110,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 140, 0.45)',
+    backgroundColor: 'rgba(0, 255, 140, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTrailChipLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 11,
+    color: '#00FF8C',
+    letterSpacing: 2,
   },
   trailChipHeader: {
     flexDirection: 'row',

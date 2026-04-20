@@ -836,6 +836,8 @@ function mapTrail(row: DbTrail): Trail {
     isOfficial: true,
     isActive: row.is_active,
     sortOrder: row.sort_order,
+    calibrationStatus: row.calibration_status,
+    geometryMissing: row.geometry === null,
   };
 }
 
@@ -1105,6 +1107,30 @@ export async function createTrail(
     return { ok: true, data: { trailId: res.trail_id as string } };
   }
   return polishError(res?.code ?? 'rpc_failed', CREATE_TRAIL_ERRORS);
+}
+
+// ── deleteSpot / deleteTrail (curator cleanup, migration 009) ──
+
+const CLEANUP_ERRORS: Record<string, string> = {
+  unauthenticated: 'Sesja wygasła. Zaloguj się ponownie.',
+  unauthorized:    'Tylko kurator może usuwać ośrodki i trasy',
+  rpc_failed:      'Nie udało się usunąć. Spróbuj ponownie.',
+};
+
+export async function deleteSpot(spotId: string): Promise<ApiResult<void>> {
+  const { data, error } = await db().rpc('delete_spot_cascade', { p_spot_id: spotId });
+  if (error) return polishError('rpc_failed', CLEANUP_ERRORS);
+  const res = data as any;
+  if (res?.ok === true) return { ok: true, data: undefined };
+  return polishError(res?.code ?? 'rpc_failed', CLEANUP_ERRORS);
+}
+
+export async function deleteTrail(trailId: string): Promise<ApiResult<void>> {
+  const { data, error } = await db().rpc('delete_trail_cascade', { p_trail_id: trailId });
+  if (error) return polishError('rpc_failed', CLEANUP_ERRORS);
+  const res = data as any;
+  if (res?.ok === true) return { ok: true, data: undefined };
+  return polishError(res?.code ?? 'rpc_failed', CLEANUP_ERRORS);
 }
 
 // ── finalizePioneerRun ──
