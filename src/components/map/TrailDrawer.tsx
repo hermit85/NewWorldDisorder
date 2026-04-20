@@ -28,7 +28,7 @@ export interface StartReadiness {
 
 const READINESS_CONFIG: Record<ReadinessLevel, { label: string; color: string }> = {
   no_gps:        { label: 'SZUKAM GPS…',            color: 'rgba(255, 255, 255, 0.25)' },
-  outside_venue: { label: 'POZA OŚRODKIEM',         color: 'rgba(255, 255, 255, 0.25)' },
+  outside_venue: { label: 'POZA BIKE PARKIEM',      color: 'rgba(255, 255, 255, 0.25)' },
   too_far:       { label: 'IDŹ DO STARTU',          color: 'rgba(255, 255, 255, 0.35)' },
   approaching: { label: 'PRAWIE NA MIEJSCU',      color: '#FF9500' },
   at_start:    { label: 'W STREFIE STARTU',       color: '#00C8FF' },

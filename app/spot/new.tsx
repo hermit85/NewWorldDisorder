@@ -158,14 +158,14 @@ export default function NewSpotScreen() {
             <Pressable onPress={() => router.back()} style={styles.back} hitSlop={16}>
               <Text style={styles.backLabel}>← Wróć</Text>
             </Pressable>
-            <Text style={styles.title}>ZGŁOŚ SPOT</Text>
+            <Text style={styles.title}>ZGŁOŚ BIKE PARK</Text>
           </View>
 
           {screen.kind === 'gps_pending' && (
             <View style={styles.card}>
               <ActivityIndicator color={colors.accent} />
               <Text style={styles.cardTitle}>Szukam sygnału…</Text>
-              <Text style={styles.cardBody}>Złap GPS, żeby oznaczyć lokalizację spotu.</Text>
+              <Text style={styles.cardBody}>Złap GPS, żeby oznaczyć lokalizację bike parku.</Text>
               <Pressable onPress={switchToManual} hitSlop={8}>
                 <Text style={styles.link}>Ręcznie wpisz lokalizację</Text>
               </Pressable>
@@ -176,7 +176,7 @@ export default function NewSpotScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Brak zgody na GPS</Text>
               <Text style={styles.cardBody}>
-                Żeby przypiąć spot do mapy potrzebujemy lokalizacji. Możesz też wpisać
+                Żeby przypiąć bike park do mapy potrzebujemy lokalizacji. Możesz też wpisać
                 współrzędne ręcznie.
               </Text>
               <Pressable onPress={() => Linking.openSettings()} style={styles.secondaryCta}>
@@ -228,7 +228,7 @@ export default function NewSpotScreen() {
 
               <View style={{ height: spacing.lg }} />
 
-              <Text style={styles.label}>NAZWA SPOTU</Text>
+              <Text style={styles.label}>NAZWA BIKE PARKU</Text>
               <TextInput
                 style={styles.input}
                 value={name}
@@ -254,13 +254,13 @@ export default function NewSpotScreen() {
           {screen.kind === 'success' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Zgłoszone ✓</Text>
-              <Text style={styles.cardBody}>Spot trafił do kolejki. Dostaniesz znać, gdy kurator go zatwierdzi.</Text>
+              <Text style={styles.cardBody}>Bike park trafił do kolejki. Dostaniesz znać, gdy kurator go zatwierdzi.</Text>
             </View>
           )}
 
           {screen.kind === 'error_duplicate' && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Podobny spot już istnieje</Text>
+              <Text style={styles.cardTitle}>Podobny bike park już istnieje</Text>
               <Text style={styles.cardBody}>
                 „{screen.nearSpotName}" — {screen.distanceM} m od twojej lokalizacji.
               </Text>

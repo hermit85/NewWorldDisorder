@@ -70,7 +70,10 @@ export default function TrailDetailScreen() {
             if (result.ok) {
               goBack();
             } else {
-              Alert.alert('Nie udało się', result.message ?? 'Spróbuj ponownie');
+              Alert.alert(
+                `Nie udało się: ${result.code}`,
+                result.message ?? 'Spróbuj ponownie',
+              );
             }
           },
         },
@@ -108,7 +111,7 @@ export default function TrailDetailScreen() {
 
           {spotName && (
             <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
-              <Text style={styles.breadcrumbLabel}>W OŚRODKU:</Text>
+              <Text style={styles.breadcrumbLabel}>BIKE PARK:</Text>
               <Text style={styles.breadcrumbName}>{spotName}</Text>
               <Text style={styles.breadcrumbArrow}>→</Text>
             </Pressable>
@@ -185,7 +188,7 @@ export default function TrailDetailScreen() {
         {/* ═══ BREADCRUMB ═══ */}
         {spotName && (
           <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
-            <Text style={styles.breadcrumbLabel}>W OŚRODKU:</Text>
+            <Text style={styles.breadcrumbLabel}>BIKE PARK:</Text>
             <Text style={styles.breadcrumbName}>{spotName}</Text>
             <Text style={styles.breadcrumbArrow}>→</Text>
           </Pressable>

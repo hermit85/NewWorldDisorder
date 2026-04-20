@@ -42,7 +42,7 @@ const faqs: FAQ[] = [
   },
   {
     q: 'Jakie trasy są dostępne?',
-    a: 'Sezon 01 obejmuje Słotwiny Arena w Krynicy-Zdrój: Gałgan, Dookoła Świata, Kometa i Dzida. Kolejne ośrodki dołączą w następnych sezonach.',
+    a: 'Sezon 01 obejmuje Słotwiny Arena w Krynicy-Zdrój: Gałgan, Dookoła Świata, Kometa i Dzida. Kolejne bike parki dołączą w następnych sezonach.',
   },
 ];
 

@@ -112,7 +112,7 @@ export default function SpotScreen() {
   const handleDeleteSpot = useCallback(() => {
     if (!spot) return;
     Alert.alert(
-      `Usunąć ośrodek ${spot.name}?`,
+      `Usunąć bike park ${spot.name}?`,
       'Wszystkie trasy, czasy i wyzwania zostaną usunięte.',
       [
         { text: 'Anuluj', style: 'cancel' },
@@ -124,7 +124,13 @@ export default function SpotScreen() {
             if (result.ok) {
               goBack();
             } else {
-              Alert.alert('Nie udało się', result.message ?? 'Spróbuj ponownie');
+              // Surface the actual RPC error so the curator can act on it
+              // (e.g. "rpc_missing" = apply migration, "unauthorized" =
+              // role flip needed). Previous generic copy masked root cause.
+              Alert.alert(
+                `Nie udało się: ${result.code}`,
+                result.message ?? 'Spróbuj ponownie',
+              );
             }
           },
         },
@@ -132,20 +138,22 @@ export default function SpotScreen() {
     );
   }, [spot, deleteSpot, goBack]);
 
-  // ── Aggregate spot state pill label ──
+  // ── Bike park status pill — driven by spots.submissionStatus.
+  //    (Chunk 4 used a trail-derived heuristic that mislabelled active
+  //     parks as DRAFT; DRAFT belongs to trails.calibration_status.)
   const spotStateLabel = useMemo(() => {
-    if (trails.length === 0) return { text: 'DRAFT', color: '#FFD93D' };
-    const hasVerified = trails.some((t) => t.calibrationStatus === 'verified');
-    if (hasVerified) return { text: 'AKTYWNY', color: '#00FF8C' };
-    return { text: 'KALIBRACJA', color: '#FFD93D' };
-  }, [trails]);
+    const status = spot?.submissionStatus;
+    if (status === 'pending')  return { text: 'OCZEKUJE',  color: '#FFD93D' };
+    if (status === 'rejected') return { text: 'ODRZUCONY', color: '#FF4365' };
+    return { text: 'AKTYWNY', color: '#00FF8C' };
+  }, [spot?.submissionStatus]);
 
   if (!spot) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={{ padding: spacing.lg, gap: spacing.md }}>
           <Text style={{ color: colors.textTertiary, fontSize: 13 }}>
-            Spot nie znaleziony
+            Bike park nie znaleziony
           </Text>
           <Pressable onPress={goBack} style={styles.backBtn}>
             <Text style={styles.backText}>← WRÓĆ</Text>
@@ -162,7 +170,7 @@ export default function SpotScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Floating header overlay — top row + OŚRODEK kicker/title/pills */}
+      {/* Floating header overlay — top row + BIKE PARK kicker/title/pills */}
       <SafeAreaView style={styles.headerOverlay} edges={['top']}>
         <View style={styles.headerRow}>
           <Pressable onPress={goBack} style={styles.backBtn}>
@@ -175,7 +183,7 @@ export default function SpotScreen() {
           </View>
         </View>
         <View style={styles.headerBlock}>
-          <Text style={styles.spotKicker}>⟣ OŚRODEK</Text>
+          <Text style={styles.spotKicker}>⟣ BIKE PARK</Text>
           <Text style={styles.spotTitle}>{spot.name}</Text>
           <View style={styles.statusPillRow}>
             <View style={styles.statusPill}>
@@ -192,7 +200,7 @@ export default function SpotScreen() {
           </View>
           {isCurator && (
             <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
-              <Text style={styles.curatorDeleteLabel}>Usuń ten ośrodek</Text>
+              <Text style={styles.curatorDeleteLabel}>Usuń ten bike park</Text>
             </Pressable>
           )}
         </View>
@@ -256,7 +264,7 @@ export default function SpotScreen() {
           >
             <Text style={styles.pioneerCtaLabel}>⟣ DODAJ PIERWSZĄ TRASĘ</Text>
             <Text style={styles.pioneerCtaSub}>
-              Zostań pierwszym Pionierem tego spotu
+              Bądź pierwszym Pionierem tego bike parku
             </Text>
           </Pressable>
         </View>

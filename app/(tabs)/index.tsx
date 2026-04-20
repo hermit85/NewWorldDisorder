@@ -198,7 +198,7 @@ export default function HomeScreen() {
             style={styles.submitSpotCta}
             onPress={() => { tapLight(); router.push('/spot/new'); }}
           >
-            <Text style={styles.submitSpotLabel}>+ ZGŁOŚ NOWY SPOT</Text>
+            <Text style={styles.submitSpotLabel}>+ ZGŁOŚ BIKE PARK</Text>
           </Pressable>
         )}
 
@@ -308,13 +308,13 @@ export default function HomeScreen() {
         {/* ═══ EMPTY STATE — no active spots yet ═══ */}
         {!spot && activeSpotsStatus === 'empty' && (
           <View style={styles.emptyVenueBlock}>
-            <Text style={styles.emptyVenueTitle}>Brak spotów w pobliżu</Text>
+            <Text style={styles.emptyVenueTitle}>Brak bike parków w pobliżu</Text>
             <Text style={styles.emptyVenueBody}>Bądź pierwszym Pionierem.</Text>
             <Pressable
               style={styles.emptyVenueCta}
               onPress={() => { tapLight(); router.push('/spot/new'); }}
             >
-              <Text style={styles.emptyVenueCtaLabel}>ZGŁOŚ PIERWSZY SPOT</Text>
+              <Text style={styles.emptyVenueCtaLabel}>ZGŁOŚ PIERWSZY BIKE PARK</Text>
             </Pressable>
           </View>
         )}
@@ -326,7 +326,7 @@ export default function HomeScreen() {
           onPress={() => router.push(`/spot/${spot.id}`)}
         >
           <View style={styles.venueHeader}>
-            <Text style={styles.venueTag}>OŚRODEK · SEZON 01</Text>
+            <Text style={styles.venueTag}>BIKE PARK · SEZON 01</Text>
           </View>
 
           <Text style={styles.venueName}>{spot.name}</Text>
@@ -364,7 +364,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.venueCta}>
-            <Text style={styles.venueCtaText}>WEJDŹ DO OŚRODKA</Text>
+            <Text style={styles.venueCtaText}>OTWÓRZ BIKE PARK</Text>
           </View>
         </Pressable>
 
