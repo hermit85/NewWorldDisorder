@@ -41,7 +41,16 @@ export const hudColors = {
 // Note: Orbitron_600SemiBold is not loaded in _layout.tsx (only 400 + 700).
 // For semi-bold labels we fall back to 700Bold — visually identical at
 // the 10–12pt sizes we use here.
+//
+// Polish coverage: Orbitron (Google Fonts build) is missing every Polish
+// diacritic except ó/Ó. Uppercase labels like "ZAKOŃCZ", "KALIBRACJĘ",
+// "PIERWSZĄ", "ODRZUĆ" fall through to the system fallback glyph and
+// can render as "¬" on iOS. Swap to a Polish-capable display font in a
+// future chunk (ADR candidate). For now, keep FONT_DISPLAY on Orbitron
+// for ASCII-only labels and use FONT_BODY (Inter) for inputs + anything
+// that could reasonably contain Polish diacritics.
 const FONT_DISPLAY = 'Orbitron_700Bold';
+const FONT_BODY = 'Inter_500Medium';
 
 export const hudTypography = {
   displayHuge: {
@@ -83,6 +92,13 @@ export const hudTypography = {
     fontSize: 24,
     letterSpacing: 4,
     textTransform: 'uppercase' as const,
+  } satisfies TextStyle,
+
+  // Form input style inside HUD screens — Inter, guaranteed Polish.
+  input: {
+    fontFamily: FONT_BODY,
+    fontSize: 16,
+    lineHeight: 22,
   } satisfies TextStyle,
 } as const;
 

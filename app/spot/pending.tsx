@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     color: colors.textPrimary,
     minHeight: 80,
-    ...typography.body,
+    ...typography.input,
   },
   error: { ...typography.bodySmall, color: colors.red, marginTop: spacing.sm },
   retryCta: { marginTop: spacing.lg, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, backgroundColor: colors.bgElevated, borderRadius: radii.md },

@@ -110,4 +110,17 @@ export const typography = {
     lineHeight: 24,
     letterSpacing: 0.5,
   } satisfies TextStyle,
+
+  // Form input — ALWAYS Inter, never Orbitron.
+  // Orbitron (Google Fonts build) is missing the Polish Latin Extended
+  // characters (ą ć ę ł ń ś ź ż + caps) except for ó/Ó. An Orbitron-styled
+  // TextInput will render "Gałgan" as "Ga¬gan" on some iOS renderers
+  // because the missing-glyph fallback is not consistent.
+  // Reference `typography.input` from every TextInput to guarantee
+  // Polish support without per-screen awareness.
+  input: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 16,
+    lineHeight: 22,
+  } satisfies TextStyle,
 } as const;

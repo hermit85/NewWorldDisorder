@@ -218,8 +218,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     color: colors.textPrimary,
-    fontFamily: 'Orbitron_700Bold',
-    fontSize: 16,
+    // Was Orbitron_700Bold — Orbitron is missing Polish diacritics
+    // (Gałgan → Ga¬gan). The confirm word is "USUŃ" which happens to
+    // be ASCII-only, but typography.input is the canonical pick.
+    ...typography.input,
     letterSpacing: 3,
     textAlign: 'center',
     marginBottom: spacing.lg,

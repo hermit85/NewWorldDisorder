@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
-    ...typography.body,
+    ...typography.input,
   },
   input: {
     backgroundColor: colors.bg,
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
-    ...typography.body,
+    ...typography.input,
   },
   hint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs, alignSelf: 'flex-end' },
   link: { ...typography.bodySmall, color: colors.accent, marginTop: spacing.md, textDecorationLine: 'underline' },

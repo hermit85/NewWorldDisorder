@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   formTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', letterSpacing: 2 },
   formDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.md },
   label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.xxs },
-  input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, fontFamily: 'Inter_500Medium', fontSize: 16 },
+  input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, ...typography.input },
   codeInput: { textAlign: 'center', fontSize: 22, fontFamily: 'Orbitron_700Bold', letterSpacing: 6 },
   error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
