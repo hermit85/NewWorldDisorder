@@ -23,6 +23,9 @@ export interface Database {
           role: 'rider' | 'curator' | 'moderator';
           created_at: string;
           updated_at: string;
+          // Sprint 4 (mig 011) — Pioneer counters
+          pioneered_total_count: number;
+          pioneered_verified_count: number;
         };
         Insert: {
           id: string;
@@ -107,6 +110,10 @@ export interface Database {
           pioneered_at: string | null;
           runs_contributed: number;
           created_at: string;
+          // Sprint 4 (mig 011) — trust + versioning columns
+          seed_source: 'curator' | 'rider' | null;
+          trust_tier: 'provisional' | 'verified' | 'disputed' | null;
+          current_version_id: string | null;
         };
         Insert: {
           id?: string;
@@ -327,6 +334,32 @@ export interface Database {
       };
       delete_trail_cascade: {
         Args: { p_trail_id: string };
+        Returns: Json;
+      };
+      finalize_seed_run: {
+        Args: {
+          p_trail_id: string;
+          p_geometry: Json;
+          p_duration_ms: number;
+          p_gps_trace: Json | null;
+          p_median_accuracy_m: number;
+          p_quality_tier: string;
+          p_verification_status: string;
+          p_started_at: string;
+          p_finished_at: string;
+        };
+        Returns: Json;
+      };
+      recalibrate_trail: {
+        Args: { p_trail_id: string; p_new_geometry: Json };
+        Returns: Json;
+      };
+      admin_resolve_pioneer: {
+        Args: {
+          p_trail_id: string;
+          p_new_pioneer_user_id: string;
+          p_reason: string;
+        };
         Returns: Json;
       };
     };

@@ -1223,31 +1223,166 @@ export async function deleteTrail(trailId: string): Promise<ApiResult<void>> {
   return callCleanupRpc('delete_trail_cascade', { p_trail_id: trailId });
 }
 
-// ── finalizePioneerRun ──
+// ═══════════════════════════════════════════════════════════
+// SPRINT 4 — Trust + Versioning + Pioneer Foundation (ADR-012)
+// ═══════════════════════════════════════════════════════════
 
-export async function finalizePioneerRun(
-  params: FinalizePioneerRunParams,
-): Promise<ApiResult<PioneerRunResult>> {
-  const { data, error } = await db().rpc('finalize_pioneer_run', {
-    p_trail_id: params.trailId,
-    p_run_payload: params.runPayload as any,
-    p_geometry: params.geometry as any,
+export type SeedSource = 'curator' | 'rider';
+export type TrustTier  = 'provisional' | 'verified' | 'disputed';
+
+// ── finalize_seed_run (mig 012) ──
+//
+// Flat-params variant of the old finalize_pioneer_run. Server stamps
+// seed_source from caller's role, sets trust_tier='provisional',
+// creates trail_versions row (version=1, is_current=true), attaches
+// run + leaderboard entry to that version. Pioneer assignment flows
+// through the mig 011 immutability trigger.
+
+export interface SeedRunParams {
+  trailId: string;
+  geometry: PioneerGeometry;
+  durationMs: number;
+  gpsTrace?: unknown;
+  medianAccuracyM: number;
+  qualityTier: 'perfect' | 'valid' | 'rough';
+  verificationStatus: 'verified' | 'weak_signal';
+  startedAt: Date;
+  finishedAt: Date;
+}
+
+export interface SeedRunResult {
+  runId: string;
+  seedSource: SeedSource;
+  trustTier: TrustTier;
+  versionId: string;
+  isPioneer: true;
+  leaderboardPosition: number;
+}
+
+/** Polish copy for every error code emitted by the Sprint-4 RPCs.
+ *  Single source of truth so UI alerts stay consistent. */
+const SEED_RUN_ERRORS: Record<string, string> = {
+  unauthenticated:      'Zaloguj się ponownie',
+  trail_not_found:      'Trasa nie istnieje',
+  already_pioneered:    'Ktoś Cię wyprzedził — trasa ma już Pioneera',
+  invalid_state:        'Trasa nie jest w stanie draft',
+  weak_signal_pioneer:  'Słaby sygnał GPS — kalibracja odrzucona',
+  invalid_geometry:     'Za mało punktów GPS (min 30)',
+  not_authorized:       'Brak uprawnień do tej operacji',
+  no_current_version:   'Trasa nie ma aktywnej wersji',
+  rpc_failed:           'Nie udało się zapisać zjazdu. Spróbuj ponownie.',
+};
+
+export async function finalizeSeedRun(
+  params: SeedRunParams,
+): Promise<ApiResult<SeedRunResult>> {
+  const { data, error } = await db().rpc('finalize_seed_run', {
+    p_trail_id:            params.trailId,
+    p_geometry:            params.geometry as any,
+    p_duration_ms:         params.durationMs,
+    p_gps_trace:           (params.gpsTrace ?? null) as any,
+    p_median_accuracy_m:   params.medianAccuracyM,
+    p_quality_tier:        params.qualityTier,
+    p_verification_status: params.verificationStatus,
+    p_started_at:          params.startedAt.toISOString(),
+    p_finished_at:         params.finishedAt.toISOString(),
   });
 
-  if (error) {
-    return polishError('rpc_failed', FINALIZE_PIONEER_ERRORS);
-  }
+  if (error) return polishError('rpc_failed', SEED_RUN_ERRORS);
   const res = data as any;
   if (res?.ok === true) {
     return {
       ok: true,
       data: {
-        runId: res.run_id as string,
-        isPioneer: true,
-        trailStatus: 'calibrating',
+        runId:               res.run_id as string,
+        seedSource:          res.seed_source as SeedSource,
+        trustTier:           res.trust_tier as TrustTier,
+        versionId:           res.version_id as string,
+        isPioneer:           true,
         leaderboardPosition: res.leaderboard_position as number,
       },
     };
   }
-  return polishError(res?.code ?? 'rpc_failed', FINALIZE_PIONEER_ERRORS);
+  return polishError(res?.code ?? 'rpc_failed', SEED_RUN_ERRORS);
+}
+
+// ── finalizePioneerRun (Sprint 3 signature, routed through mig 012) ──
+//
+// Kept as a thin shim so existing call sites (app/run/review.tsx) don't
+// need to change. Internally flattens the old PioneerRunPayload bundle
+// onto finalize_seed_run's flat-params shape. The legacy mig-008
+// finalize_pioneer_run RPC stays in the DB untouched (no longer called
+// from client) and can be dropped in a Sprint 5 cleanup migration.
+
+export async function finalizePioneerRun(
+  params: FinalizePioneerRunParams,
+): Promise<ApiResult<PioneerRunResult>> {
+  const result = await finalizeSeedRun({
+    trailId:            params.trailId,
+    geometry:           params.geometry,
+    durationMs:         params.runPayload.duration_ms,
+    gpsTrace:           params.runPayload.gps_trace,
+    medianAccuracyM:    params.runPayload.median_accuracy_m,
+    qualityTier:        params.runPayload.quality_tier ?? 'valid',
+    verificationStatus: params.runPayload.verification_status,
+    startedAt:          new Date(params.runPayload.started_at),
+    finishedAt:         new Date(params.runPayload.finished_at),
+  });
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      runId:               result.data.runId,
+      isPioneer:           true,
+      trailStatus:         'calibrating',
+      leaderboardPosition: result.data.leaderboardPosition,
+    },
+  };
+}
+
+// ── recalibrate_trail (curator-only) ──
+
+export interface RecalibrateResult {
+  newVersionId: string;
+  newVersionNumber: number;
+}
+
+export async function recalibrateTrail(
+  trailId: string,
+  newGeometry: PioneerGeometry,
+): Promise<ApiResult<RecalibrateResult>> {
+  const { data, error } = await db().rpc('recalibrate_trail', {
+    p_trail_id:     trailId,
+    p_new_geometry: newGeometry as any,
+  });
+  if (error) return polishError('rpc_failed', SEED_RUN_ERRORS);
+  const res = data as any;
+  if (res?.ok === true) {
+    return {
+      ok: true,
+      data: {
+        newVersionId:     res.new_version_id as string,
+        newVersionNumber: res.new_version_number as number,
+      },
+    };
+  }
+  return polishError(res?.code ?? 'rpc_failed', SEED_RUN_ERRORS);
+}
+
+// ── admin_resolve_pioneer (moderator-only escape hatch) ──
+
+export async function adminResolvePioneer(
+  trailId: string,
+  newPioneerUserId: string,
+  reason: string,
+): Promise<ApiResult<void>> {
+  const { data, error } = await db().rpc('admin_resolve_pioneer', {
+    p_trail_id:            trailId,
+    p_new_pioneer_user_id: newPioneerUserId,
+    p_reason:              reason,
+  });
+  if (error) return polishError('rpc_failed', SEED_RUN_ERRORS);
+  const res = data as any;
+  if (res?.ok === true) return { ok: true, data: undefined };
+  return polishError(res?.code ?? 'rpc_failed', SEED_RUN_ERRORS);
 }
