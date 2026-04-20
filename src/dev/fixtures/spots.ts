@@ -1,16 +1,19 @@
-import { Spot } from '../types';
-import { slotwinySpot } from '../seed/slotwinyOfficial';
+// Dev-only fixtures for unit tests + dev playground.
+// NOT imported in production paths — safe to modify freely.
+// These entries are synthetic test inputs, not real seed data.
+
+import { Spot } from '@/data/types';
 
 export const mockSpots: Spot[] = [
   {
-    id: slotwinySpot.id,
-    name: slotwinySpot.name,
-    slug: slotwinySpot.slug,
-    description: slotwinySpot.description,
-    region: slotwinySpot.region,
-    isOfficial: slotwinySpot.isOfficial,
-    coverImage: slotwinySpot.coverImage,
-    status: slotwinySpot.status,
+    id: 'slotwiny-arena',
+    name: 'Słotwiny Arena',
+    slug: 'slotwiny-arena',
+    description: 'Season 01 — Krynica-Zdrój. Four race trails from flow to full send.',
+    region: 'Krynica-Zdrój',
+    isOfficial: true,
+    coverImage: '',
+    status: 'active',
     activeRidersToday: 0,
     trailCount: 4,
   },

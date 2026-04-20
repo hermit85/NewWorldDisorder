@@ -51,7 +51,7 @@ import {
   VerificationResult,
   Checkpoint,
 } from '@/data/verificationTypes';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { TrailGeoSeed } from '@/data/venueConfig';
 import { isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult } from '@/lib/api';
 import { createRunSessionId, setFinalizedRun } from './runStore';
@@ -96,7 +96,7 @@ export interface RealRunState {
 
 const isWeb = Platform.OS === 'web';
 
-export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed | null, userId?: string) {
+export function useRealRun(trailId: string, trailName: string, spotId: string, geo: TrailGeoSeed | null, userId?: string) {
   const [state, setState] = useState<RealRunState>({
     runSessionId: '',
     phase: 'idle',
@@ -503,6 +503,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
         setFinalizedRun({
           sessionId: currentSessionId,
           trailId,
+          spotId,
           trailName,
           mode: state.mode,
           durationMs: state.elapsedMs,
@@ -561,6 +562,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
       setFinalizedRun({
         sessionId: currentSessionId,
         trailId,
+        spotId,
         trailName,
         mode: completedTrace.mode,
         durationMs: completedTrace.durationMs,
@@ -580,6 +582,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           sessionId: currentSessionId,
           userId,
           trailId,
+          spotId,
           trace: completedTrace,
           verification,
           qualityTier: qualityAssessment.quality,
@@ -587,7 +590,7 @@ export function useRealRun(trailId: string, trailName: string, geo: TrailGeoSeed
           if (result) {
             safeSetState((s) => ({ ...s, backendStatus: 'saved', backendResult: result }));
             updateProgression(
-              userId, trailId, result.isPb, verification.isLeaderboardEligible,
+              userId, trailId, spotId, result.isPb, verification.isLeaderboardEligible,
               result.leaderboardResult?.position ?? null,
             );
           } else {

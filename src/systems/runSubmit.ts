@@ -15,7 +15,6 @@ import { VerificationResult } from '@/data/verificationTypes';
 import { submitRunToBackend, isBackendConfigured } from '@/hooks/useBackend';
 import { SubmitRunResult, incrementChallengeProgress, unlockAchievement, fetchActiveChallenges, updateProfileXp, fetchProfile } from '@/lib/api';
 import { calculateRunXp, type XpBreakdown } from './xp';
-import { DEFAULT_SPOT_ID } from '@/constants';
 import { getVenueForTrail } from '@/data/venueConfig';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { updateFinalizedRun } from './runStore';
@@ -61,16 +60,25 @@ export async function submitRun(params: {
   sessionId: string;
   userId: string;
   trailId: string;
+  /** Parent spot id — threaded from the UI via useRealRun / FinalizedRun.
+   *  Must be non-empty; no silent fallback to a default spot any more. */
+  spotId: string;
   trace: RunTrace;
   verification: VerificationResult;
   qualityTier?: QualityTier;
 }): Promise<SubmitRunResult | null> {
-  const { sessionId, userId, trailId, trace, verification, qualityTier } = params;
+  const { sessionId, userId, trailId, spotId, trace, verification, qualityTier } = params;
 
   // Guard: userId must be non-empty
   if (!userId || userId.length === 0) {
     logDebugEvent('save', 'submit_skip_no_user', 'fail', { runSessionId: sessionId, trailId });
     return null;
+  }
+
+  // Guard: spotId must be resolved. Explicit failure beats a stale FK.
+  if (!spotId || spotId.length === 0) {
+    logDebugEvent('save', 'submit_skip_no_spot', 'fail', { runSessionId: sessionId, trailId });
+    throw new Error('spot_id missing on finalized run');
   }
 
   // Guard: double-tap prevention — skip if already submitting this session
@@ -110,13 +118,10 @@ export async function submitRun(params: {
       previousPosition: null,
     });
 
-    // Resolve venue from trail (multi-venue aware)
-    const resolvedSpotId = getVenueForTrail(trailId)?.venueId ?? DEFAULT_SPOT_ID;
-
     // Submit with timeout protection
     const submitPromise = submitRunToBackend({
       userId,
-      spotId: resolvedSpotId,
+      spotId,
       trailId,
       mode: trace.mode,
       startedAt: trace.startedAt,
@@ -193,6 +198,7 @@ export async function submitRun(params: {
 export async function updateProgression(
   userId: string,
   trailId: string,
+  spotId: string,
   isPb: boolean,
   eligible: boolean,
   position?: number | null,
@@ -206,8 +212,8 @@ export async function updateProgression(
     }
 
     // ── Challenges ──
-    const challengeSpotId = getVenueForTrail(trailId)?.venueId ?? DEFAULT_SPOT_ID;
-    const challenges = await fetchActiveChallenges(challengeSpotId);
+    // spotId already resolved at submit entry; reuse it for challenge scoping.
+    const challenges = await fetchActiveChallenges(spotId);
     const now = new Date();
 
     for (const ch of challenges) {

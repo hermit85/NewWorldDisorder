@@ -1,7 +1,10 @@
-// ═══════════════════════════════════════════════════════════
-// Mock verification scenarios for testing trust UI
-// Each scenario simulates a different run outcome
-// ═══════════════════════════════════════════════════════════
+// Dev-only fixtures for unit tests + dev playground.
+// NOT imported in production paths — safe to modify freely.
+// These entries are synthetic test inputs, not real seed data.
+//
+// Mock verification scenarios for testing trust UI. Polylines are
+// trimmed placeholders — self-contained so this file does not depend
+// on the removed seed/ tree.
 
 import {
   VerificationResult,
@@ -9,10 +12,32 @@ import {
   Checkpoint,
   GateState,
   RouteCorridor,
-} from '../verificationTypes';
-import { trailGeoSeeds } from '../seed/slotwinyMap';
+} from '@/data/verificationTypes';
 
-const dzidaGeo = trailGeoSeeds.find((t) => t.trailId === 'dzida-czerwona')!;
+interface LocalTrailGeo {
+  trailId: string;
+  polyline: { latitude: number; longitude: number }[];
+  startZone: { latitude: number; longitude: number };
+  finishZone: { latitude: number; longitude: number };
+}
+
+// Single reference polyline (approximate Dzida Czerwona, Słotwiny).
+const dzidaGeo: LocalTrailGeo = {
+  trailId: 'dzida-czerwona',
+  polyline: [
+    { latitude: 49.4240, longitude: 20.9585 },
+    { latitude: 49.4220, longitude: 20.9580 },
+    { latitude: 49.4200, longitude: 20.9575 },
+    { latitude: 49.4180, longitude: 20.9572 },
+    { latitude: 49.4160, longitude: 20.9570 },
+    { latitude: 49.4140, longitude: 20.9572 },
+    { latitude: 49.4130, longitude: 20.9575 },
+  ],
+  startZone: { latitude: 49.4240, longitude: 20.9585 },
+  finishZone: { latitude: 49.4130, longitude: 20.9575 },
+};
+
+const trailGeoSeeds: LocalTrailGeo[] = [dzidaGeo];
 
 // Helper: make checkpoints from a trail's polyline
 function makeCheckpoints(trailId: string, passed: boolean[]): Checkpoint[] {

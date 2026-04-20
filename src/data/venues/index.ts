@@ -1,15 +1,17 @@
 // ═══════════════════════════════════════════════════════════
-// Venue Registry — registers all known venues at import time
+// Venue Registry — permanently empty at import time
+//
+// The registerVenue API is retained on venueConfig.ts so Sprint 3
+// can hydrate it from the DB (spots.center_lat/lng + trails.geometry).
+// Until then: getAllVenues() returns [], getVenue()/getVenueForTrail()
+// return undefined. Consumers already handle the empty case
+// (useVenueContext short-circuits, home reads DB-sourced spot list).
+//
+// TODO Sprint 3: register venues dynamically from DB instead of
+// hardcoding static configs.
 // ═══════════════════════════════════════════════════════════
 
-import { registerVenue, getVenue, getAllVenues, getVenueTrailGeo, getVenueForTrail } from '../venueConfig';
-import { SLOTWINY_CONFIG } from './slotwiny';
-import { KASINA_CONFIG } from './kasina';
+import { getVenue, getAllVenues, getVenueTrailGeo, getVenueForTrail } from '../venueConfig';
 
-// ── Register all venues ──
-registerVenue(SLOTWINY_CONFIG);
-registerVenue(KASINA_CONFIG);
-
-// ── Re-export for convenience ──
-export { getVenue, getAllVenues, getVenueTrailGeo, getVenueForTrail, SLOTWINY_CONFIG, KASINA_CONFIG };
+export { getVenue, getAllVenues, getVenueTrailGeo, getVenueForTrail };
 export type { VenueConfig, TrailGeo, VenueTrail, TerrainZone, LiftLine, GeoBounds } from '../venueConfig';

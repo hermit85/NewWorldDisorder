@@ -1,4 +1,8 @@
-import { ResultScenario } from '../types';
+// Dev-only fixtures for unit tests + dev playground.
+// NOT imported in production paths — safe to modify freely.
+// These entries are synthetic test inputs, not real seed data.
+
+import { ResultScenario } from '@/data/types';
 
 export const resultScenarios: ResultScenario[] = [
   // 1. Normal run, no PB, no movement

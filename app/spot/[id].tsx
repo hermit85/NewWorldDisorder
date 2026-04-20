@@ -7,15 +7,14 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
-import { getSpot } from '@/data/mock/spots';
-import { getTrailsForSpot } from '@/data/mock/trails';
 import { copy, formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats, useChallenges } from '@/hooks/useBackend';
+import { useUserTrailStats, useChallenges, useSpot, useTrails } from '@/hooks/useBackend';
 import { useVenueContext } from '@/hooks/useVenueContext';
 import { TrailDrawer } from '@/components/map/TrailDrawer';
 import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
+import { EmptyMapPlaceholder } from '@/components/map/EmptyMapPlaceholder';
 import { distanceMeters } from '@/systems/gps';
 import { getVenue } from '@/data/venues';
 
@@ -31,7 +30,9 @@ export default function SpotScreen() {
   const navigation = useNavigation();
   const { profile } = useAuthContext();
   const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
-  const spot = getSpot(id);
+  // Checkpoint A: spot + trails now from DB (mock imports remain for Checkpoint C cleanup)
+  const { spot } = useSpot(id ?? null);
+  const { trails, status: trailsStatus } = useTrails(id ?? null);
   const venue = id ? getVenue(id) : undefined;
   const { challenges } = useChallenges(spot?.id ?? id ?? '', profile?.id);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
@@ -120,7 +121,6 @@ export default function SpotScreen() {
     );
   }
 
-  const trails = getTrailsForSpot(spot.id);
   const selectedTrail = trails.find((t) => t.id === selectedTrailId);
   const selectedStats = selectedTrailId
     ? trailStatsMap.get(selectedTrailId)
@@ -154,37 +154,53 @@ export default function SpotScreen() {
         </View>
       )}
 
-      {/* Full-screen map */}
-      {Platform.OS !== 'web' && ArenaMap && venue ? (
-        <ArenaMap
-          venue={venue}
-          trails={trails}
-          selectedTrailId={selectedTrailId}
-          hotTrailId={venue.trails[venue.trails.length - 1]?.id}
-          challengeTrailId={venue.trails[venue.trails.length - 1]?.id}
-          riderPosition={riderPosition}
-          highlightStart={highlightStart}
-          focusTarget={focusTarget}
-          onTrailSelect={handleTrailSelect}
-          onMapPress={() => {
-            handleMapPress();
-            setFocusTarget(null);
-          }}
-        />
+      {/* Full-screen map — or minimal placeholder when no geometry available.
+          Map components hardcode Słotwiny altitude frame / markers, which
+          leak as ghosts when trails=[] or venue config is missing. Guard
+          unconditionally on both. Stylized placeholder lands in Checkpoint C. */}
+      {trails.length > 0 && venue ? (
+        Platform.OS !== 'web' && ArenaMap ? (
+          <ArenaMap
+            venue={venue}
+            trails={trails}
+            selectedTrailId={selectedTrailId}
+            hotTrailId={venue.trails[venue.trails.length - 1]?.id}
+            challengeTrailId={venue.trails[venue.trails.length - 1]?.id}
+            riderPosition={riderPosition}
+            highlightStart={highlightStart}
+            focusTarget={focusTarget}
+            onTrailSelect={handleTrailSelect}
+            onMapPress={() => {
+              handleMapPress();
+              setFocusTarget(null);
+            }}
+          />
+        ) : (
+          <ArenaMapWeb
+            trails={trails}
+            selectedTrailId={selectedTrailId}
+            hotTrailId={venue?.trails[venue.trails.length - 1]?.id}
+            challengeTrailId={venue?.trails[venue.trails.length - 1]?.id}
+            trailStats={trailStatsMap}
+            onTrailSelect={handleTrailSelect}
+            onMapPress={handleMapPress}
+          />
+        )
       ) : (
-        <ArenaMapWeb
-          trails={trails}
-          selectedTrailId={selectedTrailId}
-          hotTrailId={venue?.trails[venue.trails.length - 1]?.id}
-          challengeTrailId={venue?.trails[venue.trails.length - 1]?.id}
-          trailStats={trailStatsMap}
-          onTrailSelect={handleTrailSelect}
-          onMapPress={handleMapPress}
-        />
+        <EmptyMapPlaceholder />
+      )}
+
+      {/* Empty state — spot has no trails yet (pre-Sprint-3 calibration) */}
+      {!selectedTrail && trails.length === 0 && trailsStatus === 'empty' && (
+        <View style={styles.trailStrip}>
+          <Text style={{ color: colors.textTertiary, ...typography.bodySmall, paddingHorizontal: spacing.lg }}>
+            Brak tras — czekamy na Pioniera
+          </Text>
+        </View>
       )}
 
       {/* Trail list strip at bottom (when no trail selected) */}
-      {!selectedTrail && (
+      {!selectedTrail && trails.length > 0 && (
         <View style={styles.trailStrip}>
           <ScrollView
             horizontal

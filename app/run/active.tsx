@@ -10,9 +10,9 @@ import { useRealRun } from '@/systems/useRealRun';
 import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { getVenueForTrail } from '@/data/venues';
-import { DEFAULT_SPOT_ID } from '@/constants';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
+import { useTrail } from '@/hooks/useBackend';
 
 export default function ActiveRunScreen() {
   const { trailId = '', trailName = 'Unknown Trail' } =
@@ -24,12 +24,17 @@ export default function ActiveRunScreen() {
 
   const { profile, isAuthenticated } = useAuthContext();
 
-  // Resolve venue for this trail
+  // Resolve venue for this trail. getVenueForTrail still exists but
+  // the registry is empty after Checkpoint B — so venueMatch is null
+  // in the common case. We fall back to DB for the parent spot id.
   const venueMatch = getVenueForTrail(trailId);
-  const spotId = venueMatch?.venueId ?? DEFAULT_SPOT_ID;
+  const { trail: dbTrail } = useTrail(trailId || null);
+  const spotId = venueMatch?.venueId ?? dbTrail?.spotId ?? '';
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
 
-  // Find trail geo from resolved venue
+  // Find trail geo from resolved venue. Until Sprint 3 trail.geometry
+  // population lands, geo stays null for DB-sourced trails and the gate
+  // engine runs with no corridor (every run finalises as 'unverified').
   const geo = (() => {
     if (venueMatch) {
       return venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null;
@@ -45,7 +50,7 @@ export default function ActiveRunScreen() {
     finishRun,
     cancel,
     gateEngine,
-  } = useRealRun(trailId, trailName, geo, profile?.id);
+  } = useRealRun(trailId, trailName, spotId, geo, profile?.id);
 
   // ── Background detection: warn rider if GPS may have gaps ──
   const [bgWarning, setBgWarning] = useState(false);

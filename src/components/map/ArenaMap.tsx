@@ -20,12 +20,24 @@ import {
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
 import { Trail } from '@/data/types';
-import {
-  trailGeoSeeds, SLOTWINY_REGION, SLOTWINY_CENTER, LIFT_LINE,
-  TrailGeoSeed, terrainZones,
-} from '@/data/seed/slotwinyMap';
-import { slotwinyTrails } from '@/data/seed/slotwinyOfficial';
+import { TrailGeoSeed } from '@/data/venueConfig';
 import { TrailMarkers } from './TrailMarkers';
+
+// Checkpoint C: hardcoded Słotwiny geometry removed. This component
+// is currently only reachable if a venue config resolves in the parent
+// screen, which never happens post-seed-wipe. Until Sprint 3 rewires
+// it to take geometry via props, stub out the former module-level
+// constants as empty placeholders so the file still type-checks.
+// TODO Sprint 3: accept geometry/region/lifts via props from caller.
+const trailGeoSeeds: TrailGeoSeed[] = [];
+const slotwinyTrails: any[] = [];
+const SLOTWINY_REGION = { latitude: 49.42, longitude: 20.95, latitudeDelta: 0.02, longitudeDelta: 0.02 };
+const SLOTWINY_CENTER = { latitude: 49.42, longitude: 20.95 };
+const LIFT_LINE = {
+  bottom: { latitude: 49.41, longitude: 20.95 },
+  top: { latitude: 49.43, longitude: 20.95 },
+};
+const terrainZones: Array<{ id: string; polygon: { latitude: number; longitude: number }[]; colorKey: keyof typeof terrainColors; type: keyof typeof terrainColors }> = [];
 
 // ── IN-MAP FOG SYSTEM ──
 // Large polygons rendered INSIDE MapView — they sit UNDER Polylines/Markers.

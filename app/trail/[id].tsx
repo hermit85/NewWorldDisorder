@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { getTrail } from '@/data/mock/trails';
+import { useTrail } from '@/hooks/useBackend';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { Difficulty, PeriodType } from '@/data/types';
@@ -32,7 +32,7 @@ export default function TrailDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { profile, isAuthenticated } = useAuthContext();
-  const trail = getTrail(id);
+  const { trail } = useTrail(id ?? null);
   const venueMatch = id ? getVenueForTrail(id) : undefined;
   const venueName = venueMatch?.venue.name;
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;

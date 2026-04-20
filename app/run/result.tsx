@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { getTrailById } from '@/data/seed/slotwinyOfficial';
+import { useTrail } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
@@ -179,6 +179,13 @@ export default function ResultScreen() {
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
+  // Checkpoint A: prefer runStore.trailName (K4), fall back to DB fetch
+  // when it is missing (cold start after app restart). Hook must be
+  // called unconditionally so we pass null when trailName already exists.
+  const { trail: fetchedTrail } = useTrail(
+    run?.trailId && !run?.trailName ? run.trailId : null,
+  );
+
   const { profile: currentProfile } = useProfile(authProfile?.id);
 
   const { impact: scopedImpact } = useResultImpact(
@@ -274,8 +281,7 @@ export default function ResultScreen() {
   // DERIVE DISPLAY STATE
   // ═══════════════════════════════════════════════════════════
 
-  const trail = getTrailById(run.trailId);
-  const trailName = run.trailName || trail?.officialName || 'Unknown Trail';
+  const trailName = run.trailName || fetchedTrail?.name || 'Unknown Trail';
   const v = run.verification;
   const vStatus = v?.status ?? 'pending';
   const sd = STATUS_DISPLAY[vStatus] ?? STATUS_DISPLAY.pending;

@@ -27,6 +27,9 @@ export interface TraceSnapshot {
 export interface FinalizedRun {
   sessionId: string;
   trailId: string;
+  /** Parent spot id — threaded from the screen that starts the run so
+   *  runSubmit does not need a DB lookup or stale DEFAULT_SPOT_ID fallback. */
+  spotId: string;
   trailName: string;
   mode: RunMode;
   durationMs: number;

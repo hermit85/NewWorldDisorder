@@ -25,7 +25,7 @@ import {
   RouteDeviation,
   GpsReadiness,
 } from '@/data/verificationTypes';
-import { TrailGeoSeed } from '@/data/seed/slotwinyMap';
+import { TrailGeoSeed } from '@/data/venueConfig';
 
 // ── Thresholds ──
 

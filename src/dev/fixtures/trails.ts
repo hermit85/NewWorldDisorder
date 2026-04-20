@@ -1,0 +1,54 @@
+// Dev-only fixtures for unit tests + dev playground.
+// NOT imported in production paths — safe to modify freely.
+// These entries are synthetic test inputs, not real seed data.
+
+import { Trail } from '@/data/types';
+
+export const mockTrails: Trail[] = [
+  {
+    id: 'galgan-niebieska',
+    spotId: 'slotwiny-arena',
+    name: 'Gałgan Niebieska',
+    slug: 'galgan-niebieska',
+    description: 'Flow blue, machine-built with tables + berms.',
+    difficulty: 'easy',
+    trailType: 'flow',
+    distanceM: 2700,
+    elevationDropM: 203,
+    isOfficial: true,
+    isActive: true,
+    sortOrder: 1,
+  },
+  {
+    id: 'dzida-czerwona',
+    spotId: 'slotwiny-arena',
+    name: 'Dzida Czerwona',
+    slug: 'dzida-czerwona',
+    description: 'Short, steep, technical red line.',
+    difficulty: 'hard',
+    trailType: 'tech',
+    distanceM: 1500,
+    elevationDropM: 180,
+    isOfficial: true,
+    isActive: true,
+    sortOrder: 4,
+  },
+  {
+    id: 'kasina-black-dh-cup',
+    spotId: 'kasina-bike-park',
+    name: 'DH Cup',
+    slug: 'kasina-black-dh-cup',
+    description: 'World Cup–style downhill line.',
+    difficulty: 'expert',
+    trailType: 'downhill',
+    distanceM: 1700,
+    elevationDropM: 380,
+    isOfficial: true,
+    isActive: true,
+    sortOrder: 4,
+  },
+];
+
+export const getTrail = (id: string) => mockTrails.find((t) => t.id === id);
+export const getTrailsForSpot = (spotId: string) =>
+  mockTrails.filter((t) => t.spotId === spotId);
