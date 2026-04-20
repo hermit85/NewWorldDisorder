@@ -20,6 +20,7 @@ export interface Database {
           total_pbs: number;
           best_position: number | null;
           favorite_trail_id: string | null;
+          role: 'rider' | 'curator' | 'moderator';
           created_at: string;
           updated_at: string;
         };
@@ -61,6 +62,13 @@ export interface Database {
           is_official: boolean;
           is_active: boolean;
           season_label: string;
+          status: 'pending' | 'active' | 'rejected';
+          submitted_by: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
+          rejection_reason: string | null;
+          center_lat: number | null;
+          center_lng: number | null;
           created_at: string;
         };
         Insert: {
@@ -277,6 +285,18 @@ export interface Database {
           p_duration_ms: number;
           p_run_id: string;
         };
+        Returns: Json;
+      };
+      submit_spot: {
+        Args: { p_name: string; p_lat: number; p_lng: number };
+        Returns: Json;
+      };
+      approve_spot: {
+        Args: { p_spot_id: string };
+        Returns: Json;
+      };
+      reject_spot: {
+        Args: { p_spot_id: string; p_reason: string };
         Returns: Json;
       };
     };
