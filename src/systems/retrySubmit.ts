@@ -39,14 +39,16 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
   const snapshot = run.traceSnapshot;
   const verification = run.verification;
 
-  // Guard: all required data present
-  if (!snapshot || !verification || !userId || userId.length === 0) {
+  // Guard: all required data present — spotId must be threaded from
+  // when the run was originally finalized; retry never guesses.
+  if (!snapshot || !verification || !userId || userId.length === 0 || !run.spotId) {
     logDebugEvent('save', 'retry_skip_no_data', 'info', {
       runSessionId: run.sessionId,
       payload: {
         hasTrace: !!snapshot,
         hasVerification: !!verification,
         hasUserId: !!userId,
+        hasSpotId: !!run.spotId,
       },
     });
     return { success: false, result: null, error: 'Missing data for retry' };
@@ -83,11 +85,9 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       previousPosition: null,
     });
 
-    const resolvedSpotId = getVenueForTrail(run.trailId)?.venueId ?? DEFAULT_SPOT_ID;
-
     const result = await submitRunToBackend({
       userId,
-      spotId: resolvedSpotId,
+      spotId: run.spotId,
       trailId: run.trailId,
       mode: run.mode,
       startedAt: run.startedAt,

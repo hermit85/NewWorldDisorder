@@ -12,7 +12,20 @@
 
 import { TrailGateConfig, GateDefinition } from './types';
 import { computeHeading } from './geometry';
-import { trailGeoSeeds } from '@/data/seed/slotwinyMap';
+
+// Checkpoint B: seed-backed corridor source is gone. Gate engine runs
+// with an empty corridor set until Sprint 3 populates trail.geometry and
+// this module is rewired to pull from DB per-trail.
+// TODO Sprint 3: rehydrate gate corridors from trail.geometry
+// Consequence today: ranked runs cannot be verified → every run finalises
+// as 'unverified' / counted_in_leaderboard=false. Accepted tradeoff while
+// we wait on pioneer calibration.
+const trailGeoSeeds: Array<{
+  trailId: string;
+  polyline: { latitude: number; longitude: number }[];
+  startZone: { latitude: number; longitude: number };
+  finishZone: { latitude: number; longitude: number };
+}> = [];
 
 // ── Default gate parameters ──
 

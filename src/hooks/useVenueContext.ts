@@ -10,6 +10,7 @@ import { AppState } from 'react-native';
 import { getCurrentPosition, checkLocationPermission } from '@/systems/gps';
 import { getVenueContext, VenueContext } from '@/systems/venueDetection';
 import { logDebugEvent } from '@/systems/debugEvents';
+import { getAllVenues } from '@/data/venues';
 import {
   isTestMode,
   getSimulatedPosition,
@@ -50,6 +51,17 @@ export function useVenueContext(enabled: boolean = true): VenueContextState {
 
   useEffect(() => {
     if (!enabled) {
+      setState({ status: 'no_location', context: null, riderPosition: null, lastUpdate: 0 });
+      return;
+    }
+
+    // Checkpoint B interim: the venue registry is empty after the
+    // seed removal. Without venues there is nothing to geofence against
+    // and nothing to detect start zones on, so we short-circuit the
+    // polling loop — saves GPS wake-ups and battery.
+    // TODO Sprint 3: restore venue/start-zone detection from DB geometry
+    // (spots.center_lat/lng + trails.geometry once calibration populates it).
+    if (getAllVenues().length === 0) {
       setState({ status: 'no_location', context: null, riderPosition: null, lastUpdate: 0 });
       return;
     }
