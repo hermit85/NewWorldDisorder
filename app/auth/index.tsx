@@ -363,7 +363,16 @@ const styles = StyleSheet.create({
   formDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.md },
   label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.xxs },
   input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, ...typography.input },
-  codeInput: { textAlign: 'center', fontSize: 22, fontFamily: 'Rajdhani_700Bold', letterSpacing: 6 },
+  // OTP digits in Rajdhani at letterSpacing 6 render "7" as a near-slash —
+  // unreadable. Use Inter_700Bold + tabular-nums for normal digit shapes
+  // and crisp alignment; modest letterSpacing keeps the code-field feel.
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 4,
+    fontVariant: ['tabular-nums'] as any,
+  },
   error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
   ctaDisabled: { opacity: 0.5 },

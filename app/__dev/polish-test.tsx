@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getLoadedFonts, isLoaded } from 'expo-font';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -21,10 +22,25 @@ import { hudColors, hudTypography } from '@/theme/gameHud';
 const POLISH_CHARS = 'ąćęłńóśźż ĄĆĘŁŃÓŚŹŻ';
 const SAMPLE_SENTENCE = 'Gałgan Niebieska — ząb, źdźbło, ćma, łódź, żółw, ślimak.';
 const SAMPLE_UPPER = 'ZAKOŃCZ · KALIBRACJĘ · ODRZUĆ · PIERWSZĄ · DOŁĄCZ';
+const REQUIRED_FONTS = [
+  'Inter_400Regular',
+  'Inter_500Medium',
+  'Inter_600SemiBold',
+  'Inter_700Bold',
+  'Rajdhani_400Regular',
+  'Rajdhani_500Medium',
+  'Rajdhani_600SemiBold',
+  'Rajdhani_700Bold',
+] as const;
 
 export default function PolishTestScreen() {
   const router = useRouter();
   const [input, setInput] = useState('Gałgan');
+  const loadedFonts = getLoadedFonts().filter((fontName) =>
+    REQUIRED_FONTS.includes(fontName as (typeof REQUIRED_FONTS)[number]),
+  );
+  const missingFonts = REQUIRED_FONTS.filter((fontName) => !isLoaded(fontName));
+  const hasMissingFonts = missingFonts.length > 0;
 
   if (!__DEV__) return null;
 
@@ -41,6 +57,17 @@ export default function PolishTestScreen() {
           znaki. Jeśli któryś renderuje „¬" albo puste kwadraty —{'\n'}
           ten font nie ma pokrycia Latin Extended.
         </Text>
+
+        <Section label="Font load assertion">
+          <Text style={[styles.assertion, hasMissingFonts ? styles.assertionBad : styles.assertionGood]}>
+            {hasMissingFonts
+              ? `FAIL — missing: ${missingFonts.join(', ')}`
+              : 'PASS — all Inter + Rajdhani weights are loaded'}
+          </Text>
+          <Text style={styles.loadedFonts}>
+            loaded: {loadedFonts.join(', ')}
+          </Text>
+        </Section>
 
         {/* Live TextInput — the original bug source */}
         <Section label="TextInput (typography.input)">
@@ -63,8 +90,8 @@ export default function PolishTestScreen() {
         <SectionHeader>typography.*</SectionHeader>
 
         <Sample name="timeHero (Rajdhani 700)" style={typography.timeHero}>{POLISH_CHARS}</Sample>
-        <Sample name="h1 (Rajdhani 700)"       style={typography.h1}>{SAMPLE_UPPER}</Sample>
-        <Sample name="h2 (Rajdhani 700)"       style={typography.h2}>{SAMPLE_UPPER}</Sample>
+        <Sample name="h1 (Inter 700)"          style={typography.h1}>{SAMPLE_UPPER}</Sample>
+        <Sample name="h2 (Inter 700)"          style={typography.h2}>{SAMPLE_UPPER}</Sample>
         <Sample name="h3 (Inter 600)"          style={typography.h3}>{SAMPLE_SENTENCE}</Sample>
         <Sample name="body (Inter 400)"        style={typography.body}>{SAMPLE_SENTENCE}</Sample>
         <Sample name="bodySmall (Inter)"       style={typography.bodySmall}>{SAMPLE_SENTENCE}</Sample>
@@ -174,6 +201,22 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     color: colors.textTertiary,
     marginTop: spacing.sm,
+  },
+  assertion: {
+    ...typography.bodySmall,
+    marginBottom: spacing.xs,
+  },
+  assertionGood: {
+    color: colors.accent,
+  },
+  assertionBad: {
+    color: colors.red,
+  },
+  loadedFonts: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
   codepoints: {
     fontFamily: 'Inter_400Regular',
