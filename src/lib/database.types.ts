@@ -321,6 +321,14 @@ export interface Database {
         };
         Returns: Json;
       };
+      delete_spot_cascade: {
+        Args: { p_spot_id: string };
+        Returns: Json;
+      };
+      delete_trail_cascade: {
+        Args: { p_trail_id: string };
+        Returns: Json;
+      };
     };
   };
 }

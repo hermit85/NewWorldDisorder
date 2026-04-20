@@ -49,6 +49,11 @@ export interface Trail {
   isOfficial: boolean;
   isActive: boolean;
   sortOrder: number;
+  /** Pioneer flow state: 'draft' = awaiting first run,
+   *  'calibrating' = pioneer locked, 'verified' = leaderboard open. */
+  calibrationStatus: 'draft' | 'calibrating' | 'verified' | 'locked';
+  /** True when `trails.geometry` is null (no pioneer run yet). */
+  geometryMissing: boolean;
 }
 
 // ── Run ──

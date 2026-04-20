@@ -3,14 +3,14 @@
 // Board-first: pokaż pozycję, rywala, cel
 // ═══════════════════════════════════════════════════════════
 
-import { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { useTrail } from '@/hooks/useBackend';
+import { useTrail, useSpot, useDeleteTrail } from '@/hooks/useBackend';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { Difficulty, PeriodType } from '@/data/types';
@@ -33,9 +33,12 @@ export default function TrailDetailScreen() {
   const navigation = useNavigation();
   const { profile, isAuthenticated } = useAuthContext();
   const { trail } = useTrail(id ?? null);
+  const { spot } = useSpot(trail?.spotId ?? null);
   const venueMatch = id ? getVenueForTrail(id) : undefined;
-  const venueName = venueMatch?.venue.name;
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
+  const spotName = spot?.name ?? venueMatch?.venue.name;
+  const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
+  const { submit: deleteTrail } = useDeleteTrail();
 
   const [boardScope, setBoardScope] = useState<PeriodType>('all_time');
   const { entries: leaderboard, loading: lbLoading } = useLeaderboard(id ?? '', boardScope, profile?.id);
@@ -46,10 +49,97 @@ export default function TrailDetailScreen() {
     else router.replace('/');
   };
 
+  const goToSpot = useCallback(() => {
+    if (!trail?.spotId) return;
+    tapLight();
+    router.push(`/spot/${trail.spotId}`);
+  }, [trail?.spotId, router]);
+
+  const handleDeleteTrail = useCallback(() => {
+    if (!trail) return;
+    Alert.alert(
+      `Usunąć trasę ${trail.name}?`,
+      'Trasa zostanie usunięta razem ze wszystkimi czasami.',
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Usuń',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteTrail(trail.id);
+            if (result.ok) {
+              goBack();
+            } else {
+              Alert.alert('Nie udało się', result.message ?? 'Spróbuj ponownie');
+            }
+          },
+        },
+      ],
+    );
+  }, [trail, deleteTrail]);
+
   if (!trail) {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>Trasa nie znaleziona</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Draft trail — the only valid action is to start the pioneer
+  // recording. Leaderboard is empty by definition, race CTAs are
+  // meaningless until someone carves the geometry.
+  if (trail.calibrationStatus === 'draft' && trail.geometryMissing) {
+    const startRecording = () => {
+      if (!isAuthenticated) {
+        tapLight();
+        router.push('/auth');
+        return;
+      }
+      tapMedium();
+      router.push(`/run/recording?trailId=${trail.id}&spotId=${trail.spotId}`);
+    };
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <Pressable onPress={goBack} style={styles.backBtn}>
+            <Text style={styles.backText}>← WRÓĆ</Text>
+          </Pressable>
+
+          {spotName && (
+            <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
+              <Text style={styles.breadcrumbLabel}>W OŚRODKU:</Text>
+              <Text style={styles.breadcrumbName}>{spotName}</Text>
+              <Text style={styles.breadcrumbArrow}>→</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.hero}>
+            <Text style={styles.trailKicker}>⟣ TRASA</Text>
+            <Text style={[styles.trailName, { marginTop: spacing.xs }]}>{trail.name}</Text>
+            <Text style={draftStyles.eyebrow}>● DRAFT · CZEKA NA PIONIERA</Text>
+          </View>
+
+          <Pressable
+            onPress={startRecording}
+            style={({ pressed }) => [
+              draftStyles.cta,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            <Text style={draftStyles.ctaDot}>●</Text>
+            <Text style={draftStyles.ctaLabel}>ROZPOCZNIJ NAGRYWANIE</Text>
+            <Text style={draftStyles.ctaSub}>
+              Twój pierwszy zjazd wyznaczy linię dla wszystkich
+            </Text>
+          </Pressable>
+
+          {isCurator && (
+            <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.curatorDelete}>
+              <Text style={styles.curatorDeleteLabel}>Usuń tę trasę</Text>
+            </Pressable>
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -92,10 +182,20 @@ export default function TrailDetailScreen() {
           <Text style={styles.backText}>← WRÓĆ</Text>
         </Pressable>
 
+        {/* ═══ BREADCRUMB ═══ */}
+        {spotName && (
+          <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
+            <Text style={styles.breadcrumbLabel}>W OŚRODKU:</Text>
+            <Text style={styles.breadcrumbName}>{spotName}</Text>
+            <Text style={styles.breadcrumbArrow}>→</Text>
+          </Pressable>
+        )}
+
         {/* ═══ TRAIL HERO ═══ */}
         <View style={styles.hero}>
-          <Text style={styles.venueLabel}>{(venueName ?? 'ARENA').toUpperCase()}</Text>
-          <View style={styles.badges}>
+          <Text style={styles.trailKicker}>⟣ TRASA</Text>
+          <Text style={[styles.trailName, { marginTop: spacing.xs }]}>{trail.name}</Text>
+          <View style={[styles.badges, { marginTop: spacing.md }]}>
             <View style={[styles.badge, { borderColor: diffColor }]}>
               <Text style={[styles.badgeText, { color: diffColor }]}>{trail.difficulty.toUpperCase()}</Text>
             </View>
@@ -103,8 +203,6 @@ export default function TrailDetailScreen() {
               <Text style={styles.badgeText}>{trail.trailType.toUpperCase()}</Text>
             </View>
           </View>
-          <Text style={styles.trailName}>{trail.name}</Text>
-          {venueName && <Text style={styles.venueSub}>{venueName}</Text>}
           {isTrainingOnly && <Text style={styles.trainingTag}>WALIDACJA TRENINGOWA</Text>}
           <View style={styles.trailMeta}>
             <Text style={styles.metaText}>{trail.distanceM}m</Text>
@@ -264,8 +362,41 @@ const styles = StyleSheet.create({
   backBtn: { marginBottom: spacing.lg },
   backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
 
+  // Breadcrumb (B2 — tappable parent link)
+  breadcrumbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.md,
+    alignSelf: 'flex-start',
+    paddingVertical: 2,
+  },
+  breadcrumbLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 10,
+    letterSpacing: 2,
+    color: 'rgba(232, 255, 240, 0.45)',
+  },
+  breadcrumbName: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    color: '#00FF8C',
+    letterSpacing: 0.5,
+  },
+  breadcrumbArrow: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 12,
+    color: '#00FF8C',
+  },
+
   // Hero
   hero: { marginBottom: spacing.xl },
+  trailKicker: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: '#00FF8C',
+  },
   venueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginBottom: spacing.md, fontSize: 9 },
   badges: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   badge: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
@@ -323,4 +454,66 @@ const styles = StyleSheet.create({
   rankedBtnText: { fontFamily: 'Orbitron_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
   practiceBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
   practiceBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
+
+  // Curator delete link (draft trails only)
+  curatorDelete: {
+    marginTop: spacing.xxl,
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+  },
+  curatorDeleteLabel: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    color: 'rgba(255, 67, 101, 0.70)',
+    textDecorationLine: 'underline',
+    letterSpacing: 0.5,
+  },
+});
+
+// ── Draft-trail pioneer CTA styles ──
+
+const draftStyles = StyleSheet.create({
+  eyebrow: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: '#00FF8C',
+    marginTop: spacing.md,
+  },
+  cta: {
+    marginTop: spacing.xxl,
+    marginHorizontal: spacing.lg,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radii.xl,
+    backgroundColor: 'rgba(20, 35, 26, 0.95)',
+    borderWidth: 2,
+    borderColor: '#00FF8C',
+    alignItems: 'center',
+    shadowColor: '#00FF8C',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  ctaDot: {
+    color: '#FF4365',
+    fontSize: 18,
+    marginBottom: spacing.sm,
+  },
+  ctaLabel: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 20,
+    letterSpacing: 4,
+    color: '#00FF8C',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  ctaSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: 'rgba(232, 255, 240, 0.55)',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
 });

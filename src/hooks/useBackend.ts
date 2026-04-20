@@ -664,3 +664,26 @@ export function useCreateTrail() {
 
   return { submit };
 }
+
+/**
+ * Curator cleanup — delete a spot and all its trails/runs/leaderboards
+ * (migration 009 cascade). Server-side gated by profiles.role; the hook
+ * does not pre-check — we trust the RPC and surface its error codes.
+ */
+export function useDeleteSpot() {
+  const submit = useCallback(async (spotId: string) => {
+    const result = await api.deleteSpot(spotId);
+    if (result.ok) triggerRefresh();
+    return result;
+  }, []);
+  return { submit };
+}
+
+export function useDeleteTrail() {
+  const submit = useCallback(async (trailId: string) => {
+    const result = await api.deleteTrail(trailId);
+    if (result.ok) triggerRefresh();
+    return result;
+  }, []);
+  return { submit };
+}
