@@ -36,6 +36,17 @@ export const hudColors = {
 
   // Text
   textMuted: 'rgba(232, 255, 240, 0.55)',
+
+  // Sprint 4 — Trust badges (ADR-012)
+  // Semantic aliases so TrustBadge doesn't piggy-back on GPS colors.
+  // If the palette shifts later only these tokens move.
+  trustVerified:           '#00FF8C',   // any seed + verified
+  trustCuratorProvisional: '#FFD93D',   // curator seed, not yet confirmed
+  trustRiderProvisional:   '#4AA5FF',   // rider seed, not yet confirmed
+  trustDisputed:           '#FF4365',   // disputed — leaderboard frozen
+
+  // Pioneer mark (lightning bolt identity, independent of trust tier)
+  pioneerMark: '#00FF8C',
 } as const;
 
 // ADR-011: display font is Rajdhani (was Orbitron). Orbitron's

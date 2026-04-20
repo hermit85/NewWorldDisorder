@@ -823,7 +823,7 @@ function mapSpot(row: DbSpot): Spot {
   };
 }
 
-function mapTrail(row: DbTrail): Trail {
+function mapTrail(row: DbTrail, pioneerUsername: string | null = null): Trail {
   return {
     id: row.id,
     spotId: row.spot_id,
@@ -839,6 +839,13 @@ function mapTrail(row: DbTrail): Trail {
     sortOrder: row.sort_order,
     calibrationStatus: row.calibration_status,
     geometryMissing: row.geometry === null,
+    // Sprint 4 (mig 011) — trust + pioneer
+    seedSource:       row.seed_source,
+    trustTier:        row.trust_tier,
+    currentVersionId: row.current_version_id,
+    pioneerUserId:    row.pioneer_user_id,
+    pioneerUsername,
+    pioneeredAt:      row.pioneered_at,
   };
 }
 
@@ -872,18 +879,25 @@ export async function fetchTrails(spotId: string): Promise<ApiResult<Trail[]>> {
     .eq('is_race_trail', true)
     .order('sort_order');
   if (error) return { ok: false, code: 'fetch_failed', message: error.message };
-  return { ok: true, data: (data ?? []).map(mapTrail) };
+  // Explicit arrow: mapTrail now takes an optional second arg; passing
+  // it naked to .map() tries to bind `index: number` to `pioneerUsername: string | null`.
+  return { ok: true, data: (data ?? []).map((row) => mapTrail(row)) };
 }
 
 export async function fetchTrail(id: string): Promise<ApiResult<Trail>> {
+  // Join pioneer profile for the display username — second round-trip
+  // would be cheap but one query is cleaner. `pioneer:profiles!...`
+  // syntax tells PostgREST to use the pioneer_user_id FK.
   const { data, error } = await db()
     .from('trails')
-    .select('*')
+    .select('*, pioneer:profiles!trails_pioneer_user_id_fkey(username)')
     .eq('id', id)
     .maybeSingle();
   if (error) return { ok: false, code: 'fetch_failed', message: error.message };
   if (!data) return { ok: false, code: 'not_found' };
-  return { ok: true, data: mapTrail(data) };
+  const pioneerUsername =
+    (data as { pioneer: { username: string } | null }).pioneer?.username ?? null;
+  return { ok: true, data: mapTrail(data as DbTrail, pioneerUsername) };
 }
 
 // ═══════════════════════════════════════════════════════════
