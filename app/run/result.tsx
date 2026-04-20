@@ -8,14 +8,17 @@
 // Clean, premium, emotional — official race result.
 // ═══════════════════════════════════════════════════════════
 
-import { useState, useEffect, useReducer } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useReducer, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Easing } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { useTrail } from '@/hooks/useBackend';
+import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
@@ -168,7 +171,27 @@ const chipStyles = StyleSheet.create({
 // MAIN SCREEN
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// Route entry — branches on isPioneer.
+// Pioneer finalize (Sprint 3 Chunk 5) arrives with runId+isPioneer=true
+// and no runSessionId — that path never went through runStore, so the
+// standard body below has nothing to read. A route-level branch avoids
+// rules-of-hooks violations from an in-body early return.
+// ═══════════════════════════════════════════════════════════
+
 export default function ResultScreen() {
+  const params = useLocalSearchParams<{
+    runSessionId?: string;
+    runId?: string;
+    isPioneer?: string;
+  }>();
+  if (params.isPioneer === 'true' && params.runId) {
+    return <PioneerResultScreen runId={params.runId} />;
+  }
+  return <StandardResultScreen />;
+}
+
+function StandardResultScreen() {
   const { runSessionId } = useLocalSearchParams<{ runSessionId: string }>();
   const router = useRouter();
   const { profile: authProfile } = useAuthContext();
@@ -620,6 +643,205 @@ export default function ResultScreen() {
     </SafeAreaView>
   );
 }
+
+// ═══════════════════════════════════════════════════════════
+// PIONEER RESULT SCREEN
+// Distinct celebration for the first-ever run on a trail.
+// DB is the source of truth (no runStore); we fetch run + trail + spot
+// and render a Crown hero + stats + "WRÓĆ DO TRASY" CTA.
+// ═══════════════════════════════════════════════════════════
+
+const TERRAIN_GRADIENT: readonly [string, string, string] = [
+  hudColors.terrainHigh,
+  hudColors.terrainMid,
+  hudColors.terrainDark,
+];
+
+/** Simple crown path — five peaks, flat base. Drawn in a 40×28 viewBox. */
+const CROWN_PATH = 'M2 22 L8 8 L14 18 L20 4 L26 18 L32 8 L38 22 L38 26 L2 26 Z';
+
+function PioneerResultScreen({ runId }: { runId: string }) {
+  const router = useRouter();
+  const { run } = useRun(runId);
+  const { trail } = useTrail(run?.trail_id ?? null);
+  const { spot } = useSpot(trail?.spotId ?? null);
+
+  const pulseAnim = useRef(new Animated.Value(0.7)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.7, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  const goToTrail = () => {
+    tapLight();
+    if (trail?.id) router.replace(`/trail/${trail.id}`);
+    else router.replace('/');
+  };
+
+  if (!run) {
+    return (
+      <View style={pioneerStyles.root}>
+        <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
+        <SafeAreaView style={pioneerStyles.safe}>
+          <View style={pioneerStyles.centered}>
+            <ActivityIndicator color={hudColors.gpsStrong} />
+            <Text style={pioneerStyles.loadingLabel}>WCZYTUJĘ ZJAZD…</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const durationMs = run.duration_ms ?? 0;
+  const trailName = trail?.name ?? 'TRASA';
+  const spotName = spot?.name;
+
+  return (
+    <View style={pioneerStyles.root}>
+      <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
+      <SafeAreaView style={pioneerStyles.safe} edges={['top', 'bottom']}>
+        <View style={pioneerStyles.hero}>
+          <Animated.View style={[pioneerStyles.crownWrap, { opacity: pulseAnim }, hudShadows.glowGreen]}>
+            <Svg width={72} height={50} viewBox="0 0 40 28">
+              <Path d={CROWN_PATH} fill={hudColors.gpsStrong} />
+            </Svg>
+          </Animated.View>
+
+          <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
+          <Text style={pioneerStyles.heroSubtitle}>
+            Ta trasa zostanie pamiętana jako twoja kalibracja
+          </Text>
+
+          <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
+          <Text style={pioneerStyles.rankLabel}>#1 WSZECH CZASÓW</Text>
+        </View>
+
+        <View style={pioneerStyles.statsBlock}>
+          <Text style={pioneerStyles.trailName}>{trailName}</Text>
+          {spotName && <Text style={pioneerStyles.spotName}>{spotName.toUpperCase()}</Text>}
+        </View>
+
+        <View style={pioneerStyles.footer}>
+          <Pressable
+            onPress={goToTrail}
+            style={({ pressed }) => [
+              pioneerStyles.cta,
+              hudShadows.glowGreen,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            <Text style={pioneerStyles.ctaLabel}>WRÓĆ DO TRASY</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const pioneerStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: hudColors.terrainDark },
+  safe: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  loadingLabel: {
+    ...hudTypography.label,
+    color: hudColors.gpsStrong,
+    letterSpacing: 4,
+  },
+  hero: {
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  crownWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  heroTitle: {
+    ...hudTypography.displayLarge,
+    fontSize: 36,
+    color: hudColors.gpsStrong,
+    letterSpacing: 4,
+    textAlign: 'center',
+    textShadowColor: hudColors.gpsStrong,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+    marginBottom: spacing.sm,
+  },
+  heroSubtitle: {
+    ...hudTypography.label,
+    color: hudColors.textMuted,
+    fontSize: 11,
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    maxWidth: 320,
+  },
+  heroTime: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 48,
+    color: hudColors.timerPrimary,
+    letterSpacing: 2,
+    fontVariant: ['tabular-nums'] as any,
+    textShadowColor: hudColors.gpsStrong,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
+    marginBottom: spacing.xs,
+  },
+  rankLabel: {
+    ...hudTypography.label,
+    fontSize: 12,
+    color: hudColors.gpsStrong,
+    letterSpacing: 4,
+  },
+  statsBlock: {
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  trailName: {
+    fontFamily: 'Orbitron_700Bold',
+    fontSize: 22,
+    color: hudColors.timerPrimary,
+    letterSpacing: 2,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  spotName: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 3,
+  },
+  footer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  cta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.lg,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaLabel: {
+    ...hudTypography.action,
+    fontSize: 16,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+});
 
 // ═══════════════════════════════════════════════════════════
 // STYLES

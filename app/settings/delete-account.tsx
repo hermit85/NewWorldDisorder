@@ -38,12 +38,12 @@ export default function DeleteAccountScreen() {
     if (!canConfirm || loading) return;
 
     Alert.alert(
-      'Usunąć konto na zawsze?',
-      'Tej operacji nie da się cofnąć. Twój profil, zjazdy, rekordy, pozycje w rankingu i zdjęcie profilowe zostaną trwale usunięte.',
+      'Usunąć konto?',
+      'Twoje konto, profil i PB zostaną trwale usunięte. Twoje trasy i czasy zostaną zachowane anonimowo jako część publicznej historii tras — dzięki temu kalibracje kolejnych riderów pozostają spójne.\n\nNie możesz tego cofnąć.',
       [
         { text: 'Anuluj', style: 'cancel' },
         {
-          text: 'Usuń konto',
+          text: 'USUŃ KONTO NA ZAWSZE',
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -115,12 +115,20 @@ export default function DeleteAccountScreen() {
 
         <View style={styles.warnCard}>
           <Text style={styles.warnTitle}>CO ZOSTANIE USUNIĘTE</Text>
-          <WarnRow text="Twój profil i rider tag" />
-          <WarnRow text="Historia wszystkich zjazdów i zapis GPS" />
+          <WarnRow text="Twój profil, rider tag i zdjęcie" />
           <WarnRow text="Rekordy osobiste (PB) i pozycje w rankingach" />
           <WarnRow text="Osiągnięcia, XP i ranga" />
-          <WarnRow text="Zdjęcie profilowe" />
           <WarnRow text="Dostęp do konta powiązanego z tym e-mailem" />
+        </View>
+
+        <View style={[styles.warnCard, styles.keepCard]}>
+          <Text style={[styles.warnTitle, styles.keepTitle]}>CO ZOSTANIE ZACHOWANE ANONIMOWO</Text>
+          <WarnRow text="Trasy które utworzyłeś jako pierwszy Pionier" dotColor={colors.accent} />
+          <WarnRow text="Czasy zjazdów (bez powiązania z Tobą)" dotColor={colors.accent} />
+          <Text style={styles.keepNote}>
+            Dzięki temu kalibracje kolejnych riderów pozostają spójne.{'\n'}
+            (GDPR compliance — pioneer_user_id → NULL)
+          </Text>
         </View>
 
         <Text style={styles.note}>
@@ -149,7 +157,7 @@ export default function DeleteAccountScreen() {
           {loading ? (
             <ActivityIndicator color={colors.textPrimary} />
           ) : (
-            <Text style={styles.deleteBtnText}>USUŃ MOJE KONTO</Text>
+            <Text style={styles.deleteBtnText}>USUŃ KONTO NA ZAWSZE</Text>
           )}
         </Pressable>
 
@@ -172,10 +180,10 @@ export default function DeleteAccountScreen() {
   );
 }
 
-function WarnRow({ text }: { text: string }) {
+function WarnRow({ text, dotColor }: { text: string; dotColor?: string }) {
   return (
     <View style={styles.warnRow}>
-      <Text style={styles.warnDot}>•</Text>
+      <Text style={[styles.warnDot, dotColor && { color: dotColor }]}>•</Text>
       <Text style={styles.warnText}>{text}</Text>
     </View>
   );
@@ -194,6 +202,9 @@ const styles = StyleSheet.create({
   warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.xs },
   warnDot: { color: colors.red, fontSize: 14, lineHeight: 20 },
   warnText: { ...typography.bodySmall, color: colors.textPrimary, flex: 1, lineHeight: 20 },
+  keepCard: { borderColor: 'rgba(0, 255, 140, 0.30)' },
+  keepTitle: { color: colors.accent },
+  keepNote: { ...typography.labelSmall, color: colors.textTertiary, lineHeight: 16, fontSize: 10, marginTop: spacing.md, letterSpacing: 0.5 },
 
   note: { ...typography.bodySmall, color: colors.textTertiary, lineHeight: 20, marginBottom: spacing.xl },
 

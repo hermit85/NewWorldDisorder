@@ -666,6 +666,76 @@ export function useCreateTrail() {
 }
 
 /**
+ * Fetch the raw geometry jsonb for a single trail. Kept separate from
+ * useTrail so list screens / headers don't pay the payload cost. Used
+ * by the run screen to rehydrate gate corridors from Pioneer line.
+ */
+export function useTrailGeometry(trailId: string | null) {
+  const [geometry, setGeometry] = useState<unknown>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!trailId) {
+      setGeometry(null);
+      setStatus('empty');
+      return;
+    }
+    setStatus('loading');
+    (async () => {
+      const result = await api.fetchTrailGeometry(trailId);
+      if (cancelled) return;
+      if (result.ok) {
+        setGeometry(result.data);
+        setStatus(result.data ? 'ok' : 'empty');
+      } else {
+        setGeometry(null);
+        setStatus('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [trailId, refreshSignal]);
+
+  return { geometry, status, loading: status === 'loading' };
+}
+
+/**
+ * Fetch a single run by id. Used by the Pioneer result screen which
+ * navigates in with a runId (not a runSessionId) and needs durationMs /
+ * trail_id for the celebration hero.
+ */
+export function useRun(runId: string | null) {
+  const [run, setRun] = useState<import('@/lib/database.types').DbRun | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!runId) {
+      setRun(null);
+      setStatus('empty');
+      return;
+    }
+    setStatus('loading');
+    (async () => {
+      const result = await api.fetchRun(runId);
+      if (cancelled) return;
+      if (result.ok) {
+        setRun(result.data);
+        setStatus('ok');
+      } else {
+        setRun(null);
+        setStatus('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [runId, refreshSignal]);
+
+  return { run, status, loading: status === 'loading' };
+}
+
+/**
  * Curator cleanup — delete a spot and all its trails/runs/leaderboards
  * (migration 009 cascade). Server-side gated by profiles.role; the hook
  * does not pre-check — we trust the RPC and surface its error codes.

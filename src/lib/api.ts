@@ -1109,6 +1109,36 @@ export async function createTrail(
   return polishError(res?.code ?? 'rpc_failed', CREATE_TRAIL_ERRORS);
 }
 
+// ── fetchTrailGeometry — lean path for run-screen rehydration ──
+//
+// Separate from fetchTrail because the geometry jsonb can be 5-10 KB
+// per trail; callers that only need metadata (list screens, headers)
+// read it via `geometry === null` on the mapped Trail.
+
+export async function fetchTrailGeometry(trailId: string): Promise<ApiResult<unknown>> {
+  const { data, error } = await db()
+    .from('trails')
+    .select('geometry')
+    .eq('id', trailId)
+    .single();
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  if (!data) return { ok: false, code: 'not_found' };
+  return { ok: true, data: (data as { geometry: unknown }).geometry };
+}
+
+// ── fetchRun — single run by id (used by Pioneer result flow) ──
+
+export async function fetchRun(runId: string): Promise<ApiResult<DbRun>> {
+  const { data, error } = await db()
+    .from('runs')
+    .select('*')
+    .eq('id', runId)
+    .single();
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  if (!data) return { ok: false, code: 'not_found' };
+  return { ok: true, data: data as DbRun };
+}
+
 // ── deleteSpot / deleteTrail (curator cleanup, migration 009) ──
 
 const CLEANUP_ERRORS: Record<string, string> = {

@@ -12,7 +12,8 @@ import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { getVenueForTrail } from '@/data/venues';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useTrail } from '@/hooks/useBackend';
+import { useTrail, useTrailGeometry } from '@/hooks/useBackend';
+import { buildTrailGeoFromPioneer } from '@/features/run/gates';
 
 export default function ActiveRunScreen() {
   const { trailId = '', trailName = 'Unknown Trail' } =
@@ -32,15 +33,17 @@ export default function ActiveRunScreen() {
   const spotId = venueMatch?.venueId ?? dbTrail?.spotId ?? '';
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
 
-  // Find trail geo from resolved venue. Until Sprint 3 trail.geometry
-  // population lands, geo stays null for DB-sourced trails and the gate
-  // engine runs with no corridor (every run finalises as 'unverified').
-  const geo = (() => {
-    if (venueMatch) {
-      return venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null;
-    }
-    return null;
-  })();
+  // Rehydrate trail geo from Pioneer geometry (Sprint 3 Chunk 6).
+  // 1st preference: hardcoded venueMatch (Słotwiny legacy). Falls back
+  // to the Pioneer line persisted on trails.geometry. If the trail is
+  // still a draft (no Pioneer yet), geo stays null → gate engine runs
+  // with no corridor → ranked runs finalise as 'unverified'.
+  const { geometry: pioneerGeometryRaw } = useTrailGeometry(
+    venueMatch ? null : (trailId || null),
+  );
+  const geo = venueMatch
+    ? (venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null)
+    : buildTrailGeoFromPioneer(trailId || null, pioneerGeometryRaw);
 
   const {
     state,

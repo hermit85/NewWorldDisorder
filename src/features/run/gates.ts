@@ -12,20 +12,66 @@
 
 import { TrailGateConfig, GateDefinition } from './types';
 import { computeHeading } from './geometry';
+import type { TrailGeoSeed } from '@/data/venueConfig';
+import type { PioneerGeometry } from '@/lib/api';
 
-// Checkpoint B: seed-backed corridor source is gone. Gate engine runs
-// with an empty corridor set until Sprint 3 populates trail.geometry and
-// this module is rewired to pull from DB per-trail.
-// TODO Sprint 3: rehydrate gate corridors from trail.geometry
-// Consequence today: ranked runs cannot be verified → every run finalises
-// as 'unverified' / counted_in_leaderboard=false. Accepted tradeoff while
-// we wait on pioneer calibration.
-const trailGeoSeeds: Array<{
-  trailId: string;
-  polyline: { latitude: number; longitude: number }[];
-  startZone: { latitude: number; longitude: number };
-  finishZone: { latitude: number; longitude: number };
-}> = [];
+// Checkpoint B: seed-backed corridor source is gone.
+// Sprint 3 Chunk 6 rehydrates from trail.geometry — Pioneer runs are the
+// canonical line (ADR-005). `buildTrailGeoFromPioneer` adapts the persisted
+// geometry to the TrailGeoSeed shape that verifyRealRun / evaluateCorridor
+// already expect, so no downstream verification logic needed to change.
+//
+// Trails without geometry (pre-Pioneer) still resolve to null here → the
+// run lifecycle passes null geo → ranked runs land as 'unverified'. Once a
+// Pioneer skończy kalibrację (migration 008), trail.geometry is populated
+// and subsequent riders validate against the Pioneer's recorded line.
+const trailGeoSeeds: TrailGeoSeed[] = [];
+
+const PIONEER_ZONE_RADIUS_M = 25;
+
+/** Narrow unknown JSON → PioneerGeometry shape. Returns null when the
+ *  structure does not match (legacy v0 rows, truncated payloads). */
+function asPioneerGeometry(raw: unknown): PioneerGeometry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const g = raw as Partial<PioneerGeometry>;
+  if (g.version !== 1) return null;
+  if (!Array.isArray(g.points) || g.points.length < 2) return null;
+  return g as PioneerGeometry;
+}
+
+/**
+ * Rehydrate a TrailGeoSeed (polyline + start/finish zones) from the
+ * Pioneer geometry stored on the trail row. Caller fetches geometry
+ * separately via fetchTrailGeometry so the common Trail fetch path
+ * stays lean (geometry jsonb can be 5-10 KB per trail).
+ *
+ * Used by the run screen so evaluateCorridor / verifyRealRun have a
+ * canonical line to score subsequent runs against.
+ */
+export function buildTrailGeoFromPioneer(
+  trailId: string | null,
+  geometryRaw: unknown,
+): TrailGeoSeed | null {
+  if (!trailId) return null;
+  const geometry = asPioneerGeometry(geometryRaw);
+  if (!geometry) return null;
+
+  const polyline = geometry.points.map((p) => ({
+    latitude: p.lat,
+    longitude: p.lng,
+  }));
+  if (polyline.length < 10) return null;
+
+  const first = polyline[0];
+  const last = polyline[polyline.length - 1];
+
+  return {
+    trailId,
+    startZone: { ...first, radiusM: PIONEER_ZONE_RADIUS_M },
+    finishZone: { ...last, radiusM: PIONEER_ZONE_RADIUS_M },
+    polyline,
+  };
+}
 
 // ── Default gate parameters ──
 
