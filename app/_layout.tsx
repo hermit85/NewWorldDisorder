@@ -142,6 +142,14 @@ export default function RootLayout() {
             options={{ animation: 'fade', gestureEnabled: false }}
           />
           <Stack.Screen
+            name="run/review"
+            options={{ animation: 'fade', gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="run/rejected"
+            options={{ animation: 'fade', gestureEnabled: false }}
+          />
+          <Stack.Screen
             name="run/result"
             options={{ animation: 'fade', gestureEnabled: false }}
           />

@@ -2,7 +2,8 @@
 // /run/recording — active Pioneer recording screen.
 // Game-HUD polish pass: dark terrain gradient, neon timer glow,
 // finish-line stripes on the STOP CTA, 3-dot GPS strength indicator.
-// Chunk 4 scope: UI + state machine only. Finalize is Chunk 5.
+// Chunk 5: non-cancel stop routes to /run/review for finalize;
+// useKeepAwake during active phases so the screen never sleeps mid-ride.
 // ═══════════════════════════════════════════════════════════
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -13,13 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useKeepAwake } from 'expo-keep-awake';
 import { spacing, radii } from '@/theme/spacing';
 import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
-
-// TODO Chunk 5: wire expo-keep-awake (npm install expo-keep-awake) to
-// prevent phone auto-lock mid-ride. For Chunk 4 simulator verification
-// this is unnecessary; for real field walk-test it is mandatory.
+import * as recordingStore from '@/features/recording/recordingStore';
 
 const TERRAIN_GRADIENT: readonly [string, string, string] = [
   hudColors.terrainHigh,
@@ -120,6 +119,11 @@ export default function RecordingScreen() {
   const spotId = rawSpotId ?? '';
   const router = useRouter();
 
+  // Keep the screen on for the lifetime of this mount. All non-cancel
+  // exits unmount the screen (review / back to trail), so the hook's
+  // unmount cleanup releases the lock.
+  useKeepAwake('nwd-recording');
+
   const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
     useGPSRecorder({ trailId, spotId });
 
@@ -206,29 +210,40 @@ export default function RecordingScreen() {
   }, [state.phase]);
 
   // ── Stopped → route ─────────────────────────────────────
+  //
+  // Non-cancel stops hand the buffer off to /run/review. We flush the
+  // buffer explicitly here because useGPSRecorder only persists on its
+  // 10 s save interval — a quick STOP (< 10 s) would otherwise leave
+  // review with nothing to restore.
 
   useEffect(() => {
     if (state.phase !== 'stopped' || stoppedHandledRef.current) return;
     stoppedHandledRef.current = true;
 
-    // TODO Chunk 5: actual finalize flow
-    // 1. Build geometry via buildTrailGeometry(state.points, null)
-    // 2. Pre-check via validateGeometry
-    // 3. If invalid client-side → show error screen, trail stays draft
-    // 4. If valid → call api.finalizePioneerRun(...)
-    // 5. On success → router.replace(/run/result?runId=...&isPioneer=true)
-    // 6. On weak_signal_pioneer → show Story 5 rejection screen
-    // 7. On already_pioneered → show "ktoś cię wyprzedził" + retry CTA
-    // 8. On other errors → toast + back to trail screen
-    // 9. recordingStore.clearBuffer() after success OR user dismissal
-
     if (state.reason === 'cancel') {
+      void recordingStore.clearBuffer();
       router.back();
       return;
     }
-    const t = setTimeout(() => router.back(), 2000);
-    return () => clearTimeout(t);
-  }, [state, router]);
+
+    // Derive startedAt from the last-point timestamp (seconds since
+    // start of recording). Falls back to now() for a zero-point buffer
+    // so the review screen can still mount and show a warning.
+    const lastT = state.points.length > 0
+      ? state.points[state.points.length - 1].t
+      : 0;
+    const startedAt = Date.now() - Math.round(lastT * 1000);
+
+    (async () => {
+      await recordingStore.saveBuffer({
+        trailId,
+        spotId,
+        startedAt,
+        points: state.points,
+      });
+      router.replace(`/run/review?trailId=${trailId}&spotId=${spotId}`);
+    })();
+  }, [state, router, trailId, spotId]);
 
   // ── Handlers ─────────────────────────────────────────────
 
@@ -407,12 +422,12 @@ export default function RecordingScreen() {
           </View>
         )}
 
-        {/* STOPPED placeholder */}
+        {/* STOPPED — brief flash before router.replace to /run/review */}
         {state.phase === 'stopped' && state.reason !== 'cancel' && (
           <View style={styles.centered}>
             <Text style={styles.processingLabel}>PRZETWARZANIE…</Text>
             <Text style={styles.processingHint}>
-              {state.points.length} punktów · Chunk 5 handles finalize
+              {state.points.length} punktów
             </Text>
           </View>
         )}
