@@ -70,33 +70,32 @@ Format: each ADR has **Status**, **Context**, **Decision**, **Consequences**. Ke
 
 ---
 
-## Backlog — Sprint 5+ considerations
+## ADR-010 — Trailforks GPX/KML import REJECTED
 
-### Trailforks GPX/KML import as Pioneer alternative
+**Context:** Briefly considered Trailforks as pre-calibration
+data source to bypass physical Pioneer model bottleneck.
 
-User flagged Trailforks pro PDF as potential trail data source
-(not moodboard). Analysis for future decision:
+**Decision:** REJECTED. Not viable.
 
-**Value:**
-- Bypass physical Pioneer calibration for 1000s of trails
-  globally — scale problem solved on day 1
-- Trailforks has high-quality GPS traces from verified park
-  partnerships
+**Reason 1 — Commercial license:** Trailforks data is not
+commercially usable without partnership agreement. Unauthorized
+import = IP violation + legal risk.
 
-**Risks to Pioneer model (ADR-005):**
-- Pioneer tier system works because Pioneers earn status
-  physically. Auto-import = instant devaluation of Pioneer badges
-- Country First / Territory mechanics break if trails pre-exist
-- Community motivation for Founding Pioneers Program falls off
-  if app is pre-loaded
+**Reason 2 — Product model conflict:** Even if licensed,
+auto-import breaks Pioneer tier system (ADR-005). Pioneer
+status earns value from physical effort, not pre-existing
+database lookup. Country First / Territory mechanics collapse
+if trails pre-exist.
 
-**Possible hybrid (Sprint 5+):**
-- Trailforks import creates 'unverified candidate' trails
-- First human Pioneer who rides within N meter corridor of
-  imported line → claims Pioneer status, overrides to canonical
-- Community can flag import accuracy via tracking overlap metrics
+**Reason 3 — Community motivation:** Founding Pioneers Program
+depends on scarcity + personal stake in calibration. Pre-loaded
+trails eliminate both.
 
-**Decision:** DEFER to Sprint 5+. MVP + Founding Pioneers Program
-first. Revisit when 50+ trails calibrated manually and scaling
-pain becomes real. Do not build import pipeline early — risks
-breaking core gameplay loop.
+**Alternative paths kept open:**
+- Solo founder calibration Phase 0 (current)
+- Founding Pioneers recruitment Phase 1
+- Official park partnerships Phase 3 (parks provide their own
+  canonical data with permission)
+
+**Status:** Locked. Do not revisit without written license
+from Trailforks.
