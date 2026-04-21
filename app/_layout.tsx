@@ -4,17 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import {
   useFonts,
-  Rajdhani_400Regular,
-  Rajdhani_500Medium,
-  Rajdhani_600SemiBold,
-  Rajdhani_700Bold,
-} from '@expo-google-fonts/rajdhani';
+  Newsreader_400Regular,
+  Newsreader_500Medium,
+} from '@expo-google-fonts/newsreader';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+} from '@expo-google-fonts/jetbrains-mono';
 import { colors } from '@/theme/colors';
 import { AuthProvider } from '@/hooks/AuthContext';
 import { hydrateRunStore } from '@/systems/runStore';
@@ -44,7 +40,7 @@ class AppErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <View style={{ flex: 1, backgroundColor: '#0A0A0F', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
+          <Text style={{ fontFamily: 'JetBrainsMono_500Medium', fontSize: 12, color: '#B84848', letterSpacing: 3, marginBottom: 12 }}>
             CRASH
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
@@ -65,14 +61,10 @@ class AppErrorBoundary extends React.Component<
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Rajdhani_400Regular,
-    Rajdhani_500Medium,
-    Rajdhani_600SemiBold,
-    Rajdhani_700Bold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Newsreader_400Regular,
+    Newsreader_500Medium,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
   });
 
   // ── Hydrate run store + init save queue on mount ──

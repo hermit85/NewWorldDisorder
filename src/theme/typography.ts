@@ -1,13 +1,18 @@
 import { TextStyle } from 'react-native';
 
 // Font families — loaded via expo-font
+// Post-ADR-013 (Ye brutalist): Rajdhani + Inter out, Newsreader serif +
+// JetBrains Mono in. Keys kept stable for callers; 'racing'/'body'
+// semantics transform — 'racing' is now serif display (hero/times),
+// 'body' is monospace. Consumers styled with old 'racing' automatically
+// pick up the new serif face.
 export const fonts = {
-  racing: 'Rajdhani_700Bold',
-  racingLight: 'Rajdhani_400Regular',
-  body: 'Inter_400Regular',
-  bodyMedium: 'Inter_500Medium',
-  bodySemiBold: 'Inter_600SemiBold',
-  bodyBold: 'Inter_700Bold',
+  racing:       'Newsreader_400Regular',
+  racingLight:  'Newsreader_400Regular',
+  body:         'JetBrainsMono_400Regular',
+  bodyMedium:   'JetBrainsMono_400Regular',
+  bodySemiBold: 'JetBrainsMono_500Medium',
+  bodyBold:     'JetBrainsMono_500Medium',
 } as const;
 
 export const typography = {
