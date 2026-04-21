@@ -251,19 +251,27 @@ export default function RecordingScreen() {
       return;
     }
 
-    // Derive startedAt from the last-point timestamp (seconds since
-    // start of recording). Falls back to now() for a zero-point buffer
-    // so the review screen can still mount and show a warning.
-    const lastT = state.points.length > 0
-      ? state.points[state.points.length - 1].t
-      : 0;
-    const startedAt = Date.now() - Math.round(lastT * 1000);
-
     const proceedToReview = async () => {
+      // Codex S4: preserve the ORIGINAL startedAt from the persisted
+      // buffer rather than deriving one from Date.now() - lastPoint.t.
+      // The derived form drifts by however long the finalize flow
+      // takes (stop → task teardown → drain → this effect), which on
+      // a slow device can be hundreds of ms. The review screen relies
+      // on startedAt for the race-time anchor — drift there rolls
+      // into the duration shown to the rider.
+      //
+      // drainAndSettle ensured every task append completed before the
+      // 'stopped' state fired, so this read is the authoritative
+      // snapshot. Fall back to Date.now() only when the buffer is
+      // missing entirely (shouldn't happen post-drain, defensive).
+      const persisted = await recordingStore.drainAndSettle();
+      const startedAt = persisted?.startedAt ?? Date.now();
+
       await recordingStore.saveBuffer({
         trailId,
         spotId,
         startedAt,
+        sessionId: persisted?.sessionId,
         points: state.points,
       });
       router.replace(`/run/review?trailId=${trailId}&spotId=${spotId}`);
