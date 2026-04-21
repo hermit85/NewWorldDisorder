@@ -12,8 +12,9 @@ import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { getVenueForTrail } from '@/data/venues';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useTrail, useTrailGeometry } from '@/hooks/useBackend';
+import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@/hooks/useBackend';
 import { buildTrailGeoFromPioneer } from '@/features/run/gates';
+import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
 
 export default function ActiveRunScreen() {
   const { trailId = '', trailName = 'Unknown Trail' } =
@@ -54,6 +55,31 @@ export default function ActiveRunScreen() {
     cancel,
     gateEngine,
   } = useRealRun(trailId, trailName, spotId, geo, profile?.id);
+
+  // ── Gaming context: user PB + rival above (Chunk 5) ─────────
+  //
+  // Reuses existing fetch paths — useUserTrailStats for the PB map,
+  // useLeaderboard top-50 for the rival lookup. No new queries. Both
+  // fetches are async and non-blocking; the MotivationStack simply
+  // fills in when data arrives. Rival gap uses static PB-vs-PB delta
+  // (matches trail/[id].tsx semantics; simpler cognitive load mid-ride
+  // than a live-counting gap).
+  const { stats: userTrailStats } = useUserTrailStats(profile?.id);
+  const { entries: leaderboardEntries } = useLeaderboard(trailId, 'all_time', profile?.id);
+
+  const userPbMs = userTrailStats.get(trailId)?.pbMs ?? null;
+  const userEntry = leaderboardEntries.find((e) => e.isCurrentUser) ?? null;
+  const userRank = userEntry?.currentPosition ?? null;
+  const rivalEntry = userEntry
+    ? leaderboardEntries.find((e) => e.currentPosition === userEntry.currentPosition - 1) ?? null
+    : null;
+  const rivalAbove: RivalAbove = rivalEntry && userEntry
+    ? {
+        username: rivalEntry.username,
+        rank: rivalEntry.currentPosition,
+        gapMs: userEntry.bestDurationMs - rivalEntry.bestDurationMs,
+      }
+    : null;
 
   // ── Background detection: warn rider if GPS may have gaps ──
   const [bgWarning, setBgWarning] = useState(false);
@@ -251,6 +277,17 @@ export default function ActiveRunScreen() {
         <Text style={[styles.timer, showTimer && { color: phaseColor }]}>
           {showTimer ? formatTime(state.elapsedMs) : '00.00'}
         </Text>
+
+        {/* Gaming-context cards — delta-to-PB + rival / king state */}
+        {running && (
+          <MotivationStack
+            elapsedMs={state.elapsedMs}
+            userPbMs={userPbMs}
+            rivalAbove={rivalAbove}
+            userRank={userRank}
+            variant="rider"
+          />
+        )}
 
         {/* Live stats during run */}
         {running && (
