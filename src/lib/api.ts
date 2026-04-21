@@ -183,7 +183,7 @@ export interface SubmitRunResult {
   previousBestMs: number | null;
 }
 
-function normalizeVerificationSummary(
+export function normalizeVerificationSummary(
   summary: unknown,
   verificationStatus: string,
 ): unknown {
@@ -207,7 +207,7 @@ function normalizeVerificationSummary(
   return summary;
 }
 
-function normalizeRunRow(run: DbRun): DbRun {
+export function normalizeRunRow(run: DbRun): DbRun {
   return {
     ...run,
     verification_summary: normalizeVerificationSummary(

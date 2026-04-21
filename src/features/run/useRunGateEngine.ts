@@ -61,6 +61,20 @@ export interface GateEngine {
   reset: () => void;
 }
 
+export type FinishGateLockoutReason = 'time' | 'checkpoint' | 'distance';
+
+export function getFinishGateLockoutReason(
+  config: Pick<TrailGateConfig, 'finishUnlockMinTimeSec' | 'finishUnlockMinDistanceM'>,
+  durationSec: number,
+  totalDistanceM: number,
+  hasPassedFirstCheckpoint: boolean,
+): FinishGateLockoutReason | null {
+  if (durationSec < config.finishUnlockMinTimeSec) return 'time';
+  if (!hasPassedFirstCheckpoint) return 'checkpoint';
+  if (totalDistanceM < config.finishUnlockMinDistanceM) return 'distance';
+  return null;
+}
+
 export function useRunGateEngine(
   config: TrailGateConfig | null,
   callbacks: GateEngineCallbacks
@@ -175,11 +189,14 @@ export function useRunGateEngine(
         // On loop trails, finish cannot be armed just because the rider is
         // physically close to the finish. Require elapsed time, true route
         // progress, and CP1 before we even look for a crossing.
-        if (
-          durationSec >= config.finishUnlockMinTimeSec &&
-          hasPassedFirstCheckpoint &&
-          state.totalDistanceM >= config.finishUnlockMinDistanceM
-        ) {
+        const finishLockoutReason = getFinishGateLockoutReason(
+          config,
+          durationSec,
+          state.totalDistanceM,
+          hasPassedFirstCheckpoint,
+        );
+
+        if (finishLockoutReason === null) {
           state.phase = 'approaching_finish';
 
           const recentForFinish = allRunPointsRef.current.slice(-8);
