@@ -19,8 +19,7 @@ import { spacing, radii } from '@/theme/spacing';
 import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
 import * as recordingStore from '@/features/recording/recordingStore';
-import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats, useLeaderboard } from '@/hooks/useBackend';
+import { MotivationStack } from '@/components/run/MotivationStack';
 
 const TERRAIN_GRADIENT: readonly [string, string, string] = [
   hudColors.terrainHigh,
@@ -40,17 +39,6 @@ function formatTimer(ms: number): string {
   const s = totalSec % 60;
   const tenths = Math.floor((totalMs % 1000) / 100);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${tenths}`;
-}
-
-// Signed seconds delta with ± / + / - prefix.
-//   formatDelta(-1240) → "-1.24s"   (user ahead of PB)
-//   formatDelta(760)   → "+0.76s"   (user slower)
-//   formatDelta(0)     → "±0.00"
-function formatDelta(ms: number): string {
-  if (ms === 0) return '±0.00';
-  const sign = ms < 0 ? '-' : '+';
-  const abs = Math.abs(ms) / 1000;
-  return `${sign}${abs.toFixed(2)}s`;
 }
 
 // ── GPS strength: 3 dots, colour per bucket, 1 active per level ──
@@ -139,29 +127,6 @@ export default function RecordingScreen() {
 
   const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
     useGPSRecorder({ trailId, spotId });
-
-  // ── Gaming context: user PB + rival above (Chunk 1) ─────
-  //
-  // Both hooks reuse existing fetch paths (useUserTrailStats for the
-  // PB map; useLeaderboard top-50 for the rival lookup). No new query.
-  // Fetches are async and non-blocking — motivation cards simply
-  // appear when data arrives; the timer never waits on them.
-  const { profile } = useAuthContext();
-  const { stats: userTrailStats } = useUserTrailStats(profile?.id);
-  const { entries: leaderboardEntries } = useLeaderboard(trailId, 'all_time', profile?.id);
-
-  const userPbMs = userTrailStats.get(trailId)?.pbMs ?? null;
-  const userEntry = leaderboardEntries.find((e) => e.isCurrentUser) ?? null;
-  const rivalEntry = userEntry
-    ? leaderboardEntries.find((e) => e.currentPosition === userEntry.currentPosition - 1) ?? null
-    : null;
-  const isKing = userEntry?.currentPosition === 1;
-
-  // gapToNext is not computed in mapLeaderboardRow (returns 0 as a
-  // placeholder) so derive the rival gap from the raw durations here.
-  const rivalGapMs = userEntry && rivalEntry
-    ? userEntry.bestDurationMs - rivalEntry.bestDurationMs
-    : null;
 
   const lastCountdownSecondRef = useRef<number | null>(null);
   const lastWeakSignalRef = useRef<boolean>(false);
@@ -436,66 +401,18 @@ export default function RecordingScreen() {
               </View>
             </View>
 
-            {/* ── Gaming context: delta-to-PB + rival above ── */}
-            <View style={styles.motivationStack}>
-              {userPbMs !== null ? (
-                (() => {
-                  const deltaMs = state.elapsedMs - userPbMs;
-                  const ahead = deltaMs < 0;
-                  const accent = ahead ? hudColors.gpsStrong : hudColors.gpsMedium;
-                  return (
-                    <View
-                      style={[
-                        styles.deltaCard,
-                        ahead ? styles.deltaCardAhead : styles.deltaCardBehind,
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.deltaKicker, { color: accent }]}>
-                          {ahead ? '✦ PROWADZISZ' : '● TRACISZ DO PB'}
-                        </Text>
-                        <Text style={styles.deltaSub}>vs. Twoje PB</Text>
-                      </View>
-                      <Text style={[styles.deltaValue, { color: accent }]}>
-                        {formatDelta(deltaMs)}
-                      </Text>
-                    </View>
-                  );
-                })()
-              ) : (
-                <View style={styles.firstRunCard}>
-                  <View>
-                    <Text style={styles.firstRunKicker}>✦ PIERWSZY ZJAZD</Text>
-                    <Text style={styles.deltaSub}>Twój czas zostanie zapisany</Text>
-                  </View>
-                </View>
-              )}
-
-              {isKing ? (
-                <View style={[styles.deltaCard, styles.deltaCardAhead]}>
-                  <View>
-                    <Text style={[styles.deltaKicker, { color: hudColors.gpsStrong }]}>
-                      ✦ KRÓL TRASY
-                    </Text>
-                    <Text style={styles.deltaSub}>Trzymaj pozycję</Text>
-                  </View>
-                </View>
-              ) : rivalEntry && rivalGapMs !== null ? (
-                <View style={styles.rivalCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rivalKicker}>
-                      ● RYWAL · #{rivalEntry.currentPosition}
-                    </Text>
-                    <Text style={styles.rivalName} numberOfLines={1}>
-                      {rivalEntry.username}
-                    </Text>
-                  </View>
-                  <Text style={styles.rivalDelta}>
-                    -{(rivalGapMs / 1000).toFixed(2)}s
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+            {/* Gaming-context cards — Pioneer variant renders only the
+                neutral first-descent card. Draft trails have no PB and
+                an empty leaderboard so delta / rival / king states are
+                unreachable here by construction (see app/run/active.tsx
+                for the Rider variant with the full state machine). */}
+            <MotivationStack
+              elapsedMs={state.elapsedMs}
+              userPbMs={null}
+              rivalAbove={null}
+              userRank={null}
+              variant="pioneer"
+            />
 
             <Pressable
               style={({ pressed }) => [
@@ -685,94 +602,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2,
     textTransform: 'uppercase',
-  },
-
-  // ── Motivation stack (delta-to-PB + rival) ──
-  motivationStack: {
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  deltaCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginHorizontal: spacing.lg,
-  },
-  deltaCardAhead: {
-    backgroundColor: 'rgba(0, 255, 140, 0.08)',
-    borderColor: hudColors.gpsStrong,
-  },
-  deltaCardBehind: {
-    backgroundColor: 'rgba(255, 217, 61, 0.08)',
-    borderColor: hudColors.gpsMedium,
-  },
-  deltaKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 2,
-  },
-  deltaSub: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 10,
-    color: hudColors.textMuted,
-    marginTop: 2,
-  },
-  deltaValue: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 32,
-    fontVariant: ['tabular-nums'] as any,
-  },
-  firstRunCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(232, 255, 240, 0.08)',
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginHorizontal: spacing.lg,
-  },
-  firstRunKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 2,
-    color: hudColors.gpsStrong,
-  },
-  rivalCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 217, 61, 0.08)',
-    borderLeftWidth: 3,
-    borderLeftColor: hudColors.gpsMedium,
-    borderRadius: radii.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: spacing.lg,
-  },
-  rivalKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 10,
-    letterSpacing: 2,
-    color: hudColors.gpsMedium,
-  },
-  rivalName: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 15,
-    color: hudColors.timerPrimary,
-    marginTop: 4,
-  },
-  rivalDelta: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 22,
-    color: hudColors.gpsMedium,
-    fontVariant: ['tabular-nums'] as any,
   },
 
   weakBanner: {
