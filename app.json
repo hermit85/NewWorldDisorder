@@ -15,9 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": [
+          "location"
+        ],
         "NSLocationWhenInUseUsageDescription": "NWD używa GPS do mierzenia czasu Twoich zjazdów.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "NWD kontynuuje nagrywanie czasu zjazdu, gdy telefon jest w kieszeni lub na kierownicy z wyłączonym ekranem. Niebieski pasek na górze ekranu oznacza aktywne nagrywanie.",
         "NSPhotoLibraryUsageDescription": "NWD potrzebuje dostępu do galerii tylko wtedy, gdy chcesz ustawić lub zmienić swoje zdjęcie profilowe.",
