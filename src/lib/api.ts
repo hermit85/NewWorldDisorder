@@ -183,6 +183,40 @@ export interface SubmitRunResult {
   previousBestMs: number | null;
 }
 
+function normalizeVerificationSummary(
+  summary: unknown,
+  verificationStatus: string,
+): unknown {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    return summary;
+  }
+
+  const record = summary as Record<string, unknown>;
+  if (record.acceptedVia !== undefined) {
+    return summary;
+  }
+
+  if (verificationStatus === 'verified') {
+    return { ...record, acceptedVia: 'gate_cross' };
+  }
+
+  if (verificationStatus === 'practice_only') {
+    return { ...record, acceptedVia: 'manual' };
+  }
+
+  return summary;
+}
+
+function normalizeRunRow(run: DbRun): DbRun {
+  return {
+    ...run,
+    verification_summary: normalizeVerificationSummary(
+      run.verification_summary,
+      run.verification_status,
+    ) as DbRun['verification_summary'],
+  };
+}
+
 export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResult | null> {
   const {
     userId, spotId, trailId, mode, startedAt, finishedAt,
@@ -287,7 +321,7 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     await updateFavoriteTrail(userId, trailId);
   }
 
-  return { run, leaderboardResult, isPb, previousBestMs };
+  return { run: normalizeRunRow(run as DbRun), leaderboardResult, isPb, previousBestMs };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -611,7 +645,7 @@ export async function fetchUserRuns(userId: string, limit: number = 20): Promise
     .limit(limit);
 
   if (error) throw new Error(`fetchUserRuns failed: ${error.message}`);
-  return data ?? [];
+  return (data ?? []).map((run) => normalizeRunRow(run as DbRun));
 }
 
 export async function fetchUserPb(userId: string, trailId: string): Promise<number | null> {
@@ -1151,7 +1185,7 @@ export async function fetchRun(runId: string): Promise<ApiResult<DbRun>> {
     .single();
   if (error) return { ok: false, code: 'fetch_failed', message: error.message };
   if (!data) return { ok: false, code: 'not_found' };
-  return { ok: true, data: data as DbRun };
+  return { ok: true, data: normalizeRunRow(data as DbRun) };
 }
 
 // ── deleteSpot / deleteTrail (curator cleanup, migration 009) ──
