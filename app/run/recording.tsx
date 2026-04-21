@@ -147,7 +147,6 @@ export default function RecordingScreen() {
   const prevPhaseRef = useRef<string>('idle');
 
   const recordingPulse = usePulseAnim(0.4, 0.8, 800);
-  const weakPulse = usePulseAnim(0.7, 1, 1000);
 
   // Countdown scale animation — on every new second bucket, pop number.
   const countdownScale = useRef(new Animated.Value(1)).current;
@@ -391,17 +390,34 @@ export default function RecordingScreen() {
                   warmup.readinessPhase === 'armed' && styles.readinessCardReady,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.readinessKicker,
-                    warmup.readinessPhase === 'warm'  && { color: hudColors.gpsMedium },
-                    warmup.readinessPhase === 'armed' && { color: hudColors.gpsStrong },
-                  ]}
-                >
-                  {warmup.readinessPhase === 'searching' && '● CZEKAM NA GPS'}
-                  {warmup.readinessPhase === 'warm'     && '● ROZGRZEWAM GPS'}
-                  {warmup.readinessPhase === 'armed'    && '✦ GPS GOTOWY'}
-                </Text>
+                <View style={styles.readinessKickerRow}>
+                  {warmup.readinessPhase === 'armed' ? (
+                    <Text style={[styles.readinessKickerSymbol, { color: hudColors.gpsStrong }]}>
+                      ✦
+                    </Text>
+                  ) : (
+                    <Animated.Text
+                      style={[
+                        styles.readinessKickerSymbol,
+                        { opacity: recordingPulse },
+                        warmup.readinessPhase === 'warm' && { color: hudColors.gpsMedium },
+                      ]}
+                    >
+                      ●
+                    </Animated.Text>
+                  )}
+                  <Text
+                    style={[
+                      styles.readinessKicker,
+                      warmup.readinessPhase === 'warm'  && { color: hudColors.gpsMedium },
+                      warmup.readinessPhase === 'armed' && { color: hudColors.gpsStrong },
+                    ]}
+                  >
+                    {warmup.readinessPhase === 'searching' && 'CZEKAM NA GPS'}
+                    {warmup.readinessPhase === 'warm'     && 'ROZGRZEWAM GPS'}
+                    {warmup.readinessPhase === 'armed'    && 'GPS GOTOWY'}
+                  </Text>
+                </View>
                 <Text style={styles.readinessSub}>
                   {warmup.readinessPhase === 'searching' && 'Stań na otwartej przestrzeni'}
                   {warmup.readinessPhase === 'warm' &&
@@ -480,11 +496,9 @@ export default function RecordingScreen() {
               </Pressable>
             </View>
 
-            {state.weakSignal && (
-              <Animated.View style={[styles.weakBanner, { opacity: weakPulse }]}>
-                <Text style={styles.weakBannerText}>⚠ SŁABY SYGNAŁ GPS</Text>
-              </Animated.View>
-            )}
+            {/* weakBanner removed in Chunk 6 v3 polish — the liveStatusBar
+                below the timer already surfaces "⚠ słaby sygnał" inline
+                when state.weakSignal trips. Keeping both was redundant. */}
 
             <View style={styles.timerWrap}>
               <View style={[styles.timerBox, hudShadows.glowTimer]}>
@@ -632,10 +646,10 @@ const styles = StyleSheet.create({
   },
   idleTitle: {
     ...hudTypography.displayLarge,
-    fontSize: 32,
+    fontSize: 28,
     color: hudColors.timerPrimary,
     textAlign: 'center',
-    letterSpacing: 3,
+    letterSpacing: 4,
   },
   idleBodyText: {
     color: hudColors.textMuted,
@@ -652,8 +666,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     marginHorizontal: spacing.sm,
+  },
+  readinessKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  readinessKickerSymbol: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 14,
+    color: hudColors.textMuted,
   },
   readinessCardWarm: {
     borderColor: hudColors.gpsMedium,
@@ -828,12 +852,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
     marginHorizontal: spacing.lg,
   },
   liveStatusDot: {
     color: hudColors.gpsStrong,
-    fontSize: 14,
+    fontSize: 12,
   },
   liveStatusText: {
     fontFamily: 'Rajdhani_500Medium',
@@ -853,23 +877,8 @@ const styles = StyleSheet.create({
     color: hudColors.textMuted,
     textAlign: 'center',
     marginTop: spacing.sm,
-    opacity: 0.7,
-  },
-
-  weakBanner: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: hudColors.gpsWeak,
-    backgroundColor: hudColors.actionDangerBg,
-    alignItems: 'center',
-  },
-  weakBannerText: {
-    ...hudTypography.label,
-    color: hudColors.gpsWeak,
-    fontSize: 12,
-    letterSpacing: 3,
+    opacity: 0.5,
+    letterSpacing: 0.5,
   },
 
   stopCta: {
