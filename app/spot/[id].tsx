@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
 import { selectionTick } from '@/systems/haptics';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -42,6 +42,13 @@ export default function SpotScreen() {
   const [highlightStart, setHighlightStart] = useState(false);
   const [focusTarget, setFocusTarget] = useState<'start' | 'rider' | 'both' | null>(null);
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Training banner sits below the floating header. Hardcoding top:210
+  // broke on SE / Dynamic Island devices and on any header content change.
+  // Measure the header at runtime instead. Guarded with opacity until the
+  // first onLayout frame to prevent a visible jump on mount.
+  const insets = useSafeAreaInsets();
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   // ── Live rider position + venue context ──
   const venueState = useVenueContext(true);
@@ -173,43 +180,56 @@ export default function SpotScreen() {
     <View style={styles.container}>
       {/* Floating header overlay — top row + BIKE PARK kicker/title/pills */}
       <SafeAreaView style={styles.headerOverlay} edges={['top']}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={goBack} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <View style={styles.ridersTag}>
-            <Text style={styles.ridersCount}>S01</Text>
-            <Text style={styles.ridersLabel}>LIGA</Text>
-          </View>
-        </View>
-        <View style={styles.headerBlock}>
-          <Text style={styles.spotKicker}>⟣ BIKE PARK</Text>
-          <Text style={styles.spotTitle}>{spot.name}</Text>
-          <View style={styles.statusPillRow}>
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, { backgroundColor: 'rgba(232, 255, 240, 0.55)' }]} />
-              <Text style={styles.statusPillLabel}>{trails.length} TRAS</Text>
-            </View>
-            <Text style={styles.statusDivider}>·</Text>
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, { backgroundColor: spotStateLabel.color }]} />
-              <Text style={[styles.statusPillLabel, { color: spotStateLabel.color }]}>
-                {spotStateLabel.text}
-              </Text>
-            </View>
-          </View>
-          {isCurator && (
-            <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
-              <Text style={styles.curatorDeleteLabel}>Usuń ten bike park</Text>
+        {/* Measuring wrapper: excludes SafeAreaView's top-inset padding
+            so `insets.top + headerHeight` = the exact screen-space
+            y-coordinate where the banner should start. */}
+        <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={goBack} style={styles.backBtn}>
+              <Text style={styles.backText}>←</Text>
             </Pressable>
-          )}
+            <View style={{ flex: 1 }} />
+            <View style={styles.ridersTag}>
+              <Text style={styles.ridersCount}>S01</Text>
+              <Text style={styles.ridersLabel}>LIGA</Text>
+            </View>
+          </View>
+          <View style={styles.headerBlock}>
+            <Text style={styles.spotKicker}>⟣ BIKE PARK</Text>
+            <Text style={styles.spotTitle}>{spot.name}</Text>
+            <View style={styles.statusPillRow}>
+              <View style={styles.statusPill}>
+                <View style={[styles.statusDot, { backgroundColor: 'rgba(232, 255, 240, 0.55)' }]} />
+                <Text style={styles.statusPillLabel}>{trails.length} TRAS</Text>
+              </View>
+              <Text style={styles.statusDivider}>·</Text>
+              <View style={styles.statusPill}>
+                <View style={[styles.statusDot, { backgroundColor: spotStateLabel.color }]} />
+                <Text style={[styles.statusPillLabel, { color: spotStateLabel.color }]}>
+                  {spotStateLabel.text}
+                </Text>
+              </View>
+            </View>
+            {isCurator && (
+              <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
+                <Text style={styles.curatorDeleteLabel}>Usuń ten bike park</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </SafeAreaView>
 
       {/* Training-only banner for unranked venues */}
       {venue && !venue.rankingEnabled && (
-        <View style={styles.trainingBanner}>
+        <View
+          style={[
+            styles.trainingBanner,
+            {
+              top: insets.top + headerHeight + spacing.md,
+              opacity: headerHeight > 0 ? 1 : 0,
+            },
+          ]}
+        >
           <Text style={styles.trainingBannerText}>
             TRYB WALIDACJI · TRASY W WERYFIKACJI
           </Text>
@@ -367,10 +387,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  // Training banner
+  // Training banner — top is computed inline from SafeAreaInsets +
+  // measured header height (see render). Keeps the banner flush below
+  // whatever the header happens to be tall on each device.
   trainingBanner: {
     position: 'absolute' as const,
-    top: 210, // below taller header with kicker + title + pills
     left: spacing.lg,
     right: spacing.lg,
     zIndex: 5,
