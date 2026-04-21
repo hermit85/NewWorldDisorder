@@ -808,17 +808,21 @@ const pioneerStyles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 48,
     color: hudColors.timerPrimary,
-    letterSpacing: 2,
+    letterSpacing: 3,
     fontVariant: ['tabular-nums'] as any,
     textShadowColor: hudColors.gpsStrong,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 18,
     marginBottom: spacing.xs,
   },
+  // Intensity ladder: emerald heroTitle (primary signal) ->
+  // cream heroTime (celebration numeric) -> cream rankLabel (supporting).
+  // Previously rankLabel used emerald too; stacking two emerald signals
+  // flattened the visual hierarchy.
   rankLabel: {
     ...hudTypography.label,
     fontSize: 12,
-    color: hudColors.gpsStrong,
+    color: hudColors.timerPrimary,
     letterSpacing: 4,
   },
   statsBlock: {
@@ -837,7 +841,7 @@ const pioneerStyles = StyleSheet.create({
   spotName: {
     ...hudTypography.labelSmall,
     color: hudColors.textMuted,
-    letterSpacing: 3,
+    letterSpacing: 4,
   },
   footer: {
     flex: 1,
