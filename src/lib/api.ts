@@ -1274,17 +1274,42 @@ export interface SeedRunResult {
 }
 
 /** Polish copy for every error code emitted by the Sprint-4 RPCs.
- *  Single source of truth so UI alerts stay consistent. */
+ *  Single source of truth so UI alerts stay consistent.
+ *
+ *  Migration 013 split the two legacy generic codes
+ *  (`weak_signal_pioneer`, `invalid_geometry`) into six specific
+ *  codes that carry `observed` + `required` numbers. The legacy
+ *  entries stay below as fallbacks so stale app builds still render
+ *  copy if a server that hasn't been migrated yet emits them — can
+ *  be removed in a Sprint 5 cleanup once all environments are on
+ *  mig 013. The six new codes do NOT carry generic strings here:
+ *  the validator in `src/features/recording/validators.ts` builds
+ *  the dynamic "28s / min 30s" style message and the RPC emits
+ *  matching numbers in the response payload — UI prefers those
+ *  over this map when present. */
 const SEED_RUN_ERRORS: Record<string, string> = {
-  unauthenticated:      'Zaloguj się ponownie',
-  trail_not_found:      'Trasa nie istnieje',
-  already_pioneered:    'Ktoś Cię wyprzedził — trasa ma już Pioneera',
-  invalid_state:        'Trasa nie jest w stanie draft',
-  weak_signal_pioneer:  'Słaby sygnał GPS — kalibracja odrzucona',
-  invalid_geometry:     'Za mało punktów GPS (min 30)',
-  not_authorized:       'Brak uprawnień do tej operacji',
-  no_current_version:   'Trasa nie ma aktywnej wersji',
-  rpc_failed:           'Nie udało się zapisać zjazdu. Spróbuj ponownie.',
+  unauthenticated:          'Zaloguj się ponownie',
+  trail_not_found:          'Trasa nie istnieje',
+  already_pioneered:        'Ktoś Cię wyprzedził — trasa ma już Pioneera',
+  invalid_state:            'Trasa nie jest w stanie draft',
+  not_authorized:           'Brak uprawnień do tej operacji',
+  no_current_version:       'Trasa nie ma aktywnej wersji',
+  rpc_failed:               'Nie udało się zapisać zjazdu. Spróbuj ponownie.',
+
+  // Sprint 4.5 / mig 013 — specific geometry / duration / accuracy codes.
+  // Generic fallback copy; validators module provides the dynamic version.
+  too_short_duration:       'Nagranie za krótkie dla Pioniera (min 30s)',
+  too_short_distance:       'Trasa za krótka dla Pioniera (min 150m)',
+  too_few_points:           'Za mało punktów GPS dla Pioniera (min 15)',
+  accuracy_too_poor_avg:    'Słaby sygnał GPS — średnia dokładność za niska',
+  accuracy_too_poor_start:  'Słaby sygnał GPS na starcie',
+  accuracy_too_poor_end:    'Słaby sygnał GPS na mecie',
+
+  // Legacy codes — mig 012 stopped emitting these in favour of the
+  // specific codes above. Retained as display fallbacks for stale
+  // server-side responses. Remove once all environments are on mig 013.
+  weak_signal_pioneer:      'Słaby sygnał GPS — kalibracja odrzucona',
+  invalid_geometry:         'Za mało punktów GPS (min 15)',
 };
 
 export async function finalizeSeedRun(

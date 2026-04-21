@@ -130,24 +130,9 @@ export function buildTrailGeometry(params: {
   };
 }
 
-// ── Client-side pre-check ───────────────────────────────────
-
-/** Return null if the geometry is acceptable; otherwise a specific
- *  error code the UI can map to copy before even hitting the RPC. */
-export function validateGeometry(
-  geometry: PioneerGeometry,
-): 'too_few_points' | 'weak_signal' | 'invalid_monotonic' | null {
-  if (geometry.points.length < 30) return 'too_few_points';
-
-  // Server re-validates median_accuracy_m from the run payload; we
-  // mirror the same gate against the stored meta so a weak-signal
-  // pioneer run fails fast before the user waits on a round-trip.
-  if (geometry.meta.medianAccuracyM > 20) return 'weak_signal';
-
-  let prevT = -Infinity;
-  for (const p of geometry.points) {
-    if (p.t <= prevT) return 'invalid_monotonic';
-    prevT = p.t;
-  }
-  return null;
-}
+// validateGeometry removed in Chunk 6 v3 Phase A. Superseded by
+// `validatePioneerRun` in src/features/recording/validators.ts
+// which consumes the raw BufferedPoint[] so it can gate per-sample
+// start/end accuracy (geometry.meta only carries the median).
+// Monotonic-time invariant is guaranteed upstream by the recorder
+// (sample.t is derived from monotonically-advancing timestamps).

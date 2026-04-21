@@ -6,7 +6,7 @@
 // useKeepAwake during active phases so the screen never sleeps mid-ride.
 // ═══════════════════════════════════════════════════════════
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing,
 } from 'react-native';
@@ -18,6 +18,8 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { spacing, radii } from '@/theme/spacing';
 import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
+import { useGpsWarmup } from '@/features/recording/useGpsWarmup';
+import { READINESS_GATE } from '@/features/recording/validators';
 import * as recordingStore from '@/features/recording/recordingStore';
 import { MotivationStack } from '@/components/run/MotivationStack';
 
@@ -128,6 +130,16 @@ export default function RecordingScreen() {
   const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
     useGPSRecorder({ trailId, spotId });
 
+  // Pre-flight GPS warm-up. Enabled while we're in 'idle' (before the
+  // user taps START) and disabled the instant we hand off to the
+  // recorder. expo-location allows parallel subscriptions so the brief
+  // overlap at handoff is harmless.
+  const [hasStarted, setHasStarted] = useState(false);
+  const warmup = useGpsWarmup({
+    enabled: state.phase === 'idle' && !hasStarted,
+    maxAccuracyM: READINESS_GATE.PIONEER_MAX_ACCURACY_M,
+  });
+
   const lastCountdownSecondRef = useRef<number | null>(null);
   const lastWeakSignalRef = useRef<boolean>(false);
   const enteredGraceRef = useRef<boolean>(false);
@@ -152,12 +164,10 @@ export default function RecordingScreen() {
     }
   }, [trailId, spotId, router]);
 
-  // ── Auto-start countdown ────────────────────────────────
-
-  useEffect(() => {
-    void startCountdown();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Chunk 6 v3: Recording no longer auto-starts. The user taps
+  // `handleStart` once the warm-up hook reports `readinessPhase ===
+  // 'armed'`, giving an explicit moment to commit and preventing
+  // bad runs from stale fixes.
 
   // ── Countdown haptic + scale pop ────────────────────────
 
@@ -306,6 +316,17 @@ export default function RecordingScreen() {
     extendTimeout();
   }, [extendTimeout]);
 
+  // Explicit start — fires only from the armed-state START CTA.
+  // Setting hasStarted true first disables the warm-up hook, which
+  // tears down its subscription on the next render. startCountdown
+  // opens its own subscription after the 3s pre-roll; brief overlap
+  // is intentional and accepted.
+  const handleStart = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setHasStarted(true);
+    void startCountdown();
+  }, [startCountdown]);
+
   // ── Render ───────────────────────────────────────────────
 
   const strength =
@@ -323,8 +344,13 @@ export default function RecordingScreen() {
       />
 
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        {/* PERMISSION PHASES */}
-        {(state.phase === 'permission_requesting' || state.phase === 'permission_denied') && (
+        {/* PERMISSION PHASES — fired by either the warm-up hook
+            (pre-start) or useGPSRecorder.startCountdown (post-tap).
+            Both paths surface an identical UI so users always see
+            the same "open settings" escape hatch. */}
+        {(state.phase === 'permission_requesting'
+          || state.phase === 'permission_denied'
+          || (state.phase === 'idle' && warmup.permissionDenied)) && (
           <View style={styles.centered}>
             <View style={styles.lockBox}>
               <Text style={styles.lockGlyph}>⌖</Text>
@@ -333,7 +359,7 @@ export default function RecordingScreen() {
             <Text style={styles.permBody}>
               Nagrywanie trasy wymaga dostępu do lokalizacji.{'\n'}Bez GPS nie wyznaczysz linii.
             </Text>
-            {state.phase === 'permission_denied' && (
+            {(state.phase === 'permission_denied' || warmup.permissionDenied) && (
               <>
                 <Pressable style={styles.permCta} onPress={() => Linking.openSettings()}>
                   <Text style={styles.permCtaLabel}>OTWÓRZ USTAWIENIA</Text>
@@ -343,6 +369,81 @@ export default function RecordingScreen() {
                 </Pressable>
               </>
             )}
+          </View>
+        )}
+
+        {/* IDLE — readiness UI + gated START CTA. Only rendered when
+            permission is granted (or still pending); the block above
+            handles the denied path. */}
+        {state.phase === 'idle' && !warmup.permissionDenied && (
+          <View style={styles.idleRoot}>
+            <View style={styles.idleBody}>
+              <Text style={styles.idleTitle}>PRZYGOTUJ GPS</Text>
+              <Text style={styles.idleBodyText}>
+                Sygnał musi być stabilny zanim zaczniemy nagrywać. Na otwartej
+                przestrzeni zajmuje to 5–15 sekund.
+              </Text>
+
+              <View
+                style={[
+                  styles.readinessCard,
+                  warmup.readinessPhase === 'warm'  && styles.readinessCardWarm,
+                  warmup.readinessPhase === 'armed' && styles.readinessCardReady,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.readinessKicker,
+                    warmup.readinessPhase === 'warm'  && { color: hudColors.gpsMedium },
+                    warmup.readinessPhase === 'armed' && { color: hudColors.gpsStrong },
+                  ]}
+                >
+                  {warmup.readinessPhase === 'searching' && '● CZEKAM NA GPS'}
+                  {warmup.readinessPhase === 'warm'     && '● ROZGRZEWAM GPS'}
+                  {warmup.readinessPhase === 'armed'    && '✦ GPS GOTOWY'}
+                </Text>
+                <Text style={styles.readinessSub}>
+                  {warmup.readinessPhase === 'searching' && 'Stań na otwartej przestrzeni'}
+                  {warmup.readinessPhase === 'warm' &&
+                    `Sygnał ${warmup.consecutiveFreshCount}/${READINESS_GATE.MIN_CONSECUTIVE_FRESH_FIXES}`
+                    + (warmup.latestAccuracy !== null
+                      ? ` · ±${Math.round(warmup.latestAccuracy)}m`
+                      : '')}
+                  {warmup.readinessPhase === 'armed' &&
+                    `${READINESS_GATE.MIN_CONSECUTIVE_FRESH_FIXES}/${READINESS_GATE.MIN_CONSECUTIVE_FRESH_FIXES} sygnał`
+                    + (warmup.latestAccuracy !== null
+                      ? ` · ±${Math.round(warmup.latestAccuracy)}m`
+                      : '')}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.idleFooter}>
+              <Pressable
+                onPress={handleStart}
+                disabled={warmup.readinessPhase !== 'armed'}
+                style={({ pressed }) => [
+                  styles.startCta,
+                  warmup.readinessPhase === 'armed' && hudShadows.glowGreen,
+                  warmup.readinessPhase !== 'armed' && styles.startCtaDisabled,
+                  pressed && warmup.readinessPhase === 'armed' && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.startCtaLabel,
+                    warmup.readinessPhase !== 'armed' && styles.startCtaLabelDisabled,
+                  ]}
+                >
+                  {warmup.readinessPhase === 'armed'
+                    ? '✦ ROZPOCZNIJ NAGRYWANIE'
+                    : 'CZEKAM NA GPS…'}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.idleCancel} onPress={() => router.back()}>
+                <Text style={styles.idleCancelLabel}>ANULUJ</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -401,6 +502,24 @@ export default function RecordingScreen() {
               </View>
             </View>
 
+            {/* Live status bar — condensed always-visible confirmation
+                that GPS + buffering are active. Pulsing dot uses the
+                same recordingPulse animation as the timer sublabel for
+                rhythm continuity. */}
+            <View style={styles.liveStatusBar}>
+              <Animated.Text style={[styles.liveStatusDot, { opacity: recordingPulse }]}>
+                ●
+              </Animated.Text>
+              <Text style={styles.liveStatusText}>
+                {state.currentAccuracy !== null
+                  ? `GPS ±${Math.round(state.currentAccuracy)}m`
+                  : 'GPS — czekam na fix'}
+                {state.weakSignal && (
+                  <Text style={styles.liveStatusWarn}>  ·  ⚠ słaby sygnał</Text>
+                )}
+              </Text>
+            </View>
+
             {/* Gaming-context cards — Pioneer variant renders only the
                 neutral first-descent card. Draft trails have no PB and
                 an empty leaderboard so delta / rival / king states are
@@ -445,6 +564,15 @@ export default function RecordingScreen() {
                 ))}
               </View>
             </Pressable>
+
+            {/* Foreground-only contract. GPS sampling does not survive
+                backgrounding on iOS with the current config; make the
+                constraint visible to the rider so they know why the
+                screen must stay on. Sprint 7 native background work
+                will lift this. */}
+            <Text style={styles.foregroundWarning}>
+              Trzymaj apkę otwartą · ekran włączony
+            </Text>
           </View>
         )}
 
@@ -490,6 +618,96 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: hudColors.terrainDark },
   safe: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+
+  // ── Idle / warm-up ──
+  idleRoot: {
+    flex: 1,
+    padding: spacing.xl,
+    justifyContent: 'space-between',
+  },
+  idleBody: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  idleTitle: {
+    ...hudTypography.displayLarge,
+    fontSize: 32,
+    color: hudColors.timerPrimary,
+    textAlign: 'center',
+    letterSpacing: 3,
+  },
+  idleBodyText: {
+    color: hudColors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  readinessCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(232, 255, 240, 0.12)',
+    borderRadius: radii.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginHorizontal: spacing.sm,
+  },
+  readinessCardWarm: {
+    borderColor: hudColors.gpsMedium,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  readinessCardReady: {
+    borderColor: hudColors.gpsStrong,
+    backgroundColor: 'rgba(0, 255, 140, 0.08)',
+  },
+  readinessKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 14,
+    letterSpacing: 3,
+    color: hudColors.textMuted,
+  },
+  readinessSub: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    color: hudColors.textMuted,
+    letterSpacing: 1,
+  },
+  idleFooter: {
+    gap: spacing.sm,
+  },
+  startCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 64,
+  },
+  startCtaDisabled: {
+    backgroundColor: 'rgba(232, 255, 240, 0.08)',
+  },
+  startCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 16,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+  startCtaLabelDisabled: {
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
+  idleCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  idleCancelLabel: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
 
   // Permission
   lockBox: {
@@ -602,6 +820,40 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+
+  // Live status bar (between timer and MotivationStack during recording)
+  liveStatusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginHorizontal: spacing.lg,
+  },
+  liveStatusDot: {
+    color: hudColors.gpsStrong,
+    fontSize: 14,
+  },
+  liveStatusText: {
+    fontFamily: 'Rajdhani_500Medium',
+    fontSize: 12,
+    color: hudColors.textMuted,
+    letterSpacing: 1,
+  },
+  liveStatusWarn: {
+    color: hudColors.gpsMedium,
+    fontSize: 12,
+  },
+
+  // Foreground-only limitation footer (last element of recording block)
+  foregroundWarning: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: hudColors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    opacity: 0.7,
   },
 
   weakBanner: {
