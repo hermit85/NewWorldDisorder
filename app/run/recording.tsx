@@ -20,6 +20,7 @@ import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
 import { useGpsWarmup } from '@/features/recording/useGpsWarmup';
 import { READINESS_GATE } from '@/features/recording/validators';
+import { useLocationPermission } from '@/features/permissions/useLocationPermission';
 import * as recordingStore from '@/features/recording/recordingStore';
 import { MotivationStack } from '@/components/run/MotivationStack';
 
@@ -130,6 +131,12 @@ export default function RecordingScreen() {
   const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
     useGPSRecorder({ trailId, spotId });
 
+  // Chunk 7: single source of truth for iOS location permissions.
+  // Stage 1 (When-In-Use) auto-requests on mount; stage 2 (Always) is
+  // a contextual ask fired the first time the user taps START so the
+  // request has clear motivation attached.
+  const permission = useLocationPermission();
+
   // Pre-flight GPS warm-up. Enabled while we're in 'idle' (before the
   // user taps START) and disabled the instant we hand off to the
   // recorder. expo-location allows parallel subscriptions so the brief
@@ -138,7 +145,15 @@ export default function RecordingScreen() {
   const warmup = useGpsWarmup({
     enabled: state.phase === 'idle' && !hasStarted,
     maxAccuracyM: READINESS_GATE.PIONEER_MAX_ACCURACY_M,
+    foregroundStatus: permission.foregroundStatus,
   });
+
+  // Always-permission explainer modal: surfaced between the user's
+  // intent to START and the actual iOS permission prompt, so the ask
+  // has context ("why we need Always"). One-shot per screen mount —
+  // if the user dismisses and taps START again we re-show it only if
+  // permission is still not granted.
+  const [showAlwaysExplainer, setShowAlwaysExplainer] = useState(false);
 
   const lastCountdownSecondRef = useRef<number | null>(null);
   const lastWeakSignalRef = useRef<boolean>(false);
@@ -315,16 +330,47 @@ export default function RecordingScreen() {
     extendTimeout();
   }, [extendTimeout]);
 
-  // Explicit start — fires only from the armed-state START CTA.
-  // Setting hasStarted true first disables the warm-up hook, which
-  // tears down its subscription on the next render. startCountdown
-  // opens its own subscription after the 3s pre-roll; brief overlap
-  // is intentional and accepted.
-  const handleStart = useCallback(() => {
+  // Actual start — runs after the Always-permission gate resolves
+  // (either granted, denied, or explicitly skipped). Setting
+  // hasStarted true first disables the warm-up hook, which tears
+  // down its subscription on the next render. startCountdown opens
+  // its own subscription after the 3s pre-roll; brief overlap is
+  // intentional and accepted.
+  const beginRecording = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setHasStarted(true);
     void startCountdown();
   }, [startCountdown]);
+
+  // Explicit start — fires from the armed-state START CTA. If the
+  // Always permission hasn't been asked yet (or was denied without
+  // an explainer), surface the explainer modal first so the iOS
+  // prompt arrives with context. Otherwise begin immediately.
+  const handleStart = useCallback(() => {
+    Haptics.selectionAsync();
+    if (permission.backgroundStatus === 'granted') {
+      beginRecording();
+      return;
+    }
+    // Not yet granted — show the explainer. The modal's CTA triggers
+    // `requestBackground` → `beginRecording` regardless of outcome,
+    // so the rider is never stuck behind a denied Always gate (Phase 5
+    // handles the degraded foreground-only UX).
+    setShowAlwaysExplainer(true);
+  }, [permission.backgroundStatus, beginRecording]);
+
+  // Explainer → iOS prompt → begin. Runs whether Always ends up
+  // granted or denied — denial is a graceful-degradation path, not
+  // a blocker (Phase 5 adds the foreground-only banner).
+  const handleExplainerContinue = useCallback(async () => {
+    setShowAlwaysExplainer(false);
+    await permission.requestBackground();
+    beginRecording();
+  }, [permission, beginRecording]);
+
+  const handleExplainerCancel = useCallback(() => {
+    setShowAlwaysExplainer(false);
+  }, []);
 
   // ── Render ───────────────────────────────────────────────
 
@@ -460,6 +506,42 @@ export default function RecordingScreen() {
                 <Text style={styles.idleCancelLabel}>ANULUJ</Text>
               </Pressable>
             </View>
+
+            {/* Always-permission explainer — overlays the idle screen
+                when the rider first taps START without Always granted.
+                Contextual ask: user sees WHY before iOS shows its
+                generic dialog. Closing the modal without "Kontynuuj"
+                keeps the rider on idle so they can rethink. */}
+            {showAlwaysExplainer && (
+              <View style={styles.explainerOverlay}>
+                <View style={styles.explainerCard}>
+                  <Text style={styles.explainerKicker}>● POZWOLENIE GPS</Text>
+                  <Text style={styles.explainerTitle}>TIMER MUSI DZIAŁAĆ W KIESZENI</Text>
+                  <Text style={styles.explainerBody}>
+                    NWD nagrywa czas nawet gdy telefon jest w kieszeni lub na
+                    kierownicy z wyłączonym ekranem. iOS poprosi za chwilę o
+                    zgodę „Zawsze” — to niezbędne dla timera zjazdu.
+                  </Text>
+                  <Text style={styles.explainerBody}>
+                    Niebieski pasek na górze ekranu potwierdzi, że nagrywanie
+                    działa.
+                  </Text>
+                  <Pressable
+                    onPress={handleExplainerContinue}
+                    style={({ pressed }) => [
+                      styles.explainerCta,
+                      hudShadows.glowGreen,
+                      pressed && { transform: [{ scale: 0.98 }] },
+                    ]}
+                  >
+                    <Text style={styles.explainerCtaLabel}>KONTYNUUJ</Text>
+                  </Pressable>
+                  <Pressable onPress={handleExplainerCancel} style={styles.explainerCancel}>
+                    <Text style={styles.explainerCancelLabel}>WRÓĆ</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -728,6 +810,69 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   idleCancelLabel: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
+
+  // Always-permission explainer modal
+  explainerOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10, 15, 10, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    zIndex: 20,
+  },
+  explainerCard: {
+    backgroundColor: hudColors.terrainDark,
+    borderWidth: 1,
+    borderColor: hudColors.gpsStrong,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignSelf: 'stretch',
+  },
+  explainerKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsStrong,
+  },
+  explainerTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 20,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+  },
+  explainerBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+  },
+  explainerCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  explainerCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+  explainerCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  explainerCancelLabel: {
     ...hudTypography.labelSmall,
     color: hudColors.textMuted,
     letterSpacing: 2,

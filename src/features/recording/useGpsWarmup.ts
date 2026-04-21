@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import { READINESS_GATE } from './validators';
+import type { PermissionStatus } from '../permissions/useLocationPermission';
 
 // ── Public types ────────────────────────────────────────────
 
@@ -50,6 +51,13 @@ export interface UseGpsWarmupParams {
    *  `READINESS_GATE.PIONEER_MAX_ACCURACY_M` (15) for Pioneer flow
    *  or `READINESS_GATE.RIDER_MAX_ACCURACY_M` (20) for rider flow. */
   maxAccuracyM: number;
+  /** Foreground (When-In-Use) permission status from
+   *  `useLocationPermission`. Chunk 7 made that hook the single
+   *  source of truth for permission state — warmup no longer
+   *  requests permissions itself. Pass the live status; warmup
+   *  waits when undetermined, subscribes when granted, surfaces
+   *  `permissionDenied: true` when denied. */
+  foregroundStatus: PermissionStatus;
 }
 
 // ── Hook ────────────────────────────────────────────────────
@@ -67,7 +75,11 @@ const INITIAL_STATE: GpsWarmupState = {
  *  fix goes stale (>MAX_SAMPLE_AGE_MS). */
 const TICK_INTERVAL_MS = 500;
 
-export function useGpsWarmup({ enabled, maxAccuracyM }: UseGpsWarmupParams): GpsWarmupState {
+export function useGpsWarmup({
+  enabled,
+  maxAccuracyM,
+  foregroundStatus,
+}: UseGpsWarmupParams): GpsWarmupState {
   const [state, setState] = useState<GpsWarmupState>(INITIAL_STATE);
 
   // Hot data kept out of React state so the subscription callback
@@ -144,28 +156,23 @@ export function useGpsWarmup({ enabled, maxAccuracyM }: UseGpsWarmupParams): Gps
       });
     };
 
-    (async () => {
-      // Permission dance. useGPSRecorder runs its own request later
-      // in startCountdown; a second call is a no-op when already
-      // granted. If denied now, surface it and bail — no point
-      // opening the subscription.
-      let status: Location.PermissionStatus;
-      try {
-        const res = await Location.requestForegroundPermissionsAsync();
-        status = res.status;
-      } catch {
-        if (cancelled) return;
-        permissionDeniedRef.current = true;
-        setState((s) => ({ ...s, permissionDenied: true }));
-        return;
-      }
-      if (cancelled) return;
-      if (status !== 'granted') {
-        permissionDeniedRef.current = true;
-        setState((s) => ({ ...s, permissionDenied: true }));
-        return;
-      }
+    // Chunk 7: permission is owned by useLocationPermission and
+    // passed in via `foregroundStatus`. Wait when undetermined,
+    // surface denial, proceed only on grant — no inline request.
+    if (foregroundStatus === 'denied') {
+      permissionDeniedRef.current = true;
+      setState((s) => ({ ...s, permissionDenied: true }));
+      return;
+    }
+    if (foregroundStatus !== 'granted') {
+      // Undetermined — permission hook hasn't resolved stage 1 yet.
+      // Do nothing; this effect re-runs when foregroundStatus flips.
+      return;
+    }
+    // Reset denial flag if we recover (user flips grant in Settings).
+    permissionDeniedRef.current = false;
 
+    (async () => {
       // Open the warm-up subscription. BestForNavigation to match
       // useGPSRecorder so the two can hand off without a quality
       // regression at the moment of START.
@@ -224,7 +231,7 @@ export function useGpsWarmup({ enabled, maxAccuracyM }: UseGpsWarmupParams): Gps
         tickRef.current = null;
       }
     };
-  }, [enabled, maxAccuracyM]);
+  }, [enabled, maxAccuracyM, foregroundStatus]);
 
   return state;
 }
