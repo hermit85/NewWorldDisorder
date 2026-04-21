@@ -1,49 +1,53 @@
 // ═══════════════════════════════════════════════════════════
-// PioneerBadge — Sprint 4 minimal Pioneer identity mark.
+// PioneerBadge — Ye brutalist (ADR-013).
 //
-// Lightning bolt ⚡ in signal green. No tier progression UI yet
-// (rookie / trailblazer / legend etc. land in Sprint 6+ with the
-// Hall of Fame). Sprint 4 just gives Pioneer identity visible
-// presence on the trail header and on the Pioneer's leaderboard row.
-//
-// Philosophy (GPT): protect truth first, celebrate pioneers later.
+// Emerald circle patch with lightning bolt. Replaced the Sprint-4 SVG
+// Path approach — a patch-style circle reads more jersey/embroidery
+// and less "game UI" alongside the serif direction.
 // ═══════════════════════════════════════════════════════════
 
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { hudColors, hudTypography } from '@/theme/gameHud';
+import { hudColors, hudType } from '@/theme/gameHud';
 
 export interface PioneerBadgeProps {
   size?: 'sm' | 'md';
-  /** If true, renders "PIONEER" text next to the bolt. */
+  /** If true, renders 'PIONEER' text next to the circle. */
   label?: boolean;
 }
 
-// Lightning-bolt path — MaterialDesign's flash_on icon, 24x24 viewBox.
-const BOLT_PATH = 'M13 2L3 14h7l-1 8 10-12h-7l1-8z';
-
 export function PioneerBadge({ size = 'md', label = false }: PioneerBadgeProps) {
   const dim = size === 'sm' ? 14 : 18;
+  const glyph = size === 'sm' ? 8 : 10;
   return (
-    <View style={styles.container} accessibilityLabel="Pioneer tej trasy">
-      <Svg width={dim} height={dim} viewBox="0 0 24 24">
-        <Path d={BOLT_PATH} fill={hudColors.pioneerMark} />
-      </Svg>
+    <View style={styles.row} accessibilityLabel="Pioneer tej trasy">
+      <View
+        style={[
+          styles.dot,
+          { width: dim, height: dim, borderRadius: dim / 2 },
+        ]}
+      >
+        <Text style={[styles.glyph, { fontSize: glyph }]}>⚡</Text>
+      </View>
       {label && <Text style={styles.label}>PIONEER</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: {
+    backgroundColor: hudColors.signal,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+  },
+  glyph: {
+    color: hudColors.text.inverse,
+    fontWeight: '700',
+    // Optical centering: the ⚡ glyph sits slightly low at small sizes.
+    marginTop: -1,
   },
   label: {
-    ...hudTypography.label,
-    fontSize: 10,
-    letterSpacing: 2,
-    color: hudColors.pioneerMark,
+    ...hudType.label,
+    color: hudColors.signal,
   },
 });
