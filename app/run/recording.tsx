@@ -545,6 +545,35 @@ export default function RecordingScreen() {
           </View>
         )}
 
+        {/* STORAGE ERROR — initial saveBuffer failed. Retry via
+            the same startCountdown entry point used by the explainer
+            modal's continue path. No permission dance needed; the
+            user has already granted everything by this point. */}
+        {state.phase === 'storage_error' && (
+          <View style={styles.centered}>
+            <View style={styles.storageErrorCard}>
+              <Text style={styles.storageErrorKicker}>● BŁĄD PAMIĘCI</Text>
+              <Text style={styles.storageErrorTitle}>NIE MOŻNA ROZPOCZĄĆ</Text>
+              <Text style={styles.storageErrorBody}>{state.message}</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void startCountdown();
+                }}
+                style={({ pressed }) => [
+                  styles.storageErrorCta,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.storageErrorCtaLabel}>SPRÓBUJ PONOWNIE</Text>
+              </Pressable>
+              <Pressable style={styles.permCancel} onPress={() => router.back()}>
+                <Text style={styles.permCancelLabel}>ANULUJ</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* COUNTDOWN */}
         {state.phase === 'countdown' && (
           <View style={styles.centered}>
@@ -876,6 +905,53 @@ const styles = StyleSheet.create({
     ...hudTypography.labelSmall,
     color: hudColors.textMuted,
     letterSpacing: 2,
+  },
+
+  // Storage error (initial saveBuffer failed — Codex S3 surface)
+  storageErrorCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255, 67, 101, 0.08)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsWeak,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  storageErrorKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsWeak,
+  },
+  storageErrorTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 20,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+    textAlign: 'center',
+  },
+  storageErrorBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+    textAlign: 'center',
+  },
+  storageErrorCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  storageErrorCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
   },
 
   // Permission

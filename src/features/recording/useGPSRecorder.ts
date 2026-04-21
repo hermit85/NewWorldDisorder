@@ -74,7 +74,11 @@ export type RecorderState =
       phase: 'stopped';
       points: BufferedPoint[];
       reason: 'user' | 'timeout' | 'cancel';
-    };
+    }
+  /** Surfaced when the initial recordingStore.saveBuffer throws —
+   *  e.g. AsyncStorage quota full, device storage corrupt. Retryable
+   *  via startCountdown (Codex S3 fix). */
+  | { phase: 'storage_error'; message: string };
 
 export interface UseGPSRecorderParams {
   trailId: string;
@@ -316,14 +320,30 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     // Initialise the persisted buffer so the task handler has a
     // record to append into. Must complete before start-updates
     // fires or the first sample batch lands in "no active buffer"
-    // and gets dropped.
-    await recordingStore.saveBuffer({
-      trailId,
-      spotId,
-      startedAt,
-      sessionId,
-      points: [],
-    });
+    // and gets dropped. Codex S3: storage failure here is fatal —
+    // starting the task with no target buffer would mean every
+    // sample the rider produces silently vanishes. Surface the
+    // error so the UI can offer a retry.
+    try {
+      await recordingStore.saveBuffer({
+        trailId,
+        spotId,
+        startedAt,
+        sessionId,
+        points: [],
+      });
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[useGPSRecorder] initial saveBuffer failed:', e);
+      }
+      sessionIdRef.current = null;
+      setState({
+        phase: 'storage_error',
+        message:
+          'Nie udało się rozpocząć nagrywania. Spróbuj ponownie za chwilę.',
+      });
+      return;
+    }
 
     setState({
       phase: 'recording',
@@ -374,7 +394,11 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
   // ── Public: startCountdown ───────────────────────────────
 
   const startCountdown = useCallback(async () => {
-    if (phaseRef.current !== 'idle' && phaseRef.current !== 'permission_denied') {
+    if (
+      phaseRef.current !== 'idle' &&
+      phaseRef.current !== 'permission_denied' &&
+      phaseRef.current !== 'storage_error'
+    ) {
       return;
     }
     setState({ phase: 'permission_requesting' });
