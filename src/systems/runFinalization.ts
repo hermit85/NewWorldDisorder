@@ -109,20 +109,25 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
   // gate proximity but the rider clearly rode the full trail.
   //
   const routeOk = verification.isLeaderboardEligible;
-  const gateOk = qualityAssessment.leaderboardEligible;
-  const canGateUpgrade = gateOk
-    && trace.mode === 'ranked'
-    && verification.checkpointsPassed >= 2
-    && verification.corridor.coveragePercent >= 60;
+  const corridorRescueEligible = trace.mode === 'ranked'
+    && (verification.status === 'outside_start_gate' || verification.status === 'outside_finish_gate')
+    && verification.checkpointsPassed === verification.checkpointsTotal
+    && verification.corridor.coveragePercent >= 90
+    && verification.corridor.maxDeviationM <= 10
+    && verification.gpsQuality !== 'weak';
 
-  const finalEligible = routeOk || canGateUpgrade;
+  const finalEligible = routeOk || corridorRescueEligible;
 
-  // Apply gate upgrade — mutates the freshly-created verification object
-  if (finalEligible && !routeOk) {
+  // Apply corridor rescue — mutates the freshly-created verification object.
+  if (corridorRescueEligible && !routeOk) {
     verification.isLeaderboardEligible = true;
     verification.status = 'verified';
-    verification.label = `Verified (${qualityAssessment.quality})`;
-    verification.explanation = qualityAssessment.summary;
+    verification.acceptedVia = 'corridor_rescue';
+    verification.label = 'Verified';
+    verification.explanation = 'Zaliczone na podstawie pełnego przebiegu trasy mimo niepełnego odczytu bramki.';
+    verification.issues = verification.issues.filter(
+      (issue) => issue !== 'Start gate not crossed' && issue !== 'Finish gate not crossed',
+    );
   }
 
   // ── 5. Map to run phase ──
@@ -140,7 +145,7 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
       verificationStatus: verification.status,
       eligible: verification.isLeaderboardEligible,
       durationMs: trace.durationMs,
-      gateUpgradeApplied: finalEligible && !routeOk,
+      corridorRescueApplied: corridorRescueEligible && !routeOk,
       issues: verification.issues,
     },
   });

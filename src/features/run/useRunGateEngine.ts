@@ -19,7 +19,6 @@ import { TrailGateConfig, GateEngineState, GateCrossingResult, SmoothedPosition,
 import { smoothPosition, computeHeading, computeSpeedKmh, detectGateCrossing } from './geometry';
 import { runAntiCheat } from './antiCheat';
 import { assessRunQuality } from './quality';
-import { getTrailGateConfig } from './gates';
 
 const SMOOTHING_BUFFER_SIZE = 4;
 
@@ -58,11 +57,9 @@ export interface GateEngine {
 }
 
 export function useRunGateEngine(
-  trailId: string,
+  config: TrailGateConfig | null,
   callbacks: GateEngineCallbacks
 ): GateEngine {
-  const config = getTrailGateConfig(trailId);
-
   const stateRef = useRef<GateEngineState>({
     phase: 'idle',
     positionBuffer: [],
@@ -165,8 +162,17 @@ export function useRunGateEngine(
           ? (point.timestamp - state.autoStartTimestamp) / 1000
           : 0;
 
-        // Only check finish after minimum duration
-        if (durationSec >= config.minDurationSec * 0.5) {
+        const distanceFraction = config.expectedLengthM > 0
+          ? state.totalDistanceM / config.expectedLengthM
+          : 0;
+
+        // On loop trails, finish cannot be armed just because the rider is
+        // physically close to the finish. Require both meaningful elapsed
+        // time and real route progress before we even look for a crossing.
+        if (
+          durationSec >= config.minDurationSec &&
+          distanceFraction >= config.minDistanceFraction
+        ) {
           state.phase = 'approaching_finish';
 
           const recentForFinish = allRunPointsRef.current.slice(-8);
