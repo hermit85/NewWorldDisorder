@@ -73,6 +73,33 @@ function registerTask() {
       const locations = data?.locations;
       if (!locations || locations.length === 0) return;
 
+      // Codex C2 fencing: capture the active sessionId NOW, pass it
+      // to appendSamples. If a session change completes between this
+      // read and the queued mutation, the recordingStore mutex will
+      // see a sessionId mismatch and drop the batch — preventing
+      // late samples from polluting a freshly started session.
+      //
+      // Reading the raw AsyncStorage key directly because
+      // peekRestorable's return shape doesn't expose sessionId yet
+      // (Phase 3.5 Step 5 will add it and let this simplify to
+      // a single helper call).
+      let sessionId: string | null = null;
+      try {
+        const raw = await AsyncStorage.getItem('nwd:recording-buffer');
+        if (raw) {
+          const parsed = JSON.parse(raw) as { sessionId?: string };
+          sessionId = parsed?.sessionId ?? null;
+        }
+      } catch {
+        // Read failed; can't fence without a sessionId, bail.
+      }
+      if (!sessionId) {
+        // No active session — samples from a task that outlived its
+        // recording. Drop them; Phase 3's defensive mount-time
+        // cleanup will stop the stale task on next foreground.
+        return;
+      }
+
       const samples: RawTaskSample[] = locations.map((loc) => ({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -81,7 +108,7 @@ function registerTask() {
         timestamp: loc.timestamp,
       }));
 
-      await appendSamples(samples);
+      await appendSamples(sessionId, samples);
     },
   );
 }

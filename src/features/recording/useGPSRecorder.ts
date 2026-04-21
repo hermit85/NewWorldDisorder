@@ -247,9 +247,12 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
 
       // Non-cancel: drain the persisted buffer one last time so
       // the 'stopped' state snapshot contains every sample the task
-      // collected (including those that arrived in the ~500ms since
-      // the most recent UI tick).
-      const persisted = await recordingStore.restoreBuffer();
+      // collected. `drainAndSettle` awaits the recordingStore mutex
+      // queue to idle first — ensures any task callback that arrived
+      // in the ~500ms before stop has flushed to AsyncStorage before
+      // we read. Prevents a race where finalizeStop resolves with an
+      // N-1-batch snapshot while a final batch lands moments later.
+      const persisted = await recordingStore.drainAndSettle();
       const points = persisted?.points ?? [];
 
       setState({ phase: 'stopped', points, reason });
