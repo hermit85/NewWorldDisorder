@@ -31,7 +31,12 @@ export interface GateEngineCallbacks {
 
 export interface GateEngine {
   /** Process a new GPS point. Call this from the tracking callback. */
-  processPoint: (point: GpsPoint, isRunning: boolean, isArmed: boolean) => void;
+  processPoint: (
+    point: GpsPoint,
+    isRunning: boolean,
+    isArmed: boolean,
+    hasPassedFirstCheckpoint: boolean,
+  ) => void;
   /** Get current engine state (for debug overlay) */
   getState: () => GateEngineState;
   /** Get smoothed position */
@@ -95,7 +100,12 @@ export function useRunGateEngine(
     lastRunPointRef.current = null;
   }, []);
 
-  const processPoint = useCallback((point: GpsPoint, isRunning: boolean, isArmed: boolean) => {
+  const processPoint = useCallback((
+    point: GpsPoint,
+    isRunning: boolean,
+    isArmed: boolean,
+    hasPassedFirstCheckpoint: boolean,
+  ) => {
     if (!config) return;
 
     const state = stateRef.current;
@@ -162,16 +172,13 @@ export function useRunGateEngine(
           ? (point.timestamp - state.autoStartTimestamp) / 1000
           : 0;
 
-        const distanceFraction = config.expectedLengthM > 0
-          ? state.totalDistanceM / config.expectedLengthM
-          : 0;
-
         // On loop trails, finish cannot be armed just because the rider is
-        // physically close to the finish. Require both meaningful elapsed
-        // time and real route progress before we even look for a crossing.
+        // physically close to the finish. Require elapsed time, true route
+        // progress, and CP1 before we even look for a crossing.
         if (
-          durationSec >= config.minDurationSec &&
-          distanceFraction >= config.minDistanceFraction
+          durationSec >= config.finishUnlockMinTimeSec &&
+          hasPassedFirstCheckpoint &&
+          state.totalDistanceM >= config.finishUnlockMinDistanceM
         ) {
           state.phase = 'approaching_finish';
 
@@ -182,7 +189,7 @@ export function useRunGateEngine(
               totalDistanceM: state.totalDistanceM,
               expectedLengthM: config.expectedLengthM,
               durationSec,
-              minDurationSec: config.minDurationSec,
+              minDurationSec: config.finishUnlockMinTimeSec,
             });
 
             if (crossing.crossed) {

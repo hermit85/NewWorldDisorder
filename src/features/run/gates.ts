@@ -35,6 +35,7 @@ const trailGeoSeeds: TrailGeoSeed[] = [];
 
 const PIONEER_ZONE_RADIUS_M = 25;
 const GATE_VECTOR_BASELINE_M = 10;
+const FINISH_UNLOCK_MIN_TIME_SEC = 12;
 
 /** Narrow unknown JSON → PioneerGeometry shape. Returns null when the
  *  structure does not match (legacy v0 rows, truncated payloads). */
@@ -195,6 +196,7 @@ export function buildTrailGateConfigFromGeo(
   );
   const minDurationSec = meta?.minDurationSec ?? estimateMinDurationSec(expectedLengthM);
   const minDistanceFraction = meta?.minDistanceFraction ?? 0.75;
+  const finishUnlockMinDistanceM = Math.max(80, expectedLengthM * 0.25);
   const startBearing = computeStartBearing(geo.polyline);
   const finishBearing = computeFinishBearing(geo.polyline);
 
@@ -202,6 +204,8 @@ export function buildTrailGateConfigFromGeo(
     trailId,
     trailName: meta?.trailName ?? trailName,
     expectedLengthM,
+    finishUnlockMinTimeSec: FINISH_UNLOCK_MIN_TIME_SEC,
+    finishUnlockMinDistanceM,
     minDurationSec,
     minDistanceFraction,
     startGate: {

@@ -154,6 +154,10 @@ export interface TrailGateConfig {
   trailName: string;
   /** Expected trail length in meters */
   expectedLengthM: number;
+  /** Hard lockout before finish can even arm. */
+  finishUnlockMinTimeSec: number;
+  /** Minimum ridden distance before finish can arm. */
+  finishUnlockMinDistanceM: number;
   /** Minimum run duration before finish allowed, seconds */
   minDurationSec: number;
   /** Minimum distance before finish allowed, as fraction of expected length */

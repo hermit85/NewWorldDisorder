@@ -241,8 +241,13 @@ export function useRealRun(
       const currentState = stateRef.current;
       const isRunningRanked = currentState.phase === 'running_ranked';
       const isArmedRanked = currentState.phase === 'armed_ranked';
+      const firstCheckpoint = currentState.checkpoints[0] ?? null;
+      const hasPassedFirstCheckpoint = !!firstCheckpoint && (
+        firstCheckpoint.passed ||
+        distanceMeters(point, firstCheckpoint.coordinate) <= firstCheckpoint.radiusM
+      );
 
-      gateEngine.processPoint(point, isRunningRanked, isArmedRanked);
+      gateEngine.processPoint(point, isRunningRanked, isArmedRanked, hasPassedFirstCheckpoint);
 
       safeSetState((s) => {
         // During run: add points and update checkpoint truth.
