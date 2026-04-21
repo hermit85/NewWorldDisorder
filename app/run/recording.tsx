@@ -414,6 +414,39 @@ export default function RecordingScreen() {
       />
 
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Phase 5 — Always-denied banner. Recording still works
+            (foreground only) but the rider needs to know the tradeoff
+            before they put the phone in their pocket. Visible only
+            during active-recording phases so idle / resumable / stopped
+            screens stay clean. Tap → iOS Settings deep link. */}
+        {permission.backgroundStatus !== 'granted'
+          && (state.phase === 'countdown'
+            || state.phase === 'recording'
+            || state.phase === 'timeout_grace') && (
+          <View style={styles.alwaysDeniedBanner}>
+            <View style={styles.alwaysDeniedText}>
+              <Text style={styles.alwaysDeniedTitle}>
+                ⚠ NAGRYWANIE TYLKO GDY APKA OTWARTA
+              </Text>
+              <Text style={styles.alwaysDeniedSub}>
+                Telefon w kieszeni = utrata czasu. Włącz „Zawsze" w ustawieniach.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                void Linking.openSettings();
+              }}
+              style={({ pressed }) => [
+                styles.alwaysDeniedBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.alwaysDeniedBtnLabel}>USTAWIENIA</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* RESUMABLE — Phase 4: buffer detected for this trail with
             valid sessionId + >10 samples + <1h age. Rider can
             continue or discard; we render this BEFORE permission /
@@ -492,9 +525,9 @@ export default function RecordingScreen() {
             <View style={styles.lockBox}>
               <Text style={styles.lockGlyph}>⌖</Text>
             </View>
-            <Text style={styles.permTitle}>GPS WYMAGANY</Text>
+            <Text style={styles.permTitle}>GPS WYŁĄCZONY</Text>
             <Text style={styles.permBody}>
-              Nagrywanie trasy wymaga dostępu do lokalizacji.{'\n'}Bez GPS nie wyznaczysz linii.
+              NWD potrzebuje dostępu do lokalizacji.{'\n'}Włącz w ustawieniach.
             </Text>
             {(state.phase === 'permission_denied' || warmup.permissionDenied) && (
               <>
@@ -782,14 +815,13 @@ export default function RecordingScreen() {
               </View>
             </Pressable>
 
-            {/* Foreground-only contract. GPS sampling does not survive
-                backgrounding on iOS with the current config; make the
-                constraint visible to the rider so they know why the
-                screen must stay on. Sprint 7 native background work
-                will lift this. */}
-            <Text style={styles.foregroundWarning}>
-              Trzymaj apkę otwartą · ekran włączony
-            </Text>
+            {/* Chunk 6 v3's foregroundWarning footer ("Trzymaj apkę
+                otwartą · ekran włączony") was removed in Chunk 7
+                Phase 5. With Always permission granted (default happy
+                path post-Chunk-7) the task keeps recording when the
+                screen is off — the footer would have been misleading.
+                The new top banner renders only when Always is denied
+                and communicates the constraint more clearly. */}
           </View>
         )}
 
@@ -1259,15 +1291,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Foreground-only limitation footer (last element of recording block)
-  foregroundWarning: {
+  // Phase 5 — Always-denied banner. Amber tint signals "attention
+  // needed, not broken"; red would be wrong since recording still
+  // works, just foreground-only. Renders in-flow at top of
+  // SafeAreaView so the centered countdown / recording layout below
+  // naturally shifts down without absolute-positioning math.
+  alwaysDeniedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: 'rgba(255, 217, 61, 0.10)',
+    borderBottomWidth: 1,
+    borderBottomColor: hudColors.gpsMedium,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  alwaysDeniedText: {
+    flex: 1,
+  },
+  alwaysDeniedTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 12,
+    letterSpacing: 2,
+    color: hudColors.gpsMedium,
+  },
+  alwaysDeniedSub: {
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
     color: hudColors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    opacity: 0.5,
-    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  alwaysDeniedBtn: {
+    borderWidth: 1,
+    borderColor: hudColors.gpsMedium,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  alwaysDeniedBtnLabel: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 10,
+    letterSpacing: 2,
+    color: hudColors.gpsMedium,
   },
 
   stopCta: {
