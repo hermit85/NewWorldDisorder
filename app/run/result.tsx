@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { hudColors, hudTypography, hudShadows, hudType, hudSpacing } from '@/theme/gameHud';
 import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
@@ -645,20 +645,11 @@ function StandardResultScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PIONEER RESULT SCREEN
-// Distinct celebration for the first-ever run on a trail.
-// DB is the source of truth (no runStore); we fetch run + trail + spot
-// and render a Crown hero + stats + "WRÓĆ DO TRASY" CTA.
+// PIONEER RESULT SCREEN — Ye brutalist (ADR-013)
+// Emerald 'NEW PERSONAL BEST' label + serif 40pt hero copy +
+// 96pt time + position + 2 cream-outline CTAs.
+// Copy still adapts to seed_source (curator vs rider framing).
 // ═══════════════════════════════════════════════════════════
-
-const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
-];
-
-/** Simple crown path — five peaks, flat base. Drawn in a 40×28 viewBox. */
-const CROWN_PATH = 'M2 22 L8 8 L14 18 L20 4 L26 18 L32 8 L38 22 L38 26 L2 26 Z';
 
 function PioneerResultScreen({ runId }: { runId: string }) {
   const router = useRouter();
@@ -666,32 +657,30 @@ function PioneerResultScreen({ runId }: { runId: string }) {
   const { trail } = useTrail(run?.trail_id ?? null);
   const { spot } = useSpot(trail?.spotId ?? null);
 
-  const pulseAnim = useRef(new Animated.Value(0.7)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.7, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
-
   const goToTrail = () => {
     tapLight();
     if (trail?.id) router.replace(`/trail/${trail.id}`);
     else router.replace('/');
   };
 
+  const goToBoard = () => {
+    tapLight();
+    if (trail?.id) {
+      router.replace({
+        pathname: '/(tabs)/leaderboard',
+        params: { trailId: trail.id, scope: 'all_time' },
+      });
+    } else {
+      router.replace('/(tabs)/leaderboard');
+    }
+  };
+
   if (!run) {
     return (
       <View style={pioneerStyles.root}>
-        <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={pioneerStyles.safe}>
           <View style={pioneerStyles.centered}>
-            <ActivityIndicator color={hudColors.gpsStrong} />
+            <ActivityIndicator color={hudColors.signal} />
             <Text style={pioneerStyles.loadingLabel}>WCZYTUJĘ ZJAZD…</Text>
           </View>
         </SafeAreaView>
@@ -702,59 +691,61 @@ function PioneerResultScreen({ runId }: { runId: string }) {
   const durationMs = run.duration_ms ?? 0;
   const trailName = trail?.name ?? 'TRASA';
   const spotName = spot?.name;
+  const isCurator = trail?.seedSource === 'curator';
 
   return (
     <View style={pioneerStyles.root}>
-      <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={pioneerStyles.safe} edges={['top', 'bottom']}>
+        {/* Top bar */}
+        <View style={pioneerStyles.topBar}>
+          <Text style={pioneerStyles.topSide}>ZJAZD OK</Text>
+          <Text style={pioneerStyles.topSide}>
+            {new Date().toISOString().replace('T', ' ').slice(0, 16).toUpperCase()}
+          </Text>
+        </View>
+
         <View style={pioneerStyles.hero}>
-          <Animated.View style={[pioneerStyles.crownWrap, { opacity: pulseAnim }, hudShadows.glowGreen]}>
-            <Svg width={72} height={50} viewBox="0 0 40 28">
-              <Path d={CROWN_PATH} fill={hudColors.gpsStrong} />
-            </Svg>
-          </Animated.View>
-
-          {/* Sprint 4 / ADR-012: copy adapts to seed_source.
-              Curator seeds get softer "welcome to the league" framing;
-              rider seeds get the community-confirmation prompt.
-              Both preserve permanent Pioneer messaging. */}
-          {trail?.seedSource === 'curator' ? (
-            <>
-              <Text style={pioneerStyles.heroTitle}>TWOJA TRASA{'\n'}DOŁĄCZA DO LIGI</Text>
-              <Text style={pioneerStyles.heroSubtitle}>
-                Jako kurator utworzyłeś trasę kuratora. Liga działa od razu.
-                Pioneer należy do ciebie — na zawsze.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
-              <Text style={pioneerStyles.heroSubtitle}>
-                Trasa w fazie testowej. Potrzeba 5 riderów aby została
-                potwierdzona. Twoje imię zostanie zapisane jako Pioneer.
-              </Text>
-            </>
-          )}
-
-          <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
-          <Text style={pioneerStyles.rankLabel}>#1 WSZECH CZASÓW</Text>
+          <Text style={pioneerStyles.heroKicker}>
+            {isCurator ? 'TWOJA TRASA · LIGA LIVE' : 'PIERWSZY PIONEER'}
+          </Text>
+          <Text style={pioneerStyles.heroCopy}>
+            {isCurator
+              ? 'Trasa kuratora.\nLiga działa od razu.'
+              : 'Pierwszy zjazd\nzostaje na zawsze.'}
+          </Text>
         </View>
 
-        <View style={pioneerStyles.statsBlock}>
-          <Text style={pioneerStyles.trailName}>{trailName}</Text>
-          {spotName && <Text style={pioneerStyles.spotName}>{spotName.toUpperCase()}</Text>}
+        {/* Time hero */}
+        <View style={pioneerStyles.timeBlock}>
+          <Text style={pioneerStyles.timeLabel}>CZAS</Text>
+          <View style={pioneerStyles.timeRow}>
+            <Text style={pioneerStyles.timeText}>{formatPbMain(durationMs)}</Text>
+            <Text style={pioneerStyles.timeMs}>.{formatPbTail(durationMs)}</Text>
+          </View>
         </View>
 
-        <View style={pioneerStyles.footer}>
+        {/* Trail + spot identity row */}
+        <View style={pioneerStyles.identBlock}>
+          <Text style={pioneerStyles.identTrail}>{trailName}</Text>
+          {spotName && <Text style={pioneerStyles.identSpot}>{spotName.toUpperCase()}</Text>}
+          <Text style={pioneerStyles.identRank}>#1 WSZECH CZASÓW</Text>
+        </View>
+
+        <View style={{ flex: 1 }} />
+
+        {/* CTAs */}
+        <View style={pioneerStyles.ctaRow}>
           <Pressable
             onPress={goToTrail}
-            style={({ pressed }) => [
-              pioneerStyles.cta,
-              hudShadows.glowGreen,
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
+            style={({ pressed }) => [pioneerStyles.cta, pressed && pioneerStyles.ctaPressed]}
           >
-            <Text style={pioneerStyles.ctaLabel}>WRÓĆ DO TRASY</Text>
+            <Text style={pioneerStyles.ctaLabel}>WRÓĆ NA GÓRĘ</Text>
+          </Pressable>
+          <Pressable
+            onPress={goToBoard}
+            style={({ pressed }) => [pioneerStyles.cta, pressed && pioneerStyles.ctaPressed]}
+          >
+            <Text style={pioneerStyles.ctaLabel}>TABLICA</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -762,103 +753,122 @@ function PioneerResultScreen({ runId }: { runId: string }) {
   );
 }
 
+function formatPbMain(ms: number): string {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+function formatPbTail(ms: number): string {
+  return String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
+}
+
 const pioneerStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
+  root: { flex: 1, backgroundColor: hudColors.surface.base },
   safe: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: hudSpacing.md },
   loadingLabel: {
-    ...hudTypography.label,
-    color: hudColors.gpsStrong,
-    letterSpacing: 4,
+    ...hudType.label,
+    color: hudColors.signal,
   },
+
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: hudSpacing.xxl,
+    paddingVertical: hudSpacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: hudColors.surface.border,
+  },
+  topSide: {
+    ...hudType.labelSm,
+    color: hudColors.text.secondary,
+  },
+
   hero: {
-    paddingTop: spacing.xxl,
-    paddingHorizontal: spacing.xl,
+    paddingTop: hudSpacing.giant,
+    paddingHorizontal: hudSpacing.xxl,
     alignItems: 'center',
   },
-  crownWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  heroTitle: {
-    ...hudTypography.displayLarge,
-    fontSize: 36,
-    color: hudColors.gpsStrong,
+  heroKicker: {
+    ...hudType.label,
+    color: hudColors.signal,
     letterSpacing: 4,
+    marginBottom: hudSpacing.lg,
     textAlign: 'center',
-    textShadowColor: hudColors.gpsStrong,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 30,
-    marginBottom: spacing.sm,
   },
-  heroSubtitle: {
-    ...hudTypography.label,
-    color: hudColors.textMuted,
-    fontSize: 11,
-    letterSpacing: 2,
+  heroCopy: {
+    ...hudType.heroCopy,
+    color: hudColors.text.primary,
     textAlign: 'center',
-    marginBottom: spacing.xl,
-    maxWidth: 320,
   },
-  heroTime: {
-    fontFamily: 'Rajdhani_700Bold',
+
+  timeBlock: {
+    paddingTop: hudSpacing.giant,
+    alignItems: 'center',
+  },
+  timeLabel: {
+    ...hudType.label,
+    color: hudColors.text.secondary,
+    marginBottom: hudSpacing.md,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  timeText: {
+    ...hudType.heroTimeBig,
+    color: hudColors.text.primary,
+  },
+  timeMs: {
+    ...hudType.heroTime,
+    color: hudColors.text.muted,
     fontSize: 48,
-    color: hudColors.timerPrimary,
-    letterSpacing: 2,
-    fontVariant: ['tabular-nums'] as any,
-    textShadowColor: hudColors.gpsStrong,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
-    marginBottom: spacing.xs,
+    lineHeight: 50,
+    marginLeft: 6,
   },
-  rankLabel: {
-    ...hudTypography.label,
-    fontSize: 12,
-    color: hudColors.gpsStrong,
-    letterSpacing: 4,
-  },
-  statsBlock: {
-    marginTop: spacing.xxl,
-    paddingHorizontal: spacing.xl,
+
+  identBlock: {
+    paddingTop: hudSpacing.xxxl,
+    paddingHorizontal: hudSpacing.xxl,
     alignItems: 'center',
   },
-  trailName: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 22,
-    color: hudColors.timerPrimary,
-    letterSpacing: 2,
-    marginBottom: spacing.xs,
+  identTrail: {
+    ...hudType.displayMd,
+    color: hudColors.text.primary,
     textAlign: 'center',
   },
-  spotName: {
-    ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+  identSpot: {
+    ...hudType.caption,
+    color: hudColors.text.secondary,
     letterSpacing: 3,
+    marginTop: hudSpacing.xs,
   },
-  footer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
+  identRank: {
+    ...hudType.label,
+    color: hudColors.signal,
+    marginTop: hudSpacing.md,
+  },
+
+  ctaRow: {
+    flexDirection: 'row',
+    gap: hudSpacing.md,
+    paddingHorizontal: hudSpacing.xxl,
+    paddingBottom: hudSpacing.xxl,
   },
   cta: {
-    backgroundColor: hudColors.actionPrimary,
-    borderRadius: radii.lg,
-    height: 64,
+    flex: 1,
+    paddingVertical: hudSpacing.md,
+    borderWidth: 1,
+    borderColor: hudColors.text.primary,
     alignItems: 'center',
-    justifyContent: 'center',
   },
+  ctaPressed: { backgroundColor: hudColors.text.primary },
   ctaLabel: {
-    ...hudTypography.action,
-    fontSize: 16,
-    color: hudColors.terrainDark,
-    letterSpacing: 3,
+    ...hudType.label,
+    color: hudColors.text.primary,
   },
 });
+
 
 // ═══════════════════════════════════════════════════════════
 // STYLES
