@@ -20,9 +20,12 @@ import { spacing, radii } from '@/theme/spacing';
 import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import {
   buildTrailGeometry,
-  validateGeometry,
   type BufferedPoint,
 } from '@/features/recording/geometryBuilder';
+import {
+  validatePioneerRun,
+  type ValidationResult,
+} from '@/features/recording/validators';
 import * as recordingStore from '@/features/recording/recordingStore';
 import * as api from '@/lib/api';
 import type { PioneerGeometry, PioneerRunPayload } from '@/lib/api';
@@ -204,17 +207,30 @@ export default function ReviewScreen() {
     return buildTrailGeometry({ points, pioneerRunId: null });
   }, [points, viewState.kind]);
 
-  const validationError = useMemo(() => {
-    if (!geometry) return null;
-    return validateGeometry(geometry);
-  }, [geometry]);
+  // Run the Pioneer-flow validator (duration / distance / points /
+  // per-sample accuracy). Consumes the raw BufferedPoint[] so we can
+  // read start/end sample accuracy — geometry.meta.medianAccuracyM
+  // alone would hide gate-quality issues.
+  const validation = useMemo<ValidationResult | null>(() => {
+    if (!geometry || points.length === 0) return null;
+    const first = points[0];
+    const last = points[points.length - 1];
+    return validatePioneerRun({
+      durationMs: Math.round(geometry.meta.durationS * 1000),
+      distanceM: geometry.meta.totalDistanceM,
+      pointCount: points.length,
+      accuracyAvg: geometry.meta.medianAccuracyM,
+      accuracyStart: first.accuracy ?? Infinity,
+      accuracyEnd: last.accuracy ?? Infinity,
+    });
+  }, [geometry, points]);
 
   const polylinePoints = useMemo(() => buildPolylinePoints(points), [points]);
 
   // ── Submit ─────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (submittedRef.current) return;
-    if (!geometry || validationError !== null) return;
+    if (!geometry || !validation || !validation.ok) return;
     if (!trailId || !spotId) return;
 
     submittedRef.current = true;
@@ -258,7 +274,15 @@ export default function ReviewScreen() {
     submittedRef.current = false;
     notifyWarning();
 
-    if (result.code === 'weak_signal_pioneer') {
+    // Accuracy-family failures → rejection screen with retry CTA.
+    // Legacy `weak_signal_pioneer` preserved for servers not yet on
+    // migration 013.
+    if (
+      result.code === 'weak_signal_pioneer' ||
+      result.code === 'accuracy_too_poor_avg' ||
+      result.code === 'accuracy_too_poor_start' ||
+      result.code === 'accuracy_too_poor_end'
+    ) {
       router.replace(`/run/rejected?trailId=${trailId}&spotId=${spotId}&reason=weak_signal`);
       return;
     }
@@ -280,9 +304,17 @@ export default function ReviewScreen() {
       return;
     }
 
-    if (result.code === 'invalid_geometry') {
+    // Geometry-family failures (duration / distance / points) — stay
+    // on the review screen so the rider can see polyline + reject or
+    // retry. Legacy `invalid_geometry` preserved for pre-mig-013 servers.
+    if (
+      result.code === 'invalid_geometry' ||
+      result.code === 'too_short_duration' ||
+      result.code === 'too_short_distance' ||
+      result.code === 'too_few_points'
+    ) {
       Alert.alert(
-        'Zbyt krótkie nagranie',
+        'Zjazd nie spełnia progów Pioniera',
         result.message ?? 'Zjedź dłużej i spróbuj ponownie.',
       );
       setViewState({ kind: 'ready' });
@@ -292,7 +324,7 @@ export default function ReviewScreen() {
     // Generic fallback — keep rider on review so they can retry or reject.
     setSubmitError(result.message ?? 'Nie udało się zapisać zjazdu');
     setViewState({ kind: 'ready' });
-  }, [geometry, validationError, trailId, spotId, startedAt, router]);
+  }, [geometry, validation, points, trailId, spotId, startedAt, router]);
 
   // ── Reject ─────────────────────────────────────────────
   const handleReject = useCallback(() => {
@@ -367,7 +399,7 @@ export default function ReviewScreen() {
 
   // viewState === 'ready' | 'submitting'
   const isSubmitting = viewState.kind === 'submitting';
-  const canSubmit = geometry !== null && validationError === null && !isSubmitting;
+  const canSubmit = geometry !== null && validation?.ok === true && !isSubmitting;
 
   const durationMs = geometry ? Math.round(geometry.meta.durationS * 1000) : 0;
   const distanceM = geometry ? geometry.meta.totalDistanceM : 0;
@@ -424,26 +456,12 @@ export default function ReviewScreen() {
             )}
           </View>
 
-          {/* VALIDATION WARNINGS */}
-          {validationError === 'too_few_points' && (
+          {/* VALIDATION WARNING — validator builds a specific message
+              ("Nagranie za krótkie: 28s. Pionier wymaga 30s.") so the
+              UI just renders whichever failure fired first. */}
+          {validation && !validation.ok && (
             <View style={styles.warnBanner}>
-              <Text style={styles.warnBannerText}>
-                ⚠ Za mało punktów GPS ({points.length}/30). Nie można zatwierdzić jako Pioniera — zjedź ponownie w lepszym sygnale.
-              </Text>
-            </View>
-          )}
-          {validationError === 'weak_signal' && (
-            <View style={styles.warnBanner}>
-              <Text style={styles.warnBannerText}>
-                ⚠ Słaby sygnał — kalibracja może być niewiarygodna.
-              </Text>
-            </View>
-          )}
-          {validationError === 'invalid_monotonic' && (
-            <View style={styles.warnBanner}>
-              <Text style={styles.warnBannerText}>
-                ⚠ Błąd kolejności punktów — spróbuj ponownie.
-              </Text>
+              <Text style={styles.warnBannerText}>⚠ {validation.message}</Text>
             </View>
           )}
 
