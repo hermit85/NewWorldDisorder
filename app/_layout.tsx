@@ -20,6 +20,14 @@ import { AuthProvider } from '@/hooks/AuthContext';
 import { hydrateRunStore } from '@/systems/runStore';
 import { initSaveQueue } from '@/systems/saveQueue';
 
+// Side-effect import — registers the background location task with
+// expo-task-manager at app init. MUST happen on every launch,
+// including headless iOS background launches, otherwise incoming
+// location batches have no handler to receive them. See
+// src/features/recording/backgroundLocationTask.ts for the guard
+// that makes this import idempotent under Fast Refresh.
+import '@/features/recording/backgroundLocationTask';
+
 // Debug drawer — only imported in dev
 const DebugDrawerLazy = __DEV__
   ? require('@/components/dev/DebugDrawer').DebugDrawer
