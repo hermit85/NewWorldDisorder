@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing,
+  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,6 +20,7 @@ import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
 import { useGpsWarmup } from '@/features/recording/useGpsWarmup';
 import { READINESS_GATE } from '@/features/recording/validators';
+import { useLocationPermission } from '@/features/permissions/useLocationPermission';
 import * as recordingStore from '@/features/recording/recordingStore';
 import { MotivationStack } from '@/components/run/MotivationStack';
 
@@ -41,6 +42,16 @@ function formatTimer(ms: number): string {
   const s = totalSec % 60;
   const tenths = Math.floor((totalMs % 1000) / 100);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${tenths}`;
+}
+
+/** Polish relative age — "mniej niż minutę temu" / "12 min temu".
+ *  Minute-granularity is enough for the resume prompt; no need to
+ *  say "sprzed 7 sekund" which would invite the rider to just
+ *  restart. */
+function formatAgo(ageMs: number): string {
+  const minutes = Math.floor(ageMs / 60_000);
+  if (minutes < 1) return 'mniej niż minutę temu';
+  return `${minutes} min temu`;
 }
 
 // ── GPS strength: 3 dots, colour per bucket, 1 active per level ──
@@ -127,8 +138,21 @@ export default function RecordingScreen() {
   // unmount cleanup releases the lock.
   useKeepAwake('nwd-recording');
 
-  const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
-    useGPSRecorder({ trailId, spotId });
+  const {
+    state,
+    startCountdown,
+    stopRecording,
+    cancelRecording,
+    extendTimeout,
+    resumeSession,
+    discardResumable,
+  } = useGPSRecorder({ trailId, spotId });
+
+  // Chunk 7: single source of truth for iOS location permissions.
+  // Stage 1 (When-In-Use) auto-requests on mount; stage 2 (Always) is
+  // a contextual ask fired the first time the user taps START so the
+  // request has clear motivation attached.
+  const permission = useLocationPermission();
 
   // Pre-flight GPS warm-up. Enabled while we're in 'idle' (before the
   // user taps START) and disabled the instant we hand off to the
@@ -138,7 +162,31 @@ export default function RecordingScreen() {
   const warmup = useGpsWarmup({
     enabled: state.phase === 'idle' && !hasStarted,
     maxAccuracyM: READINESS_GATE.PIONEER_MAX_ACCURACY_M,
+    foregroundStatus: permission.foregroundStatus,
   });
+
+  // Always-permission explainer modal: surfaced between the user's
+  // intent to START and the actual iOS permission prompt, so the ask
+  // has context ("why we need Always"). One-shot per screen mount —
+  // if the user dismisses and taps START again we re-show it only if
+  // permission is still not granted.
+  const [showAlwaysExplainer, setShowAlwaysExplainer] = useState(false);
+
+  // Chunk 7 Phase 6: re-read permission statuses on every foreground
+  // return. Without this, a rider who tapped USTAWIENIA in the banner
+  // and flipped Always from denied → granted in iOS Settings would
+  // still see the banner (and the hook would still report denied)
+  // until the screen remounted. permission.refresh reads both
+  // foreground + background statuses via getForegroundPermissionsAsync
+  // / getBackgroundPermissionsAsync — no user prompts, just state sync.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        void permission.refresh();
+      }
+    });
+    return () => sub.remove();
+  }, [permission]);
 
   const lastCountdownSecondRef = useRef<number | null>(null);
   const lastWeakSignalRef = useRef<boolean>(false);
@@ -236,19 +284,27 @@ export default function RecordingScreen() {
       return;
     }
 
-    // Derive startedAt from the last-point timestamp (seconds since
-    // start of recording). Falls back to now() for a zero-point buffer
-    // so the review screen can still mount and show a warning.
-    const lastT = state.points.length > 0
-      ? state.points[state.points.length - 1].t
-      : 0;
-    const startedAt = Date.now() - Math.round(lastT * 1000);
-
     const proceedToReview = async () => {
+      // Codex S4: preserve the ORIGINAL startedAt from the persisted
+      // buffer rather than deriving one from Date.now() - lastPoint.t.
+      // The derived form drifts by however long the finalize flow
+      // takes (stop → task teardown → drain → this effect), which on
+      // a slow device can be hundreds of ms. The review screen relies
+      // on startedAt for the race-time anchor — drift there rolls
+      // into the duration shown to the rider.
+      //
+      // drainAndSettle ensured every task append completed before the
+      // 'stopped' state fired, so this read is the authoritative
+      // snapshot. Fall back to Date.now() only when the buffer is
+      // missing entirely (shouldn't happen post-drain, defensive).
+      const persisted = await recordingStore.drainAndSettle();
+      const startedAt = persisted?.startedAt ?? Date.now();
+
       await recordingStore.saveBuffer({
         trailId,
         spotId,
         startedAt,
+        sessionId: persisted?.sessionId,
         points: state.points,
       });
       router.replace(`/run/review?trailId=${trailId}&spotId=${spotId}`);
@@ -315,16 +371,47 @@ export default function RecordingScreen() {
     extendTimeout();
   }, [extendTimeout]);
 
-  // Explicit start — fires only from the armed-state START CTA.
-  // Setting hasStarted true first disables the warm-up hook, which
-  // tears down its subscription on the next render. startCountdown
-  // opens its own subscription after the 3s pre-roll; brief overlap
-  // is intentional and accepted.
-  const handleStart = useCallback(() => {
+  // Actual start — runs after the Always-permission gate resolves
+  // (either granted, denied, or explicitly skipped). Setting
+  // hasStarted true first disables the warm-up hook, which tears
+  // down its subscription on the next render. startCountdown opens
+  // its own subscription after the 3s pre-roll; brief overlap is
+  // intentional and accepted.
+  const beginRecording = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setHasStarted(true);
     void startCountdown();
   }, [startCountdown]);
+
+  // Explicit start — fires from the armed-state START CTA. If the
+  // Always permission hasn't been asked yet (or was denied without
+  // an explainer), surface the explainer modal first so the iOS
+  // prompt arrives with context. Otherwise begin immediately.
+  const handleStart = useCallback(() => {
+    Haptics.selectionAsync();
+    if (permission.backgroundStatus === 'granted') {
+      beginRecording();
+      return;
+    }
+    // Not yet granted — show the explainer. The modal's CTA triggers
+    // `requestBackground` → `beginRecording` regardless of outcome,
+    // so the rider is never stuck behind a denied Always gate (Phase 5
+    // handles the degraded foreground-only UX).
+    setShowAlwaysExplainer(true);
+  }, [permission.backgroundStatus, beginRecording]);
+
+  // Explainer → iOS prompt → begin. Runs whether Always ends up
+  // granted or denied — denial is a graceful-degradation path, not
+  // a blocker (Phase 5 adds the foreground-only banner).
+  const handleExplainerContinue = useCallback(async () => {
+    setShowAlwaysExplainer(false);
+    await permission.requestBackground();
+    beginRecording();
+  }, [permission, beginRecording]);
+
+  const handleExplainerCancel = useCallback(() => {
+    setShowAlwaysExplainer(false);
+  }, []);
 
   // ── Render ───────────────────────────────────────────────
 
@@ -343,6 +430,106 @@ export default function RecordingScreen() {
       />
 
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Phase 5 — Always-denied banner. Recording still works
+            (foreground only) but the rider needs to know the tradeoff
+            before they put the phone in their pocket. Visible only
+            during active-recording phases so idle / resumable / stopped
+            screens stay clean. Tap → iOS Settings deep link. */}
+        {permission.backgroundStatus !== 'granted'
+          && (state.phase === 'countdown'
+            || state.phase === 'recording'
+            || state.phase === 'timeout_grace') && (
+          <View style={styles.alwaysDeniedBanner}>
+            <View style={styles.alwaysDeniedText}>
+              <Text style={styles.alwaysDeniedTitle}>
+                ⚠ NAGRYWANIE TYLKO GDY APKA OTWARTA
+              </Text>
+              <Text style={styles.alwaysDeniedSub}>
+                Telefon w kieszeni = utrata czasu. Włącz „Zawsze" w ustawieniach.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                void Linking.openSettings();
+              }}
+              style={({ pressed }) => [
+                styles.alwaysDeniedBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.alwaysDeniedBtnLabel}>USTAWIENIA</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* RESUMABLE — Phase 4: buffer detected for this trail with
+            valid sessionId + >10 samples + <1h age. Rider can
+            continue or discard; we render this BEFORE permission /
+            idle so a valid resumable session isn't clobbered by the
+            warm-up flow on every remount. */}
+        {state.phase === 'resumable' && (
+          <View style={styles.centered}>
+            <View style={styles.resumableCard}>
+              <Text style={styles.resumableKicker}>● ZAPISANY ZJAZD</Text>
+              <Text style={styles.resumableTitle}>NIEDOKOŃCZONY ZJAZD</Text>
+              <Text style={styles.resumableBody}>
+                Wykryto {state.pointCount} punktów GPS, {formatAgo(state.ageMs)}.
+                Kontynuować?
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  void resumeSession();
+                }}
+                style={({ pressed }) => [
+                  styles.resumableCta,
+                  hudShadows.glowGreen,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.resumableCtaLabel}>KONTYNUUJ</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void discardResumable();
+                }}
+                style={styles.resumableCancel}
+              >
+                <Text style={styles.resumableCancelLabel}>ODRZUĆ</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* RESUMABLE BROKEN — edge case: buffer exists for this trail
+            and is recent, but malformed (no sessionId or <10 points).
+            Cannot resume; only clear. */}
+        {state.phase === 'resumable_broken' && (
+          <View style={styles.centered}>
+            <View style={styles.resumableBrokenCard}>
+              <Text style={styles.resumableBrokenKicker}>● USZKODZONE</Text>
+              <Text style={styles.resumableTitle}>STARE DANE</Text>
+              <Text style={styles.resumableBody}>
+                Niedokończony zjazd jest uszkodzony i nie może być kontynuowany.
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void discardResumable();
+                }}
+                style={({ pressed }) => [
+                  styles.resumableCta,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.resumableCtaLabel}>WYCZYŚĆ</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* PERMISSION PHASES — fired by either the warm-up hook
             (pre-start) or useGPSRecorder.startCountdown (post-tap).
             Both paths surface an identical UI so users always see
@@ -354,9 +541,9 @@ export default function RecordingScreen() {
             <View style={styles.lockBox}>
               <Text style={styles.lockGlyph}>⌖</Text>
             </View>
-            <Text style={styles.permTitle}>GPS WYMAGANY</Text>
+            <Text style={styles.permTitle}>GPS WYŁĄCZONY</Text>
             <Text style={styles.permBody}>
-              Nagrywanie trasy wymaga dostępu do lokalizacji.{'\n'}Bez GPS nie wyznaczysz linii.
+              NWD potrzebuje dostępu do lokalizacji.{'\n'}Włącz w ustawieniach.
             </Text>
             {(state.phase === 'permission_denied' || warmup.permissionDenied) && (
               <>
@@ -458,6 +645,71 @@ export default function RecordingScreen() {
               </Pressable>
               <Pressable style={styles.idleCancel} onPress={() => router.back()}>
                 <Text style={styles.idleCancelLabel}>ANULUJ</Text>
+              </Pressable>
+            </View>
+
+            {/* Always-permission explainer — overlays the idle screen
+                when the rider first taps START without Always granted.
+                Contextual ask: user sees WHY before iOS shows its
+                generic dialog. Closing the modal without "Kontynuuj"
+                keeps the rider on idle so they can rethink. */}
+            {showAlwaysExplainer && (
+              <View style={styles.explainerOverlay}>
+                <View style={styles.explainerCard}>
+                  <Text style={styles.explainerKicker}>● POZWOLENIE GPS</Text>
+                  <Text style={styles.explainerTitle}>TIMER MUSI DZIAŁAĆ W KIESZENI</Text>
+                  <Text style={styles.explainerBody}>
+                    NWD nagrywa czas nawet gdy telefon jest w kieszeni lub na
+                    kierownicy z wyłączonym ekranem. iOS poprosi za chwilę o
+                    zgodę „Zawsze” — to niezbędne dla timera zjazdu.
+                  </Text>
+                  <Text style={styles.explainerBody}>
+                    Niebieski pasek na górze ekranu potwierdzi, że nagrywanie
+                    działa.
+                  </Text>
+                  <Pressable
+                    onPress={handleExplainerContinue}
+                    style={({ pressed }) => [
+                      styles.explainerCta,
+                      hudShadows.glowGreen,
+                      pressed && { transform: [{ scale: 0.98 }] },
+                    ]}
+                  >
+                    <Text style={styles.explainerCtaLabel}>KONTYNUUJ</Text>
+                  </Pressable>
+                  <Pressable onPress={handleExplainerCancel} style={styles.explainerCancel}>
+                    <Text style={styles.explainerCancelLabel}>WRÓĆ</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* STORAGE ERROR — initial saveBuffer failed. Retry via
+            the same startCountdown entry point used by the explainer
+            modal's continue path. No permission dance needed; the
+            user has already granted everything by this point. */}
+        {state.phase === 'storage_error' && (
+          <View style={styles.centered}>
+            <View style={styles.storageErrorCard}>
+              <Text style={styles.storageErrorKicker}>● BŁĄD PAMIĘCI</Text>
+              <Text style={styles.storageErrorTitle}>NIE MOŻNA ROZPOCZĄĆ</Text>
+              <Text style={styles.storageErrorBody}>{state.message}</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void startCountdown();
+                }}
+                style={({ pressed }) => [
+                  styles.storageErrorCta,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.storageErrorCtaLabel}>SPRÓBUJ PONOWNIE</Text>
+              </Pressable>
+              <Pressable style={styles.permCancel} onPress={() => router.back()}>
+                <Text style={styles.permCancelLabel}>ANULUJ</Text>
               </Pressable>
             </View>
           </View>
@@ -579,14 +831,13 @@ export default function RecordingScreen() {
               </View>
             </Pressable>
 
-            {/* Foreground-only contract. GPS sampling does not survive
-                backgrounding on iOS with the current config; make the
-                constraint visible to the rider so they know why the
-                screen must stay on. Sprint 7 native background work
-                will lift this. */}
-            <Text style={styles.foregroundWarning}>
-              Trzymaj apkę otwartą · ekran włączony
-            </Text>
+            {/* Chunk 6 v3's foregroundWarning footer ("Trzymaj apkę
+                otwartą · ekran włączony") was removed in Chunk 7
+                Phase 5. With Always permission granted (default happy
+                path post-Chunk-7) the task keeps recording when the
+                screen is off — the footer would have been misleading.
+                The new top banner renders only when Always is denied
+                and communicates the constraint more clearly. */}
           </View>
         )}
 
@@ -733,6 +984,192 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
+  // Always-permission explainer modal
+  explainerOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(10, 15, 10, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    zIndex: 20,
+  },
+  explainerCard: {
+    backgroundColor: hudColors.terrainDark,
+    borderWidth: 1,
+    borderColor: hudColors.gpsStrong,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignSelf: 'stretch',
+  },
+  explainerKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsStrong,
+  },
+  explainerTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 20,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+  },
+  explainerBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+  },
+  explainerCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  explainerCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+  explainerCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  explainerCancelLabel: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
+
+  // Storage error (initial saveBuffer failed — Codex S3 surface)
+  storageErrorCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255, 67, 101, 0.08)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsWeak,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  storageErrorKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsWeak,
+  },
+  storageErrorTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 20,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+    textAlign: 'center',
+  },
+  storageErrorBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+    textAlign: 'center',
+  },
+  storageErrorCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  storageErrorCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+
+  // Resumable prompt (normal path — buffer valid + resumable)
+  resumableCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(0, 255, 140, 0.06)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsStrong,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  resumableKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsStrong,
+  },
+  resumableTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 22,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+    textAlign: 'center',
+  },
+  resumableBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+    textAlign: 'center',
+  },
+  resumableCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  resumableCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+  resumableCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  resumableCancelLabel: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
+
+  // Resumable-broken variant — amber kicker signals "data exists
+  // but not useful", differentiating from the emerald "you have a
+  // good session to resume" card.
+  resumableBrokenCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsMedium,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  resumableBrokenKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsMedium,
+  },
+
   // Permission
   lockBox: {
     width: 88,
@@ -870,15 +1307,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Foreground-only limitation footer (last element of recording block)
-  foregroundWarning: {
+  // Phase 5 — Always-denied banner. Amber tint signals "attention
+  // needed, not broken"; red would be wrong since recording still
+  // works, just foreground-only. Renders in-flow at top of
+  // SafeAreaView so the centered countdown / recording layout below
+  // naturally shifts down without absolute-positioning math.
+  alwaysDeniedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: 'rgba(255, 217, 61, 0.10)',
+    borderBottomWidth: 1,
+    borderBottomColor: hudColors.gpsMedium,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  alwaysDeniedText: {
+    flex: 1,
+  },
+  alwaysDeniedTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 12,
+    letterSpacing: 2,
+    color: hudColors.gpsMedium,
+  },
+  alwaysDeniedSub: {
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
     color: hudColors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    opacity: 0.5,
-    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  alwaysDeniedBtn: {
+    borderWidth: 1,
+    borderColor: hudColors.gpsMedium,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  alwaysDeniedBtnLabel: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 10,
+    letterSpacing: 2,
+    color: hudColors.gpsMedium,
   },
 
   stopCta: {

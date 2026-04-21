@@ -1,43 +1,56 @@
 // ═══════════════════════════════════════════════════════════
-// useGPSRecorder — owns the Pioneer recording session:
-//   1. Permission prompt + denial surfacing.
-//   2. 3 s countdown → GPS subscription @ 1 Hz.
-//   3. 2 m distance-filter dedup into an in-memory buffer (useRef).
-//   4. Median-accuracy / weak-signal tracking (banner trigger).
-//   5. 30-min timeout with 5 s grace + up to 3×10 min extensions
-//      (60 min hard cap).
-//   6. AsyncStorage flush every 10 s via recordingStore.
-//   7. Explicit stop / cancel transitions; onFinalize fires on
-//      non-cancel exits only.
+// useGPSRecorder — owns the Pioneer recording session.
 //
-// Heavy state (the points array) lives in useRef to avoid a
-// re-render per GPS sample. The `state.elapsedMs` +
-// `state.currentAccuracy` + `state.weakSignal` updates drive UI.
+// Chunk 7: migrated off watchPositionAsync (foreground-only) to
+// startLocationUpdatesAsync + TaskManager. Samples now arrive in
+// the headless background task handler, which appends them to
+// AsyncStorage via recordingStore.appendSamples. This hook no
+// longer owns the sample buffer — it polls AsyncStorage every
+// 500ms and exposes a React-state snapshot to the UI.
+//
+// Semantics preserved from the watchPositionAsync era:
+//   - 3s countdown → recording phase, user can tap cancel.
+//   - 30-min timeout + 5s grace + up to 3×10min extensions.
+//   - Weak-signal hysteresis: >20m accuracy for 30s → flag.
+//   - Explicit stop / cancel transitions; onFinalize fires on
+//     non-cancel exits only.
+//
+// What changed under the hood:
+//   - Sample dedup moved from client-side 2m haversine to expo
+//     native distanceInterval: 5m (recordingStore handles
+//     timestamp dedup for iOS re-delivery races).
+//   - Weak-signal + currentAccuracy derived at drain tick from
+//     last persisted sample, not per-sample (max 500ms lag).
+//   - Buffer persists across app suspension — the background
+//     task keeps feeding AsyncStorage even when the screen
+//     unmounts. Phase 4 will add the resume prompt on top.
 // ═══════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
-import {
-  type BufferedPoint,
-  type RawGPSSample,
-  haversineDistanceM,
-} from './geometryBuilder';
+import { type BufferedPoint } from './geometryBuilder';
 import * as recordingStore from './recordingStore';
+import { BACKGROUND_LOCATION_TASK_NAME } from './backgroundLocationTask';
 
 // ── Tunables ───────────────────────────────────────────────
 
-const SAMPLING_HZ = 1;
-const SAMPLING_INTERVAL_MS = Math.round(1000 / SAMPLING_HZ);
-const DISTANCE_FILTER_M = 2;
 const TIMEOUT_BASELINE_MS = 30 * 60 * 1000; // 30 min
 const TIMEOUT_EXTENSION_MS = 10 * 60 * 1000; // +10 min per tap
 const MAX_EXTENSIONS = 3;                    // 30 + 3 × 10 = 60 min cap
 const GRACE_COUNTDOWN_MS = 5_000;            // 5 s grace → auto-stop
-const SAVE_BUFFER_INTERVAL_MS = 10_000;      // persist every 10 s
 const COUNTDOWN_MS = 3_000;                  // pre-recording countdown
-const UI_TICK_INTERVAL_MS = 500;             // re-render cadence for timer
+const UI_TICK_INTERVAL_MS = 500;             // drain + re-render cadence
 const WEAK_SIGNAL_ACCURACY_M = 20;
 const WEAK_SIGNAL_DURATION_MS = 30_000;
+
+// Native expo-location filter: only emit a sample when the rider
+// has moved at least 5m. Replaces the old client-side 2m haversine
+// dedup. Chunk 6 validators (MIN_DISTANCE_M 150, MIN_POINTS 15)
+// remain comfortably satisfied at this resolution. Flagged in
+// Chunk 7 audit R2 for Sprint 6 re-evaluation if route-progress
+// gates need denser geometry.
+const DISTANCE_INTERVAL_M = 5;
 
 // ── Public types ───────────────────────────────────────────
 
@@ -62,7 +75,27 @@ export type RecorderState =
       phase: 'stopped';
       points: BufferedPoint[];
       reason: 'user' | 'timeout' | 'cancel';
-    };
+    }
+  /** Surfaced when the initial recordingStore.saveBuffer throws —
+   *  e.g. AsyncStorage quota full, device storage corrupt. Retryable
+   *  via startCountdown (Codex S3 fix). */
+  | { phase: 'storage_error'; message: string }
+  /** Phase 4 resume detection: mount found a recent buffer for this
+   *  trailId with a valid sessionId and enough points to be worth
+   *  continuing. UI should prompt the rider ("Kontynuować poprzedni
+   *  zjazd?") and call resumeSession() or discardResumable(). */
+  | {
+      phase: 'resumable';
+      sessionId: string;
+      trailId: string;
+      startedAt: number;
+      pointCount: number;
+      ageMs: number;
+    }
+  /** Phase 4 edge case: mount found a recent buffer for this trailId
+   *  but it is malformed (no sessionId or < 10 points). User can only
+   *  clear it; resume is not offered. */
+  | { phase: 'resumable_broken' };
 
 export interface UseGPSRecorderParams {
   trailId: string;
@@ -77,6 +110,26 @@ export interface UseGPSRecorderResult {
   stopRecording: () => void;
   cancelRecording: () => void;
   extendTimeout: () => void;
+  /** Accept a resumable buffer. Reconnects the recorder state to the
+   *  persisted sessionId + startedAt and ensures the background task
+   *  is running so samples continue to flow. No-op outside 'resumable'. */
+  resumeSession: () => Promise<void>;
+  /** Decline a resumable / resumable_broken buffer. Stops the task
+   *  if running, clears the buffer, returns to 'idle'. No-op outside
+   *  those two phases. */
+  discardResumable: () => Promise<void>;
+}
+
+// ── Helpers ────────────────────────────────────────────────
+
+/** Cheap enough for our "probably unique across a session" needs;
+ *  collision space is absurd (base36 timestamp + 8 chars of random
+ *  = ~36^17). If Sprint 5 introduces a shared runtime uuid, swap. */
+function newSessionId(): string {
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2, 10)
+  );
 }
 
 // ── Hook implementation ────────────────────────────────────
@@ -86,22 +139,25 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
 
   const [state, setState] = useState<RecorderState>({ phase: 'idle' });
 
-  // Hot buffer lives outside state — 1 Hz pushes would thrash React.
-  const bufferRef = useRef<BufferedPoint[]>([]);
+  // Session metadata — lives in refs so the UI tick + drain
+  // closures see current values without adding render-phase reads.
+  const sessionIdRef = useRef<string | null>(null);
   const startedAtRef = useRef<number>(0);
-  const lastAcceptedRef = useRef<BufferedPoint | null>(null);
-  const weakSignalSinceRef = useRef<number | null>(null);
   const extensionsUsedRef = useRef<number>(0);
   const phaseRef = useRef<RecorderState['phase']>('idle');
 
-  // Side-effect handles — all cleared on stop / unmount.
-  const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  // Weak-signal hysteresis — preserved semantics from pre-Chunk-7.
+  // Evaluated at drain time against the most recent sample's accuracy.
+  const weakSignalSinceRef = useRef<number | null>(null);
+
+  // Timer handles — cleared on stop / unmount.
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uiTickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const graceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Latest meta snapshot read by the UI tick (no per-render re-read).
+  // Latest derived snapshot surfaced to the UI. These feed the
+  // extendTimeout immediate-sync path; drain writes to them as
+  // it commits state.
   const latestAccuracyRef = useRef<number | null>(null);
   const latestWeakSignalRef = useRef<boolean>(false);
 
@@ -121,24 +177,73 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
       clearInterval(uiTickIntervalRef.current);
       uiTickIntervalRef.current = null;
     }
-    if (saveIntervalRef.current) {
-      clearInterval(saveIntervalRef.current);
-      saveIntervalRef.current = null;
-    }
     if (graceIntervalRef.current) {
       clearInterval(graceIntervalRef.current);
       graceIntervalRef.current = null;
     }
   }, []);
 
-  const teardownSubscription = useCallback(() => {
-    if (subscriptionRef.current) {
-      try {
-        subscriptionRef.current.remove();
-      } catch (e) {
-        if (__DEV__) console.warn('[NWD] Location subscription.remove failed:', e);
+  /** Stop the background task if it is registered + running.
+   *  Idempotent; safe to call from unmount cleanup even when the
+   *  task never started (e.g. permission denied mid-countdown). */
+  const stopBackgroundTask = useCallback(async (): Promise<void> => {
+    try {
+      const running = await Location.hasStartedLocationUpdatesAsync(
+        BACKGROUND_LOCATION_TASK_NAME,
+      );
+      if (running) {
+        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
       }
-      subscriptionRef.current = null;
+    } catch (e) {
+      if (__DEV__) console.warn('[useGPSRecorder] stopLocationUpdates failed:', e);
+    }
+  }, []);
+
+  /** Single source of truth for the expo-location task config.
+   *  Both `enterRecording` (fresh start) and `resumeSession`
+   *  (after a cross-mount gap) funnel through here so the
+   *  accuracy / distanceInterval / activityType / blue-bar
+   *  settings can never drift between code paths.
+   *
+   *  Rationale for each option:
+   *    - BestForNavigation: same accuracy tier as pre-Chunk-7.
+   *    - distanceInterval 5m: platform-native dedup replaces
+   *      our 2m haversine.
+   *    - activityType Fitness: iOS power model for bike/run,
+   *      NOT Automotive (wrong heuristics for gravity runs).
+   *    - pausesUpdatesAutomatically: false — a standing rider
+   *      at a gate would get paused + lose samples otherwise.
+   *    - showsBackgroundLocationIndicator: true — non-negotiable
+   *      for App Store review ("Always" justification relies on
+   *      the blue-bar user signal). */
+  const startBackgroundTask = useCallback(async (): Promise<void> => {
+    await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      distanceInterval: DISTANCE_INTERVAL_M,
+      activityType: Location.LocationActivityType.Fitness,
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: true,
+    });
+  }, []);
+
+  /** Stateless weak-signal evaluator — called from drain with the
+   *  most recent sample's accuracy. Preserves the pre-Chunk-7 30s
+   *  hysteresis window. Max detection lag is now 500ms (one drain
+   *  tick) instead of per-sample, which is below the human-perceivable
+   *  threshold and well under the 30s duration gate. */
+  const updateWeakSignal = useCallback((accuracy: number | null) => {
+    if (accuracy === null || accuracy > WEAK_SIGNAL_ACCURACY_M) {
+      if (weakSignalSinceRef.current === null) {
+        weakSignalSinceRef.current = Date.now();
+      } else if (
+        !latestWeakSignalRef.current &&
+        Date.now() - weakSignalSinceRef.current > WEAK_SIGNAL_DURATION_MS
+      ) {
+        latestWeakSignalRef.current = true;
+      }
+    } else {
+      weakSignalSinceRef.current = null;
+      latestWeakSignalRef.current = false;
     }
   }, []);
 
@@ -181,27 +286,31 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Finalise (stop / timeout) ────────────────────────────
+  // ── Finalise (stop / timeout / cancel) ───────────────────
 
   const finalizeStop = useCallback(
-    (reason: 'user' | 'timeout' | 'cancel') => {
-      teardownSubscription();
+    async (reason: 'user' | 'timeout' | 'cancel') => {
+      await stopBackgroundTask();
       clearAllTimers();
-
-      const points = bufferRef.current;
 
       if (reason === 'cancel') {
         // Cancel discards everything — including persisted buffer.
-        bufferRef.current = [];
-        lastAcceptedRef.current = null;
-        recordingStore.clearBuffer();
+        await recordingStore.clearBuffer();
+        sessionIdRef.current = null;
         setState({ phase: 'stopped', points: [], reason: 'cancel' });
         return;
       }
 
-      // Non-cancel: hand points to caller and expose in state.
-      // Persisted buffer is left alone — the finalize flow clears it
-      // on success / will restore it if user bails out of the submit.
+      // Non-cancel: drain the persisted buffer one last time so
+      // the 'stopped' state snapshot contains every sample the task
+      // collected. `drainAndSettle` awaits the recordingStore mutex
+      // queue to idle first — ensures any task callback that arrived
+      // in the ~500ms before stop has flushed to AsyncStorage before
+      // we read. Prevents a race where finalizeStop resolves with an
+      // N-1-batch snapshot while a final batch lands moments later.
+      const persisted = await recordingStore.drainAndSettle();
+      const points = persisted?.points ?? [];
+
       setState({ phase: 'stopped', points, reason });
       if (onFinalize) {
         try {
@@ -211,69 +320,82 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
         }
       }
     },
-    [clearAllTimers, teardownSubscription, onFinalize],
+    [stopBackgroundTask, clearAllTimers, onFinalize],
   );
 
-  // ── GPS sample handling ──────────────────────────────────
+  // ── UI drain — the 500ms heartbeat ────────────────────────
+  //
+  // Reads the persisted buffer, derives elapsedMs / currentAccuracy /
+  // weakSignal, commits to React state. Runs only while the recorder
+  // is in 'recording' phase (grace has its own interval).
 
-  const handleSample = useCallback((raw: RawGPSSample) => {
-    if (phaseRef.current !== 'recording' && phaseRef.current !== 'timeout_grace') {
+  const drainToState = useCallback(async () => {
+    if (phaseRef.current !== 'recording') return;
+
+    const elapsedMs = Date.now() - startedAtRef.current;
+    if (elapsedMs >= currentBudgetMs()) {
+      enterGrace();
       return;
     }
 
-    // Distance-filter dedup. First point always accepted.
-    const prev = lastAcceptedRef.current;
-    if (prev) {
-      const d = haversineDistanceM(prev, raw);
-      if (d < DISTANCE_FILTER_M) {
-        // Still update accuracy snapshot so the UI banner can react
-        // even when the rider is stationary.
-        latestAccuracyRef.current = raw.accuracy;
-        updateWeakSignal(raw.accuracy);
-        return;
-      }
-    }
+    const persisted = await recordingStore.restoreBuffer();
+    const points = persisted?.points ?? [];
+    const lastAccuracy =
+      points.length > 0 ? points[points.length - 1].accuracy : null;
 
-    const point: BufferedPoint = {
-      lat: raw.lat,
-      lng: raw.lng,
-      alt: raw.alt,
-      accuracy: raw.accuracy,
-      t: (raw.timestamp - startedAtRef.current) / 1000,
-    };
-    bufferRef.current.push(point);
-    lastAcceptedRef.current = point;
+    latestAccuracyRef.current = lastAccuracy;
+    updateWeakSignal(lastAccuracy);
 
-    latestAccuracyRef.current = raw.accuracy;
-    updateWeakSignal(raw.accuracy);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Guard against state commits after phase flipped mid-await.
+    if (phaseRef.current !== 'recording') return;
 
-  const updateWeakSignal = useCallback((accuracy: number | null) => {
-    if (accuracy === null || accuracy > WEAK_SIGNAL_ACCURACY_M) {
-      if (weakSignalSinceRef.current === null) {
-        weakSignalSinceRef.current = Date.now();
-      } else if (
-        !latestWeakSignalRef.current &&
-        Date.now() - weakSignalSinceRef.current > WEAK_SIGNAL_DURATION_MS
-      ) {
-        latestWeakSignalRef.current = true;
-      }
-    } else {
-      weakSignalSinceRef.current = null;
-      latestWeakSignalRef.current = false;
-    }
-  }, []);
+    setState({
+      phase: 'recording',
+      elapsedMs,
+      currentAccuracy: lastAccuracy,
+      weakSignal: latestWeakSignalRef.current,
+      extensionsUsed: extensionsUsedRef.current,
+    });
+  }, [currentBudgetMs, enterGrace, updateWeakSignal]);
 
   // ── Recording phase kick-off (after countdown) ───────────
 
   const enterRecording = useCallback(async () => {
-    startedAtRef.current = Date.now();
-    bufferRef.current = [];
-    lastAcceptedRef.current = null;
+    const sessionId = newSessionId();
+    const startedAt = Date.now();
+    sessionIdRef.current = sessionId;
+    startedAtRef.current = startedAt;
     weakSignalSinceRef.current = null;
     latestAccuracyRef.current = null;
     latestWeakSignalRef.current = false;
+
+    // Initialise the persisted buffer so the task handler has a
+    // record to append into. Must complete before start-updates
+    // fires or the first sample batch lands in "no active buffer"
+    // and gets dropped. Codex S3: storage failure here is fatal —
+    // starting the task with no target buffer would mean every
+    // sample the rider produces silently vanishes. Surface the
+    // error so the UI can offer a retry.
+    try {
+      await recordingStore.saveBuffer({
+        trailId,
+        spotId,
+        startedAt,
+        sessionId,
+        points: [],
+      });
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[useGPSRecorder] initial saveBuffer failed:', e);
+      }
+      sessionIdRef.current = null;
+      setState({
+        phase: 'storage_error',
+        message:
+          'Nie udało się rozpocząć nagrywania. Spróbuj ponownie za chwilę.',
+      });
+      return;
+    }
 
     setState({
       phase: 'recording',
@@ -283,86 +405,53 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
       extensionsUsed: extensionsUsedRef.current,
     });
 
-    // UI tick co 500 ms dla płynnego timer display.
-    // TODO Chunk 4: zweryfikować czy recording screen nie re-renderuje
-    // niepotrzebnie 2x/s. Jeśli tak — zoptymalizować przez useTimer
-    // pattern albo React.memo na timer subcomponent.
+    // UI tick — drains AsyncStorage, updates state.
     uiTickIntervalRef.current = setInterval(() => {
-      if (phaseRef.current !== 'recording') return;
-      const elapsedMs = Date.now() - startedAtRef.current;
-
-      // Budget check — enter grace once baseline + extensions exceeded.
-      if (elapsedMs >= currentBudgetMs()) {
-        enterGrace();
-        return;
-      }
-
-      setState({
-        phase: 'recording',
-        elapsedMs,
-        currentAccuracy: latestAccuracyRef.current,
-        weakSignal: latestWeakSignalRef.current,
-        extensionsUsed: extensionsUsedRef.current,
-      });
+      void drainToState();
     }, UI_TICK_INTERVAL_MS);
 
-    // Persist buffer every 10 s.
-    saveIntervalRef.current = setInterval(() => {
-      if (phaseRef.current !== 'recording' && phaseRef.current !== 'timeout_grace') return;
-      recordingStore.saveBuffer({
-        trailId,
-        spotId,
-        startedAt: startedAtRef.current,
-        points: bufferRef.current,
-      });
-    }, SAVE_BUFFER_INTERVAL_MS);
-
-    // GPS subscription.
+    // Start the background task via the shared config helper so
+    // enter/resume code paths can never drift. Failure falls back
+    // to an immediate stop — same behaviour as pre-Chunk-7 watch
+    // fallback: surface caller a stopped state rather than freeze.
     try {
-      subscriptionRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: SAMPLING_INTERVAL_MS,
-          distanceInterval: 0, // our own 2 m filter in handleSample
-        },
-        (loc) => {
-          handleSample({
-            lat: loc.coords.latitude,
-            lng: loc.coords.longitude,
-            alt: loc.coords.altitude,
-            accuracy: loc.coords.accuracy ?? null,
-            timestamp: loc.timestamp,
-          });
-        },
-      );
+      await startBackgroundTask();
     } catch (e) {
       if (__DEV__) {
         console.warn(
-          '[useGPSRecorder] watchPositionAsync failed, auto-finalizing with reason=user',
+          '[useGPSRecorder] startLocationUpdates failed, auto-finalizing with reason=user',
           e,
         );
       }
-      // If subscription could not start, fall back to stop(reason=user)
-      // so the caller sees an empty buffer rather than a frozen screen.
-      finalizeStop('user');
+      await finalizeStop('user');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trailId, spotId]);
+  }, [trailId, spotId, drainToState, finalizeStop, startBackgroundTask]);
 
   // ── Public: startCountdown ───────────────────────────────
 
   const startCountdown = useCallback(async () => {
-    if (phaseRef.current !== 'idle' && phaseRef.current !== 'permission_denied') {
+    if (
+      phaseRef.current !== 'idle' &&
+      phaseRef.current !== 'permission_denied' &&
+      phaseRef.current !== 'storage_error'
+    ) {
       return;
     }
     setState({ phase: 'permission_requesting' });
 
+    // Permission is owned by useLocationPermission (Chunk 7 Phase 2).
+    // The recording screen has already walked the rider through stage 1
+    // (WIU) + the Always explainer + stage 2 by the time startCountdown
+    // fires. We still re-verify WIU here as a defensive floor — if the
+    // system revoked it between explainer and START, we surface the
+    // permission_denied phase so the existing UI falls back cleanly.
     let status: Location.PermissionStatus;
     try {
-      const res = await Location.requestForegroundPermissionsAsync();
+      const res = await Location.getForegroundPermissionsAsync();
       status = res.status;
     } catch (e) {
-      if (__DEV__) console.warn('[NWD] requestForegroundPermissionsAsync failed:', e);
+      if (__DEV__) console.warn('[NWD] getForegroundPermissionsAsync failed:', e);
       setState({ phase: 'permission_denied' });
       return;
     }
@@ -396,14 +485,14 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     if (phaseRef.current !== 'recording' && phaseRef.current !== 'timeout_grace') {
       return;
     }
-    finalizeStop('user');
+    void finalizeStop('user');
   }, [finalizeStop]);
 
   const cancelRecording = useCallback(() => {
     // Allowed from any live phase (permission_requesting, countdown,
     // recording, timeout_grace). No-op when already stopped.
     if (phaseRef.current === 'stopped' || phaseRef.current === 'idle') return;
-    finalizeStop('cancel');
+    void finalizeStop('cancel');
   }, [finalizeStop]);
 
   const extendTimeout = useCallback(() => {
@@ -428,14 +517,173 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     });
   }, []);
 
+  // ── Resume public methods ────────────────────────────────
+
+  /** Accept the resumable buffer: reconnect the recorder to the
+   *  persisted sessionId + startedAt, ensure the background task is
+   *  running, start the drain tick. The task may have survived an
+   *  app suspension (iOS keeps location tasks alive briefly after
+   *  foreground death) or it may have been killed — either way we
+   *  confirm via hasStartedLocationUpdatesAsync and start it if not.
+   *  Extension count cannot be recovered and resets to 0; if the
+   *  rider was past 30 min of real time, the next drain tick will
+   *  drop them into grace. */
+  const resumeSession = useCallback(async () => {
+    if (state.phase !== 'resumable') return;
+    const { sessionId, startedAt } = state;
+
+    sessionIdRef.current = sessionId;
+    startedAtRef.current = startedAt;
+    weakSignalSinceRef.current = null;
+    latestAccuracyRef.current = null;
+    latestWeakSignalRef.current = false;
+    extensionsUsedRef.current = 0;
+
+    try {
+      const running = await Location.hasStartedLocationUpdatesAsync(
+        BACKGROUND_LOCATION_TASK_NAME,
+      );
+      if (!running) {
+        await startBackgroundTask();
+      }
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[useGPSRecorder] resume startLocationUpdates failed:', e);
+      }
+      await finalizeStop('user');
+      return;
+    }
+
+    // Restart the drain tick. UI refreshes every 500 ms from the
+    // persisted buffer; first tick commits elapsedMs + latest sample.
+    if (uiTickIntervalRef.current) {
+      clearInterval(uiTickIntervalRef.current);
+    }
+    uiTickIntervalRef.current = setInterval(() => {
+      void drainToState();
+    }, UI_TICK_INTERVAL_MS);
+
+    setState({
+      phase: 'recording',
+      elapsedMs: Date.now() - startedAt,
+      currentAccuracy: null,
+      weakSignal: false,
+      extensionsUsed: 0,
+    });
+  }, [state, drainToState, finalizeStop, startBackgroundTask]);
+
+  /** Decline the resumable buffer: stop the task (if running), clear
+   *  the buffer, return to 'idle'. Warm-up then takes over normally. */
+  const discardResumable = useCallback(async () => {
+    if (state.phase !== 'resumable' && state.phase !== 'resumable_broken') return;
+    await stopBackgroundTask();
+    await recordingStore.clearBuffer();
+    sessionIdRef.current = null;
+    setState({ phase: 'idle' });
+  }, [state.phase, stopBackgroundTask]);
+
+  // ── Mount: resume detection (Phase 4) ────────────────────
+  //
+  // Replaces the Phase 3 defensive stale-task cleanup (Codex S1
+  // flagged it as destroying legitimate resume candidates). New
+  // decision tree:
+  //   - No persisted buffer               → nothing to do, stay 'idle'
+  //   - Buffer trailId ≠ current          → silent stop + clear
+  //   - Buffer age > 1h                   → silent stop + clear
+  //   - Buffer matches + valid            → 'resumable'
+  //   - Buffer matches but malformed      → 'resumable_broken'
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const persisted = await recordingStore.peekRestorable();
+        if (cancelled) return;
+        if (!persisted) return;
+
+        // Buffer belongs to a different recording session — silent
+        // cleanup. Offering resume here would confuse the rider
+        // ("why is it asking me to resume a different trail?").
+        if (persisted.trailId !== trailId) {
+          if (__DEV__) {
+            console.log('[useGPSRecorder] buffer trailId mismatch — cleaning', {
+              bufferTrail: persisted.trailId,
+              currentTrail: trailId,
+            });
+          }
+          await stopBackgroundTask();
+          await recordingStore.clearBuffer();
+          return;
+        }
+
+        // 1h ceiling matches recordingStore.RESTORE_MAX_AGE_MS — the
+        // same window review.tsx trusts to restore.
+        const MAX_RESUMABLE_AGE_MS = 60 * 60 * 1000;
+        if (persisted.ageMs > MAX_RESUMABLE_AGE_MS) {
+          await stopBackgroundTask();
+          await recordingStore.clearBuffer();
+          return;
+        }
+
+        const hasSession = !!persisted.sessionId;
+        const enoughPoints = persisted.pointCount > 10;
+
+        if (cancelled) return;
+        if (hasSession && enoughPoints) {
+          setState({
+            phase: 'resumable',
+            sessionId: persisted.sessionId!,
+            trailId: persisted.trailId,
+            startedAt: persisted.startedAt,
+            pointCount: persisted.pointCount,
+            ageMs: persisted.ageMs,
+          });
+        } else {
+          setState({ phase: 'resumable_broken' });
+        }
+      } catch (e) {
+        if (__DEV__) {
+          console.warn('[useGPSRecorder] resume detection failed:', e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trailId, stopBackgroundTask]);
+
+  // ── AppState: immediate drain on foreground return ───────
+  //
+  // Without this the UI would sit stale until the next 500 ms tick
+  // after returning from lock screen / app switcher. On slow drain
+  // iteration that's a visible lag; piggyback on AppState to fire
+  // an extra drain immediately.
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && phaseRef.current === 'recording') {
+        void drainToState();
+      }
+    });
+    return () => sub.remove();
+  }, [drainToState]);
+
   // ── Unmount cleanup ──────────────────────────────────────
+  //
+  // Important post-Phase-4: we do NOT stop the background task on
+  // unmount. The task is a cross-mount resource — the recording
+  // screen may unmount for navigation (e.g. user backgrounds into
+  // settings) while the task keeps collecting samples. Stopping it
+  // here would defeat Phase 3's whole purpose. The task is stopped
+  // only by explicit finalize / cancel / discardResumable / mismatch
+  // cleanup. Timers are component-scoped though — clear those so a
+  // remounted screen starts with a clean tick.
 
   useEffect(() => {
     return () => {
-      teardownSubscription();
       clearAllTimers();
     };
-  }, [teardownSubscription, clearAllTimers]);
+  }, [clearAllTimers]);
 
   return {
     state,
@@ -443,5 +691,7 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     stopRecording,
     cancelRecording,
     extendTimeout,
+    resumeSession,
+    discardResumable,
   };
 }
