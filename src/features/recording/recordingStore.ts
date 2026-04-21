@@ -203,14 +203,33 @@ async function doAppendSamples(
       return;
     }
 
+    // Codex S2 monotonic-timestamp guard. iOS is free to deliver
+    // batches in any order, and at foreground transitions it can
+    // backfill samples whose timestamps predate the recording's
+    // startedAt entirely. Sort ascending so we process in causal
+    // order, drop anything <= startedAt (pre-session noise) and
+    // anything <= the last accepted absolute timestamp (already
+    // covered). Debug-only log — every drop is expected iOS
+    // behaviour, not a bug.
+    const sorted = [...samples].sort((a, b) => a.timestamp - b.timestamp);
+
     const lastPoint = parsed.points[parsed.points.length - 1];
-    const lastAbsoluteTs = lastPoint
+    let maxAcceptedTs = lastPoint
       ? parsed.startedAt + lastPoint.t * 1000
-      : 0;
+      : parsed.startedAt;
 
     const newPoints: BufferedPoint[] = [];
-    for (const s of samples) {
-      if (s.timestamp <= lastAbsoluteTs) continue;
+    let droppedPreStart = 0;
+    let droppedOutOfOrder = 0;
+    for (const s of sorted) {
+      if (s.timestamp < parsed.startedAt) {
+        droppedPreStart += 1;
+        continue;
+      }
+      if (s.timestamp <= maxAcceptedTs) {
+        droppedOutOfOrder += 1;
+        continue;
+      }
       newPoints.push({
         lat: s.latitude,
         lng: s.longitude,
@@ -218,7 +237,21 @@ async function doAppendSamples(
         accuracy: s.accuracy,
         t: (s.timestamp - parsed.startedAt) / 1000,
       });
+      maxAcceptedTs = s.timestamp;
     }
+
+    if (__DEV__ && (droppedPreStart > 0 || droppedOutOfOrder > 0)) {
+      // console.debug instead of warn — these are routine drops,
+      // not a fault. Warn-level would spam the Metro log under
+      // normal operation on iOS.
+      // eslint-disable-next-line no-console
+      console.debug('[NWD] appendSamples: dropped samples', {
+        preStart: droppedPreStart,
+        outOfOrder: droppedOutOfOrder,
+        accepted: newPoints.length,
+      });
+    }
+
     if (newPoints.length === 0) return;
 
     const next: PersistedRecording = {
