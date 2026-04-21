@@ -24,6 +24,7 @@ import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLea
 import { LeagueSignal } from '@/systems/leagueMovement';
 import { useVenueContext } from '@/hooks/useVenueContext';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
+import { hudShadows } from '@/theme/gameHud';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 
@@ -323,7 +324,10 @@ export default function HomeScreen() {
         {/* ═══ VENUE HERO CARD (only when we have an active spot) ═══ */}
         {spot && (<>
         <Pressable
-          style={styles.venueCard}
+          style={({ pressed }) => [
+            styles.venueCard,
+            pressed && { transform: [{ scale: 0.99 }] },
+          ]}
           onPress={() => router.push(`/spot/${spot.id}`)}
         >
           <View style={styles.venueHeader}>
@@ -364,7 +368,7 @@ export default function HomeScreen() {
             )}
           </View>
 
-          <View style={styles.venueCta}>
+          <View style={[styles.venueCta, hudShadows.glowGreen]}>
             <Text style={styles.venueCtaText}>WEJDŹ DO OŚRODKA</Text>
           </View>
         </Pressable>
@@ -697,7 +701,7 @@ const styles = StyleSheet.create({
   venueStatValue: { ...typography.h3, color: colors.textPrimary, fontSize: 15 },
   venueStatLabel: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 8, marginTop: 2 },
   venueStatDivider: { width: 1, height: 24, backgroundColor: colors.border },
-  venueCta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.lg },
+  venueCta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.xl },
   venueCtaText: { ...typography.cta, color: colors.bg, letterSpacing: 4, fontSize: 14 },
 
   // Rider status
