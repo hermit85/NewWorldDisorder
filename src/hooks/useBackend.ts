@@ -208,6 +208,9 @@ export function useProfile(userId?: string) {
           joinedAt: p.created_at,
           achievements: [],
           avatarUrl: p.avatar_url ?? null,
+          // Sprint 4 (mig 011) — Pioneer counters
+          pioneeredTotalCount: (p as any).pioneered_total_count ?? 0,
+          pioneeredVerifiedCount: (p as any).pioneered_verified_count ?? 0,
         });
         setStatus('ok');
       } else {

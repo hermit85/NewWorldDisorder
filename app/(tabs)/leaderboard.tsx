@@ -15,6 +15,22 @@ import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useLeaderboard, useTrails } from '@/hooks/useBackend';
 import { reportRider } from '@/services/moderation';
+import { TrustBadge } from '@/components/game/TrustBadge';
+import { PioneerBadge } from '@/components/game/PioneerBadge';
+
+/** Shared with trail/[id].tsx — kept inline here to avoid a new shared
+ *  util module for a three-line helper. If a third caller arrives, promote. */
+function getTrustDisclosure(
+  source: 'curator' | 'rider',
+  tier: 'provisional' | 'verified' | 'disputed',
+): string {
+  if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
+  if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
+  if (source === 'curator') {
+    return 'Trasa kuratora · czasy orientacyjne dopóki społeczność nie potwierdzi';
+  }
+  return 'Trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi';
+}
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 
@@ -283,6 +299,20 @@ export default function LeaderboardScreen() {
         {!loading && !lbError && entries.length > 0 && (
           <Animated.View style={{ opacity: fadeAnim }}>
 
+            {/* ═══ TRUST DISCLOSURE (GPT Rule 2: mandatory) ═══ */}
+            {selectedTrail?.seedSource && selectedTrail?.trustTier && (
+              <View style={styles.disclosureBanner}>
+                <TrustBadge
+                  seedSource={selectedTrail.seedSource}
+                  trustTier={selectedTrail.trustTier}
+                  size="sm"
+                />
+                <Text style={styles.disclosureText}>
+                  {getTrustDisclosure(selectedTrail.seedSource, selectedTrail.trustTier)}
+                </Text>
+              </View>
+            )}
+
             {/* ═══ PODIUM — top 3 ═══ */}
             {podium.length > 0 && (
               <View style={styles.podiumSection}>
@@ -340,6 +370,9 @@ export default function LeaderboardScreen() {
                             {entry.username}
                           </Text>
                           {isUser && <Text style={styles.youTag}>TY</Text>}
+                          {entry.userId === selectedTrail?.pioneerUserId && (
+                            <PioneerBadge size="sm" />
+                          )}
                         </View>
                         <Text style={[
                           styles.podiumTime,
@@ -490,6 +523,9 @@ export default function LeaderboardScreen() {
                           {isUser && <Text style={styles.youTag}>TY</Text>}
                           {isRivalAbove && <Text style={styles.rivalTag}>CEL</Text>}
                           {isRivalBelow && <Text style={styles.chaserTag}>GONI</Text>}
+                          {entry.userId === selectedTrail?.pioneerUserId && (
+                            <PioneerBadge size="sm" />
+                          )}
                         </View>
                       </View>
 
@@ -526,6 +562,29 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
+
+  // Sprint 4 — trust disclosure banner above podium
+  disclosureBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  disclosureText: {
+    ...typography.labelSmall,
+    color: colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+    letterSpacing: 0,
+    fontSize: 11,
+    lineHeight: 15,
+  },
 
   // Header
   titleRow: { marginBottom: spacing.sm },

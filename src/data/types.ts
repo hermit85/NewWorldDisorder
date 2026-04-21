@@ -40,6 +40,12 @@ export interface Spot {
 
 // ── Trail ──
 
+/** ADR-012: two orthogonal axes describing a trail's provenance and
+ *  current confidence. seedSource is immutable (origin); trustTier is
+ *  mutable (state). Both null on drafts until finalize_seed_run stamps. */
+export type SeedSource = 'curator' | 'rider';
+export type TrustTier  = 'provisional' | 'verified' | 'disputed';
+
 export interface Trail {
   id: string;
   spotId: string;
@@ -58,6 +64,20 @@ export interface Trail {
   calibrationStatus: 'draft' | 'calibrating' | 'verified' | 'locked';
   /** True when `trails.geometry` is null (no pioneer run yet). */
   geometryMissing: boolean;
+
+  // ── Sprint 4 — trust + versioning + Pioneer identity ──
+  /** Origin: who first seeded the geometry. Null on drafts. */
+  seedSource: SeedSource | null;
+  /** Current confidence tier. Null on drafts. */
+  trustTier: TrustTier | null;
+  /** UUID of the currently-authoritative `trail_versions` row. */
+  currentVersionId: string | null;
+  /** Pioneer identity — IMMUTABLE after first assignment (DB trigger). */
+  pioneerUserId: string | null;
+  /** Joined from profiles for display; null if unjoined. */
+  pioneerUsername: string | null;
+  /** ISO timestamp of first Pioneer seeding. */
+  pioneeredAt: string | null;
 }
 
 // ── Run ──
@@ -151,6 +171,9 @@ export interface User {
   achievements: Achievement[];
   /** Avatar URL from Supabase Storage — null if not set */
   avatarUrl: string | null;
+  /** Sprint 4 Pioneer counters (mig 011). `verified` populated Sprint 5+. */
+  pioneeredTotalCount: number;
+  pioneeredVerifiedCount: number;
 }
 
 // ── Result scenario (for testing result screen) ──

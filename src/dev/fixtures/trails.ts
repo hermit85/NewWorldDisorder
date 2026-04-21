@@ -20,6 +20,12 @@ export const mockTrails: Trail[] = [
     sortOrder: 1,
     calibrationStatus: 'verified',
     geometryMissing: false,
+    seedSource: 'curator',
+    trustTier: 'verified',
+    currentVersionId: null,
+    pioneerUserId: null,
+    pioneerUsername: null,
+    pioneeredAt: null,
   },
   {
     id: 'dzida-czerwona',
@@ -36,6 +42,12 @@ export const mockTrails: Trail[] = [
     sortOrder: 4,
     calibrationStatus: 'verified',
     geometryMissing: false,
+    seedSource: 'curator',
+    trustTier: 'verified',
+    currentVersionId: null,
+    pioneerUserId: null,
+    pioneerUsername: null,
+    pioneeredAt: null,
   },
   {
     id: 'kasina-black-dh-cup',
@@ -52,6 +64,12 @@ export const mockTrails: Trail[] = [
     sortOrder: 4,
     calibrationStatus: 'verified',
     geometryMissing: false,
+    seedSource: 'curator',
+    trustTier: 'verified',
+    currentVersionId: null,
+    pioneerUserId: null,
+    pioneerUsername: null,
+    pioneeredAt: null,
   },
 ];
 
