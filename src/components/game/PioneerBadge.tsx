@@ -14,8 +14,9 @@ import Svg, { Path } from 'react-native-svg';
 import { hudColors, hudTypography } from '@/theme/gameHud';
 
 export interface PioneerBadgeProps {
-  size?: 'sm' | 'md';
-  /** If true, renders "PIONEER" text next to the bolt. */
+  size?: 'xs' | 'sm' | 'md';
+  /** If true, renders "PIONEER" text next to the bolt. Ignored for `xs`
+   *  — the xs variant is icon-only by design (trail chips are narrow). */
   label?: boolean;
 }
 
@@ -23,13 +24,16 @@ export interface PioneerBadgeProps {
 const BOLT_PATH = 'M13 2L3 14h7l-1 8 10-12h-7l1-8z';
 
 export function PioneerBadge({ size = 'md', label = false }: PioneerBadgeProps) {
-  const dim = size === 'sm' ? 14 : 18;
+  const dim = size === 'xs' ? 10 : size === 'sm' ? 14 : 18;
+  // xs is icon-only: compact trail chips (~110pt wide) can't afford the
+  // "PIONEER" label without pushing other content off-row.
+  const showLabel = label && size !== 'xs';
   return (
     <View style={styles.container} accessibilityLabel="Pioneer tej trasy">
       <Svg width={dim} height={dim} viewBox="0 0 24 24">
         <Path d={BOLT_PATH} fill={hudColors.pioneerMark} />
       </Svg>
-      {label && <Text style={styles.label}>PIONEER</Text>}
+      {showLabel && <Text style={styles.label}>PIONEER</Text>}
     </View>
   );
 }

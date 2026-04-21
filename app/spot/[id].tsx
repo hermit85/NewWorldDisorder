@@ -15,6 +15,7 @@ import { TrailDrawer } from '@/components/map/TrailDrawer';
 import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
 import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
 import { EmptyMapPlaceholder } from '@/components/map/EmptyMapPlaceholder';
+import { PioneerBadge } from '@/components/game/PioneerBadge';
 import { distanceMeters } from '@/systems/gps';
 import { getVenue } from '@/data/venues';
 
@@ -294,7 +295,8 @@ export default function SpotScreen() {
                   onPress={() => handleTrailSelect(trail.id)}
                 >
                   <View style={styles.trailChipHeader}>
-                    <Text style={styles.trailChipName}>{trail.name}</Text>
+                    <Text style={styles.trailChipName} numberOfLines={1}>{trail.name}</Text>
+                    {trail.pioneerUserId && <PioneerBadge size="xs" />}
                   </View>
                   <Text style={styles.trailChipMeta}>
                     {trail.difficulty.toUpperCase()} · {trail.trailType}
@@ -590,6 +592,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 12,
+    flexShrink: 1,
   },
   trailChipMeta: {
     fontFamily: 'Inter_400Regular',

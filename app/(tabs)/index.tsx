@@ -23,6 +23,7 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useUserTrailStats, useLeaderboard, useVenueActivity, useLeagueMovement, usePendingSpots, useMyPendingSpots, useActiveSpots, useTrails } from '@/hooks/useBackend';
 import { LeagueSignal } from '@/systems/leagueMovement';
 import { useVenueContext } from '@/hooks/useVenueContext';
+import { PioneerBadge } from '@/components/game/PioneerBadge';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 
@@ -488,7 +489,10 @@ export default function HomeScreen() {
             >
               <View style={[styles.trailDot, { backgroundColor: diffColor }]} />
               <View style={styles.trailRowInfo}>
-                <Text style={styles.trailRowName}>{trail.name}</Text>
+                <View style={styles.trailRowNameLine}>
+                  <Text style={styles.trailRowName} numberOfLines={1}>{trail.name}</Text>
+                  {trail.pioneerUserId && <PioneerBadge size="xs" />}
+                </View>
                 <Text style={styles.trailRowMeta}>
                   {trail.difficulty.toUpperCase()} · {trail.distanceM}m · ↓{trail.elevationDropM}m
                 </Text>
@@ -739,7 +743,8 @@ const styles = StyleSheet.create({
   trailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   trailDot: { width: 10, height: 10, borderRadius: 5 },
   trailRowInfo: { flex: 1 },
-  trailRowName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+  trailRowNameLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trailRowName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', flexShrink: 1 },
   trailRowMeta: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, marginTop: 2 },
   trailRowRight: { alignItems: 'flex-end' },
   trailRowPb: { ...typography.timeSmall, color: colors.accent, fontSize: 14 },
