@@ -1,96 +1,52 @@
+// ═══════════════════════════════════════════════════════════
+// Tab bar — Ye brutalist (ADR-013).
+//
+// Serif lowercase labels, emerald dot under the active tab,
+// hairline top border, no scale bounce or glow animation.
+// ═══════════════════════════════════════════════════════════
+
 import { Tabs } from 'expo-router';
-import {
-  Text,
-  View,
-  StyleSheet,
-  Platform,
-  Pressable,
-} from 'react-native';
+import { Text, View, StyleSheet, Platform, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/theme/colors';
-import { fonts } from '@/theme/typography';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-  useSharedValue,
-  withSequence,
-} from 'react-native-reanimated';
-import { useEffect } from 'react';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { hudColors, hudType, hudSpacing } from '@/theme/gameHud';
 
-const TIMING = { duration: 200, easing: Easing.out(Easing.cubic) };
-
+// Route name → serif lowercase label. Route filenames stay unchanged
+// (history/leaderboard/profile) for zero-migration scope — only the
+// visible label follows ADR-013 copy direction.
 const TAB_LABELS: Record<string, string> = {
-  index: 'START',
-  history: 'ZJAZDY',
-  leaderboard: 'TABLICA',
-  profile: 'RIDER',
+  index:       'home',
+  history:     'zjazdy',
+  leaderboard: 'tablica',
+  profile:     'rider',
 };
 
 function TabItem({ label, focused }: { label: string; focused: boolean }) {
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    if (focused) {
-      scale.value = withSequence(
-        withTiming(1.05, { duration: 90 }),
-        withTiming(1, { duration: 110 }),
-      );
-    }
-  }, [focused]);
-
-  // Inactive opacity raised from 0.35 → 0.62 so the label
-  // remains readable on OLED iPhones without competing with
-  // the focused tab. Color also moved up to textSecondary.
-  const textAnim = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 1 : 0.62, TIMING),
-    transform: [{ scale: scale.value }],
-  }));
-
-  const barAnim = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 1 : 0, TIMING),
-    transform: [{ scaleX: withTiming(focused ? 1 : 0, TIMING) }],
-  }));
-
-  const glowAnim = useAnimatedStyle(() => ({
-    opacity: withTiming(focused ? 0.45 : 0, { duration: 280 }),
-  }));
-
   return (
     <View style={styles.tabItem}>
-      <Animated.Text
+      <Text
         style={[
           styles.label,
-          { color: focused ? colors.textPrimary : colors.textSecondary },
-          textAnim,
+          { color: focused ? hudColors.text.primary : hudColors.text.secondary },
         ]}
       >
         {label}
-      </Animated.Text>
-      <View style={styles.barWrap}>
-        <Animated.View style={[styles.bar, barAnim]} />
-        <Animated.View style={[styles.glow, glowAnim]} />
+      </Text>
+      <View style={styles.dotWrap}>
+        {focused && <View style={styles.dot} />}
       </View>
     </View>
   );
 }
 
-function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-
   return (
-    <View
-      style={[
-        styles.tabBar,
-        { paddingBottom: Math.max(insets.bottom, 8) },
-      ]}
-    >
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {state.routes.map((route, i) => {
         const focused = state.index === i;
         const label = TAB_LABELS[route.name] ?? route.name;
-
         return (
           <Pressable
             key={route.key}
@@ -136,43 +92,29 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: colors.bg,
-    borderTopColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: hudColors.surface.base,
+    borderTopColor: hudColors.surface.border,
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 10,
+    paddingTop: hudSpacing.md,
   },
-  pressable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabItem: {
-    alignItems: 'center',
-  },
+  pressable: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabItem: { alignItems: 'center' },
   label: {
-    fontFamily: fonts.racing,
+    ...hudType.navLabel,
     fontSize: 11,
-    letterSpacing: 2,
+    letterSpacing: 0.5,
   },
-  barWrap: {
-    marginTop: 7,
-    height: 2,
-    width: 20,
+  dotWrap: {
+    marginTop: 6,
+    height: 3,
+    width: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bar: {
-    position: 'absolute',
-    height: 1.5,
-    width: 20,
-    borderRadius: 1,
-    backgroundColor: colors.accent,
-  },
-  glow: {
-    position: 'absolute',
-    height: 6,
-    width: 28,
-    borderRadius: 3,
-    backgroundColor: colors.accentGlow,
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: hudColors.signal,
   },
 });

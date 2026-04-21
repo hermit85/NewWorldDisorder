@@ -1,115 +1,62 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
-import { selectionTick } from '@/systems/haptics';
+// ═══════════════════════════════════════════════════════════
+// Spot detail — Ye brutalist rebuild (ADR-013).
+//
+// Structure:
+//   1. Top bar: back ← + 'OŚRODEK' mono
+//   2. Title: spot name serif 42pt + 'REGION · DIST od WARSZAWY' mono
+//   3. Stats row (hairline top): TRASY N / TWOJE N / RIDERS N
+//   4. Trail list: rows with rank number + serif name + ⚡ + meta
+//      + TrustBadge + TWÓJ PB right-aligned (or 'BEZ CZASU')
+//   5. CTA: 'WYBIERZ TRASĘ I ZJEDŹ' (cream outline, scrolls to trails)
+// ═══════════════════════════════════════════════════════════
+
+import { useCallback, useMemo, useState } from 'react';
+import {
+  View, Text, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator,
+} from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
-import { getTrailColor } from '@/theme/map';
-import { copy, formatTimeShort } from '@/content/copy';
+import { tapLight } from '@/systems/haptics';
+import { hudColors, hudType, hudSpacing } from '@/theme/gameHud';
+import {
+  useSpot, useTrails, useDeleteSpot, useUserTrailStats,
+} from '@/hooks/useBackend';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats, useChallenges, useSpot, useTrails, useDeleteSpot } from '@/hooks/useBackend';
-import { useVenueContext } from '@/hooks/useVenueContext';
-import { TrailDrawer } from '@/components/map/TrailDrawer';
-import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
-import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
-import { EmptyMapPlaceholder } from '@/components/map/EmptyMapPlaceholder';
-import { distanceMeters } from '@/systems/gps';
-import { getVenue } from '@/data/venues';
+import { formatTimeShort } from '@/content/copy';
+import { TrustBadge } from '@/components/game/TrustBadge';
+import { PioneerBadge } from '@/components/game/PioneerBadge';
 
-// Custom SVG surface on native, web fallback on web
-const ArenaMap = Platform.OS !== 'web'
-  ? require('@/components/map/ArenaMapCustom').ArenaMapCustom
-  : null;
-import { Difficulty } from '@/data/types';
+const HAIRLINE = StyleSheet.hairlineWidth;
 
 export default function SpotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { profile } = useAuthContext();
-  const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
-  // Checkpoint A: spot + trails now from DB (mock imports remain for Checkpoint C cleanup)
+
   const { spot } = useSpot(id ?? null);
   const { trails, status: trailsStatus } = useTrails(id ?? null);
-  const venue = id ? getVenue(id) : undefined;
+  const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
   const { submit: deleteSpot } = useDeleteSpot();
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
-  const { challenges } = useChallenges(spot?.id ?? id ?? '', profile?.id);
-  const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
-  const [highlightStart, setHighlightStart] = useState(false);
-  const [focusTarget, setFocusTarget] = useState<'start' | 'rider' | 'both' | null>(null);
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Live rider position + venue context ──
-  const venueState = useVenueContext(true);
-  const riderPosition = venueState.riderPosition;
-
-  // ── Compute start readiness for selected trail ──
-  const readiness = useMemo((): StartReadiness | undefined => {
-    if (!selectedTrailId) return undefined;
-
-    // GPS quality from accuracy
-    const accuracy = riderPosition?.accuracy ?? null;
-    const gpsQuality: GpsQuality =
-      accuracy === null || accuracy === undefined ? 'none' :
-      accuracy <= 10 ? 'excellent' :
-      accuracy <= 25 ? 'good' : 'weak';
-
-    if (!riderPosition) return { level: 'no_gps', distanceM: null, gpsQuality: 'none' };
-
-    const geo = venue?.trailGeo.find((t) => t.trailId === selectedTrailId);
-    if (!geo) return { level: 'no_gps', distanceM: null, gpsQuality };
-
-    const dist = Math.round(distanceMeters(
-      riderPosition,
-      { latitude: geo.startZone.latitude, longitude: geo.startZone.longitude },
-    ));
-
-    // ── Outside venue: > 2 km = not at resort, > 5 km = different continent ──
-    if (dist > 2000) {
-      return { level: 'outside_venue', distanceM: null, gpsQuality };
-    }
-
-    // Tightened thresholds for mountain terrain:
-    //   ready:       inside gate radius (25-30m) + decent GPS
-    //   at_start:    ≤ 40m — close enough to see the gate
-    //   approaching: ≤ 80m — walking distance, ~1 min
-    //   too_far:     > 80m — need to move significantly
-    let level: ReadinessLevel;
-    if (dist <= geo.startZone.radiusM) {
-      level = gpsQuality !== 'weak' ? 'ready' : 'at_start'; // weak GPS → don't promise "ready"
-    } else if (dist <= 40) {
-      level = 'at_start';
-    } else if (dist <= 80) {
-      level = 'approaching';
-    } else {
-      level = 'too_far';
-    }
-
-    return { level, distanceM: dist, gpsQuality };
-  }, [selectedTrailId, riderPosition]);
 
   const goBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/');
-    }
+    if (navigation.canGoBack()) router.back();
+    else router.replace('/');
   }, [navigation, router]);
 
-  const handleTrailSelect = useCallback((trailId: string) => {
-    selectionTick();
-    setSelectedTrailId(trailId);
-  }, []);
+  const handleAddTrail = useCallback(() => {
+    if (!id) return;
+    tapLight();
+    router.push(`/trail/new?spotId=${id}`);
+  }, [id, router]);
 
-  const handleMapPress = useCallback(() => {
-    setSelectedTrailId(null);
-  }, []);
+  const handleTrailPress = useCallback((trailId: string) => {
+    tapLight();
+    router.push(`/trail/${trailId}`);
+  }, [router]);
 
-  // ── Curator delete flow ──
-  const handleDeleteSpot = useCallback(() => {
+  const handleDelete = useCallback(() => {
     if (!spot) return;
     Alert.alert(
       `Usunąć bike park ${spot.name}?`,
@@ -121,493 +68,405 @@ export default function SpotScreen() {
           style: 'destructive',
           onPress: async () => {
             const result = await deleteSpot(spot.id);
-            if (result.ok) {
-              goBack();
-            } else {
-              // Surface the actual RPC error so the curator can act on it
-              // (e.g. "rpc_missing" = apply migration, "unauthorized" =
-              // role flip needed). Previous generic copy masked root cause.
-              Alert.alert(
-                `Nie udało się: ${result.code}`,
-                result.message ?? 'Spróbuj ponownie',
-              );
-            }
+            if (result.ok) goBack();
+            else Alert.alert(`Nie udało się: ${result.code}`, result.message ?? '');
           },
         },
       ],
     );
   }, [spot, deleteSpot, goBack]);
 
-  // ── Bike park status pill — driven by spots.submissionStatus.
-  //    (Chunk 4 used a trail-derived heuristic that mislabelled active
-  //     parks as DRAFT; DRAFT belongs to trails.calibration_status.)
-  const spotStateLabel = useMemo(() => {
-    const status = spot?.submissionStatus;
-    if (status === 'pending')  return { text: 'OCZEKUJE',  color: '#FFD93D' };
-    if (status === 'rejected') return { text: 'ODRZUCONY', color: '#FF4365' };
-    return { text: 'AKTYWNY', color: '#00FF8C' };
-  }, [spot?.submissionStatus]);
+  // Rider stats summary
+  const { yoursCount } = useMemo(() => {
+    let count = 0;
+    trails.forEach((t) => {
+      const s = trailStatsMap.get(t.id);
+      if (s?.pbMs != null) count += 1;
+    });
+    return { yoursCount: count };
+  }, [trails, trailStatsMap]);
 
+  if (!spot && trailsStatus !== 'loading') {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TopBar label="OŚRODEK" onBack={goBack} />
+        <View style={styles.center}>
+          <Text style={styles.emptyBody}>Bike park nie znaleziony</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!spot) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={{ padding: spacing.lg, gap: spacing.md }}>
-          <Text style={{ color: colors.textTertiary, fontSize: 13 }}>
-            Bike park nie znaleziony
-          </Text>
-          <Pressable onPress={goBack} style={styles.backBtn}>
-            <Text style={styles.backText}>← WRÓĆ</Text>
-          </Pressable>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TopBar label="OŚRODEK" onBack={goBack} />
+        <View style={styles.center}>
+          <ActivityIndicator color={hudColors.signal} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const selectedTrail = trails.find((t) => t.id === selectedTrailId);
-  const selectedStats = selectedTrailId
-    ? trailStatsMap.get(selectedTrailId)
-    : undefined;
+  const statusText =
+    spot.submissionStatus === 'pending'  ? 'OCZEKUJE' :
+    spot.submissionStatus === 'rejected' ? 'ODRZUCONY' : 'AKTYWNY';
+  const statusColor =
+    spot.submissionStatus === 'pending'  ? hudColors.trust.curator :
+    spot.submissionStatus === 'rejected' ? hudColors.trust.disputed :
+    hudColors.signal;
 
   return (
-    <View style={styles.container}>
-      {/* Floating header overlay — top row + BIKE PARK kicker/title/pills */}
-      <SafeAreaView style={styles.headerOverlay} edges={['top']}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={goBack} style={styles.backBtn}>
-            <Text style={styles.backText}>←</Text>
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <View style={styles.ridersTag}>
-            <Text style={styles.ridersCount}>S01</Text>
-            <Text style={styles.ridersLabel}>LIGA</Text>
-          </View>
-        </View>
-        <View style={styles.headerBlock}>
-          <Text style={styles.spotKicker}>⟣ BIKE PARK</Text>
-          <Text style={styles.spotTitle}>{spot.name}</Text>
-          <View style={styles.statusPillRow}>
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, { backgroundColor: 'rgba(232, 255, 240, 0.55)' }]} />
-              <Text style={styles.statusPillLabel}>{trails.length} TRAS</Text>
-            </View>
-            <Text style={styles.statusDivider}>·</Text>
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, { backgroundColor: spotStateLabel.color }]} />
-              <Text style={[styles.statusPillLabel, { color: spotStateLabel.color }]}>
-                {spotStateLabel.text}
-              </Text>
-            </View>
-          </View>
-          {isCurator && (
-            <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
-              <Text style={styles.curatorDeleteLabel}>Usuń ten bike park</Text>
-            </Pressable>
-          )}
-        </View>
-      </SafeAreaView>
-
-      {/* Training-only banner for unranked venues */}
-      {venue && !venue.rankingEnabled && (
-        <View style={styles.trainingBanner}>
-          <Text style={styles.trainingBannerText}>
-            TRYB WALIDACJI · TRASY W WERYFIKACJI
-          </Text>
-        </View>
-      )}
-
-      {/* Full-screen map — or minimal placeholder when no geometry available.
-          Map components hardcode Słotwiny altitude frame / markers, which
-          leak as ghosts when trails=[] or venue config is missing. Guard
-          unconditionally on both. Stylized placeholder lands in Checkpoint C. */}
-      {trails.length > 0 && venue ? (
-        Platform.OS !== 'web' && ArenaMap ? (
-          <ArenaMap
-            venue={venue}
-            trails={trails}
-            selectedTrailId={selectedTrailId}
-            hotTrailId={venue.trails[venue.trails.length - 1]?.id}
-            challengeTrailId={venue.trails[venue.trails.length - 1]?.id}
-            riderPosition={riderPosition}
-            highlightStart={highlightStart}
-            focusTarget={focusTarget}
-            onTrailSelect={handleTrailSelect}
-            onMapPress={() => {
-              handleMapPress();
-              setFocusTarget(null);
-            }}
-          />
-        ) : (
-          <ArenaMapWeb
-            trails={trails}
-            selectedTrailId={selectedTrailId}
-            hotTrailId={venue?.trails[venue.trails.length - 1]?.id}
-            challengeTrailId={venue?.trails[venue.trails.length - 1]?.id}
-            trailStats={trailStatsMap}
-            onTrailSelect={handleTrailSelect}
-            onMapPress={handleMapPress}
-          />
-        )
-      ) : (
-        <EmptyMapPlaceholder />
-      )}
-
-      {/* Empty state — spot has no trails yet. Tap to kick off the
-          Pioneer flow (Sprint 3 Chunk 4 routing). */}
-      {!selectedTrail && trails.length === 0 && trailsStatus === 'empty' && (
-        <View style={styles.trailStrip}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.pioneerCta,
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-            onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-          >
-            <Text style={styles.pioneerCtaLabel}>⟣ DODAJ PIERWSZĄ TRASĘ</Text>
-            <Text style={styles.pioneerCtaSub}>
-              Bądź pierwszym Pionierem tego bike parku
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* Trail list strip at bottom (when no trail selected) */}
-      {!selectedTrail && trails.length > 0 && (
-        <View style={styles.trailStrip}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.trailStripContent}
-          >
-            {trails.map((trail) => {
-              const stats = trailStatsMap.get(trail.id);
-              const official = venue?.trails.find((o) => o.id === trail.id);
-              const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
-
-              return (
-                <Pressable
-                  key={trail.id}
-                  style={({ pressed }) => [
-                    styles.trailChip,
-                    { borderLeftWidth: 2.5, borderLeftColor: diffColor },
-                    pressed && { backgroundColor: 'rgba(255,255,255,0.06)', transform: [{ scale: 0.97 }] },
-                  ]}
-                  onPress={() => handleTrailSelect(trail.id)}
-                >
-                  <View style={styles.trailChipHeader}>
-                    <Text style={styles.trailChipName}>{trail.name}</Text>
-                  </View>
-                  <Text style={styles.trailChipMeta}>
-                    {trail.difficulty.toUpperCase()} · {trail.trailType}
-                  </Text>
-                  {stats?.pbMs && (
-                    <Text style={styles.trailChipPb}>
-                      PB {formatTimeShort(stats.pbMs)}
-                    </Text>
-                  )}
-                  {!stats?.pbMs && (
-                    <Text style={styles.trailChipNoPb}>Brak PB</Text>
-                  )}
-                </Pressable>
-              );
-            })}
-
-            {/* Secondary add-trail CTA — appended after the trail chips */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.addTrailChip,
-                pressed && { transform: [{ scale: 0.97 }], opacity: 0.8 },
-              ]}
-              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-            >
-              <Text style={styles.addTrailChipLabel}>+ DODAJ TRASĘ</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Selected trail drawer */}
-      {selectedTrail && (
-        <TrailDrawer
-          trail={selectedTrail}
-          stats={selectedStats}
-          challenges={challenges}
-          readiness={readiness}
-          rankingEnabled={venue?.rankingEnabled ?? false}
-          colorClass={venue?.trails.find((t) => t.id === selectedTrail.id)?.colorClass}
-          onShowStart={() => {
-            selectionTick();
-            setHighlightStart(true);
-            // Smart: if rider has GPS, show both rider + start together
-            setFocusTarget(riderPosition ? 'both' : 'start');
-            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-            focusTimerRef.current = setTimeout(() => {
-              setHighlightStart(false);
-              setFocusTarget(null);
-            }, 5000);
-          }}
-          onShowRider={() => {
-            selectionTick();
-            setFocusTarget('rider');
-            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-            focusTimerRef.current = setTimeout(() => {
-              setFocusTarget(null);
-            }, 5000);
-          }}
-          onClose={handleMapPress}
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <TopBar
+          label="OŚRODEK"
+          onBack={goBack}
+          rightLabel={isCurator ? '⋯' : undefined}
+          onRight={isCurator ? handleDelete : undefined}
         />
+
+        {/* Title */}
+        <View style={styles.titleBlock}>
+          <Text style={styles.spotName}>{spot.name}</Text>
+          <Text style={styles.spotMeta}>
+            {spot.region.toUpperCase()}
+          </Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusLabel, { color: statusColor }]}>{statusText}</Text>
+          </View>
+        </View>
+
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <Stat label="TRASY" value={String(trails.length).padStart(2, '0')} />
+          <Stat label="TWOJE" value={String(yoursCount).padStart(2, '0')} emphasised={yoursCount > 0} />
+          <Stat label="RIDERS" value="—" />
+        </View>
+
+        {/* Trail list */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.kicker}>{`TRASY / ${String(trails.length).padStart(2, '0')}`}</Text>
+            <Pressable onPress={handleAddTrail} hitSlop={8}>
+              <Text style={styles.sectionLink}>+ DODAJ TRASĘ</Text>
+            </Pressable>
+          </View>
+
+          {trailsStatus === 'loading' && (
+            <ActivityIndicator color={hudColors.signal} style={{ paddingVertical: hudSpacing.xxl }} />
+          )}
+
+          {trailsStatus !== 'loading' && trails.length === 0 && (
+            <View style={styles.emptyBlock}>
+              <Text style={styles.emptyHero}>Czeka na pierwszego Pioniera</Text>
+              <Text style={styles.emptyBody}>
+                Zgłoś trasę i zjedź ją jako pierwszy — twoje imię zostanie zapisane na zawsze.
+              </Text>
+              <Pressable
+                onPress={handleAddTrail}
+                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+              >
+                <Text style={styles.ctaLabel}>DODAJ PIERWSZĄ TRASĘ</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {trails.map((trail, index) => {
+            const stat = trailStatsMap.get(trail.id);
+            const hasPb = stat?.pbMs != null;
+            return (
+              <Pressable
+                key={trail.id}
+                onPress={() => handleTrailPress(trail.id)}
+                style={({ pressed }) => [
+                  styles.trailRow,
+                  index > 0 && styles.trailRowDivider,
+                  pressed && styles.trailRowPressed,
+                ]}
+              >
+                <Text style={styles.trailRank}>{String(index + 1).padStart(2, '0')}</Text>
+
+                <View style={styles.trailMain}>
+                  <View style={styles.trailNameRow}>
+                    <Text style={styles.trailName} numberOfLines={1}>{trail.name}</Text>
+                    {trail.pioneerUserId && <PioneerBadge size="sm" />}
+                  </View>
+                  <Text style={styles.trailSub}>
+                    {`${trail.difficulty.toUpperCase()} · ${trail.trailType.toUpperCase()} · ${(trail.distanceM / 1000).toFixed(1)} KM · ${trail.elevationDropM} M ▼`}
+                  </Text>
+                  {trail.seedSource && trail.trustTier && (
+                    <View style={styles.trustRow}>
+                      <TrustBadge seedSource={trail.seedSource} trustTier={trail.trustTier} size="sm" />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.trailRight}>
+                  {hasPb ? (
+                    <>
+                      <Text style={styles.pbLabel}>TWÓJ PB</Text>
+                      <Text style={styles.pbTime}>{formatTimeShort(stat!.pbMs!)}</Text>
+                      {stat?.position != null && stat.position > 0 && (
+                        <Text style={styles.pbRank}>{`#${stat.position}`}</Text>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.pbLabel}>BEZ CZASU</Text>
+                      <Text style={styles.pbEmpty}>nie zjechałeś</Text>
+                    </>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {trails.length > 0 && (
+          <Pressable
+            onPress={() => handleTrailPress(trails[0].id)}
+            style={({ pressed }) => [styles.cta, styles.ctaFooter, pressed && styles.ctaPressed]}
+          >
+            <Text style={styles.ctaLabel}>WYBIERZ TRASĘ I ZJEDŹ</Text>
+          </Pressable>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ── Subcomponents ────────────────────────────────────────
+
+function TopBar({
+  label, onBack, rightLabel, onRight,
+}: {
+  label: string;
+  onBack: () => void;
+  rightLabel?: string;
+  onRight?: () => void;
+}) {
+  return (
+    <View style={styles.topBar}>
+      <Pressable onPress={onBack} hitSlop={12}>
+        <Text style={styles.topSide}>←</Text>
+      </Pressable>
+      <Text style={styles.topCenter}>{label}</Text>
+      {rightLabel && onRight ? (
+        <Pressable onPress={onRight} hitSlop={12}>
+          <Text style={styles.topSide}>{rightLabel}</Text>
+        </Pressable>
+      ) : (
+        <View style={{ width: 24 }} />
       )}
     </View>
   );
 }
 
+function Stat({ label, value, emphasised }: { label: string; value: string; emphasised?: boolean }) {
+  return (
+    <View style={styles.statCol}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, emphasised && { color: hudColors.signal }]}>{value}</Text>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: hudColors.surface.base },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: hudSpacing.xxl },
+  scroll: { paddingBottom: hudSpacing.giant },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: hudSpacing.xxl,
+    paddingVertical: hudSpacing.md,
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: hudColors.surface.border,
+  },
+  topSide: {
+    ...hudType.label,
+    color: hudColors.text.secondary,
+    minWidth: 24,
+  },
+  topCenter: {
+    ...hudType.labelSm,
+    color: hudColors.text.secondary,
     flex: 1,
-    backgroundColor: colors.bg,
-  },
-  // Training banner
-  trainingBanner: {
-    position: 'absolute' as const,
-    top: 210, // below taller header with kicker + title + pills
-    left: spacing.lg,
-    right: spacing.lg,
-    zIndex: 5,
-    backgroundColor: 'rgba(255, 149, 0, 0.12)',
-    borderRadius: radii.sm,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center' as const,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 149, 0, 0.20)',
-  },
-  trainingBannerText: {
-    fontFamily: 'Rajdhani_400Regular',
-    fontSize: 8,
-    color: 'rgba(255, 149, 0, 0.70)',
-    letterSpacing: 2,
+    textAlign: 'center',
   },
 
-  // Floating header
-  headerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: colors.bgOverlay,
+  titleBlock: {
+    paddingHorizontal: hudSpacing.xxl,
+    paddingTop: hudSpacing.mega,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    gap: spacing.md,
+  spotName: {
+    ...hudType.heroCopy,
+    color: hudColors.text.primary,
+    fontSize: 42,
+    lineHeight: 46,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backText: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontSize: 18,
-  },
-  headerCenter: {
-    flex: 1,
-  },
-  seasonLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
+  spotMeta: {
+    ...hudType.caption,
+    color: hudColors.text.secondary,
+    marginTop: hudSpacing.sm,
     letterSpacing: 2,
+    textTransform: 'uppercase',
   },
-  // New kicker/title/pill block (B1)
-  headerBlock: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  spotKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: '#00FF8C',
-    letterSpacing: 3,
-    marginBottom: spacing.xs,
-  },
-  spotTitle: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 30,
-    color: colors.textPrimary,
-    letterSpacing: 2,
-    marginBottom: spacing.sm,
-  },
-  statusPillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  statusPill: {
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginTop: hudSpacing.md,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  statusDot: { width: 5, height: 5, borderRadius: 3 },
+  statusLabel: { ...hudType.labelSm },
+
+  statsRow: {
+    flexDirection: 'row',
+    marginTop: hudSpacing.xxxl,
+    paddingHorizontal: hudSpacing.xxl,
+    paddingTop: hudSpacing.xxl,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: hudColors.surface.border,
   },
-  statusPillLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 10,
-    letterSpacing: 2,
-    color: 'rgba(232, 255, 240, 0.65)',
+  statCol: { flex: 1 },
+  statLabel: {
+    ...hudType.labelSm,
+    color: hudColors.text.secondary,
+    marginBottom: hudSpacing.xs,
   },
-  statusDivider: {
-    color: 'rgba(232, 255, 240, 0.35)',
-    fontSize: 12,
-    paddingHorizontal: 2,
-  },
-  // Curator delete link
-  curatorDelete: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
-  },
-  curatorDeleteLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    color: 'rgba(255, 67, 101, 0.70)',
-    textDecorationLine: 'underline',
-    letterSpacing: 0.5,
-  },
-  ridersTag: {
-    backgroundColor: colors.accentDim,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    alignItems: 'center',
-  },
-  ridersCount: {
-    ...typography.h3,
-    color: colors.accent,
-    fontSize: 16,
-  },
-  ridersLabel: {
-    ...typography.labelSmall,
-    color: colors.accent,
-    fontSize: 8,
-    letterSpacing: 2,
+  statValue: {
+    ...hudType.displayMd,
+    color: hudColors.text.primary,
+    fontSize: 24,
+    lineHeight: 28,
+    fontVariant: ['tabular-nums'],
   },
 
-  // Trail strip (horizontal scroll at bottom)
-  trailStrip: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 34, // iPhone safe area
-    backgroundColor: 'transparent',
+  section: {
+    paddingHorizontal: hudSpacing.xxl,
+    paddingTop: hudSpacing.xxxl,
+    marginTop: hudSpacing.xxxl,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: hudColors.surface.border,
   },
-  trailStripContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  trailChip: {
-    backgroundColor: 'rgba(10, 10, 18, 0.75)',
-    borderRadius: radii.sm + 2,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    minWidth: 110,
-    maxWidth: 160,
-    borderWidth: 0,
-  },
-  // Empty-state Pioneer CTA (trails.length === 0)
-  pioneerCta: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: 'rgba(20, 35, 26, 0.95)',
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#00FF8C',
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#00FF8C',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
+    marginBottom: hudSpacing.lg,
   },
-  pioneerCtaLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 16,
-    color: '#00FF8C',
-    letterSpacing: 3,
-    marginBottom: 4,
+  kicker: {
+    ...hudType.label,
+    color: hudColors.text.secondary,
   },
-  pioneerCtaSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    color: 'rgba(232, 255, 240, 0.55)',
-    letterSpacing: 0.5,
+  sectionLink: {
+    ...hudType.labelSm,
+    color: hudColors.signal,
   },
-  // Secondary "+ DODAJ TRASĘ" — appended chip when trails exist
-  addTrailChip: {
-    borderRadius: radii.sm + 2,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    minWidth: 110,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 140, 0.45)',
-    backgroundColor: 'rgba(0, 255, 140, 0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  // Empty
+  emptyBlock: {
+    paddingVertical: hudSpacing.xxl,
   },
-  addTrailChipLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: '#00FF8C',
-    letterSpacing: 2,
+  emptyHero: {
+    ...hudType.displayMd,
+    color: hudColors.text.primary,
+    marginBottom: hudSpacing.md,
   },
-  trailChipHeader: {
+  emptyBody: {
+    ...hudType.body,
+    color: hudColors.text.secondary,
+    lineHeight: 18,
+  },
+
+  // Trail row
+  trailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: hudSpacing.lg,
+    gap: hudSpacing.md,
+  },
+  trailRowDivider: {
+    borderTopWidth: HAIRLINE,
+    borderTopColor: hudColors.surface.border,
+  },
+  trailRowPressed: { opacity: 0.75 },
+  trailRank: {
+    ...hudType.stat,
+    color: hudColors.text.muted,
+    width: 28,
+    marginTop: 3,
+  },
+  trailMain: { flex: 1 },
+  trailNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 1,
+    gap: hudSpacing.sm,
   },
-  trailChipDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  trailName: {
+    ...hudType.displaySm,
+    color: hudColors.text.primary,
+    flexShrink: 1,
   },
-  trailChipName: {
-    fontFamily: 'Inter_600SemiBold',
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
+  trailSub: {
+    ...hudType.captionSm,
+    color: hudColors.text.secondary,
+    marginTop: hudSpacing.xs,
+    letterSpacing: 1.5,
   },
-  trailChipMeta: {
-    fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.55)',
-    fontSize: 7.5,
-    letterSpacing: 0.3,
-    marginBottom: 1,
+  trustRow: {
+    marginTop: hudSpacing.sm,
   },
-  trailChipPb: {
-    fontFamily: 'Inter_500Medium',
-    color: colors.accent,
-    fontSize: 8.5,
-    letterSpacing: 0.5,
-    opacity: 0.9,
+  trailRight: {
+    alignItems: 'flex-end',
+    minWidth: 72,
+    marginTop: 3,
   },
-  trailChipNoPb: {
-    fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.55)',
-    fontSize: 8.5,
+  pbLabel: {
+    ...hudType.labelSm,
+    color: hudColors.text.secondary,
+    fontSize: 8,
+  },
+  pbTime: {
+    ...hudType.statLg,
+    color: hudColors.text.primary,
+    marginTop: 2,
+  },
+  pbRank: {
+    ...hudType.captionSm,
+    color: hudColors.signal,
+    marginTop: 2,
+  },
+  pbEmpty: {
+    ...hudType.displayXs,
+    color: hudColors.text.muted,
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+
+  cta: {
+    marginTop: hudSpacing.xl,
+    alignSelf: 'center',
+    minWidth: 240,
+    paddingVertical: hudSpacing.md,
+    paddingHorizontal: hudSpacing.xxl,
+    borderWidth: 1,
+    borderColor: hudColors.text.primary,
+    alignItems: 'center',
+  },
+  ctaFooter: {
+    marginTop: hudSpacing.giant,
+  },
+  ctaPressed: { backgroundColor: hudColors.text.primary },
+  ctaLabel: {
+    ...hudType.label,
+    color: hudColors.text.primary,
   },
 });

@@ -124,3 +124,37 @@ from Trailforks.
 **Consequences**: A small visual shift — Rajdhani is narrower than Orbitron at the same point size, so HUD headings look slightly more condensed. Acceptable trade-off for correctness; if the proportions read wrong in specific screens we can bump sizes locally. Reopen the decision only if Rajdhani itself turns out to be missing glyphs we need.
 
 **Regression guard**: `app/__dev/polish-test.tsx` (route `/__dev/polish-test`, `__DEV__` only) renders every `typography.*` and `hudTypography.*` style with a full Polish sample + a live TextInput; used to verify on-device after the swap and guards against future font regressions.
+
+---
+
+## ADR-012 — (Skipped; reserved for Sprint 4 Trust+Versioning notes absorbed into merge commits)
+
+---
+
+## ADR-013 — Brand Ye brutalist direction (2026-04-21)
+
+**Status**: Accepted.
+
+**Context**: After shipping Sprint 4 we reviewed the UI against the apparel/marketing direction. Existing screens — Rajdhani caps + neon green glow + rounded pill badges — read "GPS tracker game" rather than "premium MTB apparel brand." The bone-cream jersey aesthetic we were developing offline needs the app to match, or the two halves of the company drift. GPT review agreed: the app needs to earn the jersey, not the other way around.
+
+**Decision**: Adopt a **brutalist** direction keyed to the Ye DONDA / tour.yeezy.com visual DNA:
+
+- **Typography** (zero sans-serif): Newsreader 400/500 (serif display, all hero copy + names + times) + JetBrains Mono 400/500 (utility labels, stats, metadata). Rajdhani + Inter removed from deps (ADR-011 superseded).
+- **Colors**: deep black base (#0A0A0A) + warm neutrals (#141414 / #1A1A1A / #2A2A2A), bone-cream primary text (#F0EBE0 — matches apparel), emerald signal (#00C26E) reserved for LIVE / LVL / XP / PB / Pioneer marks. Under 5% of screen at rest. Trust tiers desaturated: amber #C8A838 / blue #5088C8 / green #5AA870 / red #B84848.
+- **Structure**: serif for brand + hero moments; mono for every utility surface; negative space 32–48pt between sections; 0.5px hairline borders; CTAs as 1px cream outlines (fill-inverted on press); zero decorations, gradients, or glows.
+- **Tab nav**: serif lowercase labels ("home / zjazdy / tablica / rider"), emerald dot under active.
+
+**Implementation scope (this sprint)**:
+- `src/theme/gameHud.ts`: canonical nested `hudColors.surface/text/trust`, new `hudType.*` scale, legacy flat keys + `hudTypography` shim so pre-ADR-013 imports keep rendering.
+- Rewritten: `app/(tabs)/index.tsx`, `app/(tabs)/_layout.tsx`, `app/trail/[id].tsx`, `app/run/recording.tsx`, `app/run/result.tsx` (Pioneer branch only), `app/spot/[id].tsx`, `src/components/game/TrustBadge.tsx`, `src/components/game/PioneerBadge.tsx`.
+
+**Deferred**:
+- Sector/splits (S1/S2/S3) grid on `StandardResultScreen` — requires backend sector emission.
+- Un-rewritten screens (`app/run/review.tsx`, `app/run/rejected.tsx`, `app/trail/new.tsx`, `app/spot/new.tsx`, `app/spot/pending.tsx`, `app/settings/delete-account.tsx`, `app/auth/index.tsx`, `app/(tabs)/history.tsx`, `app/(tabs)/profile.tsx`, `app/(tabs)/leaderboard.tsx`, `app/help/index.tsx`, `app/__dev/polish-test.tsx`). They consume the new tokens via the shim so palette + fonts propagate; layout remains Sprint-3 until a follow-up pass.
+
+**Implications beyond the app**:
+- Apparel collection typography must stay serif + mono-only; any sans-serif on tees/hoodies breaks the "one brand" rule.
+- Marketing site + socials inherit the same tokens. Emerald stays under 5% of any composition.
+- Any future screen defaults to this direction — no exceptions without a superseding ADR.
+
+**Reopen conditions**: if user research shows the serif display is unreadable at small sizes on older devices; if emerald proves insufficient as the single signal color and we need a second accent (then the accent lives on `hudColors.trust.*`, not a new brand hue).
