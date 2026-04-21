@@ -365,7 +365,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.venueCta}>
-            <Text style={styles.venueCtaText}>OTWÓRZ BIKE PARK</Text>
+            <Text style={styles.venueCtaText}>WEJDŹ DO OŚRODKA</Text>
           </View>
         </Pressable>
 
