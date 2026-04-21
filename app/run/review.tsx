@@ -411,7 +411,11 @@ export default function ReviewScreen() {
       <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.eyebrow}>⟣ GOTOWY DO ZATWIERDZENIA</Text>
+          <Text style={styles.eyebrow}>
+            {validation?.ok === false
+              ? '⟣ SPRAWDŹ NIM ZATWIERDZISZ'
+              : '⟣ GOTOWY DO ZATWIERDZENIA'}
+          </Text>
           <Text style={styles.trailTitle}>{trail?.name ?? 'TRASA'}</Text>
 
           {/* STATS — big HUD numbers */}
@@ -563,7 +567,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: hudColors.timerPrimary,
     letterSpacing: 2,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
 
   // Timer hero
@@ -636,16 +640,20 @@ const styles = StyleSheet.create({
   },
 
   // Banners
+  //
+  // warnBanner is amber (gpsMedium): client-side validator failures are a
+  // fix-it-yourself state — "zjedź dłużej" — not a system error. Red is
+  // reserved for errorBanner below (RPC rejections, real failures).
   warnBanner: {
     marginTop: spacing.sm,
     padding: spacing.md,
-    backgroundColor: hudColors.actionDangerBg,
+    backgroundColor: 'rgba(255, 217, 61, 0.10)',
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: hudColors.gpsWeak,
+    borderColor: hudColors.gpsMedium,
   },
   warnBannerText: {
-    color: hudColors.gpsWeak,
+    color: hudColors.gpsMedium,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -687,7 +695,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   primaryCtaLabelDisabled: {
-    color: 'rgba(232, 255, 240, 0.40)',
+    color: 'rgba(232, 255, 240, 0.55)',
   },
   polylineEmpty: {
     alignItems: 'center',
