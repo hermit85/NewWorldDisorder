@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing,
+  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing, AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -171,6 +171,22 @@ export default function RecordingScreen() {
   // if the user dismisses and taps START again we re-show it only if
   // permission is still not granted.
   const [showAlwaysExplainer, setShowAlwaysExplainer] = useState(false);
+
+  // Chunk 7 Phase 6: re-read permission statuses on every foreground
+  // return. Without this, a rider who tapped USTAWIENIA in the banner
+  // and flipped Always from denied → granted in iOS Settings would
+  // still see the banner (and the hook would still report denied)
+  // until the screen remounted. permission.refresh reads both
+  // foreground + background statuses via getForegroundPermissionsAsync
+  // / getBackgroundPermissionsAsync — no user prompts, just state sync.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        void permission.refresh();
+      }
+    });
+    return () => sub.remove();
+  }, [permission]);
 
   const lastCountdownSecondRef = useRef<number | null>(null);
   const lastWeakSignalRef = useRef<boolean>(false);

@@ -199,6 +199,33 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     }
   }, []);
 
+  /** Single source of truth for the expo-location task config.
+   *  Both `enterRecording` (fresh start) and `resumeSession`
+   *  (after a cross-mount gap) funnel through here so the
+   *  accuracy / distanceInterval / activityType / blue-bar
+   *  settings can never drift between code paths.
+   *
+   *  Rationale for each option:
+   *    - BestForNavigation: same accuracy tier as pre-Chunk-7.
+   *    - distanceInterval 5m: platform-native dedup replaces
+   *      our 2m haversine.
+   *    - activityType Fitness: iOS power model for bike/run,
+   *      NOT Automotive (wrong heuristics for gravity runs).
+   *    - pausesUpdatesAutomatically: false — a standing rider
+   *      at a gate would get paused + lose samples otherwise.
+   *    - showsBackgroundLocationIndicator: true — non-negotiable
+   *      for App Store review ("Always" justification relies on
+   *      the blue-bar user signal). */
+  const startBackgroundTask = useCallback(async (): Promise<void> => {
+    await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      distanceInterval: DISTANCE_INTERVAL_M,
+      activityType: Location.LocationActivityType.Fitness,
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: true,
+    });
+  }, []);
+
   /** Stateless weak-signal evaluator — called from drain with the
    *  most recent sample's accuracy. Preserves the pre-Chunk-7 30s
    *  hysteresis window. Max detection lag is now 500ms (one drain
@@ -383,25 +410,12 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
       void drainToState();
     }, UI_TICK_INTERVAL_MS);
 
-    // Start the background task. Config chosen for Chunk 7 spec:
-    //  - BestForNavigation: same accuracy tier as pre-Chunk-7.
-    //  - distanceInterval 5m: platform-native dedup replaces our
-    //    2m haversine.
-    //  - activityType Fitness: iOS power model for bike/run, NOT
-    //    Automotive (wrong heuristics for gravity runs).
-    //  - pausesUpdatesAutomatically: false — a standing rider at a
-    //    gate would get paused + lose samples otherwise.
-    //  - showsBackgroundLocationIndicator: true — non-negotiable for
-    //    App Store review ("Always" justification relies on the
-    //    blue-bar user signal).
+    // Start the background task via the shared config helper so
+    // enter/resume code paths can never drift. Failure falls back
+    // to an immediate stop — same behaviour as pre-Chunk-7 watch
+    // fallback: surface caller a stopped state rather than freeze.
     try {
-      await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.BestForNavigation,
-        distanceInterval: DISTANCE_INTERVAL_M,
-        activityType: Location.LocationActivityType.Fitness,
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
-      });
+      await startBackgroundTask();
     } catch (e) {
       if (__DEV__) {
         console.warn(
@@ -409,12 +423,10 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
           e,
         );
       }
-      // Symmetric fallback with the pre-Chunk-7 code path: surface
-      // the caller a stopped state rather than a frozen screen.
       await finalizeStop('user');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trailId, spotId, drainToState, finalizeStop]);
+  }, [trailId, spotId, drainToState, finalizeStop, startBackgroundTask]);
 
   // ── Public: startCountdown ───────────────────────────────
 
@@ -532,13 +544,7 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
         BACKGROUND_LOCATION_TASK_NAME,
       );
       if (!running) {
-        await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
-          accuracy: Location.Accuracy.BestForNavigation,
-          distanceInterval: DISTANCE_INTERVAL_M,
-          activityType: Location.LocationActivityType.Fitness,
-          pausesUpdatesAutomatically: false,
-          showsBackgroundLocationIndicator: true,
-        });
+        await startBackgroundTask();
       }
     } catch (e) {
       if (__DEV__) {
@@ -564,7 +570,7 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
       weakSignal: false,
       extensionsUsed: 0,
     });
-  }, [state, drainToState, finalizeStop]);
+  }, [state, drainToState, finalizeStop, startBackgroundTask]);
 
   /** Decline the resumable buffer: stop the task (if running), clear
    *  the buffer, return to 'idle'. Warm-up then takes over normally. */
