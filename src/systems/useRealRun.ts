@@ -529,6 +529,7 @@ export function useRealRun(
       const { verification, qualityAssessment, finalPhase } = finalizeRun({
         trace: completedTrace,
         geo,
+        gateConfig,
         trailId,
         sessionId: currentSessionId,
         gateStartCrossing: gateState.startCrossing,

@@ -19,12 +19,20 @@ import { verifyRealRun, type GateTruth } from './realVerification';
 import { RunTrace } from './traceCapture';
 import { VerificationResult, RunPhaseV2, GpsReadiness } from '@/data/verificationTypes';
 import { TrailGeoSeed } from '@/data/venueConfig';
-import { type RunQualityAssessment } from '@/features/run';
+import { type RunQualityAssessment, type TrailGateConfig } from '@/features/run';
 import { logDebugEvent } from './debugEvents';
+
+const RESCUE_COVERAGE_MIN_PERCENT = 92;
+const RESCUE_MAX_DEVIATION_M = 12;
+const RESCUE_GATE_APPROACH_MAX_M = 9;
+const RESCUE_MAX_AVG_ACCURACY_M = 12;
+const RESCUE_DISTANCE_RATIO_MIN = 0.85;
+const RESCUE_DISTANCE_RATIO_MAX = 1.15;
 
 export interface FinalizationInput {
   trace: RunTrace;
   geo: TrailGeoSeed;
+  gateConfig: TrailGateConfig | null;
   trailId: string;
   sessionId: string;
   /** Gate crossing result from gateEngine — null if gate engine had no config */
@@ -59,7 +67,16 @@ export interface FinalizationResult {
  * object is freshly created by verifyRealRun() within this function.
  */
 export function finalizeRun(input: FinalizationInput): FinalizationResult {
-  const { trace, geo, trailId, sessionId, gateStartCrossing, gateFinishCrossing, assessQuality } = input;
+  const {
+    trace,
+    geo,
+    gateConfig,
+    trailId,
+    sessionId,
+    gateStartCrossing,
+    gateFinishCrossing,
+    assessQuality,
+  } = input;
 
   // ── 1. Gate truth — from gateEngine (single source of truth for gate crossings) ──
   const gateTruth: GateTruth = {
@@ -109,12 +126,37 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
   // gate proximity but the rider clearly rode the full trail.
   //
   const routeOk = verification.isLeaderboardEligible;
+  const majorDeviationCount = verification.corridor.deviations.filter((d) => d.type === 'major').length;
+  const shortcutDeviationCount = verification.corridor.deviations.filter((d) => d.type === 'shortcut').length;
+  const checkpointsOrdered = verification.checkpoints.every((cp, index, arr) => {
+    if (!cp.passed || cp.passedAt === null) return false;
+    if (index === 0) return true;
+    const prev = arr[index - 1];
+    return prev.passedAt !== null && prev.passedAt <= cp.passedAt;
+  });
+  const expectedLengthM = gateConfig?.expectedLengthM ?? 0;
+  const distanceRatio = expectedLengthM > 0 ? trace.durationMs >= 0 ? totalTraceDistanceM(trace.points) / expectedLengthM : 0 : 0;
+  const startClosestApproachM = gateConfig
+    ? closestApproachM(trace.points, gateConfig.startGate.center)
+    : Infinity;
+  const finishClosestApproachM = gateConfig
+    ? closestApproachM(trace.points, gateConfig.finishGate.center)
+    : Infinity;
+
   const corridorRescueEligible = trace.mode === 'ranked'
     && (verification.status === 'outside_start_gate' || verification.status === 'outside_finish_gate')
-    && verification.checkpointsPassed === verification.checkpointsTotal
-    && verification.corridor.coveragePercent >= 90
-    && verification.corridor.maxDeviationM <= 10
-    && verification.gpsQuality !== 'weak';
+    && verification.checkpointsTotal === 3
+    && verification.checkpointsPassed === 3
+    && checkpointsOrdered
+    && verification.corridor.coveragePercent >= RESCUE_COVERAGE_MIN_PERCENT
+    && verification.corridor.maxDeviationM <= RESCUE_MAX_DEVIATION_M
+    && majorDeviationCount === 0
+    && shortcutDeviationCount === 0
+    && distanceRatio >= RESCUE_DISTANCE_RATIO_MIN
+    && distanceRatio <= RESCUE_DISTANCE_RATIO_MAX
+    && startClosestApproachM <= RESCUE_GATE_APPROACH_MAX_M
+    && finishClosestApproachM <= RESCUE_GATE_APPROACH_MAX_M
+    && verification.avgAccuracyM <= RESCUE_MAX_AVG_ACCURACY_M;
 
   const finalEligible = routeOk || corridorRescueEligible;
 
@@ -146,9 +188,48 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
       eligible: verification.isLeaderboardEligible,
       durationMs: trace.durationMs,
       corridorRescueApplied: corridorRescueEligible && !routeOk,
+      corridorRescueDetail: corridorRescueEligible && !routeOk ? {
+        distanceRatio,
+        startClosestApproachM,
+        finishClosestApproachM,
+      } : null,
       issues: verification.issues,
     },
   });
 
   return { verification, qualityAssessment, finalPhase, finalEligible };
+}
+
+function totalTraceDistanceM(points: GpsPoint[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += distanceBetween(points[i - 1], points[i]);
+  }
+  return total;
+}
+
+function closestApproachM(
+  points: GpsPoint[],
+  target: { latitude: number; longitude: number },
+): number {
+  let best = Infinity;
+  for (const point of points) {
+    best = Math.min(best, distanceBetween(point, target));
+  }
+  return best;
+}
+
+function distanceBetween(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const R = 6371000;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 }
