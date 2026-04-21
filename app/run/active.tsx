@@ -14,7 +14,7 @@ import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyErro
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@/hooks/useBackend';
 import { buildTrailGeoFromPioneer } from '@/features/run/gates';
-import { buildTrailGateConfigFromGeo } from '@/features/run';
+import { buildTrailGateConfigFromPioneer } from '@/features/run';
 import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
 
 export default function ActiveRunScreen() {
@@ -46,9 +46,18 @@ export default function ActiveRunScreen() {
   const geo = venueMatch
     ? (venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null)
     : buildTrailGeoFromPioneer(trailId || null, pioneerGeometryRaw);
-  const gateConfig = geo
-    ? buildTrailGateConfigFromGeo(trailId || '', trailName, geo)
-    : null;
+  const gateConfig = venueMatch
+    ? (geo ? buildTrailGateConfigFromPioneer(trailId || '', trailName, {
+        version: 1,
+        points: geo.polyline.map((p, i) => ({ lat: p.latitude, lng: p.longitude, t: i })),
+        meta: {
+          totalDistanceM: 0,
+          totalDescentM: 0,
+          durationS: 0,
+          medianAccuracyM: 0,
+        },
+      }) : null)
+    : buildTrailGateConfigFromPioneer(trailId || null, trailName, pioneerGeometryRaw);
 
   const {
     state,

@@ -10,6 +10,7 @@ export {
   getTrailGateConfig,
   getAllTrailGateConfigs,
   buildTrailGateConfigFromGeo,
+  buildTrailGateConfigFromPioneer,
 } from './gates';
 export {
   detectGateCrossing,

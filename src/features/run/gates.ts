@@ -46,6 +46,22 @@ function asPioneerGeometry(raw: unknown): PioneerGeometry | null {
   return g as PioneerGeometry;
 }
 
+function toPolyline(
+  geometry: PioneerGeometry,
+): { latitude: number; longitude: number }[] {
+  return geometry.points
+    .filter((p): p is PioneerGeometry['points'][number] => (
+      typeof p?.lat === 'number' &&
+      Number.isFinite(p.lat) &&
+      typeof p?.lng === 'number' &&
+      Number.isFinite(p.lng)
+    ))
+    .map((p) => ({
+      latitude: p.lat,
+      longitude: p.lng,
+    }));
+}
+
 /**
  * Rehydrate a TrailGeoSeed (polyline + start/finish zones) from the
  * Pioneer geometry stored on the trail row. Caller fetches geometry
@@ -63,10 +79,7 @@ export function buildTrailGeoFromPioneer(
   const geometry = asPioneerGeometry(geometryRaw);
   if (!geometry) return null;
 
-  const polyline = geometry.points.map((p) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
+  const polyline = toPolyline(geometry);
   if (polyline.length < 10) return null;
 
   const first = polyline[0];
@@ -78,6 +91,29 @@ export function buildTrailGeoFromPioneer(
     finishZone: { ...last, radiusM: PIONEER_ZONE_RADIUS_M },
     polyline,
   };
+}
+
+export function buildTrailGateConfigFromPioneer(
+  trailId: string | null,
+  trailName: string,
+  geometryRaw: unknown,
+): TrailGateConfig | null {
+  if (!trailId) return null;
+  const geometry = asPioneerGeometry(geometryRaw);
+  if (!geometry) return null;
+
+  const polyline = toPolyline(geometry);
+  if (polyline.length < 2) return null;
+
+  const first = polyline[0];
+  const last = polyline[polyline.length - 1];
+
+  return buildTrailGateConfigFromGeo(trailId, trailName, {
+    trailId,
+    startZone: { ...first, radiusM: PIONEER_ZONE_RADIUS_M },
+    finishZone: { ...last, radiusM: PIONEER_ZONE_RADIUS_M },
+    polyline,
+  });
 }
 
 // ── Default gate parameters ──
