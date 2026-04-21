@@ -331,8 +331,15 @@ export async function restoreBuffer(): Promise<PersistedRecording | null> {
  *  record exists. Does not filter by age — caller decides whether
  *  to display stale records (current Sprint 3 UI only shows those
  *  under `RESTORE_MAX_AGE_MS`, but we expose the raw ageMs). */
+/** Metadata snapshot for Phase 4's resume prompt and the background
+ *  task's sessionId fencing read. Includes every identifier a caller
+ *  needs to decide whether to offer resumption, what trail/spot to
+ *  route to, and which sessionId owns the buffer. Does not filter
+ *  by age — caller decides whether to show stale records. */
 export async function peekRestorable(): Promise<{
+  sessionId: string | null;
   trailId: string;
+  spotId: string;
   startedAt: number;
   pointCount: number;
   ageMs: number;
@@ -350,7 +357,9 @@ export async function peekRestorable(): Promise<{
       return null;
     }
     return {
+      sessionId: parsed.sessionId ?? null,
       trailId: parsed.trailId,
+      spotId: parsed.spotId,
       startedAt: parsed.startedAt,
       pointCount: parsed.points.length,
       ageMs: Date.now() - parsed.lastSavedAt,

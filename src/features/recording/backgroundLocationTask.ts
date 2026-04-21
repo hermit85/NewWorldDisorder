@@ -21,7 +21,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { appendSamples, type RawTaskSample } from './recordingStore';
+import {
+  appendSamples,
+  peekRestorable,
+  type RawTaskSample,
+} from './recordingStore';
 
 /** Canonical task name — referenced by startLocationUpdatesAsync /
  *  stopLocationUpdatesAsync / hasStartedLocationUpdatesAsync in
@@ -78,21 +82,8 @@ function registerTask() {
       // read and the queued mutation, the recordingStore mutex will
       // see a sessionId mismatch and drop the batch — preventing
       // late samples from polluting a freshly started session.
-      //
-      // Reading the raw AsyncStorage key directly because
-      // peekRestorable's return shape doesn't expose sessionId yet
-      // (Phase 3.5 Step 5 will add it and let this simplify to
-      // a single helper call).
-      let sessionId: string | null = null;
-      try {
-        const raw = await AsyncStorage.getItem('nwd:recording-buffer');
-        if (raw) {
-          const parsed = JSON.parse(raw) as { sessionId?: string };
-          sessionId = parsed?.sessionId ?? null;
-        }
-      } catch {
-        // Read failed; can't fence without a sessionId, bail.
-      }
+      const current = await peekRestorable();
+      const sessionId = current?.sessionId ?? null;
       if (!sessionId) {
         // No active session — samples from a task that outlived its
         // recording. Drop them; Phase 3's defensive mount-time
