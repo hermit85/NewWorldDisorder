@@ -112,8 +112,10 @@ export function signedDistanceFromGateLine(
   // Before = uphill = angle near 180 (opposite of trail direction)
   // After = downhill = angle near 0 (same as trail direction)
 
-  // Signed distance along trail axis
-  const signedDist = dist * Math.cos((relativeAngle) * DEG_TO_RAD);
+  // Signed distance along trail axis.
+  // Positive means "before the line" (uphill / approaching),
+  // negative means "past the line" (downhill / already crossed).
+  const signedDist = -dist * Math.cos(relativeAngle * DEG_TO_RAD);
 
   return signedDist;
 }
@@ -277,7 +279,13 @@ export function detectGateCrossing(
   for (let i = start; i <= end; i++) {
     const p = points[i];
     const dist = distanceMeters(p, gate.center);
-    if (dist <= gate.zoneDepthM) {
+    const signedDist = signedDistanceFromGateLine(p, gate);
+    const lateralDist = lateralDistanceFromGateLine(p, gate);
+    if (
+      signedDist >= 0 &&
+      signedDist <= gate.zoneDepthM &&
+      lateralDist <= (gate.lineWidthM / 2) + 2
+    ) {
       const heading = i > 0 ? computeHeading(points[i - 1], p) : null;
       const headingOk = heading !== null
         ? headingDifference(heading, gate.trailBearing) < 70
