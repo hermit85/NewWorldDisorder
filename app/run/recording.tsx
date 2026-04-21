@@ -44,6 +44,16 @@ function formatTimer(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${tenths}`;
 }
 
+/** Polish relative age — "mniej niż minutę temu" / "12 min temu".
+ *  Minute-granularity is enough for the resume prompt; no need to
+ *  say "sprzed 7 sekund" which would invite the rider to just
+ *  restart. */
+function formatAgo(ageMs: number): string {
+  const minutes = Math.floor(ageMs / 60_000);
+  if (minutes < 1) return 'mniej niż minutę temu';
+  return `${minutes} min temu`;
+}
+
 // ── GPS strength: 3 dots, colour per bucket, 1 active per level ──
 
 type GpsStrength = 'strong' | 'medium' | 'weak' | 'unknown';
@@ -128,8 +138,15 @@ export default function RecordingScreen() {
   // unmount cleanup releases the lock.
   useKeepAwake('nwd-recording');
 
-  const { state, startCountdown, stopRecording, cancelRecording, extendTimeout } =
-    useGPSRecorder({ trailId, spotId });
+  const {
+    state,
+    startCountdown,
+    stopRecording,
+    cancelRecording,
+    extendTimeout,
+    resumeSession,
+    discardResumable,
+  } = useGPSRecorder({ trailId, spotId });
 
   // Chunk 7: single source of truth for iOS location permissions.
   // Stage 1 (When-In-Use) auto-requests on mount; stage 2 (Always) is
@@ -397,6 +414,73 @@ export default function RecordingScreen() {
       />
 
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* RESUMABLE — Phase 4: buffer detected for this trail with
+            valid sessionId + >10 samples + <1h age. Rider can
+            continue or discard; we render this BEFORE permission /
+            idle so a valid resumable session isn't clobbered by the
+            warm-up flow on every remount. */}
+        {state.phase === 'resumable' && (
+          <View style={styles.centered}>
+            <View style={styles.resumableCard}>
+              <Text style={styles.resumableKicker}>● ZAPISANY ZJAZD</Text>
+              <Text style={styles.resumableTitle}>NIEDOKOŃCZONY ZJAZD</Text>
+              <Text style={styles.resumableBody}>
+                Wykryto {state.pointCount} punktów GPS, {formatAgo(state.ageMs)}.
+                Kontynuować?
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  void resumeSession();
+                }}
+                style={({ pressed }) => [
+                  styles.resumableCta,
+                  hudShadows.glowGreen,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.resumableCtaLabel}>KONTYNUUJ</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void discardResumable();
+                }}
+                style={styles.resumableCancel}
+              >
+                <Text style={styles.resumableCancelLabel}>ODRZUĆ</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* RESUMABLE BROKEN — edge case: buffer exists for this trail
+            and is recent, but malformed (no sessionId or <10 points).
+            Cannot resume; only clear. */}
+        {state.phase === 'resumable_broken' && (
+          <View style={styles.centered}>
+            <View style={styles.resumableBrokenCard}>
+              <Text style={styles.resumableBrokenKicker}>● USZKODZONE</Text>
+              <Text style={styles.resumableTitle}>STARE DANE</Text>
+              <Text style={styles.resumableBody}>
+                Niedokończony zjazd jest uszkodzony i nie może być kontynuowany.
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  void discardResumable();
+                }}
+                style={({ pressed }) => [
+                  styles.resumableCta,
+                  pressed && { transform: [{ scale: 0.98 }] },
+                ]}
+              >
+                <Text style={styles.resumableCtaLabel}>WYCZYŚĆ</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* PERMISSION PHASES — fired by either the warm-up hook
             (pre-start) or useGPSRecorder.startCountdown (post-tap).
             Both paths surface an identical UI so users always see
@@ -960,6 +1044,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: hudColors.terrainDark,
     letterSpacing: 3,
+  },
+
+  // Resumable prompt (normal path — buffer valid + resumable)
+  resumableCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(0, 255, 140, 0.06)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsStrong,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  resumableKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsStrong,
+  },
+  resumableTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 22,
+    letterSpacing: 2,
+    color: hudColors.timerPrimary,
+    textAlign: 'center',
+  },
+  resumableBody: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    color: hudColors.textMuted,
+    textAlign: 'center',
+  },
+  resumableCta: {
+    backgroundColor: hudColors.actionPrimary,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
+  },
+  resumableCtaLabel: {
+    ...hudTypography.action,
+    fontSize: 14,
+    color: hudColors.terrainDark,
+    letterSpacing: 3,
+  },
+  resumableCancel: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  resumableCancelLabel: {
+    ...hudTypography.labelSmall,
+    color: hudColors.textMuted,
+    letterSpacing: 2,
+  },
+
+  // Resumable-broken variant — amber kicker signals "data exists
+  // but not useful", differentiating from the emerald "you have a
+  // good session to resume" card.
+  resumableBrokenCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+    borderWidth: 1,
+    borderColor: hudColors.gpsMedium,
+    borderRadius: radii.md,
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  resumableBrokenKicker: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 3,
+    color: hudColors.gpsMedium,
   },
 
   // Permission

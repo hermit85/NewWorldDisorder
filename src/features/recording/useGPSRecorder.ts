@@ -27,6 +27,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import { type BufferedPoint } from './geometryBuilder';
 import * as recordingStore from './recordingStore';
@@ -78,7 +79,23 @@ export type RecorderState =
   /** Surfaced when the initial recordingStore.saveBuffer throws —
    *  e.g. AsyncStorage quota full, device storage corrupt. Retryable
    *  via startCountdown (Codex S3 fix). */
-  | { phase: 'storage_error'; message: string };
+  | { phase: 'storage_error'; message: string }
+  /** Phase 4 resume detection: mount found a recent buffer for this
+   *  trailId with a valid sessionId and enough points to be worth
+   *  continuing. UI should prompt the rider ("Kontynuować poprzedni
+   *  zjazd?") and call resumeSession() or discardResumable(). */
+  | {
+      phase: 'resumable';
+      sessionId: string;
+      trailId: string;
+      startedAt: number;
+      pointCount: number;
+      ageMs: number;
+    }
+  /** Phase 4 edge case: mount found a recent buffer for this trailId
+   *  but it is malformed (no sessionId or < 10 points). User can only
+   *  clear it; resume is not offered. */
+  | { phase: 'resumable_broken' };
 
 export interface UseGPSRecorderParams {
   trailId: string;
@@ -93,6 +110,14 @@ export interface UseGPSRecorderResult {
   stopRecording: () => void;
   cancelRecording: () => void;
   extendTimeout: () => void;
+  /** Accept a resumable buffer. Reconnects the recorder state to the
+   *  persisted sessionId + startedAt and ensures the background task
+   *  is running so samples continue to flow. No-op outside 'resumable'. */
+  resumeSession: () => Promise<void>;
+  /** Decline a resumable / resumable_broken buffer. Stops the task
+   *  if running, clears the buffer, returns to 'idle'. No-op outside
+   *  those two phases. */
+  discardResumable: () => Promise<void>;
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -480,45 +505,179 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     });
   }, []);
 
-  // ── Mount: defensive stale-task cleanup ──────────────────
+  // ── Resume public methods ────────────────────────────────
+
+  /** Accept the resumable buffer: reconnect the recorder to the
+   *  persisted sessionId + startedAt, ensure the background task is
+   *  running, start the drain tick. The task may have survived an
+   *  app suspension (iOS keeps location tasks alive briefly after
+   *  foreground death) or it may have been killed — either way we
+   *  confirm via hasStartedLocationUpdatesAsync and start it if not.
+   *  Extension count cannot be recovered and resets to 0; if the
+   *  rider was past 30 min of real time, the next drain tick will
+   *  drop them into grace. */
+  const resumeSession = useCallback(async () => {
+    if (state.phase !== 'resumable') return;
+    const { sessionId, startedAt } = state;
+
+    sessionIdRef.current = sessionId;
+    startedAtRef.current = startedAt;
+    weakSignalSinceRef.current = null;
+    latestAccuracyRef.current = null;
+    latestWeakSignalRef.current = false;
+    extensionsUsedRef.current = 0;
+
+    try {
+      const running = await Location.hasStartedLocationUpdatesAsync(
+        BACKGROUND_LOCATION_TASK_NAME,
+      );
+      if (!running) {
+        await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.BestForNavigation,
+          distanceInterval: DISTANCE_INTERVAL_M,
+          activityType: Location.LocationActivityType.Fitness,
+          pausesUpdatesAutomatically: false,
+          showsBackgroundLocationIndicator: true,
+        });
+      }
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[useGPSRecorder] resume startLocationUpdates failed:', e);
+      }
+      await finalizeStop('user');
+      return;
+    }
+
+    // Restart the drain tick. UI refreshes every 500 ms from the
+    // persisted buffer; first tick commits elapsedMs + latest sample.
+    if (uiTickIntervalRef.current) {
+      clearInterval(uiTickIntervalRef.current);
+    }
+    uiTickIntervalRef.current = setInterval(() => {
+      void drainToState();
+    }, UI_TICK_INTERVAL_MS);
+
+    setState({
+      phase: 'recording',
+      elapsedMs: Date.now() - startedAt,
+      currentAccuracy: null,
+      weakSignal: false,
+      extensionsUsed: 0,
+    });
+  }, [state, drainToState, finalizeStop]);
+
+  /** Decline the resumable buffer: stop the task (if running), clear
+   *  the buffer, return to 'idle'. Warm-up then takes over normally. */
+  const discardResumable = useCallback(async () => {
+    if (state.phase !== 'resumable' && state.phase !== 'resumable_broken') return;
+    await stopBackgroundTask();
+    await recordingStore.clearBuffer();
+    sessionIdRef.current = null;
+    setState({ phase: 'idle' });
+  }, [state.phase, stopBackgroundTask]);
+
+  // ── Mount: resume detection (Phase 4) ────────────────────
   //
-  // If a prior session left the task running (app force-killed, dev
-  // reload mid-session, etc.) stop it and clear the buffer. Phase 4
-  // will replace this with a resume prompt; for Phase 3 we take the
-  // safe path — discard stale state rather than risk a confused UI.
+  // Replaces the Phase 3 defensive stale-task cleanup (Codex S1
+  // flagged it as destroying legitimate resume candidates). New
+  // decision tree:
+  //   - No persisted buffer               → nothing to do, stay 'idle'
+  //   - Buffer trailId ≠ current          → silent stop + clear
+  //   - Buffer age > 1h                   → silent stop + clear
+  //   - Buffer matches + valid            → 'resumable'
+  //   - Buffer matches but malformed      → 'resumable_broken'
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const running = await Location.hasStartedLocationUpdatesAsync(
-          BACKGROUND_LOCATION_TASK_NAME,
-        );
+        const persisted = await recordingStore.peekRestorable();
         if (cancelled) return;
-        if (running) {
-          await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
-          await recordingStore.clearBuffer();
+        if (!persisted) return;
+
+        // Buffer belongs to a different recording session — silent
+        // cleanup. Offering resume here would confuse the rider
+        // ("why is it asking me to resume a different trail?").
+        if (persisted.trailId !== trailId) {
           if (__DEV__) {
-            console.log('[useGPSRecorder] Stopped stale task + cleared buffer on mount');
+            console.log('[useGPSRecorder] buffer trailId mismatch — cleaning', {
+              bufferTrail: persisted.trailId,
+              currentTrail: trailId,
+            });
           }
+          await stopBackgroundTask();
+          await recordingStore.clearBuffer();
+          return;
+        }
+
+        // 1h ceiling matches recordingStore.RESTORE_MAX_AGE_MS — the
+        // same window review.tsx trusts to restore.
+        const MAX_RESUMABLE_AGE_MS = 60 * 60 * 1000;
+        if (persisted.ageMs > MAX_RESUMABLE_AGE_MS) {
+          await stopBackgroundTask();
+          await recordingStore.clearBuffer();
+          return;
+        }
+
+        const hasSession = !!persisted.sessionId;
+        const enoughPoints = persisted.pointCount > 10;
+
+        if (cancelled) return;
+        if (hasSession && enoughPoints) {
+          setState({
+            phase: 'resumable',
+            sessionId: persisted.sessionId!,
+            trailId: persisted.trailId,
+            startedAt: persisted.startedAt,
+            pointCount: persisted.pointCount,
+            ageMs: persisted.ageMs,
+          });
+        } else {
+          setState({ phase: 'resumable_broken' });
         }
       } catch (e) {
-        if (__DEV__) console.warn('[useGPSRecorder] stale-task check failed:', e);
+        if (__DEV__) {
+          console.warn('[useGPSRecorder] resume detection failed:', e);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [trailId, stopBackgroundTask]);
+
+  // ── AppState: immediate drain on foreground return ───────
+  //
+  // Without this the UI would sit stale until the next 500 ms tick
+  // after returning from lock screen / app switcher. On slow drain
+  // iteration that's a visible lag; piggyback on AppState to fire
+  // an extra drain immediately.
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && phaseRef.current === 'recording') {
+        void drainToState();
+      }
+    });
+    return () => sub.remove();
+  }, [drainToState]);
 
   // ── Unmount cleanup ──────────────────────────────────────
+  //
+  // Important post-Phase-4: we do NOT stop the background task on
+  // unmount. The task is a cross-mount resource — the recording
+  // screen may unmount for navigation (e.g. user backgrounds into
+  // settings) while the task keeps collecting samples. Stopping it
+  // here would defeat Phase 3's whole purpose. The task is stopped
+  // only by explicit finalize / cancel / discardResumable / mismatch
+  // cleanup. Timers are component-scoped though — clear those so a
+  // remounted screen starts with a clean tick.
 
   useEffect(() => {
     return () => {
-      void stopBackgroundTask();
       clearAllTimers();
     };
-  }, [stopBackgroundTask, clearAllTimers]);
+  }, [clearAllTimers]);
 
   return {
     state,
@@ -526,5 +685,7 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
     stopRecording,
     cancelRecording,
     extendTimeout,
+    resumeSession,
+    discardResumable,
   };
 }
