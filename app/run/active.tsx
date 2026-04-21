@@ -14,6 +14,7 @@ import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyErro
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@/hooks/useBackend';
 import { buildTrailGeoFromPioneer } from '@/features/run/gates';
+import { buildTrailGateConfigFromPioneer } from '@/features/run';
 import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
 
 export default function ActiveRunScreen() {
@@ -45,6 +46,18 @@ export default function ActiveRunScreen() {
   const geo = venueMatch
     ? (venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null)
     : buildTrailGeoFromPioneer(trailId || null, pioneerGeometryRaw);
+  const gateConfig = venueMatch
+    ? (geo ? buildTrailGateConfigFromPioneer(trailId || '', trailName, {
+        version: 1,
+        points: geo.polyline.map((p, i) => ({ lat: p.latitude, lng: p.longitude, t: i })),
+        meta: {
+          totalDistanceM: 0,
+          totalDescentM: 0,
+          durationS: 0,
+          medianAccuracyM: 0,
+        },
+      }) : null)
+    : buildTrailGateConfigFromPioneer(trailId || null, trailName, pioneerGeometryRaw);
 
   const {
     state,
@@ -53,8 +66,7 @@ export default function ActiveRunScreen() {
     startRun,
     finishRun,
     cancel,
-    gateEngine,
-  } = useRealRun(trailId, trailName, spotId, geo, profile?.id);
+  } = useRealRun(trailId, trailName, spotId, geo, gateConfig, profile?.id);
 
   // ── Gaming context: user PB + rival above (Chunk 5) ─────────
   //
@@ -136,11 +148,13 @@ export default function ActiveRunScreen() {
         }
         break;
       case 'armed_ranked':
+        break;
       case 'armed_practice':
         tapHeavy();
         startRun();
         break;
       case 'running_ranked':
+        break;
       case 'running_practice':
         tapHeavy();
         finishRun();
@@ -195,8 +209,8 @@ export default function ActiveRunScreen() {
         if (state.readiness.rankedEligible) return state.readiness.ctaLabel;
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
-      case 'armed_ranked': return isTrainingOnly ? 'TRENING — CZEKAM NA START' : 'UZBROJONY — CZEKAM NA DROP';
-      case 'armed_practice': return 'TRENING — CZEKAM NA START';
+      case 'armed_ranked': return isTrainingOnly ? 'TRENING — CZEKAM NA START' : 'UZBROJONY — CZEKAM NA LINIĘ';
+      case 'armed_practice': return 'TRENING — DOTKNIJ ABY START';
       case 'running_ranked': return 'ZJAZD RANKINGOWY';
       case 'running_practice': return 'ZJAZD TRENINGOWY';
       case 'finishing': return 'META…';
@@ -318,11 +332,17 @@ export default function ActiveRunScreen() {
         {!showTimer && state.phase === 'idle' && (
           <Text style={styles.instruction}>DOTKNIJ EKRAN</Text>
         )}
-        {(state.phase === 'armed_ranked' || state.phase === 'armed_practice') && (
-          <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer startuje na bramce</Text>
+        {state.phase === 'armed_ranked' && (
+          <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii startu</Text>
         )}
-        {running && (
-          <Text style={styles.instruction}>META KOŃCZY AUTOMATYCZNIE</Text>
+        {state.phase === 'armed_practice' && (
+          <Text style={styles.instruction}>DOTKNIJ, ABY RUSZYĆ{'\n'}Meta może zakończyć się automatycznie</Text>
+        )}
+        {state.phase === 'running_ranked' && (
+          <Text style={styles.instruction}>META ZALICZA SIĘ NA LINII KOŃCA</Text>
+        )}
+        {state.phase === 'running_practice' && (
+          <Text style={styles.instruction}>DOTKNIJ, ABY ZAKOŃCZYĆ</Text>
         )}
         {(state.phase === 'completed_verified' || state.phase === 'completed_unverified' || state.phase === 'invalidated') && (
           <Text style={styles.instruction}>DOTKNIJ — WYNIK</Text>

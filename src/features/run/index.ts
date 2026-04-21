@@ -6,8 +6,20 @@
 export { useRunGateEngine } from './useRunGateEngine';
 export type { GateEngine, GateEngineCallbacks } from './useRunGateEngine';
 
-export { getTrailGateConfig, getAllTrailGateConfigs } from './gates';
-export { detectGateCrossing, smoothPosition, computeHeading, computeSpeedKmh } from './geometry';
+export {
+  getTrailGateConfig,
+  getAllTrailGateConfigs,
+  buildTrailGateConfigFromGeo,
+  buildTrailGateConfigFromPioneer,
+} from './gates';
+export {
+  detectGateCrossing,
+  smoothPosition,
+  computeHeading,
+  computeSpeedKmh,
+  signedDistanceFromGateLine,
+  lateralDistanceFromGateLine,
+} from './geometry';
 export { runAntiCheat } from './antiCheat';
 export { assessRunQuality } from './quality';
 export { formatGateDebug, formatQualityDebug } from './debug';

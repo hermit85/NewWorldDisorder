@@ -23,17 +23,16 @@ import {
   buildGpsState,
   startTracking,
   stopTracking,
-  isInZone,
   distanceMeters,
 } from './gps';
 import {
   useRunGateEngine,
-  getTrailGateConfig,
   type GateCrossingResult,
   type RunQualityAssessment,
+  type TrailGateConfig,
 } from '@/features/run';
 import { signedDistanceFromGateLine, headingDifference } from '@/features/run/geometry';
-import { computeReadiness } from './verification';
+import { computeReadiness, getStartGateReadinessInput } from './verification';
 import { buildCheckpoints } from './realVerification';
 import {
   beginTrace,
@@ -96,7 +95,14 @@ export interface RealRunState {
 
 const isWeb = Platform.OS === 'web';
 
-export function useRealRun(trailId: string, trailName: string, spotId: string, geo: TrailGeoSeed | null, userId?: string) {
+export function useRealRun(
+  trailId: string,
+  trailName: string,
+  spotId: string,
+  geo: TrailGeoSeed | null,
+  gateConfig: TrailGateConfig | null,
+  userId?: string,
+) {
   const [state, setState] = useState<RealRunState>({
     runSessionId: '',
     phase: 'idle',
@@ -145,7 +151,7 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
     onFinishCrossing: (c: GateCrossingResult) => gateFinishCallbackRef.current(c),
   }), []);
 
-  const gateEngine = useRunGateEngine(trailId, gateCallbacks);
+  const gateEngine = useRunGateEngine(gateConfig, gateCallbacks);
 
   // ── Lifecycle guards ──
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -181,7 +187,12 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
 
     if (isWeb) {
       const mockGps: GpsState = { readiness: 'good', accuracy: 4, satellites: 12, label: 'GPS Good' };
-      const readiness = computeReadiness(mockGps, 5, geo?.startZone.radiusM ?? 30);
+      const readiness = computeReadiness(mockGps, {
+        distanceToLineM: 5,
+        lateralOffsetM: 0,
+        inStartGate: true,
+        onApproachSide: true,
+      });
       safeSetState((s) => ({ ...s, phase: 'readiness_check', gps: mockGps, readiness }));
       return;
     }
@@ -222,35 +233,26 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
 
     const pos = await getCurrentPosition();
     const gps = buildGpsState(pos);
-    const distToStart = pos && geo ? distanceMeters(pos, geo.startZone) : null;
-    const readiness = computeReadiness(gps, distToStart, geo?.startZone.radiusM ?? 30);
+    const readiness = computeReadiness(gps, getStartGateReadinessInput(pos, gateConfig?.startGate ?? null));
 
     safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
     const trackingStarted = await startTracking((point) => {
       const currentState = stateRef.current;
-      const isRunning = currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
-      const isArmed = currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
+      const isRunningRanked = currentState.phase === 'running_ranked';
+      const isArmedRanked = currentState.phase === 'armed_ranked';
+      const firstCheckpoint = currentState.checkpoints[0] ?? null;
+      const hasPassedFirstCheckpoint = !!firstCheckpoint && (
+        firstCheckpoint.passed ||
+        distanceMeters(point, firstCheckpoint.coordinate) <= firstCheckpoint.radiusM
+      );
 
-      gateEngine.processPoint(point, isRunning, isArmed);
+      gateEngine.processPoint(point, isRunningRanked, isArmedRanked, hasPassedFirstCheckpoint);
 
       safeSetState((s) => {
-        // During run: add points, check checkpoints, legacy finish fallback
+        // During run: add points and update checkpoint truth.
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
-
-          // Legacy finish fallback (gate engine should catch first)
-          if (geo && isInZone(point, geo.finishZone) && !finalizingRef.current) {
-            finalizingRef.current = true;
-            return {
-              ...s,
-              gps: buildGpsState(point),
-              lastPoint: point,
-              pointCount: s.pointCount + 1,
-              elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
-              phase: 'finishing' as RunPhaseV2,
-            };
-          }
 
           // Update checkpoints
           const updatedCps = s.checkpoints.map((cp) => {
@@ -273,8 +275,10 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
 
         // Pre-run: update readiness
         const gpsUpdate = buildGpsState(point);
-        const distUpdate = geo ? distanceMeters(point, geo.startZone) : null;
-        const readinessUpdate = computeReadiness(gpsUpdate, distUpdate, geo?.startZone.radiusM ?? 30);
+        const readinessUpdate = computeReadiness(
+          gpsUpdate,
+          getStartGateReadinessInput(point, gateConfig?.startGate ?? null),
+        );
         return { ...s, gps: gpsUpdate, readiness: readinessUpdate, lastPoint: point };
       });
     }, 1000);
@@ -293,7 +297,7 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
         },
       }));
     }
-  }, [geo, safeSetState]);
+  }, [gateConfig, geo, safeSetState]);
 
   // ══════════════════════════════════════════
   // GATE ENGINE CALLBACKS
@@ -301,7 +305,7 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
 
   gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
     const s = stateRef.current;
-    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    if (s.phase !== 'armed_ranked') return;
     if (finalizingRef.current) return;
 
     logDebugEvent('run', 'gate_auto_start', 'ok', {
@@ -320,7 +324,7 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
     if (finalizingRef.current) return;
     const s = stateRef.current;
-    if (s.phase !== 'running_ranked' && s.phase !== 'running_practice') return;
+    if (s.phase !== 'running_ranked') return;
 
     logDebugEvent('run', 'gate_auto_finish', 'ok', {
       trailId,
@@ -390,7 +394,6 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
 
     // Timer: elapsed time + gate telemetry for debug overlay
     timerRef.current = setInterval(() => {
-      const gateConfig = getTrailGateConfig(trailId);
       const smoothed = gateEngine.getSmoothedPosition();
       const heading = gateEngine.getCurrentHeading();
 
@@ -417,13 +420,15 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
         gateHeadingDeltaDeg: headingDelta,
       }));
     }, 50);
-  }, [trailId, trailName, geo, safeSetState, gateEngine]);
+  }, [gateConfig, trailId, trailName, geo, safeSetState, gateEngine]);
 
   const startRun = useCallback(() => {
+    if (stateRef.current.mode !== 'practice' || stateRef.current.phase !== 'armed_practice') return;
     startRunInternal(false);
   }, [startRunInternal]);
 
   const finishRun = useCallback(() => {
+    if (stateRef.current.phase !== 'running_practice') return;
     if (finalizingRef.current) return;
     finalizingRef.current = true;
     logDebugEvent('run', 'finishing', 'start', { trailId, payload: { elapsed: state.elapsedMs } });
@@ -524,6 +529,7 @@ export function useRealRun(trailId: string, trailName: string, spotId: string, g
       const { verification, qualityAssessment, finalPhase } = finalizeRun({
         trace: completedTrace,
         geo,
+        gateConfig,
         trailId,
         sessionId: currentSessionId,
         gateStartCrossing: gateState.startCrossing,

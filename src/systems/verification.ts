@@ -11,19 +11,52 @@ import {
   PreRunReadiness,
   GpsState,
 } from '@/data/verificationTypes';
+import { type GateDefinition, lateralDistanceFromGateLine, signedDistanceFromGateLine } from '@/features/run';
+import type { GpsPoint } from './gps';
 
 // ── Distance thresholds ──
 const MAX_REASONABLE_DISTANCE_M = 5000;
 const WALKING_DISTANCE_M = 500;
+const START_LINE_DISTANCE_SLACK_M = 8;
+const START_LINE_LATERAL_SLACK_M = 4;
+
+export interface StartGateReadinessInput {
+  distanceToLineM: number | null;
+  lateralOffsetM: number | null;
+  inStartGate: boolean;
+  onApproachSide: boolean;
+}
+
+export function getStartGateReadinessInput(
+  point: GpsPoint | null,
+  gate: GateDefinition | null,
+): StartGateReadinessInput | null {
+  if (!point || !gate) return null;
+
+  const signedDistanceM = signedDistanceFromGateLine(point, gate);
+  const lateralOffsetM = lateralDistanceFromGateLine(point, gate);
+  const inStartGate = (
+    signedDistanceM >= 0 &&
+    signedDistanceM <= gate.zoneDepthM + START_LINE_DISTANCE_SLACK_M &&
+    lateralOffsetM <= (gate.lineWidthM / 2) + START_LINE_LATERAL_SLACK_M
+  );
+
+  return {
+    distanceToLineM: Math.abs(signedDistanceM),
+    lateralOffsetM,
+    inStartGate,
+    onApproachSide: signedDistanceM >= 0,
+  };
+}
 
 // ── Pre-run readiness check ──
 
 export function computeReadiness(
   gps: GpsState,
-  distanceToStartM: number | null,
-  startGateRadiusM: number = 30
+  gateInput: StartGateReadinessInput | null,
 ): PreRunReadiness {
-  const inStartGate = distanceToStartM !== null && distanceToStartM <= startGateRadiusM;
+  const distanceToStartM = gateInput?.distanceToLineM ?? null;
+  const inStartGate = gateInput?.inStartGate ?? false;
   const gpsGood = gps.readiness === 'good' || gps.readiness === 'excellent';
   const gpsWeak = gps.readiness === 'weak';
   const gpsLocking = gps.readiness === 'locking' || gps.readiness === 'unavailable';
@@ -39,6 +72,19 @@ export function computeReadiness(
       message: 'Szukam satelitów…',
       ctaLabel: 'ŁĄCZĘ GPS',
       ctaEnabled: false,
+    };
+  }
+
+  if (!gateInput) {
+    return {
+      status: 'practice_only',
+      gps,
+      inStartGate: false,
+      rankedEligible: false,
+      distanceToStartM: null,
+      message: 'Brak linii startu. Ranking jest niedostępny dla tej trasy.',
+      ctaLabel: 'JEDŹ TRENING',
+      ctaEnabled: true,
     };
   }
 
@@ -70,11 +116,40 @@ export function computeReadiness(
     };
   }
 
+  if (!gateInput.onApproachSide && distanceToStartM !== null && distanceToStartM <= WALKING_DISTANCE_M) {
+    return {
+      status: 'move_to_start',
+      gps,
+      inStartGate: false,
+      rankedEligible: false,
+      distanceToStartM,
+      message: 'Jesteś za linią startu. Cofnij się przed bramkę.',
+      ctaLabel: 'WRÓĆ PRZED START',
+      ctaEnabled: false,
+    };
+  }
+
+  if (
+    gateInput.lateralOffsetM !== null &&
+    gateInput.lateralOffsetM > START_LINE_LATERAL_SLACK_M + 8
+  ) {
+    return {
+      status: 'move_to_start',
+      gps,
+      inStartGate: false,
+      rankedEligible: false,
+      distanceToStartM,
+      message: 'Ustaw się na osi linii startu.',
+      ctaLabel: 'PODEJDŹ DO LINII',
+      ctaEnabled: false,
+    };
+  }
+
   // ── Not in gate, reasonable distance ──
   if (!inStartGate && distanceToStartM !== null) {
     const distLabel = distanceToStartM > WALKING_DISTANCE_M
-      ? `${(distanceToStartM / 1000).toFixed(1)} km do bramki`
-      : `${Math.round(distanceToStartM)}m do startu`;
+      ? `${(distanceToStartM / 1000).toFixed(1)} km do linii startu`
+      : `${Math.round(distanceToStartM)}m do linii startu`;
 
     return {
       status: 'move_to_start',
@@ -96,7 +171,7 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: true,
       distanceToStartM,
-      message: 'W bramce. Gotowy do zjazdu.',
+      message: 'Na linii startu. Uzbrój ranking i przetnij linię.',
       ctaLabel: 'UZBRÓJ RANKING',
       ctaEnabled: true,
     };
@@ -110,7 +185,7 @@ export function computeReadiness(
       inStartGate: true,
       rankedEligible: false,
       distanceToStartM,
-      message: 'W bramce, ale sygnał za słaby na ranking.',
+      message: 'Na linii startu, ale GPS za słaby na ranking.',
       ctaLabel: 'JEDŹ TRENING',
       ctaEnabled: true,
     };
@@ -123,7 +198,7 @@ export function computeReadiness(
     inStartGate: true,
     rankedEligible: gpsGood,
     distanceToStartM,
-    message: 'W bramce startowej.',
+    message: 'Na linii startu.',
     ctaLabel: gpsGood ? 'UZBRÓJ RANKING' : 'JEDŹ TRENING',
     ctaEnabled: true,
   };

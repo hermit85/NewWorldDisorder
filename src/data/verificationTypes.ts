@@ -79,6 +79,12 @@ export interface GateState {
   radiusM: number;
 }
 
+export type AcceptedVia =
+  | 'gate_cross'
+  | 'corridor_rescue'
+  | 'manual'
+  | null;
+
 // ── Verification result ──
 
 export type VerificationStatus =
@@ -96,6 +102,7 @@ export interface VerificationResult {
   status: VerificationStatus;
   runMode: RunMode;
   isLeaderboardEligible: boolean;
+  acceptedVia?: AcceptedVia;
 
   // Gate checks
   startGate: GateState;
