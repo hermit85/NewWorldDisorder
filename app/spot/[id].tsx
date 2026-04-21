@@ -275,7 +275,7 @@ export default function SpotScreen() {
       {/* Empty state — spot has no trails yet. Tap to kick off the
           Pioneer flow (Sprint 3 Chunk 4 routing). */}
       {!selectedTrail && trails.length === 0 && trailsStatus === 'empty' && (
-        <View style={styles.trailStrip}>
+        <View style={[styles.trailStrip, { paddingBottom: insets.bottom + spacing.xs }]}>
           <Pressable
             style={({ pressed }) => [
               styles.pioneerCta,
@@ -293,7 +293,7 @@ export default function SpotScreen() {
 
       {/* Trail list strip at bottom (when no trail selected) */}
       {!selectedTrail && trails.length > 0 && (
-        <View style={styles.trailStrip}>
+        <View style={[styles.trailStrip, { paddingBottom: insets.bottom + spacing.xs }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -527,13 +527,15 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // Trail strip (horizontal scroll at bottom)
+  // Trail strip (horizontal scroll at bottom).
+  // paddingBottom is applied inline at each usage site so we can pull
+  // the home-indicator height from insets.bottom at runtime — 34pt is
+  // only right for notched iPhones, 0 on iPhone SE.
   trailStrip: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 34, // iPhone safe area
     backgroundColor: 'transparent',
   },
   trailStripContent: {
