@@ -3,10 +3,13 @@
 //
 // Step 1: Info       — name + difficulty + trail_type.
 // Step 2: Educator   — "Pionierujesz" copy block per handoff.
-// Step 3: Calibrate  — create_trail then hand off to the
-//                      existing pre-run route /run/active with
-//                      ?pioneer=1 so the calibration loop recognises
-//                      this as the first-rider case.
+// Step 3: Calibrate  — create_trail then replace() to the
+//                      canonical Pioneer recording route
+//                      (/run/recording) via pickRunDestination.
+//                      The freshly-created trail always starts
+//                      in calibration_status='draft' so the
+//                      helper unconditionally picks /run/recording;
+//                      no pioneer flag needed.
 //
 // DB enum kept as-is per Blocker 2 decision (easy|medium|hard|expert
 // × downhill|flow|tech|jump). Earlier handoff copy confused trail
@@ -32,6 +35,7 @@ import { GlowButton } from '@/components/ui/GlowButton';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useCreateTrail } from '@/hooks/useBackend';
+import { pickRunDestination } from '@/features/run/pickRunDestination';
 import { notifySuccess, notifyWarning, tapMedium } from '@/systems/haptics';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
@@ -102,17 +106,20 @@ export default function NewTrailScreen() {
 
     if (result.ok) {
       notifySuccess();
-      // Pioneer calibration runs on /run/recording (canonical path —
-      // same route app/trail/[id].tsx uses for draft trails at line
-      // 131). recording.tsx requires trailId + spotId and hands off
-      // to /run/review which fires finalize_pioneer_run. /run/active
-      // is the ranked/training screen and assumes Pioneer geometry
-      // already exists — sending a freshly-created draft trail there
-      // left it stuck with no way to calibrate (chunk 10.1 bug).
-      router.replace({
-        pathname: '/run/recording',
-        params: { trailId: result.data.trailId, spotId },
-      });
+      // Delegate the routing decision to pickRunDestination so the
+      // educator flow and the spot/[id].tsx trail-card CTA can never
+      // drift. A freshly-created trail is always calibration='draft'
+      // -> /run/recording; the helper also keeps us honest if the
+      // DB trigger ever stamps something different.
+      router.replace(
+        pickRunDestination({
+          trailId: result.data.trailId,
+          spotId,
+          trailName: trimmed,
+          calibrationStatus: 'draft',
+          geometryMissing: true,
+        }),
+      );
       return;
     }
 

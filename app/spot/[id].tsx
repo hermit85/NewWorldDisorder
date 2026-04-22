@@ -20,6 +20,7 @@ import { TrailCard } from '@/components/ui/TrailCard';
 import { formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
+import { pickRunDestination } from '@/features/run/pickRunDestination';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
@@ -254,13 +255,14 @@ export default function SpotScreen() {
                   {...trail}
                   onPress={() => router.push(`/trail/${trail.trail.id}`)}
                   onCtaPress={() =>
-                    router.push({
-                      pathname: '/run/active',
-                      params: {
+                    router.push(
+                      pickRunDestination({
                         trailId: trail.trail.id,
+                        spotId: spot.id,
                         trailName: trail.trail.name,
-                      },
-                    })
+                        calibrationStatus: trail.calibrationStatus,
+                      }),
+                    )
                   }
                 />
               ))}
