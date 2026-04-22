@@ -4,19 +4,17 @@ import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChallengeItem } from '@/components/ui/ChallengeItem';
-import { FeedRow } from '@/components/ui/FeedRow';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { HeroCard } from '@/components/ui/HeroCard';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
+import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
 import { ranks, getRankForXp, getXpToNextRank } from '@/systems/ranks';
-import { formatRelativeTimestamp } from '@/lib/api';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
-  useActiveSpots,
   useDailyChallenges,
   useHeroBeat,
-  useLeagueFeed,
+  usePrimarySpot,
   useProfile,
   useStreakState,
 } from '@/hooks/useBackend';
@@ -61,8 +59,8 @@ export default function HomeScreen() {
   const { heroBeat, status: heroBeatStatus, refresh: refreshHeroBeat } = useHeroBeat(authProfile?.id);
   const { challenges, refresh: refreshChallenges } = useDailyChallenges(authProfile?.id);
   const { streak, refresh: refreshStreak } = useStreakState(authProfile?.id);
-  const { events, refresh: refreshFeed } = useLeagueFeed(authProfile?.id, 5);
-  const { spots, refresh: refreshSpots } = useActiveSpots();
+  const { data: primarySpotSummary, status: primarySpotStatus, refresh: refreshPrimarySpot } =
+    usePrimarySpot(authProfile?.id ?? null);
 
   // Cold-start loading gate: first render, authed user, no data yet.
   // Spec v2 3.4 — never render blank. Proper Skeleton primitive comes in Chunk 9.1.
@@ -81,7 +79,6 @@ export default function HomeScreen() {
     await Promise.all([refreshProfile(), refreshHeroBeat()]);
   }
 
-  const primarySpot = spots[0] ?? null;
   const currentXp = profile?.xp ?? 0;
   const currentRank = getRankForXp(currentXp);
   const nextRank = getXpToNextRank(currentXp);
@@ -112,8 +109,7 @@ export default function HomeScreen() {
         refreshHeroBeat(),
         refreshChallenges(),
         refreshStreak(),
-        refreshFeed(),
-        refreshSpots(),
+        refreshPrimarySpot(),
       ]);
     } finally {
       setRefreshing(false);
@@ -218,12 +214,38 @@ export default function HomeScreen() {
           />
         )}
 
+        {/*
+         * Handoff A1: "Twój bike park" restored as section 2. The
+         * primary spot hook resolves to the spot of the most recent
+         * run. Until a run exists, we render the empty variant so
+         * new riders have a visible entry point to /spot/new.
+         * signed_out -> hide (auth tab handles that funnel).
+         */}
+        {primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error' ? (
+          primarySpotSummary ? (
+            <PrimarySpotCard
+              variant="active"
+              spotId={primarySpotSummary.spot.id}
+              spotName={primarySpotSummary.spot.name}
+              trailCount={primarySpotSummary.trailCount}
+              bestDurationMs={primarySpotSummary.bestDurationMs}
+            />
+          ) : primarySpotStatus === 'empty' ? (
+            <PrimarySpotCard variant="empty" />
+          ) : null
+        ) : null}
+
+        {/*
+         * B1 density reduction: shortened header from
+         * 'DZIENNE WYZWANIA · WYGASAJĄ ZA Xh Ym' to
+         * 'WYZWANIA · Xh Ym'. Subtitle per challenge loses the
+         * 'RESET 00:00' eyebrow — the section header already
+         * conveys the countdown.
+         */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>DZIENNE WYZWANIA</Text>
-            <Text style={styles.sectionMeta}>
-              WYGASAJĄ ZA {formatChallengeCountdown()}
-            </Text>
+            <Text style={styles.sectionTitle}>WYZWANIA</Text>
+            <Text style={styles.sectionMeta}>{formatChallengeCountdown()}</Text>
           </View>
 
           <View style={styles.challengeProgressTrack}>
@@ -242,7 +264,7 @@ export default function HomeScreen() {
                 challenge={{
                   id: challenge.id,
                   title: challenge.title,
-                  subtitle: `${challenge.current}/${challenge.target} · RESET 00:00`,
+                  subtitle: `${challenge.current}/${challenge.target}`,
                   xpLabel: `+${challenge.rewardXp} XP`,
                 }}
                 progress={{ completed: challenge.completed }}
@@ -251,53 +273,15 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>RUCH W LIDZE</Text>
-            <Text style={styles.sectionMeta}>{events.length}/5</Text>
-          </View>
-
-          <View style={styles.sectionBody}>
-            {events.length > 0 ? (
-              events.map((event) => (
-                <FeedRow
-                  key={event.id}
-                  type={event.type}
-                  name={event.name}
-                  text={event.text}
-                  timestamp={formatRelativeTimestamp(event.timestamp)}
-                  onPress={() => {
-                    if (event.trailId) {
-                      router.push(`/trail/${event.trailId}`);
-                    }
-                  }}
-                />
-              ))
-            ) : (
-              <Text style={styles.emptyFeed}>
-                Cisza w lidze. Zaproś rivali i daj się ścigać.
-              </Text>
-            )}
-          </View>
-        </View>
+        {/* B1: RUCH W LIDZE removed from home. Feed belongs on the
+            RIDER tab (handoff B1) — keeps home focused on "what should
+            I do right now" instead of "what are others doing". */}
 
         <StreakIndicator
           days={streak?.days ?? 0}
           mode={streak?.mode ?? 'safe'}
           subtitle={streakSubtitle}
         />
-
-        {primarySpot ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Otwórz bike park: ${primarySpot.name}`}
-            onPress={() => router.push(`/spot/${primarySpot.id}`)}
-            style={styles.primarySpotLink}
-          >
-            <Text style={styles.primarySpotLabel}>TWÓJ BIKE PARK</Text>
-            <Text style={styles.primarySpotName}>{primarySpot.name}</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -362,22 +346,6 @@ const styles = StyleSheet.create({
   },
   sectionBody: {
     gap: 4,
-  },
-  emptyFeed: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
-  },
-  primarySpotLink: {
-    gap: 2,
-    paddingTop: 4,
-  },
-  primarySpotLabel: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
-  },
-  primarySpotName: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
   },
   centeredState: {
     flex: 1,

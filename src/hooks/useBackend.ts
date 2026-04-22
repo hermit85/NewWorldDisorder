@@ -729,6 +729,32 @@ function mapLeaderboardRow(row: LeaderboardRow): LeaderboardEntry {
 // SPOTS & TRAILS (Checkpoint A — DB-backed, replace mock data)
 // ══════════════════════════════════════════════════════════
 
+// usePrimarySpot — "Twój bike park" home shortcut data. Null when the
+// user has no runs yet (home renders empty CTA instead).
+export function usePrimarySpot(userId: string | null) {
+  const [data, setData] = useState<api.PrimarySpotSummary | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!userId) { setData(null); setStatus('signed_out'); return; }
+    if (!isSupabaseConfigured) { setData(null); setStatus('error'); return; }
+    setStatus('loading');
+    try {
+      const res = await api.fetchPrimarySpot(userId);
+      if (!res.ok) { setData(null); setStatus('error'); return; }
+      setData(res.data);
+      setStatus(res.data ? 'ok' : 'empty');
+    } catch {
+      setData(null);
+      setStatus('error');
+    }
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  return { data, status, loading: status === 'loading', refresh };
+}
+
 export function useActiveSpots() {
   const [spots, setSpots] = useState<Spot[]>([]);
   const [status, setStatus] = useState<FetchStatus>('loading');

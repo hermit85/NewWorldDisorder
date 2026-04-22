@@ -1497,6 +1497,82 @@ function mapTrail(row: DbTrail, pioneerUsername: string | null = null): Trail {
   };
 }
 
+export interface PrimarySpotSummary {
+  spot: Spot;
+  trailCount: number;
+  /** User's best PB across any trail in this spot. Null if no PB yet. */
+  bestDurationMs: number | null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// fetchPrimarySpot — "Twój bike park" for the home shortcut.
+//
+// Primary = spot of the user's most recent run. Three round-trips
+// (runs → trails → leaderboard_entries) instead of one joined query;
+// the runs table index on (user_id, started_at) makes the first cheap
+// and the rest operate on small id sets. Returns null when the user
+// has no runs yet so the home card renders the empty-state CTA.
+// ═══════════════════════════════════════════════════════════
+export async function fetchPrimarySpot(
+  userId: string,
+): Promise<ApiResult<PrimarySpotSummary | null>> {
+  const { data: runs, error: runsErr } = await db()
+    .from('runs')
+    .select('trail_id, started_at')
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(20);
+  if (runsErr) return { ok: false, code: 'fetch_failed', message: runsErr.message };
+  if (!runs || runs.length === 0) return { ok: true, data: null };
+
+  const trailIds = Array.from(new Set(runs.map((r) => r.trail_id)));
+  const { data: trailRows, error: trailsErr } = await db()
+    .from('trails')
+    .select('id, spot_id')
+    .in('id', trailIds);
+  if (trailsErr) return { ok: false, code: 'fetch_failed', message: trailsErr.message };
+
+  const trailToSpot = new Map<string, string>();
+  for (const row of trailRows ?? []) {
+    if (row.spot_id) trailToSpot.set(row.id, row.spot_id);
+  }
+
+  // Walk runs newest-first to find first one whose trail still exists
+  // and still belongs to a live spot. Covers cascade-deleted trails.
+  let primarySpotId: string | null = null;
+  for (const run of runs) {
+    const spotId = trailToSpot.get(run.trail_id);
+    if (spotId) { primarySpotId = spotId; break; }
+  }
+  if (!primarySpotId) return { ok: true, data: null };
+
+  const spotRes = await fetchSpot(primarySpotId);
+  if (!spotRes.ok) {
+    if (spotRes.code === 'not_found') return { ok: true, data: null };
+    return spotRes;
+  }
+
+  const trailsRes = await fetchTrails(primarySpotId);
+  const spotTrails = trailsRes.ok ? trailsRes.data : [];
+  const trailCount = spotTrails.length;
+
+  let bestDurationMs: number | null = null;
+  if (spotTrails.length > 0) {
+    const spotTrailIds = spotTrails.map((t) => t.id);
+    const { data: pbRows } = await db()
+      .from('leaderboard_entries')
+      .select('best_duration_ms')
+      .eq('user_id', userId)
+      .eq('period_type', 'all_time')
+      .in('trail_id', spotTrailIds)
+      .order('best_duration_ms', { ascending: true })
+      .limit(1);
+    bestDurationMs = pbRows?.[0]?.best_duration_ms ?? null;
+  }
+
+  return { ok: true, data: { spot: spotRes.data, trailCount, bestDurationMs } };
+}
+
 export async function fetchSpots(): Promise<ApiResult<Spot[]>> {
   const { data, error } = await db()
     .from('spots')
@@ -1589,11 +1665,23 @@ export async function submitSpot(params: {
   name: string;
   lat: number;
   lng: number;
+  /** Voivodeship slug — see src/data/voivodeships.ts. Optional for
+   *  backward-compat with the legacy lat/lng-only screen; the RPC
+   *  defaults to '' so omitting it stays valid. */
+  region?: string;
+  /** Short description (max 280) shown on spot detail. */
+  description?: string;
 }): Promise<ApiResult<{ spotId: string }>> {
+  // submit_spot was extended in migration chunk_10_1_extend_submit_spot_
+  // region_description to a 5-arg signature with DEFAULT '' for the
+  // two new params; pass empty strings rather than undefined so the
+  // Supabase client doesn't serialise them as JSON null.
   const { data, error } = await db().rpc('submit_spot', {
     p_name: params.name,
     p_lat: params.lat,
     p_lng: params.lng,
+    p_region: params.region ?? '',
+    p_description: params.description ?? '',
   });
 
   if (error) {

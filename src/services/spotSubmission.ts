@@ -24,6 +24,12 @@ export interface QueuedSubmission {
   name: string;
   lat: number;
   lng: number;
+  /** Chunk 10.1: voivodeship slug + optional description stored
+   *  alongside coords so offline submissions replay with the full
+   *  payload once network returns. Absent fields on old queue rows
+   *  default to '' when drained. */
+  region?: string;
+  description?: string;
   attemptedAt: number;
 }
 
@@ -65,6 +71,8 @@ export async function submitSpotWithQueue(params: {
   name: string;
   lat: number;
   lng: number;
+  region?: string;
+  description?: string;
 }): Promise<SubmitResult> {
   logDebugEvent('fetch', 'spot_submit_start', 'start', {
     payload: { nameLen: params.name.length, lat: params.lat, lng: params.lng },
@@ -126,7 +134,13 @@ export async function drainSubmissionQueue(): Promise<{ drained: number; failed:
     let failed = 0;
 
     for (const item of q) {
-      const res = await api.submitSpot({ name: item.name, lat: item.lat, lng: item.lng });
+      const res = await api.submitSpot({
+        name: item.name,
+        lat: item.lat,
+        lng: item.lng,
+        region: item.region,
+        description: item.description,
+      });
       if (res.ok) {
         drained++;
       } else if (res.code === 'rpc_error' && isNetworkError(res.message)) {

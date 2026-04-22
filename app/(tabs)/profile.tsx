@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -12,9 +12,12 @@ import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
+import { ActivityList } from '@/components/profile/ActivityList';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
+import { fetchUserRuns } from '@/lib/api';
+import { purgeOrphanedRuns } from '@/systems/runStore';
 
 // All achievements in the game — locked ones shown as placeholders
 const ACHIEVEMENT_CATALOG = [
@@ -34,7 +37,44 @@ export default function ProfileScreen() {
   const { achievements } = useAchievements(authProfile?.id);
   const [avatarLoading, setAvatarLoading] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
   const rank = user ? getRank(user.rankId) : getRank('rookie');
+
+  // Pull-to-refresh (handoff Track C-F + polish fix 1). Fires
+  // triggerRefresh so every hook subscribed via useRefreshSignal
+  // re-reads the backend. Additionally reconciles the local
+  // FinalizedRun store against the DB: anything the backend no
+  // longer knows about (e.g. delete_spot_cascade removed parent)
+  // gets purged locally so Aktywność doesn't show zombie rows.
+  //
+  // Safety: only purge when the DB fetch *succeeded*. An empty
+  // array returned after a network failure would wipe the user's
+  // history, so we skip the purge when userId is missing or when
+  // fetchUserRuns throws.
+  const userId = authProfile?.id ?? null;
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      triggerRefresh();
+      if (userId) {
+        try {
+          const dbRuns = await fetchUserRuns(userId, 100);
+          const liveIds = new Set(dbRuns.map((r) => r.id));
+          purgeOrphanedRuns(liveIds);
+        } catch (err) {
+          // Leave cache intact on failure — we cannot distinguish
+          // "user legitimately has zero runs" from "network error"
+          // without a successful response, so we err on the side
+          // of keeping the user's locally-visible history.
+          console.warn('[NWD] handleRefresh: DB sync skipped —', err);
+        }
+      }
+      // Small delay so the spinner is visible even on fast reloads.
+      await new Promise((r) => setTimeout(r, 300));
+    } finally {
+      setRefreshing(false);
+    }
+  }, [userId]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -109,7 +149,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
+        }
+      >
         {/* Sign in prompt */}
         {!isAuthenticated ? (
           <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
@@ -210,6 +255,9 @@ export default function ProfileScreen() {
               <StatBox label={copy.personalBests} value={profileStatus === 'ok' ? String(user?.totalPbs ?? 0) : '—'} />
               <StatBox label={copy.bestPosition} value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'} />
             </View>
+
+            {/* Aktywność — handoff A6 moved run history here from the old ZJAZDY tab */}
+            <ActivityList />
 
             {/* Achievements — full catalog with locked/unlocked states */}
             <Text style={styles.sectionTitle}>

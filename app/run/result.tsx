@@ -367,7 +367,23 @@ function StandardResultScreen() {
         style={{ opacity: fadeAnim }}
       >
         {/* ═══ HEADER — trail + status eyebrow ═══ */}
+        {/* Chunk 10.1 C-G: always-visible back button so an orphan run
+            (trail/spot deleted) or a deep link never traps the rider
+            in a tab-bar-less screen. Falls back to home if the nav
+            stack is empty. */}
         <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wróć"
+            onPress={() => {
+              tapLight();
+              router.canGoBack() ? router.back() : router.replace('/');
+            }}
+            hitSlop={16}
+            style={styles.headerBack}
+          >
+            <Text style={styles.headerBackGlyph}>←</Text>
+          </Pressable>
           <Text style={styles.trailLabel}>{trailName.toUpperCase()}</Text>
           <View style={[styles.statusBadge, { backgroundColor: sd.bg }]}>
             <Text style={[styles.statusIcon, { color: sd.color }]}>{sd.icon}</Text>
@@ -878,6 +894,16 @@ const styles = StyleSheet.create({
 
   // Header
   header: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.sm },
+  headerBack: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  headerBackGlyph: {
+    fontSize: 24,
+    lineHeight: 26,
+    color: colors.textPrimary,
+  },
   trailLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 11 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: spacing.xxs },
   statusIcon: { fontFamily: 'Inter_700Bold', fontSize: 11 },

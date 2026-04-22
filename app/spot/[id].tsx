@@ -25,12 +25,6 @@ import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/th
 type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
 type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verified';
 
-function pickSpotStatusLabel(status: string | undefined): string {
-  if (status === 'pending') return 'OCZEKUJE';
-  if (status === 'rejected') return 'ODRZUCONY';
-  return 'AKTYWNY';
-}
-
 /**
  * Chunk 10 §4.2 spot display state matrix.
  *
@@ -91,13 +85,6 @@ export default function SpotScreen() {
     if (filter === 'tech') return trail.trail.type === 'tech';
     return true;
   });
-
-  const filterCounts = {
-    all: trails.length,
-    easy: trails.filter((trail) => trail.trail.difficulty === 'easy').length,
-    flow: trails.filter((trail) => trail.trail.type === 'flow').length,
-    tech: trails.filter((trail) => trail.trail.type === 'tech').length,
-  };
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -202,23 +189,23 @@ export default function SpotScreen() {
           </View>
         </View>
 
+        {/* B3: identity block collapsed. Dropped '✦ BIKE PARK' kicker
+            (context is obvious from the route) and the '{status} · TWÓJ
+            REKORD' status/PB line in favour of a lowercase one-liner
+            'X tras · Rekord Y'. Status is already conveyed by the badge
+            per-trail card. */}
         <View style={styles.identityBlock}>
-          <Text style={styles.identityKicker}>✦ BIKE PARK</Text>
           <Text style={styles.identityTitle}>{spot.name}</Text>
           <Text style={styles.identitySub}>
-            {trails.length} TRAS · {pickSpotStatusLabel(spot.submissionStatus)} · TWÓJ REKORD{' '}
-            {bestPbMs ? formatTimeShort(bestPbMs) : '—'}
+            {trails.length} {trails.length === 1 ? 'trasa' : trails.length < 5 ? 'trasy' : 'tras'}
+            {bestPbMs ? ` · Rekord ${formatTimeShort(bestPbMs)}` : ''}
           </Text>
         </View>
 
+        {/* B3: actions row reduced to one decision: Leaderboard.
+            Map access moves to the trail card tap; INFO folds into
+            the identity block (future: tappable to open modal). */}
         <View style={styles.actionsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Pokaż mapę bike parku"
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionLabel}>MAPA</Text>
-          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Otwórz ranking"
@@ -229,13 +216,6 @@ export default function SpotScreen() {
           >
             <Text style={styles.actionLabel}>LEADERBOARD</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Informacje o bike parku"
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionLabel}>INFO</Text>
-          </Pressable>
         </View>
 
         {trails.length >= 3 ? (
@@ -244,30 +224,12 @@ export default function SpotScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filtersRow}
           >
-            <FilterPill
-              label="Wszystkie"
-              count={filterCounts.all}
-              active={filter === 'all'}
-              onPress={() => setFilter('all')}
-            />
-            <FilterPill
-              label="Easy"
-              count={filterCounts.easy}
-              active={filter === 'easy'}
-              onPress={() => setFilter('easy')}
-            />
-            <FilterPill
-              label="Flow"
-              count={filterCounts.flow}
-              active={filter === 'flow'}
-              onPress={() => setFilter('flow')}
-            />
-            <FilterPill
-              label="Tech"
-              count={filterCounts.tech}
-              active={filter === 'tech'}
-              onPress={() => setFilter('tech')}
-            />
+            {/* B3: counts dropped from filter pills. The number
+                reveals itself when the filter is applied. */}
+            <FilterPill label="Wszystkie" active={filter === 'all'} onPress={() => setFilter('all')} />
+            <FilterPill label="Easy" active={filter === 'easy'} onPress={() => setFilter('easy')} />
+            <FilterPill label="Flow" active={filter === 'flow'} onPress={() => setFilter('flow')} />
+            <FilterPill label="Tech" active={filter === 'tech'} onPress={() => setFilter('tech')} />
           </ScrollView>
         ) : null}
 
@@ -318,7 +280,7 @@ export default function SpotScreen() {
             <Brackets color="dim" />
             <Text style={styles.emptyEyebrow}>BRAK ZDEFINIOWANYCH TRAS</Text>
             <Text style={styles.emptyTitle}>
-              PIONIERUJ.{'\n'}ZDEFINIUJ LINIĘ.{'\n'}WYZWIJ INNYCH.
+              Pionieruj.{'\n'}Zdefiniuj linię.{'\n'}Wyzwij innych.
             </Text>
             <Text style={styles.emptyBody}>
               Pierwszy verified zjazd rezerwuje pozycję. Telefon do kieszeni, jeden przejazd i
