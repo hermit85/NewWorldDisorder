@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { formatTimeShort } from '@/content/copy';
 import type { BikeParkTrailCardData } from '@/lib/api';
 import { formatRelativeTimestamp } from '@/lib/api';
@@ -61,10 +62,16 @@ export const TrailCard = memo(function TrailCard({
     trail.distanceM > 0 ? `${Math.round(trail.distanceM)}m` : null,
   ].filter(Boolean);
 
+  const handleCardPress = useCallback(() => {
+    // Spec v2 1.5: card tap fires haptic.tap (CTA delegates to GlowButton)
+    Haptics.selectionAsync().catch(() => undefined);
+    onPress?.();
+  }, [onPress]);
+
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handleCardPress}
       style={({ pressed }) => [
         styles.container,
         isBeaten && styles.containerBeaten,

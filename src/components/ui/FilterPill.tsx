@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { chunk9Colors, chunk9Radii, chunk9Typography } from '@/theme/chunk9';
 
 type FilterPillProps = {
@@ -15,10 +16,16 @@ export const FilterPill = memo(function FilterPill({
   count,
   onPress,
 }: FilterPillProps) {
+  const handlePress = useCallback(() => {
+    // Spec v2 1.5: pill toggle fires haptic.tap
+    Haptics.selectionAsync().catch(() => undefined);
+    onPress?.();
+  }, [onPress]);
+
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.container,
         active ? styles.containerActive : styles.containerInactive,

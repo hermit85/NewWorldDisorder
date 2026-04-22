@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { Brackets } from '@/components/ui/Brackets';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { GlowButton } from '@/components/ui/GlowButton';
@@ -73,6 +74,8 @@ export default function SpotScreen() {
   }
 
   function handleGoBack() {
+    // Spec v2 1.5: nav tap fires haptic.tap
+    Haptics.selectionAsync().catch(() => undefined);
     if (navigation.canGoBack()) router.back();
     else router.replace('/');
   }

@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 type GlowButtonProps = {
@@ -15,12 +16,19 @@ export const GlowButton = memo(function GlowButton({
   variant = 'primary',
   disabled = false,
 }: GlowButtonProps) {
+  const handlePress = useCallback(() => {
+    if (disabled) return;
+    // Spec v2 1.5: every CTA press fires minimum haptic.tap
+    Haptics.selectionAsync().catch(() => undefined);
+    onPress?.();
+  }, [disabled, onPress]);
+
   if (variant === 'inlineLink') {
     return (
       <Pressable
         accessibilityRole="button"
         disabled={disabled}
-        onPress={onPress}
+        onPress={handlePress}
         style={({ pressed }) => [styles.inlineLink, pressed && !disabled && styles.inlineLinkPressed]}
       >
         <Text style={[styles.inlineLinkText, disabled && styles.disabledText]}>
@@ -36,7 +44,7 @@ export const GlowButton = memo(function GlowButton({
       <Pressable
         accessibilityRole="button"
         disabled={disabled}
-        onPress={onPress}
+        onPress={handlePress}
         style={({ pressed }) => [
           styles.buttonBase,
           variant === 'primary' ? styles.primaryButton : styles.secondaryButton,

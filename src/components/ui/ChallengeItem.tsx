@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 export type ChallengeItemData = {
@@ -24,10 +25,16 @@ export const ChallengeItem = memo(function ChallengeItem({
   progress,
   onPress,
 }: ChallengeItemProps) {
+  const handlePress = useCallback(() => {
+    // Spec v2 1.5: tap on challenge row fires haptic.tap
+    Haptics.selectionAsync().catch(() => undefined);
+    onPress?.();
+  }, [onPress]);
+
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
     >
       <View style={[styles.checkbox, progress.completed && styles.checkboxCompleted]}>
