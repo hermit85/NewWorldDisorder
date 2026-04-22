@@ -27,26 +27,26 @@ export const chunk9Typography = {
   display28: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 28,
-    lineHeight: 28,
+    lineHeight: 30,
     letterSpacing: 0.56,
   } satisfies TextStyle,
   display56: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 56,
-    lineHeight: 53.2,
+    lineHeight: 58,
     letterSpacing: 0,
   } satisfies TextStyle,
   label13: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 13,
-    lineHeight: 13,
+    lineHeight: 15,
     letterSpacing: 2.86,
     textTransform: 'uppercase',
   } satisfies TextStyle,
   stat19: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 19,
-    lineHeight: 19,
+    lineHeight: 22,
     fontVariant: ['tabular-nums'],
   } satisfies TextStyle,
   body13: {
@@ -57,7 +57,7 @@ export const chunk9Typography = {
   captionMono10: {
     fontFamily: monoFont,
     fontSize: 10,
-    lineHeight: 10,
+    lineHeight: 12,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   } satisfies TextStyle,
