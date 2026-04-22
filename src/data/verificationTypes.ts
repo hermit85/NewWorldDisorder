@@ -125,6 +125,12 @@ export interface VerificationResult {
   label: string; // "Verified", "Practice Only", etc.
   explanation: string; // "Clean line. 3/3 checkpoints."
   issues: string[]; // ["Off-route at km 0.8", "Checkpoint 2 missed"]
+
+  // Chunk 10 §3.3: GPS signal observability. Populated by
+  // gpsHealthTracker at run finalization; spread through into
+  // runs.verification_summary so the run_kpi_daily and
+  // verified_pass_rate_weekly views can surface KPI trends.
+  gpsHealth?: import('@/features/run/gpsHealthTracker').GpsHealthSummary;
 }
 
 // ── Truth map payload ──

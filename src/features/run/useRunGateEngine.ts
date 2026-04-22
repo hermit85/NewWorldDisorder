@@ -16,11 +16,34 @@
 import { useRef, useCallback } from 'react';
 import { GpsPoint, distanceMeters } from '@/systems/gps';
 import { TrailGateConfig, GateEngineState, GateCrossingResult, SmoothedPosition, RunQualityAssessment } from './types';
-import { smoothPosition, computeHeading, computeSpeedKmh, detectGateCrossing } from './geometry';
+import { smoothPosition, computeHeading, computeSpeedKmh, detectGateCrossing, headingDifference } from './geometry';
 import { runAntiCheat } from './antiCheat';
 import { assessRunQuality } from './quality';
+import { GATE_VELOCITY_MIN_MPS } from './gates';
 
 const SMOOTHING_BUFFER_SIZE = 4;
+const DEG_TO_RAD = Math.PI / 180;
+
+/**
+ * Chunk 10 §A: velocity component perpendicular to the gate line. The
+ * line itself is perpendicular to trailBearing, so "perpendicular to the
+ * line" means "along the trail direction" — which is exactly what a
+ * rider crossing the gate is doing.
+ *
+ * Returns null when we lack heading or speed info (let the caller decide
+ * whether to fall back to accepting). Otherwise m/s along the trail axis.
+ */
+function perpendicularVelocityMps(
+  crossing: GateCrossingResult,
+  trailBearing: number,
+): number | null {
+  if (crossing.riderHeadingDeg == null || crossing.speedAtCrossingKmh == null) {
+    return null;
+  }
+  const speedMps = crossing.speedAtCrossingKmh / 3.6;
+  const deltaDeg = headingDifference(crossing.riderHeadingDeg, trailBearing);
+  return Math.abs(speedMps * Math.cos(deltaDeg * DEG_TO_RAD));
+}
 
 export interface GateEngineCallbacks {
   /** Called when start gate is crossed — orchestrator should start the run */
@@ -153,7 +176,18 @@ export function useRunGateEngine(
           currentHeading: state.currentHeading,
         });
 
-        if (crossing.crossed) {
+        // Chunk 10: reject the crossing when perpendicular velocity across
+        // the gate line is below GATE_VELOCITY_MIN_MPS. Filters out a
+        // stationary rider who happens to be parked on the line — this
+        // was a live walk-test-v4 failure mode where the gate fired
+        // before the rider actually committed downhill. We only enforce
+        // when we have real speed + heading numbers; missing data falls
+        // back to the Chunk 8 detection rules so we don't regress on
+        // low-data runs.
+        const perpMps = perpendicularVelocityMps(crossing, config.startGate.trailBearing);
+        const velocityOk = perpMps == null || perpMps >= GATE_VELOCITY_MIN_MPS;
+
+        if (crossing.crossed && velocityOk) {
           state.startCrossing = crossing;
           state.autoStartTimestamp = crossing.crossingTimestamp;
           state.phase = 'running';

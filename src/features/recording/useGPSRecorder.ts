@@ -205,24 +205,48 @@ export function useGPSRecorder(params: UseGPSRecorderParams): UseGPSRecorderResu
    *  accuracy / distanceInterval / activityType / blue-bar
    *  settings can never drift between code paths.
    *
+   *  Chunk 10 §3.2 hardening: previous config was missing
+   *  timeInterval, deferredUpdatesInterval, and the Android
+   *  foregroundService declaration. Walk-test v4 showed iOS
+   *  throttling samples when the screen went off — the missing
+   *  deferredUpdatesInterval:0 lets Apple batch-deliver updates
+   *  at the OS's convenience, sometimes minutes later.
+   *
    *  Rationale for each option:
    *    - BestForNavigation: same accuracy tier as pre-Chunk-7.
-   *    - distanceInterval 5m: platform-native dedup replaces
-   *      our 2m haversine.
+   *    - distanceInterval 0: deliver every sample. Walk-test v4
+   *      evidence says platform-native 5m dedup was masking
+   *      background-throttling gaps; we want full resolution so
+   *      gpsHealthTracker can measure the real sample rate.
    *    - activityType Fitness: iOS power model for bike/run,
    *      NOT Automotive (wrong heuristics for gravity runs).
+   *    - timeInterval 1000: Android honors this as a minimum;
+   *      iOS ignores. 1Hz matches the expected sample cadence.
+   *    - deferredUpdatesInterval 0: iOS must not batch updates.
+   *      Previously unset; iOS would defer on low battery or
+   *      background, which cost us samples at the start gate.
    *    - pausesUpdatesAutomatically: false — a standing rider
    *      at a gate would get paused + lose samples otherwise.
    *    - showsBackgroundLocationIndicator: true — non-negotiable
    *      for App Store review ("Always" justification relies on
-   *      the blue-bar user signal). */
+   *      the blue-bar user signal).
+   *    - foregroundService: Android 8+ requires a visible
+   *      notification for background location. Previously
+   *      unset; Android silently stopped samples after a few
+   *      minutes of screen-off. */
   const startBackgroundTask = useCallback(async (): Promise<void> => {
     await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.BestForNavigation,
-      distanceInterval: DISTANCE_INTERVAL_M,
       activityType: Location.LocationActivityType.Fitness,
+      distanceInterval: 0,
+      timeInterval: 1000,
+      deferredUpdatesInterval: 0,
       pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: 'NWD · wyścig aktywny',
+        notificationBody: 'GPS śledzi twój zjazd',
+      },
     });
   }, []);
 

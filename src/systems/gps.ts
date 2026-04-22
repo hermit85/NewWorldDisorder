@@ -141,11 +141,21 @@ export async function startTracking(
     const perm = await checkLocationPermission();
     if (!perm.foreground) return false;
 
+    // Chunk 10 §3.2: align foreground subscription with the background
+    // recorder task. watchPositionAsync is foreground-only, so we can
+    // only set the shared subset of options here; full background
+    // hardening (activityType, foregroundService, deferredUpdatesInterval)
+    // requires migrating useRealRun onto startLocationUpdatesAsync. That
+    // migration is a Chunk 10.1 scope — we keep backward compat here to
+    // avoid breaking the ranked-run flow that walk-test v4 just verified.
     _subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
         timeInterval: intervalMs,
-        distanceInterval: 5, // 5m min between points — better for mountain trails
+        // Chunk 10: deliver every sample so gpsHealthTracker can see the
+        // real native cadence. The prior 5m dedup masked background
+        // throttling gaps.
+        distanceInterval: 0,
       },
       (loc) => {
         try {

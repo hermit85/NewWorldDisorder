@@ -37,6 +37,38 @@ const PIONEER_ZONE_RADIUS_M = 25;
 const GATE_VECTOR_BASELINE_M = 10;
 const FINISH_UNLOCK_MIN_TIME_SEC = 12;
 
+// ── Chunk 10: Approach Navigator constants ──
+// Spec v3 §2.4. Consumed by src/features/run/approachNavigator.ts and by
+// the gate engine's arming check. Exposed as named exports so both the
+// navigator and any integration test can reference a single source of
+// truth.
+
+/** Physical length of the virtual start line, meters. Narrower than the
+ *  Chunk 8 DEFAULT_START_GATE.lineWidthM on purpose — the navigator is
+ *  meant to feel like a race start tape, not a fuzzy zone. */
+export const GATE_LINE_LENGTH_M = 4;
+
+/** Distance boundary separating the FAR state from NEAR. Beyond this we
+ *  show a compass arrow; within, we show a mini-map. */
+export const GATE_APPROACH_NEAR_M = 30;
+
+/** Distance boundary separating NEAR from ON_LINE_READY / WRONG_SIDE. */
+export const GATE_APPROACH_READY_M = 3;
+
+/** Max acceptable GPS horizontal accuracy for arming. Above this we
+ *  force GPS_UNSURE so users get an honest "GPS weak" rather than a
+ *  guessed direction. */
+export const GATE_ACCURACY_REQUIRED_M = 5;
+
+/** Max heading deviation from trail bearing tolerated when inside the
+ *  ready radius. Matches the Chunk 8 start gate headingToleranceDeg. */
+export const GATE_HEADING_TOLERANCE_DEG = 60;
+
+/** Minimum perpendicular velocity (m/s) across the gate line for the
+ *  Chunk 8 crossing detector to accept a cross. Filters out a stationary
+ *  rider sitting on the line. */
+export const GATE_VELOCITY_MIN_MPS = 1.0;
+
 /** Narrow unknown JSON → PioneerGeometry shape. Returns null when the
  *  structure does not match (legacy v0 rows, truncated payloads). */
 function asPioneerGeometry(raw: unknown): PioneerGeometry | null {

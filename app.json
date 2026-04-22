@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -36,7 +36,10 @@
       "package": "com.nwdisorder.app",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -54,7 +57,7 @@
           "locationWhenInUsePermission": "NWD używa GPS do mierzenia czasu Twoich zjazdów.",
           "locationAlwaysAndWhenInUsePermission": "NWD kontynuuje nagrywanie czasu zjazdu, gdy telefon jest w kieszeni lub na kierownicy z wyłączonym ekranem. Niebieski pasek na górze ekranu oznacza aktywne nagrywanie.",
           "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": false
+          "isAndroidBackgroundLocationEnabled": true
         }
       ]
     ],
