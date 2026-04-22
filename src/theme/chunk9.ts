@@ -39,7 +39,7 @@ export const chunk9Typography = {
   label13: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 13,
-    lineHeight: 15,
+    lineHeight: 18,
     letterSpacing: 2.86,
     textTransform: 'uppercase',
   } satisfies TextStyle,
@@ -57,7 +57,7 @@ export const chunk9Typography = {
   captionMono10: {
     fontFamily: monoFont,
     fontSize: 10,
-    lineHeight: 12,
+    lineHeight: 14,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   } satisfies TextStyle,
