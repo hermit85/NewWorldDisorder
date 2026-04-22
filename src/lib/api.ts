@@ -31,6 +31,261 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
   return data;
 }
 
+export interface HeroBeat {
+  trailId: string;
+  trailName: string;
+  beaterName: string;
+  happenedAt: string;
+  beaterTimeMs: number;
+  userTimeMs: number;
+  deltaMs: number;
+  previousPosition: number;
+  currentPosition: number;
+}
+
+export interface DailyChallengeProgress {
+  id: 'ride_today' | 'beat_pb' | 'complete_three';
+  title: string;
+  rewardXp: number;
+  current: number;
+  target: number;
+  completed: boolean;
+}
+
+export interface StreakState {
+  days: number;
+  currentDayComplete: boolean;
+  mode: 'safe' | 'warn';
+  graceExpiresAt: string | null;
+  lastRideAt: string | null;
+  remainingHours: number;
+  remainingMinutes: number;
+}
+
+export interface FeedEvent {
+  id: string;
+  type: 'beat' | 'rider' | 'trail';
+  name: string;
+  text: string;
+  timestamp: string;
+  trailId?: string | null;
+}
+
+export interface BikeParkTrailCardData {
+  trail: {
+    id: string;
+    name: string;
+    difficulty: string;
+    type: string;
+    distanceM: number;
+    activeRidersCount: number;
+  };
+  state: 'default' | 'beaten' | 'virgin' | 'pioneer';
+  userData: {
+    pbMs?: number;
+    position?: number;
+    totalRanked?: number;
+    lastRanAt?: string;
+    beatenBy?: { name: string; deltaMs: number; happenedAt: string };
+  };
+  calibrationStatus: string;
+  pioneerStatusLabel?: 'PIONIER' | 'W WALIDACJI';
+  pioneerSubtitle?: string | null;
+}
+
+const CHUNK9_STREAK_WARN_WINDOW_MS = 6 * 60 * 60 * 1000;
+const CHUNK9_STREAK_MIN_DURATION_MS = 60_000;
+const CHUNK9_ACTIVE_RIDERS_WINDOW_DAYS = 30;
+const CHUNK9_BEAT_WINDOW_DAYS = 7;
+
+function startOfLocalDay(date: Date): Date {
+  const local = new Date(date);
+  local.setHours(0, 0, 0, 0);
+  return local;
+}
+
+function endOfLocalDay(date: Date): Date {
+  const local = new Date(date);
+  local.setHours(23, 59, 59, 999);
+  return local;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function localDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function clampPositiveFloor(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+export function formatRelativeTimestamp(timestamp: string, now: Date = new Date()): string {
+  const eventTime = new Date(timestamp);
+  const diffMs = Math.max(0, now.getTime() - eventTime.getTime());
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+  if (diffDays >= 1) return `${diffDays}d`;
+  if (diffHours >= 1) return `${diffHours}h`;
+  if (diffMinutes >= 1) return `${diffMinutes}m`;
+  return 'teraz';
+}
+
+function isChallengeRideToday(run: Pick<DbRun, 'verification_status'>): boolean {
+  return run.verification_status === 'verified' || run.verification_status === 'practice_only';
+}
+
+function isStreakEligibleRun(run: Pick<DbRun, 'verification_status' | 'duration_ms'>): boolean {
+  const eligibleStatus =
+    run.verification_status === 'verified' || run.verification_status === 'practice_only';
+  return eligibleStatus && run.duration_ms >= CHUNK9_STREAK_MIN_DURATION_MS;
+}
+
+export function deriveDailyChallengesFromRuns(
+  runs: Array<Pick<DbRun, 'verification_status' | 'is_pb'>>,
+): DailyChallengeProgress[] {
+  const rideTodayCount = runs.filter(isChallengeRideToday).length;
+  const pbTodayCount = runs.filter((run) => run.is_pb).length;
+  const verifiedTodayCount = runs.filter((run) => run.verification_status === 'verified').length;
+
+  return [
+    {
+      id: 'ride_today',
+      title: 'Zjedź dziś',
+      rewardXp: 50,
+      current: Math.min(rideTodayCount, 1),
+      target: 1,
+      completed: rideTodayCount >= 1,
+    },
+    {
+      id: 'beat_pb',
+      title: 'Pobij swój PB',
+      rewardXp: 100,
+      current: Math.min(pbTodayCount, 1),
+      target: 1,
+      completed: pbTodayCount >= 1,
+    },
+    {
+      id: 'complete_three',
+      title: 'Ukończ 3 zjazdy',
+      rewardXp: 150,
+      current: Math.min(verifiedTodayCount, 3),
+      target: 3,
+      completed: verifiedTodayCount >= 3,
+    },
+  ];
+}
+
+function buildStreakState(params: {
+  days: number;
+  currentDayComplete: boolean;
+  lastRideAt: string | null;
+  graceExpiresAt: string | null;
+  now?: Date;
+}): StreakState {
+  const now = params.now ?? new Date();
+  if (params.days <= 0 || !params.lastRideAt || !params.graceExpiresAt) {
+    return {
+      days: 0,
+      currentDayComplete: false,
+      mode: 'safe',
+      lastRideAt: params.lastRideAt,
+      graceExpiresAt: params.graceExpiresAt,
+      remainingHours: 0,
+      remainingMinutes: 0,
+    };
+  }
+
+  const graceExpires = new Date(params.graceExpiresAt);
+  const remainingMs = Math.max(0, graceExpires.getTime() - now.getTime());
+  const remainingHours = clampPositiveFloor(remainingMs / (60 * 60 * 1000));
+  const remainingMinutes = clampPositiveFloor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+
+  return {
+    days: params.days,
+    currentDayComplete: params.currentDayComplete,
+    mode:
+      !params.currentDayComplete &&
+      remainingMs > 0 &&
+      remainingMs <= CHUNK9_STREAK_WARN_WINDOW_MS
+        ? 'warn'
+        : 'safe',
+    lastRideAt: params.lastRideAt,
+    graceExpiresAt: params.graceExpiresAt,
+    remainingHours,
+    remainingMinutes,
+  };
+}
+
+export function deriveStreakFromRuns(
+  runs: Array<Pick<DbRun, 'started_at' | 'verification_status' | 'duration_ms'>>,
+  now: Date = new Date(),
+): StreakState {
+  const eligibleRuns = runs
+    .filter(isStreakEligibleRun)
+    .slice()
+    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+
+  if (eligibleRuns.length === 0) {
+    return buildStreakState({
+      days: 0,
+      currentDayComplete: false,
+      lastRideAt: null,
+      graceExpiresAt: null,
+      now,
+    });
+  }
+
+  const uniqueDays: string[] = [];
+  const uniqueDaySet = new Set<string>();
+  for (const run of eligibleRuns) {
+    const key = localDayKey(new Date(run.started_at));
+    if (!uniqueDaySet.has(key)) {
+      uniqueDays.push(key);
+      uniqueDaySet.add(key);
+    }
+  }
+
+  const latestRideAt = eligibleRuns[0].started_at;
+  const latestRideDate = new Date(latestRideAt);
+  const graceExpiresAt = endOfLocalDay(addDays(startOfLocalDay(latestRideDate), 1));
+
+  if (now.getTime() > graceExpiresAt.getTime()) {
+    return buildStreakState({
+      days: 0,
+      currentDayComplete: false,
+      lastRideAt: latestRideAt,
+      graceExpiresAt: graceExpiresAt.toISOString(),
+      now,
+    });
+  }
+
+  let streakDays = 1;
+  let expected = startOfLocalDay(latestRideDate);
+  for (let index = 1; index < uniqueDays.length; index += 1) {
+    expected = addDays(expected, -1);
+    if (uniqueDays[index] !== localDayKey(expected)) break;
+    streakDays += 1;
+  }
+
+  return buildStreakState({
+    days: streakDays,
+    currentDayComplete: localDayKey(latestRideDate) === localDayKey(now),
+    lastRideAt: latestRideAt,
+    graceExpiresAt: graceExpiresAt.toISOString(),
+    now,
+  });
+}
+
 /**
  * Atomically increment profile XP using database-level RPC.
  * Prevents race conditions on concurrent run submissions.
@@ -783,6 +1038,365 @@ export async function incrementChallengeProgress(
   }
 
   return { justCompleted, rewardXp };
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHUNK 9 — Home + Bike Park data queries
+// ═══════════════════════════════════════════════════════════
+
+type LeaderboardBeatRow = {
+  trail_id: string;
+  best_duration_ms: number;
+  rank_position: number;
+  previous_position: number | null;
+  updated_at: string;
+  trails?: { official_name?: string | null } | null;
+};
+
+async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Promise<LeaderboardBeatRow[]> {
+  let query = db()
+    .from('leaderboard_entries')
+    .select(`
+      trail_id,
+      best_duration_ms,
+      rank_position,
+      previous_position,
+      updated_at,
+      trails!inner(official_name)
+    `)
+    .eq('user_id', userId)
+    .eq('period_type', 'all_time')
+    .order('updated_at', { ascending: false })
+    .limit(25);
+
+  if (trailIds && trailIds.length > 0) {
+    query = query.in('trail_id', trailIds);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`fetchRecentBeatEntries failed: ${error.message}`);
+  return (data ?? []).filter((entry: any) => {
+    const previous = entry.previous_position;
+    return typeof previous === 'number' && entry.rank_position > previous;
+  }) as LeaderboardBeatRow[];
+}
+
+export async function fetchHeroBeat(userId: string): Promise<HeroBeat | null> {
+  const beatEntries = await fetchRecentBeatEntries(userId);
+  const latest = beatEntries[0];
+  if (!latest) return null;
+
+  const board = await fetchLeaderboard(latest.trail_id, 'all_time', userId);
+  const beater =
+    board.find((entry) => entry.rankPosition === latest.rank_position - 1) ??
+    board.find((entry) => entry.rankPosition === 1 && entry.userId !== userId);
+
+  if (!beater || beater.userId === userId) {
+    return null;
+  }
+
+  return {
+    trailId: latest.trail_id,
+    trailName: latest.trails?.official_name ?? latest.trail_id,
+    beaterName: beater.displayName || beater.username,
+    happenedAt: latest.updated_at,
+    beaterTimeMs: beater.bestDurationMs,
+    userTimeMs: latest.best_duration_ms,
+    deltaMs: Math.max(0, latest.best_duration_ms - beater.bestDurationMs),
+    previousPosition: latest.previous_position ?? latest.rank_position,
+    currentPosition: latest.rank_position,
+  };
+}
+
+export async function fetchDailyChallenges(userId: string): Promise<DailyChallengeProgress[]> {
+  const { data, error } = await db()
+    .from('runs')
+    .select('verification_status, is_pb, started_at')
+    .eq('user_id', userId)
+    .gte('started_at', startOfLocalDay(new Date()).toISOString())
+    .order('started_at', { ascending: false });
+
+  if (error) throw new Error(`fetchDailyChallenges failed: ${error.message}`);
+  return deriveDailyChallengesFromRuns((data ?? []) as Array<Pick<DbRun, 'verification_status' | 'is_pb'>>);
+}
+
+export async function fetchStreakState(userId: string): Promise<StreakState> {
+  const now = new Date();
+
+  try {
+    const { data, error } = await db()
+      .from('profiles')
+      .select('streak_days, streak_last_ride_at, streak_grace_expires_at')
+      .eq('id', userId)
+      .single();
+
+    if (!error && data) {
+      const currentDayComplete =
+        !!data.streak_last_ride_at &&
+        localDayKey(new Date(data.streak_last_ride_at)) === localDayKey(now);
+      return buildStreakState({
+        days: data.streak_days ?? 0,
+        currentDayComplete,
+        lastRideAt: data.streak_last_ride_at ?? null,
+        graceExpiresAt: data.streak_grace_expires_at ?? null,
+        now,
+      });
+    }
+  } catch {}
+
+  const { data, error } = await db()
+    .from('runs')
+    .select('started_at, verification_status, duration_ms')
+    .eq('user_id', userId)
+    .in('verification_status', ['verified', 'practice_only'])
+    .gte('duration_ms', CHUNK9_STREAK_MIN_DURATION_MS)
+    .order('started_at', { ascending: false })
+    .limit(120);
+
+  if (error) throw new Error(`fetchStreakState failed: ${error.message}`);
+  return deriveStreakFromRuns(
+    (data ?? []) as Array<Pick<DbRun, 'started_at' | 'verification_status' | 'duration_ms'>>,
+    now,
+  );
+}
+
+export async function fetchLeagueFeed(userId: string, limit: number = 5): Promise<FeedEvent[]> {
+  const events: FeedEvent[] = [];
+
+  const heroBeat = await fetchHeroBeat(userId);
+  if (heroBeat) {
+    events.push({
+      id: `beat-${heroBeat.trailId}-${heroBeat.happenedAt}`,
+      type: 'beat',
+      name: heroBeat.beaterName,
+      text: `wyprzedził cię na ${heroBeat.trailName}`,
+      timestamp: heroBeat.happenedAt,
+      trailId: heroBeat.trailId,
+    });
+  }
+
+  const userTrails = await fetchUserTrailStats(userId);
+  const trailIds = Array.from(userTrails.keys());
+  if (trailIds.length > 0) {
+    const { data: riderRuns, error: riderRunsError } = await db()
+      .from('runs')
+      .select(`
+        user_id,
+        trail_id,
+        started_at,
+        profiles!inner(username, display_name),
+        trails!inner(official_name)
+      `)
+      .in('trail_id', trailIds)
+      .neq('user_id', userId)
+      .eq('verification_status', 'verified')
+      .order('started_at', { ascending: false })
+      .limit(12);
+
+    if (riderRunsError) {
+      throw new Error(`fetchLeagueFeed rider runs failed: ${riderRunsError.message}`);
+    }
+
+    const seenRiderTrail = new Set<string>();
+    for (const run of riderRuns ?? []) {
+      const key = `${run.user_id}:${run.trail_id}`;
+      if (seenRiderTrail.has(key)) continue;
+      seenRiderTrail.add(key);
+      events.push({
+        id: `rider-${key}-${run.started_at}`,
+        type: 'rider',
+        name: (run as any).profiles?.display_name || (run as any).profiles?.username || 'Rider',
+        text: `jechał na ${(run as any).trails?.official_name ?? run.trail_id}`,
+        timestamp: run.started_at,
+        trailId: run.trail_id,
+      });
+      if (events.length >= limit * 2) break;
+    }
+
+    const { data: myRuns, error: myRunsError } = await db()
+      .from('runs')
+      .select('spot_id')
+      .eq('user_id', userId)
+      .order('started_at', { ascending: false })
+      .limit(20);
+
+    if (myRunsError) {
+      throw new Error(`fetchLeagueFeed spots failed: ${myRunsError.message}`);
+    }
+
+    const spotIds = Array.from(new Set((myRuns ?? []).map((run) => run.spot_id)));
+    if (spotIds.length > 0) {
+      const { data: freshTrails, error: freshTrailsError } = await db()
+        .from('trails')
+        .select('id, official_name, created_at')
+        .in('spot_id', spotIds)
+        .neq('pioneer_user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (freshTrailsError) {
+        throw new Error(`fetchLeagueFeed trails failed: ${freshTrailsError.message}`);
+      }
+
+      for (const trail of freshTrails ?? []) {
+        events.push({
+          id: `trail-${trail.id}-${trail.created_at}`,
+          type: 'trail',
+          name: trail.official_name,
+          text: 'pojawiła się w twojej okolicy',
+          timestamp: trail.created_at,
+          trailId: trail.id,
+        });
+      }
+    }
+  }
+
+  return events
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, limit);
+}
+
+export async function fetchBikeParkTrails(
+  userId: string | undefined,
+  spotId: string,
+): Promise<BikeParkTrailCardData[]> {
+  const trailsResult = await fetchTrails(spotId);
+  if (!trailsResult.ok) {
+    throw new Error(trailsResult.message ?? 'fetchBikeParkTrails failed');
+  }
+
+  const trails = trailsResult.data;
+  if (trails.length === 0) return [];
+
+  const trailIds = trails.map((trail) => trail.id);
+  const activeRidersSince = addDays(new Date(), -CHUNK9_ACTIVE_RIDERS_WINDOW_DAYS).toISOString();
+  const recentBeatSince = addDays(new Date(), -CHUNK9_BEAT_WINDOW_DAYS).toISOString();
+
+  const [
+    activeRunsRes,
+    rankedEntriesRes,
+    userRunsRes,
+    beatEntries,
+    userTrailStats,
+  ] = await Promise.all([
+    db()
+      .from('runs')
+      .select('trail_id, user_id')
+      .eq('spot_id', spotId)
+      .eq('verification_status', 'verified')
+      .gte('started_at', activeRidersSince),
+    db()
+      .from('leaderboard_entries')
+      .select('trail_id')
+      .eq('period_type', 'all_time')
+      .in('trail_id', trailIds),
+    userId
+      ? db()
+          .from('runs')
+          .select('trail_id, started_at')
+          .eq('user_id', userId)
+          .in('trail_id', trailIds)
+          .order('started_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any),
+    userId
+      ? db()
+          .from('leaderboard_entries')
+          .select(`
+            trail_id,
+            best_duration_ms,
+            rank_position,
+            previous_position,
+            updated_at,
+            trails!inner(official_name)
+          `)
+          .eq('user_id', userId)
+          .eq('period_type', 'all_time')
+          .in('trail_id', trailIds)
+          .gte('updated_at', recentBeatSince)
+          .order('updated_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any),
+    userId ? fetchUserTrailStats(userId) : Promise.resolve(new Map<string, { pbMs: number | null; position: number | null }>()),
+  ]);
+
+  if (activeRunsRes.error) throw new Error(`fetchBikeParkTrails active runs failed: ${activeRunsRes.error.message}`);
+  if (rankedEntriesRes.error) throw new Error(`fetchBikeParkTrails leaderboard failed: ${rankedEntriesRes.error.message}`);
+  if (userRunsRes.error) throw new Error(`fetchBikeParkTrails user runs failed: ${userRunsRes.error.message}`);
+  if (beatEntries.error) throw new Error(`fetchBikeParkTrails beat entries failed: ${beatEntries.error.message}`);
+
+  const activeRiderSets = new Map<string, Set<string>>();
+  for (const run of activeRunsRes.data ?? []) {
+    const set = activeRiderSets.get(run.trail_id) ?? new Set<string>();
+    set.add(run.user_id);
+    activeRiderSets.set(run.trail_id, set);
+  }
+
+  const rankedCounts = new Map<string, number>();
+  for (const entry of rankedEntriesRes.data ?? []) {
+    rankedCounts.set(entry.trail_id, (rankedCounts.get(entry.trail_id) ?? 0) + 1);
+  }
+
+  const lastRanAt = new Map<string, string>();
+  for (const run of userRunsRes.data ?? []) {
+    if (!lastRanAt.has(run.trail_id)) {
+      lastRanAt.set(run.trail_id, run.started_at);
+    }
+  }
+
+  const beatenByMap = new Map<string, { name: string; deltaMs: number; happenedAt: string }>();
+  for (const beat of (beatEntries.data ?? []) as LeaderboardBeatRow[]) {
+    if (beatenByMap.has(beat.trail_id) || !(typeof beat.previous_position === 'number' && beat.rank_position > beat.previous_position)) {
+      continue;
+    }
+    const board = await fetchLeaderboard(beat.trail_id, 'all_time', userId);
+    const beater =
+      board.find((entry) => entry.rankPosition === beat.rank_position - 1) ??
+      board.find((entry) => entry.rankPosition === 1 && entry.userId !== userId);
+    if (!beater || beater.userId === userId) continue;
+    beatenByMap.set(beat.trail_id, {
+      name: beater.displayName || beater.username,
+      deltaMs: Math.max(0, beat.best_duration_ms - beater.bestDurationMs),
+      happenedAt: beat.updated_at,
+    });
+  }
+
+  return trails.map((trail) => {
+    const stats = userTrailStats.get(trail.id);
+    const isPioneer = !!userId && trail.pioneerUserId === userId;
+    const beatenBy = beatenByMap.get(trail.id);
+    const awaitingValidation = trail.calibrationStatus === 'calibrating';
+
+    let state: BikeParkTrailCardData['state'];
+    if (isPioneer) state = 'pioneer';
+    else if (beatenBy) state = 'beaten';
+    else if (!stats?.pbMs) state = 'virgin';
+    else state = 'default';
+
+    return {
+      trail: {
+        id: trail.id,
+        name: trail.name,
+        difficulty: trail.difficulty,
+        type: trail.trailType,
+        distanceM: trail.distanceM,
+        activeRidersCount: activeRiderSets.get(trail.id)?.size ?? 0,
+      },
+      state,
+      userData: {
+        pbMs: stats?.pbMs ?? undefined,
+        position: stats?.position ?? undefined,
+        totalRanked: rankedCounts.get(trail.id) ?? 0,
+        lastRanAt: lastRanAt.get(trail.id),
+        beatenBy,
+      },
+      calibrationStatus: trail.calibrationStatus,
+      pioneerStatusLabel: awaitingValidation ? 'W WALIDACJI' : isPioneer ? 'PIONIER' : undefined,
+      pioneerSubtitle: awaitingValidation
+        ? 'Czeka na drugiego ridera'
+        : isPioneer
+          ? 'Dodana przez ciebie'
+          : null,
+    };
+  });
 }
 
 // ═══════════════════════════════════════════════════════════

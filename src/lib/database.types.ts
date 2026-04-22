@@ -26,6 +26,10 @@ export interface Database {
           // Sprint 4 (mig 011) — Pioneer counters
           pioneered_total_count: number;
           pioneered_verified_count: number;
+          // Chunk 10 prep — streak state
+          streak_days: number;
+          streak_last_ride_at: string | null;
+          streak_grace_expires_at: string | null;
         };
         Insert: {
           id: string;
@@ -40,6 +44,9 @@ export interface Database {
           favorite_trail_id?: string | null;
           created_at?: string;
           updated_at?: string;
+          streak_days?: number;
+          streak_last_ride_at?: string | null;
+          streak_grace_expires_at?: string | null;
         };
         Update: {
           username?: string;
@@ -52,6 +59,9 @@ export interface Database {
           best_position?: number | null;
           favorite_trail_id?: string | null;
           updated_at?: string;
+          streak_days?: number;
+          streak_last_ride_at?: string | null;
+          streak_grace_expires_at?: string | null;
         };
       };
 
