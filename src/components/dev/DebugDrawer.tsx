@@ -25,10 +25,20 @@ import {
   subscribeTestMode,
   SimulationOverrides,
 } from '@/systems/testMode';
+import { triggerRefresh } from '@/hooks/useRefresh';
 import { useVenueContext } from '@/hooks/useVenueContext';
 import { useAuthContext } from '@/hooks/AuthContext';
 
 type Tab = 'state' | 'events' | 'sim';
+
+function getDevMockHeroBeatFlag(): boolean {
+  return !!(globalThis as typeof globalThis & { __DEV_MOCK_HERO_BEAT__?: boolean }).__DEV_MOCK_HERO_BEAT__;
+}
+
+function setDevMockHeroBeatFlag(value: boolean): void {
+  (globalThis as typeof globalThis & { __DEV_MOCK_HERO_BEAT__?: boolean }).__DEV_MOCK_HERO_BEAT__ = value;
+  triggerRefresh();
+}
 
 const CATEGORY_COLORS: Record<DebugCategory, string> = {
   venue: '#4CAF50',
@@ -195,6 +205,7 @@ function SimTab() {
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   const testOn = isTestMode();
   const overrides = getSimOverrides();
+  const heroBeatMockOn = getDevMockHeroBeatFlag();
 
   useEffect(() => {
     const unsub = subscribeTestMode(() => forceUpdate());
@@ -211,6 +222,17 @@ function SimTab() {
       <View style={s.simRow}>
         <Text style={s.simLabel}>Test Mode Active</Text>
         <Switch value={testOn} onValueChange={toggleTestMode} />
+      </View>
+
+      <View style={s.simRow}>
+        <Text style={s.simLabel}>Mock Hero Beat</Text>
+        <Switch
+          value={heroBeatMockOn}
+          onValueChange={(value) => {
+            setDevMockHeroBeatFlag(value);
+            forceUpdate();
+          }}
+        />
       </View>
 
       {!testOn && (
