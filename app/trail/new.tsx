@@ -102,12 +102,16 @@ export default function NewTrailScreen() {
 
     if (result.ok) {
       notifySuccess();
-      // Hand off to the existing pre-run flow. ?pioneer=1 tells
-      // active.tsx this is the first-rider case so the approach
-      // navigator + calibration rules apply.
+      // Pioneer calibration runs on /run/recording (canonical path —
+      // same route app/trail/[id].tsx uses for draft trails at line
+      // 131). recording.tsx requires trailId + spotId and hands off
+      // to /run/review which fires finalize_pioneer_run. /run/active
+      // is the ranked/training screen and assumes Pioneer geometry
+      // already exists — sending a freshly-created draft trail there
+      // left it stuck with no way to calibrate (chunk 10.1 bug).
       router.replace({
-        pathname: '/run/active',
-        params: { trailId: result.data.trailId, pioneer: '1', trailName: trimmed },
+        pathname: '/run/recording',
+        params: { trailId: result.data.trailId, spotId },
       });
       return;
     }
