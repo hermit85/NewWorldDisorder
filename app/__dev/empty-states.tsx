@@ -9,8 +9,8 @@
 // so the Expo router group is visibly gated.
 // ═══════════════════════════════════════════════════════════
 
-import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
@@ -21,12 +21,30 @@ type Kind = 'home-no-spots' | 'spots-empty' | 'add-spot-success';
 export default function EmptyStatesPreview() {
   if (!__DEV__) return null;
 
+  const router = useRouter();
   const params = useLocalSearchParams<{ kind?: string }>();
   const kind = (params.kind ?? 'home-no-spots') as Kind;
+
+  // Chunk 10.2 dead-end audit: this dev route previously rendered
+  // with zero navigation affordance. Small Wróć pill at the top so
+  // the rider can always escape.
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
 
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.container}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Wróć"
+          onPress={handleBack}
+          hitSlop={16}
+          style={styles.devBack}
+        >
+          <Text style={styles.devBackLabel}>← Wróć</Text>
+        </Pressable>
         {kind === 'home-no-spots' ? <HomeNoSpots /> : null}
         {kind === 'spots-empty' ? <SpotsEmpty /> : null}
         {kind === 'add-spot-success' ? <AddSpotSuccess /> : null}
@@ -111,6 +129,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   backLabel: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+  },
+  devBack: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  devBackLabel: {
     ...chunk9Typography.body13,
     color: chunk9Colors.text.secondary,
   },
