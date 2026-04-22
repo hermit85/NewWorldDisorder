@@ -280,7 +280,7 @@ export default function SpotScreen() {
             <Brackets color="dim" />
             <Text style={styles.emptyEyebrow}>BRAK ZDEFINIOWANYCH TRAS</Text>
             <Text style={styles.emptyTitle}>
-              PIONIERUJ.{'\n'}ZDEFINIUJ LINIĘ.{'\n'}WYZWIJ INNYCH.
+              Pionieruj.{'\n'}Zdefiniuj linię.{'\n'}Wyzwij innych.
             </Text>
             <Text style={styles.emptyBody}>
               Pierwszy verified zjazd rezerwuje pozycję. Telefon do kieszeni, jeden przejazd i

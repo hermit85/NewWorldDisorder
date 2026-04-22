@@ -114,7 +114,7 @@ export default function NewSpotScreen() {
           <Pressable onPress={() => router.back()} hitSlop={16} accessibilityRole="button" accessibilityLabel="Wróć">
             <Text style={styles.backLabel}>← Wróć</Text>
           </Pressable>
-          <Text style={styles.title}>DODAJ BIKE PARK</Text>
+          <Text style={styles.title}>Dodaj bike park</Text>
           <StepDots step={step} />
         </View>
 

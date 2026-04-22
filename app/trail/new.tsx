@@ -142,7 +142,7 @@ export default function NewTrailScreen() {
           <Pressable onPress={() => router.back()} hitSlop={16} accessibilityRole="button" accessibilityLabel="Wróć">
             <Text style={styles.backLabel}>← Wróć</Text>
           </Pressable>
-          <Text style={styles.title}>DODAJ TRASĘ</Text>
+          <Text style={styles.title}>Dodaj trasę</Text>
           <StepDots step={step} />
         </View>
 
