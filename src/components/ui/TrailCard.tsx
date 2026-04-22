@@ -33,7 +33,7 @@ function formatRankLabel(position?: number): string {
 }
 
 function formatActiveRidersLabel(count: number): string {
-  return `${count} W MIESIĄCU`;
+  return `${count}`;
 }
 
 export const TrailCard = memo(function TrailCard({
@@ -48,13 +48,18 @@ export const TrailCard = memo(function TrailCard({
   const badgeLabel = pioneerStatusLabel ?? (state === 'virgin' ? 'NEW' : null);
   const isBeaten = state === 'beaten';
   const ctaVariant = isBeaten ? 'primary' : 'inlineLink';
-  const ctaLabel = ctaLabelByState[state];
+  const ctaLabel = badgeLabel === 'W WALIDACJI' ? 'Jedź' : ctaLabelByState[state];
   const subtitle =
     state === 'pioneer'
       ? pioneerSubtitle ?? 'Dodana przez ciebie'
       : userData.lastRanAt
         ? `${formatRelativeTimestamp(userData.lastRanAt)} temu`
         : 'Jeszcze nie jechałeś';
+  const metaParts = [
+    formatDifficultyLabel(trail.difficulty),
+    formatTrailTypeLabel(trail.type),
+    trail.distanceM > 0 ? `${Math.round(trail.distanceM)}m` : null,
+  ].filter(Boolean);
 
   return (
     <Pressable
@@ -72,8 +77,7 @@ export const TrailCard = memo(function TrailCard({
             {trail.name}
           </Text>
           <Text style={styles.meta}>
-            {formatDifficultyLabel(trail.difficulty)} · {formatTrailTypeLabel(trail.type)} ·{' '}
-            {Math.round(trail.distanceM)}m
+            {metaParts.join(' · ')}
           </Text>
         </View>
 
@@ -113,7 +117,7 @@ export const TrailCard = memo(function TrailCard({
           value={formatRankLabel(userData.position)}
         />
         <StatCell
-          label="AKTYWNOŚĆ"
+          label="W MIESIĄCU"
           value={formatActiveRidersLabel(trail.activeRidersCount)}
           accent={isBeaten}
         />
