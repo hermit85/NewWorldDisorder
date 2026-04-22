@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,12 +50,20 @@ export default function HomeScreen() {
   const { profile: authProfile, isAuthenticated } = useAuthContext();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { profile, refresh: refreshProfile } = useProfile(authProfile?.id);
-  const { heroBeat, refresh: refreshHeroBeat } = useHeroBeat(authProfile?.id);
+  const { profile, status: profileStatus, refresh: refreshProfile } = useProfile(authProfile?.id);
+  const { heroBeat, status: heroBeatStatus, refresh: refreshHeroBeat } = useHeroBeat(authProfile?.id);
   const { challenges, refresh: refreshChallenges } = useDailyChallenges(authProfile?.id);
   const { streak, refresh: refreshStreak } = useStreakState(authProfile?.id);
   const { events, refresh: refreshFeed } = useLeagueFeed(authProfile?.id, 5);
   const { spots, refresh: refreshSpots } = useActiveSpots();
+
+  // Cold-start loading gate: first render, authed user, no data yet.
+  // Spec v2 3.4 — never render blank. Proper Skeleton primitive comes in Chunk 9.1.
+  const isColdLoading =
+    isAuthenticated &&
+    (profileStatus === 'loading' || heroBeatStatus === 'loading') &&
+    !profile &&
+    !heroBeat;
 
   const primarySpot = spots[0] ?? null;
   const currentXp = profile?.xp ?? 0;
@@ -101,6 +109,16 @@ export default function HomeScreen() {
     await Share.share({
       message: `Wbijaj do NWD i spróbuj mnie wyprzedzić. ${url}`,
     });
+  }
+
+  if (isColdLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -320,5 +338,12 @@ const styles = StyleSheet.create({
   primarySpotName: {
     ...chunk9Typography.body13,
     color: chunk9Colors.text.primary,
+  },
+  centeredState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    gap: chunk9Spacing.cardChildGap,
   },
 });

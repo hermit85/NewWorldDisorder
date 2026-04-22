@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
@@ -37,7 +38,7 @@ export default function SpotScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<TrailFilter>('all');
 
-  const { spot, refresh: refreshSpot } = useSpot(id ?? null);
+  const { spot, status: spotStatus, refresh: refreshSpot } = useSpot(id ?? null);
   const { trails, refresh: refreshTrails } = useBikeParkTrails(id ?? null, profile?.id);
   const { submit: deleteSpot } = useDeleteSpot();
 
@@ -97,6 +98,16 @@ export default function SpotScreen() {
           },
         },
       ],
+    );
+  }
+
+  if (spotStatus === 'loading' && !spot) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -384,5 +395,12 @@ const styles = StyleSheet.create({
   notFoundBack: {
     ...chunk9Typography.label13,
     color: chunk9Colors.text.primary,
+  },
+  centeredState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    gap: chunk9Spacing.cardChildGap,
   },
 });
