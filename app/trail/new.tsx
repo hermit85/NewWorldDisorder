@@ -1,68 +1,66 @@
 // ═══════════════════════════════════════════════════════════
-// Dodaj trasę — create-trail form for a given spot.
-// Game-HUD polish pass: kicker label, difficulty pills with
-// semantic colours, type chips with glyphs + short labels,
-// "ROZPOCZNIJ KALIBRACJĘ" as commitment-tier CTA.
+// /trail/new — 3-step Pioneer onboarding flow.
+//
+// Step 1: Info       — name + difficulty + trail_type.
+// Step 2: Educator   — "Pionierujesz" copy block per handoff.
+// Step 3: Calibrate  — create_trail then hand off to the
+//                      existing pre-run route /run/active with
+//                      ?pioneer=1 so the calibration loop recognises
+//                      this as the first-rider case.
+//
+// DB enum kept as-is per Blocker 2 decision (easy|medium|hard|expert
+// × downhill|flow|tech|jump). Earlier handoff copy confused trail
+// types (FLOW, TECH) with difficulty — we follow the DB shape.
 // ═══════════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { GlowButton } from '@/components/ui/GlowButton';
+import { FilterPill } from '@/components/ui/FilterPill';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useCreateTrail } from '@/hooks/useBackend';
-import { tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
+import { notifySuccess, notifyWarning, tapMedium } from '@/systems/haptics';
+import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 type TrailType = 'downhill' | 'flow' | 'tech' | 'jump';
 
-interface DifficultyOption {
-  key: Difficulty;
-  label: string;
-  color: string;
-}
-interface TrailTypeOption {
-  key: TrailType;
-  label: string;
-  sub: string;
-  glyph: string;
-}
-
-const DIFFICULTY_OPTIONS: DifficultyOption[] = [
-  { key: 'easy',   label: 'EASY',   color: hudColors.diffEasy   },
-  { key: 'medium', label: 'MED',    color: hudColors.diffMedium },
-  { key: 'hard',   label: 'HARD',   color: hudColors.diffHard   },
-  { key: 'expert', label: 'EXP',    color: hudColors.diffExpert },
+const DIFFICULTY_OPTIONS: { key: Difficulty; label: string }[] = [
+  { key: 'easy', label: 'Easy' },
+  { key: 'medium', label: 'Średni' },
+  { key: 'hard', label: 'Trudny' },
+  { key: 'expert', label: 'Expert' },
 ];
 
-const TRAIL_TYPE_OPTIONS: TrailTypeOption[] = [
-  { key: 'downhill', label: 'DH',   sub: 'downhill', glyph: '▲' },
-  { key: 'flow',     label: 'FLOW', sub: 'flow',     glyph: '∿' },
-  { key: 'tech',     label: 'TECH', sub: 'tech',     glyph: '⚡' },
-  { key: 'jump',     label: 'JUMP', sub: 'jump',     glyph: '⇗' },
+const TRAIL_TYPE_OPTIONS: { key: TrailType; label: string }[] = [
+  { key: 'downhill', label: 'DH' },
+  { key: 'flow', label: 'Flow' },
+  { key: 'tech', label: 'Techniczny' },
+  { key: 'jump', label: 'Jump' },
 ];
 
 const NAME_MIN = 3;
 const NAME_MAX = 60;
 
-const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
-];
+type Step = 1 | 2 | 3;
 
-type Screen =
+type Submission =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'error'; message: string }
-  | { kind: 'success' };
+  | { kind: 'error'; message: string };
 
 export default function NewTrailScreen() {
   const { spotId: rawSpotId } = useLocalSearchParams<{ spotId?: string }>();
@@ -71,10 +69,11 @@ export default function NewTrailScreen() {
   const { isAuthenticated } = useAuthContext();
   const { submit } = useCreateTrail();
 
+  const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
-  const [trailType, setTrailType] = useState<TrailType>('flow');
-  const [screen, setScreen] = useState<Screen>({ kind: 'idle' });
+  const [trailType, setTrailType] = useState<TrailType | null>(null);
+  const [submission, setSubmission] = useState<Submission>({ kind: 'idle' });
   const [nameError, setNameError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,333 +90,359 @@ export default function NewTrailScreen() {
 
   const trimmed = name.trim();
   const nameValid = trimmed.length >= NAME_MIN && trimmed.length <= NAME_MAX;
-  const canSubmit = nameValid && difficulty !== null && screen.kind !== 'submitting';
+  const canAdvanceStep1 = nameValid && difficulty !== null && trailType !== null;
 
-  const handleSelectDifficulty = useCallback((key: Difficulty) => {
-    Haptics.selectionAsync();
-    setDifficulty(key);
-  }, []);
-
-  const handleSelectTrailType = useCallback((key: TrailType) => {
-    Haptics.selectionAsync();
-    setTrailType(key);
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    if (!canSubmit || !difficulty) return;
-
+  const handleStart = useCallback(async () => {
+    if (!canAdvanceStep1 || !difficulty || !trailType) return;
     tapMedium();
-    setScreen({ kind: 'submitting' });
+    setSubmission({ kind: 'submitting' });
     setNameError(null);
 
     const result = await submit({ spotId, name: trimmed, difficulty, trailType });
 
     if (result.ok) {
       notifySuccess();
-      setScreen({ kind: 'success' });
-      router.replace(`/trail/${result.data.trailId}`);
+      // Hand off to the existing pre-run flow. ?pioneer=1 tells
+      // active.tsx this is the first-rider case so the approach
+      // navigator + calibration rules apply.
+      router.replace({
+        pathname: '/run/active',
+        params: { trailId: result.data.trailId, pioneer: '1', trailName: trimmed },
+      });
       return;
     }
 
     notifyWarning();
     const message = result.message ?? 'Nie udało się utworzyć trasy';
 
-    if (result.code === 'duplicate_name_in_spot' ||
-        result.code === 'name_too_short' ||
-        result.code === 'name_too_long') {
+    if (
+      result.code === 'duplicate_name_in_spot' ||
+      result.code === 'name_too_short' ||
+      result.code === 'name_too_long'
+    ) {
       setNameError(message);
-      setScreen({ kind: 'idle' });
+      setSubmission({ kind: 'idle' });
+      setStep(1);
       return;
     }
     if (result.code === 'spot_not_active') {
       Alert.alert('Bike park nieaktywny', message, [
         { text: 'OK', onPress: () => router.back() },
       ]);
-      setScreen({ kind: 'idle' });
+      setSubmission({ kind: 'idle' });
       return;
     }
-    setScreen({ kind: 'error', message });
-  }, [canSubmit, difficulty, spotId, trimmed, trailType, submit, router]);
+    setSubmission({ kind: 'error', message });
+  }, [canAdvanceStep1, difficulty, trailType, spotId, trimmed, submit, router]);
 
   return (
-    <View style={styles.root}>
-      <LinearGradient
-        colors={TERRAIN_GRADIENT}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-      />
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Pressable onPress={() => router.back()} style={styles.back} hitSlop={16}>
-              <Text style={styles.backLabel}>← WRÓĆ</Text>
-            </Pressable>
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={16} accessibilityRole="button" accessibilityLabel="Wróć">
+            <Text style={styles.backLabel}>← Wróć</Text>
+          </Pressable>
+          <Text style={styles.title}>DODAJ TRASĘ</Text>
+          <StepDots step={step} />
+        </View>
 
-            <View style={styles.kickerRow}>
-              <Text style={styles.kickerGlyph}>⟣</Text>
-              <Text style={styles.kickerText}>TWORZYSZ NOWĄ TRASĘ</Text>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {submission.kind === 'submitting' ? (
+            <View style={styles.card}>
+              <ActivityIndicator color={chunk9Colors.accent.emerald} />
+              <Text style={styles.cardTitle}>Tworzę trasę…</Text>
             </View>
-            <Text style={styles.subtitle}>
-              Nazwij ją. Wybierz poziom.{'\n'}Zostań pierwszym Pionierem.
-            </Text>
-
-            {/* NAZWA section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>NAZWA</Text>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  if (nameError) setNameError(null);
-                }}
-                placeholder="np. Gałgan Niebieska"
-                placeholderTextColor={hudColors.textMuted}
-                maxLength={NAME_MAX}
-                autoFocus
-                editable={screen.kind !== 'submitting'}
+          ) : submission.kind === 'error' ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Nie udało się</Text>
+              <Text style={styles.cardBody}>{submission.message}</Text>
+              <GlowButton
+                label="Spróbuj ponownie"
+                variant="primary"
+                onPress={() => setSubmission({ kind: 'idle' })}
               />
-              <View style={styles.inputFooter}>
-                {nameError ? (
-                  <Text style={styles.inlineError} numberOfLines={2}>{nameError}</Text>
-                ) : (
-                  <Text style={styles.hint}>{trimmed.length}/{NAME_MAX}</Text>
-                )}
-              </View>
             </View>
+          ) : step === 1 ? (
+            <Step1
+              name={name}
+              onNameChange={(v) => { setName(v); if (nameError) setNameError(null); }}
+              nameError={nameError}
+              difficulty={difficulty}
+              onDifficulty={setDifficulty}
+              trailType={trailType}
+              onTrailType={setTrailType}
+            />
+          ) : step === 2 ? (
+            <Step2Educator name={trimmed} />
+          ) : (
+            <Step3Summary
+              name={trimmed}
+              difficulty={difficulty}
+              trailType={trailType}
+            />
+          )}
+        </ScrollView>
 
-            <View style={styles.separator} />
-
-            {/* TRUDNOŚĆ section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>TRUDNOŚĆ</Text>
-              <View style={styles.segmentRow}>
-                {DIFFICULTY_OPTIONS.map((opt) => {
-                  const selected = difficulty === opt.key;
-                  return (
-                    <Pressable
-                      key={opt.key}
-                      style={[
-                        styles.diffSegment,
-                        selected && {
-                          borderColor: opt.color,
-                          backgroundColor: `${opt.color}1A`,
-                        },
-                      ]}
-                      onPress={() => handleSelectDifficulty(opt.key)}
-                      disabled={screen.kind === 'submitting'}
-                    >
-                      <View style={[styles.diffDot, { backgroundColor: opt.color }]} />
-                      <Text
-                        style={[
-                          styles.diffLabel,
-                          { color: selected ? opt.color : hudColors.textMuted },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.separator} />
-
-            {/* TYP section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>TYP (OPCJONALNIE)</Text>
-              <View style={styles.segmentRow}>
-                {TRAIL_TYPE_OPTIONS.map((opt) => {
-                  const selected = trailType === opt.key;
-                  return (
-                    <Pressable
-                      key={opt.key}
-                      style={[
-                        styles.typeSegment,
-                        selected && styles.typeSegmentActive,
-                      ]}
-                      onPress={() => handleSelectTrailType(opt.key)}
-                      disabled={screen.kind === 'submitting'}
-                    >
-                      <Text
-                        style={[
-                          styles.typeGlyph,
-                          { color: selected ? hudColors.gpsStrong : hudColors.textMuted },
-                        ]}
-                      >
-                        {opt.glyph}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.typeLabel,
-                          { color: selected ? hudColors.timerPrimary : hudColors.textMuted },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                      <Text style={styles.typeSub}>{opt.sub}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {screen.kind === 'error' && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>{screen.message}</Text>
-              </View>
-            )}
-          </ScrollView>
-
+        {submission.kind === 'idle' ? (
           <View style={styles.footer}>
-            <Pressable
-              onPress={handleSubmit}
-              disabled={!canSubmit}
-              style={({ pressed }) => [
-                styles.submitCta,
-                !canSubmit && styles.submitCtaDisabled,
-                canSubmit && hudShadows.glowGreen,
-                pressed && { transform: [{ scale: 0.98 }] },
-              ]}
-            >
-              {screen.kind === 'submitting' ? (
-                <ActivityIndicator color={hudColors.terrainDark} />
-              ) : (
-                <Text style={styles.submitLabel}>ROZPOCZNIJ KALIBRACJĘ</Text>
-              )}
-            </Pressable>
+            {step === 1 ? (
+              <GlowButton
+                label="Dalej"
+                variant="primary"
+                disabled={!canAdvanceStep1}
+                onPress={() => setStep(2)}
+              />
+            ) : step === 2 ? (
+              <GlowButton label="Dalej" variant="primary" onPress={() => setStep(3)} />
+            ) : (
+              <GlowButton label="Zacznij zjazd" variant="primary" onPress={handleStart} />
+            )}
+            {step > 1 ? (
+              <Pressable onPress={() => setStep((s) => (s - 1) as Step)} hitSlop={8} style={styles.backStep}>
+                <Text style={styles.backStepLabel}>← Krok {step - 1}</Text>
+              </Pressable>
+            ) : null}
           </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+        ) : null}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function StepDots({ step }: { step: Step }) {
+  return (
+    <View style={styles.dots}>
+      {[1, 2, 3].map((n) => (
+        <View key={n} style={[styles.dot, n === step && styles.dotActive]} />
+      ))}
+    </View>
+  );
+}
+
+function Step1({
+  name,
+  onNameChange,
+  nameError,
+  difficulty,
+  onDifficulty,
+  trailType,
+  onTrailType,
+}: {
+  name: string;
+  onNameChange: (v: string) => void;
+  nameError: string | null;
+  difficulty: Difficulty | null;
+  onDifficulty: (d: Difficulty) => void;
+  trailType: TrailType | null;
+  onTrailType: (t: TrailType) => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.label}>NAZWA TRASY</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={onNameChange}
+        placeholder="np. Parkowa, Kopa DH"
+        placeholderTextColor={chunk9Colors.text.tertiary}
+        maxLength={NAME_MAX}
+        autoFocus
+      />
+      {nameError ? <Text style={styles.errorText}>{nameError}</Text> : (
+        <Text style={styles.hint}>{name.trim().length}/{NAME_MAX}</Text>
+      )}
+
+      <Text style={[styles.label, { marginTop: 20 }]}>POZIOM</Text>
+      <View style={styles.pills}>
+        {DIFFICULTY_OPTIONS.map((d) => (
+          <FilterPill key={d.key} label={d.label} active={d.key === difficulty} onPress={() => onDifficulty(d.key)} />
+        ))}
+      </View>
+
+      <Text style={[styles.label, { marginTop: 20 }]}>TYP TRASY</Text>
+      <View style={styles.pills}>
+        {TRAIL_TYPE_OPTIONS.map((t) => (
+          <FilterPill key={t.key} label={t.label} active={t.key === trailType} onPress={() => onTrailType(t.key)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Step2Educator({ name }: { name: string }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Pionierujesz.</Text>
+      <Text style={styles.educatorBody}>
+        Twój pierwszy zjazd zdefiniuje geometrię trasy{name ? ` «${name}»` : ''}.
+      </Text>
+      <Text style={styles.educatorBody}>
+        Kolejni riderzy będą ścigać się po twojej linii.
+      </Text>
+      <View style={styles.educatorList}>
+        <EducatorStep n={1} label="Telefon do kieszeni" />
+        <EducatorStep n={2} label="Zjedź raz" />
+        <EducatorStep n={3} label="Ranking gotowy" />
+      </View>
+    </View>
+  );
+}
+
+function EducatorStep({ n, label }: { n: number; label: string }) {
+  return (
+    <View style={styles.educatorStep}>
+      <Text style={styles.educatorStepIndex}>{n}</Text>
+      <Text style={styles.educatorStepLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function Step3Summary({
+  name,
+  difficulty,
+  trailType,
+}: {
+  name: string;
+  difficulty: Difficulty | null;
+  trailType: TrailType | null;
+}) {
+  const difficultyLabel = DIFFICULTY_OPTIONS.find((d) => d.key === difficulty)?.label ?? '';
+  const typeLabel = TRAIL_TYPE_OPTIONS.find((t) => t.key === trailType)?.label ?? '';
+  return (
+    <View style={styles.card}>
+      <Text style={styles.label}>NAZWA</Text>
+      <Text style={styles.value}>{name}</Text>
+      <Text style={[styles.label, { marginTop: 16 }]}>POZIOM · TYP</Text>
+      <Text style={styles.value}>{difficultyLabel} · {typeLabel}</Text>
+      <Text style={[styles.label, { marginTop: 20 }]}>CO SIĘ TERAZ STANIE</Text>
+      <Text style={styles.cardBody}>
+        Aktywuję GPS i ekran zjazdu. Po przejechaniu trasa zostanie zapisana
+        jako «W walidacji». Drugi rider ją potwierdzi.
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
-  safe: { flex: 1 },
-  scroll: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xxl },
-
-  back: { alignSelf: 'flex-start', marginBottom: spacing.lg },
-  backLabel: { ...hudTypography.labelSmall, color: hudColors.textMuted, letterSpacing: 3 },
-
-  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-  kickerGlyph: { color: hudColors.gpsStrong, fontSize: 16 },
-  kickerText: { ...hudTypography.label, color: hudColors.gpsStrong, fontSize: 12 },
-
-  subtitle: {
-    color: hudColors.textMuted,
+  root: { flex: 1, backgroundColor: chunk9Colors.bg.base },
+  header: {
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingVertical: chunk9Spacing.sectionVertical,
+    gap: 12,
+  },
+  title: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+  },
+  backLabel: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+  },
+  dots: { flexDirection: 'row', gap: 6 },
+  dot: {
+    width: 18,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: chunk9Colors.bg.hairline,
+  },
+  dotActive: { backgroundColor: chunk9Colors.accent.emerald },
+  scroll: {
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  card: {
+    backgroundColor: chunk9Colors.bg.surface,
+    borderRadius: chunk9Radii.card,
+    padding: chunk9Spacing.cardPadding,
+    gap: 8,
+  },
+  cardTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+  },
+  cardBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+  },
+  label: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.text.secondary,
+    marginBottom: 6,
+  },
+  value: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.primary,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  input: {
+    backgroundColor: chunk9Colors.bg.base,
+    borderRadius: chunk9Radii.button,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: chunk9Colors.text.primary,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    ...chunk9Typography.body13,
+    fontSize: 16,
+  },
+  hint: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.tertiary,
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+  errorText: {
+    ...chunk9Typography.body13,
+    color: '#FF4D6D',
+    marginTop: 4,
+  },
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  educatorBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.primary,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: spacing.xl,
   },
-
-  section: { paddingVertical: spacing.md },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(232, 255, 240, 0.08)',
-    marginVertical: spacing.xs,
+  educatorList: {
+    marginTop: 12,
+    gap: 10,
   },
-  sectionLabel: {
-    ...hudTypography.label,
-    color: hudColors.textMuted,
-    marginBottom: spacing.sm,
-    fontSize: 10,
-  },
-
-  input: {
-    backgroundColor: 'rgba(232, 255, 240, 0.04)',
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 255, 240, 0.12)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    color: hudColors.timerPrimary,
-    ...hudTypography.input,
-  },
-  inputFooter: { marginTop: spacing.xs, minHeight: 18, alignItems: 'flex-end' },
-  hint: { color: hudColors.textMuted, fontSize: 11, letterSpacing: 1 },
-  inlineError: { color: hudColors.gpsWeak, fontSize: 12, alignSelf: 'flex-start' },
-
-  segmentRow: { flexDirection: 'row', gap: spacing.xs },
-
-  // Difficulty pills
-  diffSegment: {
-    flex: 1,
-    minHeight: 52,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: 'rgba(232, 255, 240, 0.1)',
-    backgroundColor: 'rgba(232, 255, 240, 0.02)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  educatorStep: {
     flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  diffDot: { width: 8, height: 8, borderRadius: 4 },
-  diffLabel: { ...hudTypography.label, fontSize: 12, letterSpacing: 2 },
-
-  // Trail type chips
-  typeSegment: {
-    flex: 1,
-    minHeight: 72,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: 'rgba(232, 255, 240, 0.1)',
-    backgroundColor: 'rgba(232, 255, 240, 0.02)',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 12,
   },
-  typeSegmentActive: {
-    borderColor: hudColors.gpsStrong,
-    backgroundColor: 'rgba(0, 255, 140, 0.08)',
+  educatorStepIndex: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.accent.emerald,
+    width: 28,
+    textAlign: 'center',
   },
-  // No explicit fontFamily — system font has wider symbolic-glyph
-  // coverage (our display fonts lack glyphs like ⚙ / ∿).
-  typeGlyph: { fontSize: 22, marginBottom: 2 },
-  typeLabel: { ...hudTypography.label, fontSize: 11, letterSpacing: 1.5 },
-  typeSub: { color: hudColors.textMuted, fontSize: 8, letterSpacing: 1, marginTop: 1 },
-
-  errorBanner: {
-    backgroundColor: hudColors.actionDangerBg,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: hudColors.gpsWeak,
-    marginTop: spacing.md,
+  educatorStepLabel: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.primary,
+    fontSize: 15,
   },
-  errorBannerText: { color: hudColors.gpsWeak, fontSize: 13, lineHeight: 18 },
-
   footer: {
-    padding: spacing.xl,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(232, 255, 240, 0.08)',
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingVertical: 16,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.base,
   },
-  submitCta: {
-    backgroundColor: hudColors.actionPrimary,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    minHeight: 64,
-    justifyContent: 'center',
+  backStep: {
+    alignSelf: 'center',
+    paddingVertical: 4,
   },
-  submitCtaDisabled: { opacity: 0.3 },
-  submitLabel: {
-    ...hudTypography.action,
-    fontSize: 16,
-    color: hudColors.terrainDark,
-    letterSpacing: 3,
+  backStepLabel: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
   },
 });
