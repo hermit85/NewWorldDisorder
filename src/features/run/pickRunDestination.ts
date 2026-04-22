@@ -18,6 +18,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import type { Href } from 'expo-router';
+import { logDebugEvent } from '@/systems/debugEvents';
 
 /**
  * The fields we need from a Trail row to decide the route.
@@ -39,7 +40,57 @@ export interface RunDestinationInput {
   geometryMissing?: boolean;
 }
 
+/**
+ * Every calibration_status value the client currently understands.
+ * Extend this list at the same time you extend the DB enum so the
+ * guard below trips on an explicit code change, not a silent
+ * production surprise.
+ */
+const KNOWN_CALIBRATION_STATUSES = [
+  'draft',
+  'calibrating',
+  'verified',
+  'locked',
+] as const;
+
+function isKnownCalibrationStatus(value: string): boolean {
+  return (KNOWN_CALIBRATION_STATUSES as readonly string[]).includes(value);
+}
+
 export function pickRunDestination(input: RunDestinationInput): Href {
+  // Defense-in-depth: a future DB migration adding a new
+  // calibration_status value must not silently fall through to
+  // /run/active, because that screen builds a gate config from
+  // Pioneer geometry and crashes on null. Route to /run/recording
+  // instead (the safe seed path — worst case it re-seeds geometry
+  // which the server can reject, versus a hard crash on active)
+  // and tag the navigation payload with recovery='1' so a future
+  // Sentry breadcrumb (S1.3) can tell this was a fallback, not a
+  // normal Pioneer start.
+  if (!isKnownCalibrationStatus(input.calibrationStatus)) {
+    logDebugEvent('nav', 'pickRunDestination:unknown_status', 'warn', {
+      trailId: input.trailId,
+      payload: {
+        received: input.calibrationStatus,
+        known: KNOWN_CALIBRATION_STATUSES,
+        spotId: input.spotId,
+      },
+    });
+    console.warn(
+      `[pickRunDestination] Unknown calibration_status: "${input.calibrationStatus}". ` +
+        'Falling back to /run/recording (safe seed path).',
+    );
+    return {
+      pathname: '/run/recording',
+      params: {
+        trailId: input.trailId,
+        spotId: input.spotId,
+        trailName: input.trailName,
+        recovery: '1',
+      },
+    };
+  }
+
   const isDraft =
     input.calibrationStatus === 'draft' || input.geometryMissing === true;
 
