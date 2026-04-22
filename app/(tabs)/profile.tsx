@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -35,7 +35,24 @@ export default function ProfileScreen() {
   const { achievements } = useAchievements(authProfile?.id);
   const [avatarLoading, setAvatarLoading] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
   const rank = user ? getRank(user.rankId) : getRank('rookie');
+
+  // Pull-to-refresh (handoff Track C-F). Fires triggerRefresh so every
+  // hook subscribed via useRefreshSignal re-reads the backend:
+  // useProfile, useAchievements, useActiveSpots, etc. Covers the case
+  // where delete_spot_cascade ran elsewhere and the RIDER tab still
+  // shows cached totals/activity.
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      triggerRefresh();
+      // Small delay so the spinner is visible even on fast reloads.
+      await new Promise((r) => setTimeout(r, 300));
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -110,7 +127,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
+        }
+      >
         {/* Sign in prompt */}
         {!isAuthenticated ? (
           <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
