@@ -12,6 +12,7 @@ import { copy } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
+import { ActivityList } from '@/components/profile/ActivityList';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
@@ -210,6 +211,9 @@ export default function ProfileScreen() {
               <StatBox label={copy.personalBests} value={profileStatus === 'ok' ? String(user?.totalPbs ?? 0) : '—'} />
               <StatBox label={copy.bestPosition} value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'} />
             </View>
+
+            {/* Aktywność — handoff A6 moved run history here from the old ZJAZDY tab */}
+            <ActivityList />
 
             {/* Achievements — full catalog with locked/unlocked states */}
             <Text style={styles.sectionTitle}>

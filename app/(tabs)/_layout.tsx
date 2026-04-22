@@ -24,7 +24,7 @@ const TIMING = { duration: 200, easing: Easing.out(Easing.cubic) };
 
 const TAB_LABELS: Record<string, string> = {
   index: 'START',
-  history: 'ZJAZDY',
+  spots: 'SPOTY',
   leaderboard: 'TABLICA',
   profile: 'RIDER',
 };
@@ -126,7 +126,7 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="history" />
+      <Tabs.Screen name="spots" />
       <Tabs.Screen name="leaderboard" />
       <Tabs.Screen name="profile" />
     </Tabs>
