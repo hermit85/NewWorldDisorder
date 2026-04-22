@@ -5,8 +5,6 @@ import { formatTimeShort } from '@/content/copy';
 import type { BikeParkTrailCardData } from '@/lib/api';
 import { formatRelativeTimestamp } from '@/lib/api';
 import { GlowButton } from '@/components/ui/GlowButton';
-import { SegmentLine } from '@/components/ui/SegmentLine';
-import { StatCell } from '@/components/ui/StatCell';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 type TrailCardProps = BikeParkTrailCardData & {
@@ -33,10 +31,6 @@ function formatRankLabel(position?: number): string {
   return position ? `#${position}` : '—';
 }
 
-function formatActiveRidersLabel(count: number): string {
-  return `${count}`;
-}
-
 export const TrailCard = memo(function TrailCard({
   trail,
   state,
@@ -56,10 +50,15 @@ export const TrailCard = memo(function TrailCard({
       : userData.lastRanAt
         ? `${formatRelativeTimestamp(userData.lastRanAt)} temu`
         : 'Jeszcze nie jechałeś';
+  // B4: collapse the 3-cell stat grid (PB / TOP / W MIESIĄCU) into a
+  // single inline meta row so the card answers "can I ride this?" at
+  // a glance. PB + position sit next to difficulty/type; full stats
+  // still available on trail detail.
   const metaParts = [
     formatDifficultyLabel(trail.difficulty),
     formatTrailTypeLabel(trail.type),
-    trail.distanceM > 0 ? `${Math.round(trail.distanceM)}m` : null,
+    userData.pbMs ? `PB ${formatTimeShort(userData.pbMs)}` : null,
+    userData.position ? formatRankLabel(userData.position) : null,
   ].filter(Boolean);
 
   const handleCardPress = useCallback(() => {
@@ -109,30 +108,8 @@ export const TrailCard = memo(function TrailCard({
       {isBeaten && userData.beatenBy ? (
         <Text style={styles.beatenCopy}>
           {userData.beatenBy.name} cię pobił · {formatRelativeTimestamp(userData.beatenBy.happenedAt)}
-        </Text>
-      ) : null}
-
-      <SegmentLine />
-
-      <View style={styles.statsRow}>
-        <StatCell
-          label="PB"
-          value={userData.pbMs ? formatTimeShort(userData.pbMs) : '—'}
-        />
-        <StatCell
-          label="TOP"
-          value={formatRankLabel(userData.position)}
-        />
-        <StatCell
-          label="W MIESIĄCU"
-          value={formatActiveRidersLabel(trail.activeRidersCount)}
-          accent={isBeaten}
-        />
-      </View>
-
-      {isBeaten && userData.beatenBy ? (
-        <Text style={styles.deltaText}>
-          DELTA · -{(userData.beatenBy.deltaMs / 1000).toFixed(1)}s
+          {'  ·  -'}
+          {(userData.beatenBy.deltaMs / 1000).toFixed(1)}s
         </Text>
       ) : null}
 
@@ -218,14 +195,6 @@ const styles = StyleSheet.create({
   },
   beatenCopy: {
     ...chunk9Typography.body13,
-    color: chunk9Colors.accent.emerald,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: chunk9Spacing.cardChildGap,
-  },
-  deltaText: {
-    ...chunk9Typography.label13,
     color: chunk9Colors.accent.emerald,
   },
   footerRow: {
