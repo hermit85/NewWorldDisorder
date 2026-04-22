@@ -243,24 +243,35 @@ export default function SpotScreen() {
         ) : null}
 
         {trails.length > 0 ? (
-          <View style={styles.listBlock}>
-            {filteredTrails.map((trail) => (
-              <TrailCard
-                key={trail.trail.id}
-                {...trail}
-                onPress={() => router.push(`/trail/${trail.trail.id}`)}
-                onCtaPress={() =>
-                  router.push({
-                    pathname: '/run/active',
-                    params: {
-                      trailId: trail.trail.id,
-                      trailName: trail.trail.name,
-                    },
-                  })
-                }
-              />
-            ))}
-          </View>
+          <>
+            <View style={styles.listBlock}>
+              {filteredTrails.map((trail) => (
+                <TrailCard
+                  key={trail.trail.id}
+                  {...trail}
+                  onPress={() => router.push(`/trail/${trail.trail.id}`)}
+                  onCtaPress={() =>
+                    router.push({
+                      pathname: '/run/active',
+                      params: {
+                        trailId: trail.trail.id,
+                        trailName: trail.trail.name,
+                      },
+                    })
+                  }
+                />
+              ))}
+            </View>
+
+            {/* Secondary "+ Dodaj trasę" only shows when trails already exist.
+                Pioneer empty state uses its own primary CTA inside the empty card
+                — rendering two add-trail CTAs was confusing in review. */}
+            <GlowButton
+              label="+ Dodaj trasę"
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+              variant="secondary"
+            />
+          </>
         ) : (
           <View style={styles.emptyState}>
             <Brackets color="dim" />
@@ -288,12 +299,6 @@ export default function SpotScreen() {
             </View>
           </View>
         )}
-
-        <GlowButton
-          label="+ Dodaj trasę"
-          onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-          variant="secondary"
-        />
 
         {isCurator ? (
           <Pressable onPress={handleDeleteSpot} style={styles.deleteLink}>
