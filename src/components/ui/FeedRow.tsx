@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   containerPressed: {
     opacity: 0.86,

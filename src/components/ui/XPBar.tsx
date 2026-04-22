@@ -50,7 +50,7 @@ export const XPBar = memo(function XPBar({
 const styles = StyleSheet.create({
   container: {
     minWidth: 126,
-    gap: 6,
+    gap: 8,
   },
   containerCompact: {
     minWidth: 112,

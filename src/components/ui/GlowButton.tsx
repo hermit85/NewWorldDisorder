@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   },
   inlineLink: {
     alignSelf: 'flex-start',
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   inlineLinkPressed: {
     opacity: 0.75,

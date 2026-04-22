@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   container: {
     minHeight: 38,
     borderRadius: chunk9Radii.pill,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
