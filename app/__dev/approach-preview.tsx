@@ -63,9 +63,13 @@ const FIXTURES: Record<Variant, {
 export default function ApproachPreview() {
   if (!__DEV__) return null;
 
-  const params = useLocalSearchParams<{ state?: string }>();
+  const params = useLocalSearchParams<{ state?: string; variant?: string }>();
   const variant = (params.state ?? 'far') as Variant;
   const fixture = FIXTURES[variant] ?? FIXTURES.far;
+  // Chunk 10.1 B2 — ?variant=production hides the dev telemetry so we
+  // can screenshot the simplified production layout. Default ('dev')
+  // keeps all readouts for debugging.
+  const approachVariant = params.variant === 'production' ? 'production' : 'dev';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -77,7 +81,7 @@ export default function ApproachPreview() {
         userVelocityMps={fixture.velocity}
         userHeading={fixture.heading}
         onBack={() => undefined}
-        variant="dev"
+        variant={approachVariant}
       />
     </SafeAreaView>
   );
