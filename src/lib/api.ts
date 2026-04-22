@@ -1665,11 +1665,23 @@ export async function submitSpot(params: {
   name: string;
   lat: number;
   lng: number;
+  /** Voivodeship slug — see src/data/voivodeships.ts. Optional for
+   *  backward-compat with the legacy lat/lng-only screen; the RPC
+   *  defaults to '' so omitting it stays valid. */
+  region?: string;
+  /** Short description (max 280) shown on spot detail. */
+  description?: string;
 }): Promise<ApiResult<{ spotId: string }>> {
+  // submit_spot was extended in migration chunk_10_1_extend_submit_spot_
+  // region_description to a 5-arg signature with DEFAULT '' for the
+  // two new params; pass empty strings rather than undefined so the
+  // Supabase client doesn't serialise them as JSON null.
   const { data, error } = await db().rpc('submit_spot', {
     p_name: params.name,
     p_lat: params.lat,
     p_lng: params.lng,
+    p_region: params.region ?? '',
+    p_description: params.description ?? '',
   });
 
   if (error) {
