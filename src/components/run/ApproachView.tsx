@@ -32,11 +32,17 @@ export interface ApproachViewProps {
   state: ApproachState;
   /** Raw user accuracy in meters (for footer strength badge). */
   userAccuracyM: number;
-  /** Raw user speed in m/s (for footer telemetry). */
+  /** Raw user speed in m/s. Only rendered in 'dev' variant. */
   userVelocityMps: number;
-  /** Raw user heading [0,360) or null (for footer telemetry). */
+  /** Raw user heading [0,360) or null. Only rendered in 'dev' variant. */
   userHeading: number | null;
   onBack?: () => void;
+  /**
+   * 'production' (default) hides technical readouts per Chunk 10.1 B2 —
+   * the rider gets a single GPS-strength footer. 'dev' keeps the full
+   * telemetry for the screenshot preview route and future debug HUD.
+   */
+  variant?: 'production' | 'dev';
 }
 
 // ── GPS strength helper ──
@@ -123,10 +129,12 @@ function WrongSideContent({
   bearingExpected,
   headingActual,
   relativeArrowDeg,
+  showTelemetry,
 }: {
   bearingExpected: number;
   headingActual: number;
   relativeArrowDeg: number;
+  showTelemetry: boolean;
 }) {
   return (
     <View style={styles.stateCenter}>
@@ -135,9 +143,11 @@ function WrongSideContent({
       </View>
       <Text style={styles.wrongSideTitle}>OBRÓĆ SIĘ</Text>
       <Text style={styles.stateHint}>Rusz w kierunku trasy.</Text>
-      <Text style={styles.stateMeta}>
-        Zgodnie z trasą: {Math.round(bearingExpected)}° · Ty: {Math.round(headingActual)}°
-      </Text>
+      {showTelemetry ? (
+        <Text style={styles.stateMeta}>
+          Zgodnie z trasą: {Math.round(bearingExpected)}° · Ty: {Math.round(headingActual)}°
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -163,7 +173,9 @@ export const ApproachView = memo(function ApproachView({
   userVelocityMps,
   userHeading,
   onBack,
+  variant = 'production',
 }: ApproachViewProps) {
+  const showTelemetry = variant === 'dev';
   // Haptic transitions — fire exactly once per state change into/out of
   // on_line_ready so the rider feels the "armed" moment and the "armed
   // lost" warning without constant vibration.
@@ -201,18 +213,18 @@ export const ApproachView = memo(function ApproachView({
 
   return (
     <View style={styles.root}>
-      {/* Header */}
+      {/* Header — B2: drop the TRENING badge. RANKING is the only
+          mode that signals "this counts" so only it earns pill chrome;
+          training mode is implicit from the absence of the badge. */}
       <View style={styles.header}>
         <Text style={styles.trailName} numberOfLines={1}>
           {trailName}
         </Text>
-        <View style={[styles.modeBadge, mode === 'ranked' && styles.modeBadgeRanked]}>
-          <Text
-            style={[styles.modeBadgeText, mode === 'ranked' && styles.modeBadgeTextRanked]}
-          >
-            {mode === 'ranked' ? 'RANKING' : 'TRENING'}
-          </Text>
-        </View>
+        {mode === 'ranked' ? (
+          <View style={[styles.modeBadge, styles.modeBadgeRanked]}>
+            <Text style={[styles.modeBadgeText, styles.modeBadgeTextRanked]}>RANKING</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* State-specific body */}
@@ -233,22 +245,27 @@ export const ApproachView = memo(function ApproachView({
             bearingExpected={state.bearingExpected}
             headingActual={state.headingActual}
             relativeArrowDeg={relativeArrowDeg}
+            showTelemetry={showTelemetry}
           />
         )}
         {state.kind === 'gps_unsure' && <GpsUnsureContent accuracyM={state.accuracyM} />}
       </View>
 
-      {/* Footer telemetry */}
+      {/* Footer — B2: production collapses to dots + accuracy only.
+          Spec v3 §2.2 closed with "●●● ±4M footer minimal". Velocity
+          + heading stay in the dev preview for diagnostic use. */}
       <View style={styles.footer}>
         <View style={styles.footerRow}>
           <Text style={styles.footerDots}>{strength.dots}</Text>
-          <Text style={styles.footerLabel}>GPS · {strength.label} · {formatAccuracy(userAccuracyM)}</Text>
+          <Text style={styles.footerLabel}>{formatAccuracy(userAccuracyM)}</Text>
         </View>
-        <View style={styles.footerRow}>
-          <Text style={styles.footerMeta}>
-            {formatVelocity(userVelocityMps)} · {formatBearing(userHeading)}
-          </Text>
-        </View>
+        {showTelemetry ? (
+          <View style={styles.footerRow}>
+            <Text style={styles.footerMeta}>
+              GPS · {strength.label} · {formatVelocity(userVelocityMps)} · {formatBearing(userHeading)}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Back button */}

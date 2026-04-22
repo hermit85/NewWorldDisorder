@@ -77,6 +77,7 @@ export default function ApproachPreview() {
         userVelocityMps={fixture.velocity}
         userHeading={fixture.heading}
         onBack={() => undefined}
+        variant="dev"
       />
     </SafeAreaView>
   );
