@@ -2051,6 +2051,20 @@ const SEED_RUN_ERRORS: Record<string, string> = {
 export async function finalizeSeedRun(
   params: SeedRunParams,
 ): Promise<ApiResult<SeedRunResult>> {
+  if (__DEV__) {
+    const pointCount = params.geometry?.points?.length ?? 0;
+    const totalDistanceM = (params.geometry as any)?.meta?.totalDistanceM;
+    console.log('[finalizeSeedRun] →', {
+      trailId:           params.trailId,
+      durationMs:        params.durationMs,
+      medianAccuracyM:   params.medianAccuracyM,
+      pointCount,
+      totalDistanceM,
+      qualityTier:       params.qualityTier,
+      verificationStatus: params.verificationStatus,
+    });
+  }
+
   const { data, error } = await db().rpc('finalize_seed_run', {
     p_trail_id:            params.trailId,
     p_geometry:            params.geometry as any,
@@ -2063,7 +2077,11 @@ export async function finalizeSeedRun(
     p_finished_at:         params.finishedAt.toISOString(),
   });
 
-  if (error) return polishError('rpc_failed', SEED_RUN_ERRORS);
+  if (error) {
+    if (__DEV__) console.log('[finalizeSeedRun] RPC transport error:', error);
+    return polishError('rpc_failed', SEED_RUN_ERRORS);
+  }
+  if (__DEV__) console.log('[finalizeSeedRun] ← server:', data);
   const res = data as any;
   if (res?.ok === true) {
     return {

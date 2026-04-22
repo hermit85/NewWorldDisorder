@@ -88,11 +88,11 @@ export const HeroCard = memo(function HeroCard(props: HeroCardProps) {
 
           <Text style={styles.title}>Dziś bez zmian.</Text>
           <Text style={styles.body}>
-            Nikt cię nie wyprzedził. Utrzymaj pozycję lub dodaj rywala - daj komuś link do apki.
+            Nikt cię nie wyprzedził. Utrzymaj pozycję lub zaproś rywala — daj komuś link do apki.
           </Text>
 
           <GlowButton
-            label="Zaproś rivala"
+            label="Zaproś rywala"
             onPress={props.onSecondary}
             variant="secondary"
           />

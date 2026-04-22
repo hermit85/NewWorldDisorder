@@ -34,7 +34,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useCreateTrail } from '@/hooks/useBackend';
+import { useCreateTrail, useSpot } from '@/hooks/useBackend';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
 import { notifySuccess, notifyWarning, tapMedium } from '@/systems/haptics';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
@@ -72,6 +72,7 @@ export default function NewTrailScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuthContext();
   const { submit } = useCreateTrail();
+  const { spot, status: spotStatus } = useSpot(spotId || null);
 
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState('');
@@ -89,8 +90,28 @@ export default function NewTrailScreen() {
       Alert.alert('Brak bike parku', 'Spróbuj ponownie z ekranu bike parku.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
+      return;
     }
-  }, [isAuthenticated, spotId, router]);
+    // Bike park doesn't exist in DB (deleted / bad deep-link) or is
+    // inactive (pending curator approval). In either case, creating a
+    // trail under it would fail server-side — stop the rider here with
+    // a clear message instead of letting them fill the whole form.
+    if (spotStatus === 'empty' || spotStatus === 'error') {
+      Alert.alert(
+        'Bike park nie dostępny',
+        'Ten bike park został usunięty albo jeszcze nie jest aktywny. Wybierz inny z listy.',
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)/spots') }],
+      );
+      return;
+    }
+    if (spotStatus === 'ok' && spot && spot.submissionStatus !== 'active') {
+      Alert.alert(
+        'Bike park czeka na akceptację',
+        'Zanim dodasz trasę, kurator musi zatwierdzić ten bike park.',
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
+    }
+  }, [isAuthenticated, spotId, spotStatus, spot, router]);
 
   const trimmed = name.trim();
   const nameValid = trimmed.length >= NAME_MIN && trimmed.length <= NAME_MAX;

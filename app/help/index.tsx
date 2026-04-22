@@ -63,12 +63,16 @@ export default function HelpScreen() {
         {/* Zasady */}
         <View style={styles.rulesCard}>
           <Text style={styles.rulesTitle}>ZASADY</Text>
-          <RuleRow icon="🏁" text="Startuj z bramki" />
-          <RuleRow icon="📍" text="Trzymaj się trasy" />
-          <RuleRow icon="✓" text="Przejedź checkpointy" />
-          <RuleRow icon="🎯" text="Finiszuj na bramce mety" />
-          <RuleRow icon="📶" text="Utrzymuj silny GPS" />
-          <RuleRow icon="🏆" text="Tylko zweryfikowane zjazdy wchodzą na tablicę" />
+          {/* Uniform bullets: mixed emoji icons rendered as tofu/placeholder
+              for 5 of 6 rows on iOS, only ✓ showed. Switching to a single
+              glyph removes the rendering lottery and the "this rule is
+              checked-off" semantic that ✓ accidentally implied. */}
+          <RuleRow icon="●" text="Startuj z bramki" />
+          <RuleRow icon="●" text="Trzymaj się trasy" />
+          <RuleRow icon="●" text="Przejedź checkpointy" />
+          <RuleRow icon="●" text="Finiszuj na bramce mety" />
+          <RuleRow icon="●" text="Utrzymuj silny GPS" />
+          <RuleRow icon="●" text="Tylko zweryfikowane zjazdy wchodzą na tablicę" />
         </View>
 
         {/* FAQ */}

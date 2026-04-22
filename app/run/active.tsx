@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, AppState } from 'react-native';
+import { View, Text, StyleSheet, Pressable, AppState, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -33,8 +33,30 @@ export default function ActiveRunScreen() {
   // the registry is empty after Checkpoint B — so venueMatch is null
   // in the common case. We fall back to DB for the parent spot id.
   const venueMatch = getVenueForTrail(trailId);
-  const { trail: dbTrail } = useTrail(trailId || null);
+  const { trail: dbTrail, status: trailStatus } = useTrail(trailId || null);
   const spotId = venueMatch?.venueId ?? dbTrail?.spotId ?? '';
+
+  // Guard: deep-linked trailId points at a trail that doesn't exist in
+  // DB (deleted, bad link, legacy id). Without this, the screen happily
+  // mounts as "UNKNOWN TRAIL" with a live 00.00 timer and no way to tell
+  // the rider why the race isn't starting.
+  const guardedRef = useRef(false);
+  useEffect(() => {
+    if (guardedRef.current) return;
+    if (!trailId) {
+      guardedRef.current = true;
+      router.replace('/');
+      return;
+    }
+    if (!venueMatch && trailStatus === 'empty') {
+      guardedRef.current = true;
+      Alert.alert(
+        'Trasa nie istnieje',
+        'Ta trasa została usunięta lub nie masz do niej dostępu.',
+        [{ text: 'Wróć', onPress: () => router.replace('/') }],
+      );
+    }
+  }, [trailId, trailStatus, venueMatch, router]);
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
 
   // Rehydrate trail geo from Pioneer geometry (Sprint 3 Chunk 6).

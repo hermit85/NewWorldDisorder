@@ -31,6 +31,35 @@ export const PIONEER_VALIDATORS = {
   ACCURACY_START_END_MAX_M: 18,
 } as const;
 
+/** Curator seed thresholds. Curators take responsibility for
+ *  trail quality (ADR-002) and can `recalibrate_trail` — so they
+ *  seed with a looser bar. Walk-test unlock: hermit_nwd paces
+ *  out a short loop pod biurem and confirms the flow.
+ *
+ *  Kept modest so curators cannot persist indoor GPS noise as
+ *  canonical geometry: 50 m accuracy is still recognisably "on
+ *  the street" (not inside a building), 20 m minimum distance
+ *  excludes "pressed start by accident" submissions.
+ *
+ *  Must stay in lock-step with supabase migration
+ *  `20260422210000_curator_relaxed_pioneer_thresholds.sql`. */
+export const PIONEER_CURATOR_VALIDATORS = {
+  MIN_DURATION_MS: 5_000,
+  MIN_DISTANCE_M: 20,
+  MIN_POINTS: 5,
+  ACCURACY_AVG_MAX_M: 50,
+  ACCURACY_START_END_MAX_M: 50,
+} as const;
+
+/** Role vocabulary mirrored from migration 006 CHECK constraint. */
+export type SeedRole = 'rider' | 'curator' | 'moderator';
+
+export function pickPioneerThresholds(role: SeedRole | null | undefined) {
+  return role === 'curator' || role === 'moderator'
+    ? PIONEER_CURATOR_VALIDATORS
+    : PIONEER_VALIDATORS;
+}
+
 /** Rider-run thresholds. Riders trust the Pioneer's geometry for
  *  corridor + gates, so duration / distance floors are looser —
  *  the gate engine already catches shortcuts + skips. These
@@ -122,9 +151,15 @@ function formatAccuracy(m: number): string {
 /** Run the Pioneer-flow thresholds against a finalized recording.
  *  Returns `{ ok: true }` if every gate passes; otherwise the
  *  first failure with code + Polish message + observed/required
- *  numbers for UI rendering. */
-export function validatePioneerRun(run: RunValidationInput): ValidationResult {
-  const T = PIONEER_VALIDATORS;
+ *  numbers for UI rendering. `role` selects between the strict
+ *  rider seed bar (default) and the curator/moderator relaxed
+ *  bar — the caller should pass the viewing user's profile role.
+ *  Null or unknown roles fall through to the strict bar. */
+export function validatePioneerRun(
+  run: RunValidationInput,
+  role?: SeedRole | null,
+): ValidationResult {
+  const T = pickPioneerThresholds(role);
 
   if (run.durationMs < T.MIN_DURATION_MS) {
     return {

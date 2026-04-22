@@ -30,6 +30,7 @@ import * as recordingStore from '@/features/recording/recordingStore';
 import * as api from '@/lib/api';
 import type { PioneerGeometry, PioneerRunPayload } from '@/lib/api';
 import { useTrail } from '@/hooks/useBackend';
+import { useAuthContext } from '@/hooks/AuthContext';
 import {
   tapMedium, tapLight, notifySuccess, notifyWarning,
 } from '@/systems/haptics';
@@ -125,6 +126,7 @@ export default function ReviewScreen() {
   const spotId = rawSpotId ?? '';
   const router = useRouter();
   const { trail } = useTrail(trailId || null);
+  const { profile } = useAuthContext();
 
   const [viewState, setViewState] = useState<ViewState>({ kind: 'loading' });
   const [points, setPoints] = useState<BufferedPoint[]>([]);
@@ -215,15 +217,18 @@ export default function ReviewScreen() {
     if (!geometry || points.length === 0) return null;
     const first = points[0];
     const last = points[points.length - 1];
-    return validatePioneerRun({
-      durationMs: Math.round(geometry.meta.durationS * 1000),
-      distanceM: geometry.meta.totalDistanceM,
-      pointCount: points.length,
-      accuracyAvg: geometry.meta.medianAccuracyM,
-      accuracyStart: first.accuracy ?? Infinity,
-      accuracyEnd: last.accuracy ?? Infinity,
-    });
-  }, [geometry, points]);
+    return validatePioneerRun(
+      {
+        durationMs: Math.round(geometry.meta.durationS * 1000),
+        distanceM: geometry.meta.totalDistanceM,
+        pointCount: points.length,
+        accuracyAvg: geometry.meta.medianAccuracyM,
+        accuracyStart: first.accuracy ?? Infinity,
+        accuracyEnd: last.accuracy ?? Infinity,
+      },
+      profile?.role,
+    );
+  }, [geometry, points, profile?.role]);
 
   const polylinePoints = useMemo(() => buildPolylinePoints(points), [points]);
 

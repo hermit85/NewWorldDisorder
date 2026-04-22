@@ -23,6 +23,7 @@ import { typography, fonts } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { requestLocationPermission } from '@/systems/gps';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
+import { useAuthContext } from '@/hooks/AuthContext';
 import { selectionTick, notifySuccess, tapLight } from '@/systems/haptics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -235,7 +236,17 @@ function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPre
 export default function OnboardingScreen() {
   const router = useRouter();
   const { completeSlidesOnly, completeOnboarding } = useBetaFlow();
+  const { isAuthenticated } = useAuthContext();
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Guard: an authed rider landing here via deep link (/onboarding from
+  // a share / QR / back stack quirk) should never be forced through the
+  // intro flow again. Replace to home immediately.
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, router]);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
