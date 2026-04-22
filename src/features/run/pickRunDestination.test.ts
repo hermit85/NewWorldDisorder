@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { pickRunDestination } from './pickRunDestination';
+import { setDebugEnabled, logDebugEvent } from '@/systems/debugEvents';
 
 const BASE = {
   trailId: 'trail-uuid',
@@ -69,4 +70,90 @@ describe('pickRunDestination', () => {
     expect(paramKeys).not.toContain('pioneer');
     expect(paramKeys).not.toContain('trailName');
   });
+
+  describe('unknown calibration_status guard (S1.1.2)', () => {
+    // setDebugEnabled(true) because __DEV__ is false under jest's node
+    // env, so logDebugEvent would otherwise early-return without ever
+    // calling into its internals. Spying on the exported function
+    // catches the call regardless of the gate.
+    let spy: jest.SpyInstance;
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      setDebugEnabled(true);
+      spy = jest.spyOn(
+        require('@/systems/debugEvents'),
+        'logDebugEvent',
+      );
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      spy.mockRestore();
+      warnSpy.mockRestore();
+      setDebugEnabled(false);
+    });
+
+    it('falls back to /run/recording with recovery=1 param', () => {
+      const href = pickRunDestination({
+        ...BASE,
+        calibrationStatus: 'future_status_xyz' as unknown as string,
+      });
+
+      expect(href).toEqual({
+        pathname: '/run/recording',
+        params: {
+          trailId: 'trail-uuid',
+          spotId: 'spot-uuid',
+          trailName: 'Parkowa',
+          recovery: '1',
+        },
+      });
+    });
+
+    it('emits a nav:pickRunDestination:unknown_status debug event with context', () => {
+      pickRunDestination({
+        ...BASE,
+        calibrationStatus: 'future_status_xyz' as unknown as string,
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'nav',
+        'pickRunDestination:unknown_status',
+        'warn',
+        expect.objectContaining({
+          trailId: 'trail-uuid',
+          payload: expect.objectContaining({
+            received: 'future_status_xyz',
+            spotId: 'spot-uuid',
+          }),
+        }),
+      );
+    });
+
+    it('logs a console.warn mentioning the unknown status', () => {
+      pickRunDestination({
+        ...BASE,
+        calibrationStatus: 'future_status_xyz' as unknown as string,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('future_status_xyz'),
+      );
+    });
+
+    it('does not trip the guard on known statuses (draft/calibrating/verified/locked)', () => {
+      for (const status of ['draft', 'calibrating', 'verified', 'locked']) {
+        pickRunDestination({ ...BASE, calibrationStatus: status });
+      }
+      expect(spy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+  });
 });
+
+// Silence unused-import warning — we import logDebugEvent purely so
+// the test file's type dependency stays honest even if jest.spyOn
+// goes through require(). Keeping the named import also makes the
+// dead import lint rule catch any future divergence.
+void logDebugEvent;
