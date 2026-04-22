@@ -15,7 +15,8 @@
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import { GpsHealthTracker } from '@/features/run/gpsHealthTracker';
 import {
   GpsPoint,
   requestLocationPermission,
@@ -153,6 +154,19 @@ export function useRealRun(
 
   const gateEngine = useRunGateEngine(gateConfig, gateCallbacks);
 
+  // ── GPS health tracker (Chunk 10 §3.3) ──
+  // Re-created fresh for each run via reset() when beginReadinessCheck
+  // fires. AppState + sample feed runs alongside the existing tracking
+  // callback; summary is attached to verification at finalization time.
+  const gpsHealthRef = useRef<GpsHealthTracker>(new GpsHealthTracker());
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      gpsHealthRef.current.setAppState(next === 'active' ? 'active' : 'background');
+    });
+    return () => sub.remove();
+  }, []);
+
   // ── Lifecycle guards ──
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const trackingActiveRef = useRef(false);
@@ -184,6 +198,14 @@ export function useRealRun(
 
   const beginReadinessCheck = useCallback(async () => {
     logDebugEvent('run', 'readiness_check_start', 'start', { trailId });
+
+    // Chunk 10: fresh GPS health window starts at readiness_check entry —
+    // that is the "JEDŹ RANKINGOWO tap" moment per spec v3 §3.3.
+    gpsHealthRef.current.reset();
+    gpsHealthRef.current.start();
+    gpsHealthRef.current.setAppState(
+      AppState.currentState === 'active' ? 'active' : 'background',
+    );
 
     if (isWeb) {
       const mockGps: GpsState = { readiness: 'good', accuracy: 4, satellites: 12, label: 'GPS Good' };
@@ -248,6 +270,7 @@ export function useRealRun(
       );
 
       gateEngine.processPoint(point, isRunningRanked, isArmedRanked, hasPassedFirstCheckpoint);
+      gpsHealthRef.current.onSample(point);
 
       safeSetState((s) => {
         // During run: add points and update checkpoint truth.
@@ -356,6 +379,7 @@ export function useRealRun(
 
   const armRun = useCallback((mode: RunMode) => {
     logDebugEvent('run', 'armed', 'info', { trailId, payload: { mode } });
+    gpsHealthRef.current.markArmed();
     safeSetState((s) => ({
       ...s,
       mode,
@@ -536,6 +560,11 @@ export function useRealRun(
         gateFinishCrossing: gateState.finishCrossing,
         assessQuality: gateEngine.assessQuality.bind(gateEngine),
       });
+
+      // Chunk 10 §3.3: attach GPS health summary so runs.verification_summary
+      // carries the signal-quality fields that run_kpi_daily +
+      // verified_pass_rate_weekly materialize into dashboards.
+      verification.gpsHealth = gpsHealthRef.current.summary();
 
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
