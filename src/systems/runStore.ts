@@ -182,6 +182,35 @@ export function getPendingSaveCount(): number {
   ).length;
 }
 
+/**
+ * Drop locally-cached runs whose DB row no longer exists (e.g. after
+ * `delete_spot_cascade` purged the parent spot). Only considers runs
+ * with `saveStatus === 'saved'` — anything still queued/failed/offline
+ * is local-only and must survive because the server hasn't seen it yet.
+ *
+ * Caller is responsible for only invoking this with a trusted live-set
+ * (i.e. the DB fetch that built it MUST have succeeded). Never purge on
+ * a network error; an empty/stale set would wipe the user's history.
+ */
+export function purgeOrphanedRuns(liveDbRunIds: Set<string>): number {
+  let removed = 0;
+  for (const [sessionId, run] of _runCache.entries()) {
+    if (run.saveStatus !== 'saved') continue;
+    const dbId = run.backendResult?.run?.id;
+    if (!dbId) continue;
+    if (!liveDbRunIds.has(dbId)) {
+      _runCache.delete(sessionId);
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    console.log(`[NWD] purgeOrphanedRuns: removed ${removed} orphan run(s) from local cache`);
+    notifyChangeListeners();
+    persistToStorage();
+  }
+  return removed;
+}
+
 /** Subscribe to changes — returns unsubscribe function */
 export function subscribeFinalizedRun(callback: () => void): () => void {
   _changeListeners.add(callback);
