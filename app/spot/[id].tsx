@@ -23,11 +23,38 @@ import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
 import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
+type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verified';
 
 function pickSpotStatusLabel(status: string | undefined): string {
   if (status === 'pending') return 'OCZEKUJE';
   if (status === 'rejected') return 'ODRZUCONY';
   return 'AKTYWNY';
+}
+
+/**
+ * Chunk 10 §4.2 spot display state matrix.
+ *
+ * Prior to this release the screen treated trails.length === 0 as the
+ * only "empty" case and rendered the Pioneer empty card. Walk-test v4
+ * caught the corollary bug: a spot with three calibrating trails
+ * (Pioneer ran but second rider has not confirmed yet) was NOT empty —
+ * the Chunk 9 rewrite showed the list, but the legacy EmptyMapPlaceholder
+ * still surfaced "Mapa trasy pojawi się po pierwszym zjeździe Pioniera"
+ * which is a lie when geometry already exists.
+ *
+ * The matrix drives three render branches: pioneer empty when truly
+ * zero trails, list + subtle banner when all trails are in validation,
+ * normal list in every other case.
+ */
+function computeSpotState(
+  trails: { calibrationStatus?: string }[],
+): SpotDisplayState {
+  if (trails.length === 0) return 'no_trails';
+  const verified = trails.filter((t) => t.calibrationStatus === 'verified').length;
+  const calibrating = trails.filter((t) => t.calibrationStatus === 'calibrating').length;
+  if (calibrating === trails.length) return 'all_calibrating';
+  if (verified === trails.length) return 'all_verified';
+  return 'mixed';
 }
 
 // Bike park is a detail route (no tab bar), but the bottom CTA "+ Dodaj trasę"
@@ -54,6 +81,8 @@ export default function SpotScreen() {
     if (best === null || pb < best) return pb;
     return best;
   }, null);
+
+  const spotDisplayState = computeSpotState(trails);
 
   const filteredTrails = trails.filter((trail) => {
     if (filter === 'all') return true;
@@ -242,8 +271,20 @@ export default function SpotScreen() {
           </ScrollView>
         ) : null}
 
-        {trails.length > 0 ? (
+        {spotDisplayState !== 'no_trails' ? (
           <>
+            {/* Chunk 10 §4.2: subtle banner when every trail is calibrating.
+                Trails exist but the leaderboard is frozen until a second
+                rider confirms each Pioneer geometry. Previously the screen
+                implied "no trails yet" which was a trust-breaking lie. */}
+            {spotDisplayState === 'all_calibrating' ? (
+              <View style={styles.validationBanner}>
+                <Text style={styles.validationBannerText}>
+                  Trasy w walidacji — drugi rider potwierdzi geometrię.
+                </Text>
+              </View>
+            ) : null}
+
             <View style={styles.listBlock}>
               {filteredTrails.map((trail) => (
                 <TrailCard
@@ -388,6 +429,19 @@ const styles = StyleSheet.create({
   },
   filtersRow: {
     gap: 10,
+  },
+  validationBanner: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
+  },
+  validationBannerText: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
   listBlock: {
     gap: 12,
