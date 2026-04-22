@@ -25,6 +25,8 @@ export const FilterPill = memo(function FilterPill({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={typeof count === 'number' ? `Filtr ${label}, ${count}` : `Filtr ${label}`}
+      accessibilityState={{ selected: active }}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.container,

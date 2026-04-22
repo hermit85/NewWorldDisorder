@@ -173,6 +173,12 @@ export default function HomeScreen() {
           </View>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isAuthenticated
+                ? `Profil: ${currentRank.name}, poziom ${level}`
+                : 'Zaloguj się'
+            }
             onPress={() => router.push(isAuthenticated ? '/(tabs)/profile' : '/auth')}
             style={styles.xpWrap}
           >
@@ -283,6 +289,8 @@ export default function HomeScreen() {
 
         {primarySpot ? (
           <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Otwórz bike park: ${primarySpot.name}`}
             onPress={() => router.push(`/spot/${primarySpot.id}`)}
             style={styles.primarySpotLink}
           >

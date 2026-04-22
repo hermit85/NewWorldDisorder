@@ -159,7 +159,12 @@ export default function SpotScreen() {
         }
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={handleGoBack} style={styles.backButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wróć"
+            onPress={handleGoBack}
+            style={styles.backButton}
+          >
             <Text style={styles.backLabel}>←</Text>
           </Pressable>
 
@@ -178,10 +183,16 @@ export default function SpotScreen() {
         </View>
 
         <View style={styles.actionsRow}>
-          <Pressable style={styles.actionButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pokaż mapę bike parku"
+            style={styles.actionButton}
+          >
             <Text style={styles.actionLabel}>MAPA</Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Otwórz ranking"
             style={styles.actionButton}
             onPress={() => {
               if (filteredTrails[0]) router.push(`/trail/${filteredTrails[0].trail.id}`);
@@ -189,7 +200,11 @@ export default function SpotScreen() {
           >
             <Text style={styles.actionLabel}>LEADERBOARD</Text>
           </Pressable>
-          <Pressable style={styles.actionButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Informacje o bike parku"
+            style={styles.actionButton}
+          >
             <Text style={styles.actionLabel}>INFO</Text>
           </Pressable>
         </View>
