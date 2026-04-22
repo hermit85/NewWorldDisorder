@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChallengeItem } from '@/components/ui/ChallengeItem';
 import { FeedRow } from '@/components/ui/FeedRow';
+import { GlowButton } from '@/components/ui/GlowButton';
 import { HeroCard } from '@/components/ui/HeroCard';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
@@ -65,6 +66,15 @@ export default function HomeScreen() {
     !profile &&
     !heroBeat;
 
+  // Spec v2 3.5: on fetch failure show honest error + retry.
+  // Only escalate to full-screen error when the core signal (profile) fails —
+  // secondary widgets (feed, challenges) degrade inline via their own hooks.
+  const isColdError = isAuthenticated && profileStatus === 'error' && !profile;
+
+  async function handleRetry() {
+    await Promise.all([refreshProfile(), refreshHeroBeat()]);
+  }
+
   const primarySpot = spots[0] ?? null;
   const currentXp = profile?.xp ?? 0;
   const currentRank = getRankForXp(currentXp);
@@ -116,6 +126,20 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isColdError) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <Text style={styles.errorTitle}>Tryb awaryjny</Text>
+          <Text style={styles.errorBody}>
+            Ranking nie dojechał. Sprawdź sieć i spróbuj jeszcze raz.
+          </Text>
+          <GlowButton label="Spróbuj ponownie" variant="secondary" onPress={handleRetry} />
         </View>
       </SafeAreaView>
     );
@@ -345,5 +369,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: chunk9Spacing.containerHorizontal,
     gap: chunk9Spacing.cardChildGap,
+  },
+  errorTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+    textAlign: 'center',
+  },
+  errorBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
 });

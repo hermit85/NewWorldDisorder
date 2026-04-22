@@ -111,6 +111,20 @@ export default function SpotScreen() {
     );
   }
 
+  if (spotStatus === 'error' && !spot) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <Text style={styles.errorTitle}>Bike park nie dojechał</Text>
+          <Text style={styles.errorBody}>
+            Sprawdź połączenie i spróbuj jeszcze raz.
+          </Text>
+          <GlowButton label="Spróbuj ponownie" variant="secondary" onPress={refreshSpot} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!spot) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -402,5 +416,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: chunk9Spacing.containerHorizontal,
     gap: chunk9Spacing.cardChildGap,
+  },
+  errorTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+    textAlign: 'center',
+  },
+  errorBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
 });
