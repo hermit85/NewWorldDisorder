@@ -8,7 +8,9 @@ import { spacing, radii } from '@/theme/spacing';
 import { formatTime } from '@/content/copy';
 import { useRealRun } from '@/systems/useRealRun';
 import { ReadinessPanel } from '@/components/run/ReadinessPanel';
+import { ApproachView } from '@/components/run/ApproachView';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
+import { computeApproachState } from '@/features/run/approachNavigator';
 import { getVenueForTrail } from '@/data/venues';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -246,7 +248,38 @@ export default function ActiveRunScreen() {
     || state.phase === 'completed_verified' || state.phase === 'completed_unverified' || state.phase === 'invalidated';
   const showCancel = state.phase === 'idle' || state.phase === 'readiness_check'
     || state.phase === 'armed_ranked' || state.phase === 'armed_practice';
-  const showReadiness = state.phase === 'readiness_check';
+
+  // Chunk 10: Approach Navigator replaces the legacy ReadinessPanel when
+  // we have a real GPS fix + a Pioneer gate config. Without either we
+  // fall back to ReadinessPanel so the user still sees the copy that
+  // covers permission-denied / no-geometry edge cases.
+  const canShowApproach =
+    !!gateConfig && !!state.lastPoint && !state.permissionDenied;
+  const showApproachPreRun =
+    canShowApproach &&
+    (state.phase === 'readiness_check' ||
+      state.phase === 'armed_ranked' ||
+      state.phase === 'armed_practice');
+  const showReadiness = state.phase === 'readiness_check' && !showApproachPreRun;
+
+  const approachState =
+    showApproachPreRun && state.lastPoint && gateConfig
+      ? computeApproachState({
+          userPosition: {
+            latitude: state.lastPoint.latitude,
+            longitude: state.lastPoint.longitude,
+          },
+          // GpsPoint does not carry heading; the gate engine already
+          // derives it from the last two buffered points. Speed is the
+          // same story — prefer the derived gateSpeedKmh (converted to
+          // m/s) over raw .speed which can lag on fresh fixes.
+          userHeading: state.gateHeadingDeg,
+          userAccuracyM: state.lastPoint.accuracy ?? 99,
+          userVelocityMps:
+            state.gateSpeedKmh != null ? state.gateSpeedKmh / 3.6 : (state.lastPoint.speed ?? 0),
+          trailGate: gateConfig,
+        })
+      : null;
 
   const modeBadge = state.mode === 'ranked'
     ? { label: 'RANKING', color: colors.accent, bg: colors.accentDim }
@@ -269,7 +302,9 @@ export default function ActiveRunScreen() {
           </View>
         )}
 
-        {/* Readiness panel — with fallback actions */}
+        {/* Readiness panel — legacy path. Still used when we have no GPS fix
+            yet, permission was denied, or the trail has no Pioneer gate
+            config (ApproachView needs all three to render honestly). */}
         {showReadiness && (
           <View style={styles.readinessContainer}>
             <ReadinessPanel
@@ -279,6 +314,28 @@ export default function ActiveRunScreen() {
             />
           </View>
         )}
+
+        {/* Approach Navigator — Chunk 10. Renders only when we have a live
+            GPS fix + a real gate config so the 5-state machine can produce
+            truthful guidance. Wrapped in absolute-fill so it overlays the
+            default phase indicator / timer below it. */}
+        {showApproachPreRun && approachState ? (
+          <View style={styles.approachContainer}>
+            <ApproachView
+              trailName={trailName}
+              mode={isTrainingOnly ? 'training' : (state.mode === 'practice' ? 'training' : 'ranked')}
+              state={approachState}
+              userAccuracyM={state.lastPoint?.accuracy ?? 99}
+              userVelocityMps={
+                state.gateSpeedKmh != null
+                  ? state.gateSpeedKmh / 3.6
+                  : (state.lastPoint?.speed ?? 0)
+              }
+              userHeading={state.gateHeadingDeg}
+              onBack={handleBack}
+            />
+          </View>
+        ) : null}
 
         {/* Phase indicator */}
         <View style={[styles.phaseIndicator, { borderColor: phaseColor }]}>
@@ -402,6 +459,14 @@ const styles = StyleSheet.create({
   readinessContainer: {
     width: '100%',
     marginBottom: spacing.xl,
+  },
+  approachContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
   },
   phaseIndicator: {
     borderWidth: 2,
