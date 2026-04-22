@@ -89,10 +89,9 @@ iPhone 16 iOS 26.3:
 | 11 | `approach-wrong_side-simplified.png` | Approach state=wrong_side (handoff keyname) |
 | 12 | `approach-gps_unsure-simplified.png` | Approach state=gps_unsure (accuracy readout kept — actionable) |
 
-**Not captured (state-dependent, require clean install / specific data):**
-- `home-no-spots.png` — needs a signed-in account with zero runs.
-- `spots-tab-empty.png` — needs zero active spots in DB.
-- `add-spot-success.png` — needs a real submit against the 5-arg RPC.
+**Captured via dev preview route (polish fix 2):**
+- `home-no-spots.png` — PrimarySpotCard variant=empty rendered in isolation via `/__dev/empty-states?kind=home-no-spots`.
+- `spots-tab-empty.png` — SPOTY empty state rendered via `/__dev/empty-states?kind=spots-empty`.
+- `add-spot-success.png` — Step-3 success card rendered via `/__dev/empty-states?kind=add-spot-success`.
 
-These are flagged in the Z4.1 deviations list below and expected to be
-covered manually during the walk-test v5 session.
+Dev route gated by `!__DEV__` + `app/__dev/` group so it never ships in production bundles.
