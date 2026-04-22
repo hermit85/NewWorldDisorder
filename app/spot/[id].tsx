@@ -1,127 +1,96 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
-import { selectionTick } from '@/systems/haptics';
-import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
-import { getTrailColor } from '@/theme/map';
-import { copy, formatTimeShort } from '@/content/copy';
+import * as Haptics from 'expo-haptics';
+import { Brackets } from '@/components/ui/Brackets';
+import { FilterPill } from '@/components/ui/FilterPill';
+import { GlowButton } from '@/components/ui/GlowButton';
+import { SegmentLine } from '@/components/ui/SegmentLine';
+import { TrailCard } from '@/components/ui/TrailCard';
+import { formatTimeShort } from '@/content/copy';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserTrailStats, useChallenges, useSpot, useTrails, useDeleteSpot } from '@/hooks/useBackend';
-import { useVenueContext } from '@/hooks/useVenueContext';
-import { TrailDrawer } from '@/components/map/TrailDrawer';
-import type { StartReadiness, ReadinessLevel, GpsQuality } from '@/components/map/TrailDrawer';
-import { ArenaMapWeb } from '@/components/map/ArenaMapWeb';
-import { EmptyMapPlaceholder } from '@/components/map/EmptyMapPlaceholder';
-import { PioneerBadge } from '@/components/game/PioneerBadge';
-import { distanceMeters } from '@/systems/gps';
-import { getVenue } from '@/data/venues';
+import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
+import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
-// Custom SVG surface on native, web fallback on web
-const ArenaMap = Platform.OS !== 'web'
-  ? require('@/components/map/ArenaMapCustom').ArenaMapCustom
-  : null;
-import { Difficulty } from '@/data/types';
+type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
+
+function pickSpotStatusLabel(status: string | undefined): string {
+  if (status === 'pending') return 'OCZEKUJE';
+  if (status === 'rejected') return 'ODRZUCONY';
+  return 'AKTYWNY';
+}
+
+// Bike park is a detail route (no tab bar), but the bottom CTA "+ Dodaj trasę"
+// and destructive curator link must clear the home-indicator area.
+const BOTTOM_CTA_CLEARANCE = 24;
 
 export default function SpotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { profile } = useAuthContext();
-  const { stats: trailStatsMap } = useUserTrailStats(profile?.id);
-  // Checkpoint A: spot + trails now from DB (mock imports remain for Checkpoint C cleanup)
-  const { spot } = useSpot(id ?? null);
-  const { trails, status: trailsStatus } = useTrails(id ?? null);
-  const venue = id ? getVenue(id) : undefined;
-  const { submit: deleteSpot } = useDeleteSpot();
-  const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
-  const { challenges } = useChallenges(spot?.id ?? id ?? '', profile?.id);
-  const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
-  const [highlightStart, setHighlightStart] = useState(false);
-  const [focusTarget, setFocusTarget] = useState<'start' | 'rider' | 'both' | null>(null);
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Training banner sits below the floating header. Hardcoding top:210
-  // broke on SE / Dynamic Island devices and on any header content change.
-  // Measure the header at runtime instead. Guarded with opacity until the
-  // first onLayout frame to prevent a visible jump on mount.
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<TrailFilter>('all');
   const insets = useSafeAreaInsets();
-  const [headerHeight, setHeaderHeight] = useState(0);
 
-  // ── Live rider position + venue context ──
-  const venueState = useVenueContext(true);
-  const riderPosition = venueState.riderPosition;
+  const { spot, status: spotStatus, refresh: refreshSpot } = useSpot(id ?? null);
+  const { trails, refresh: refreshTrails } = useBikeParkTrails(id ?? null, profile?.id);
+  const { submit: deleteSpot } = useDeleteSpot();
 
-  // ── Compute start readiness for selected trail ──
-  const readiness = useMemo((): StartReadiness | undefined => {
-    if (!selectedTrailId) return undefined;
+  const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
+  const bestPbMs = trails.reduce<number | null>((best, trail) => {
+    const pb = trail.userData.pbMs;
+    if (!pb) return best;
+    if (best === null || pb < best) return pb;
+    return best;
+  }, null);
 
-    // GPS quality from accuracy
-    const accuracy = riderPosition?.accuracy ?? null;
-    const gpsQuality: GpsQuality =
-      accuracy === null || accuracy === undefined ? 'none' :
-      accuracy <= 10 ? 'excellent' :
-      accuracy <= 25 ? 'good' : 'weak';
+  const filteredTrails = trails.filter((trail) => {
+    if (filter === 'all') return true;
+    if (filter === 'easy') return trail.trail.difficulty === 'easy';
+    if (filter === 'flow') return trail.trail.type === 'flow';
+    if (filter === 'tech') return trail.trail.type === 'tech';
+    return true;
+  });
 
-    if (!riderPosition) return { level: 'no_gps', distanceM: null, gpsQuality: 'none' };
+  const filterCounts = {
+    all: trails.length,
+    easy: trails.filter((trail) => trail.trail.difficulty === 'easy').length,
+    flow: trails.filter((trail) => trail.trail.type === 'flow').length,
+    tech: trails.filter((trail) => trail.trail.type === 'tech').length,
+  };
 
-    const geo = venue?.trailGeo.find((t) => t.trailId === selectedTrailId);
-    if (!geo) return { level: 'no_gps', distanceM: null, gpsQuality };
-
-    const dist = Math.round(distanceMeters(
-      riderPosition,
-      { latitude: geo.startZone.latitude, longitude: geo.startZone.longitude },
-    ));
-
-    // ── Outside venue: > 2 km = not at resort, > 5 km = different continent ──
-    if (dist > 2000) {
-      return { level: 'outside_venue', distanceM: null, gpsQuality };
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([refreshSpot(), refreshTrails()]);
+    } finally {
+      setRefreshing(false);
     }
+  }
 
-    // Tightened thresholds for mountain terrain:
-    //   ready:       inside gate radius (25-30m) + decent GPS
-    //   at_start:    ≤ 40m — close enough to see the gate
-    //   approaching: ≤ 80m — walking distance, ~1 min
-    //   too_far:     > 80m — need to move significantly
-    let level: ReadinessLevel;
-    if (dist <= geo.startZone.radiusM) {
-      level = gpsQuality !== 'weak' ? 'ready' : 'at_start'; // weak GPS → don't promise "ready"
-    } else if (dist <= 40) {
-      level = 'at_start';
-    } else if (dist <= 80) {
-      level = 'approaching';
-    } else {
-      level = 'too_far';
-    }
+  function handleGoBack() {
+    // Spec v2 1.5: nav tap fires haptic.tap
+    Haptics.selectionAsync().catch(() => undefined);
+    if (navigation.canGoBack()) router.back();
+    else router.replace('/');
+  }
 
-    return { level, distanceM: dist, gpsQuality };
-  }, [selectedTrailId, riderPosition]);
-
-  const goBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/');
-    }
-  }, [navigation, router]);
-
-  const handleTrailSelect = useCallback((trailId: string) => {
-    selectionTick();
-    setSelectedTrailId(trailId);
-  }, []);
-
-  const handleMapPress = useCallback(() => {
-    setSelectedTrailId(null);
-  }, []);
-
-  // ── Curator delete flow ──
-  const handleDeleteSpot = useCallback(() => {
+  function handleDeleteSpot() {
     if (!spot) return;
     Alert.alert(
       `Usunąć bike park ${spot.name}?`,
-      'Wszystkie trasy, czasy i wyzwania zostaną usunięte.',
+      'Wszystkie trasy i wyniki zostaną usunięte.',
       [
         { text: 'Anuluj', style: 'cancel' },
         {
@@ -129,511 +98,369 @@ export default function SpotScreen() {
           style: 'destructive',
           onPress: async () => {
             const result = await deleteSpot(spot.id);
-            if (result.ok) {
-              goBack();
-            } else {
-              // Surface the actual RPC error so the curator can act on it
-              // (e.g. "rpc_missing" = apply migration, "unauthorized" =
-              // role flip needed). Previous generic copy masked root cause.
-              Alert.alert(
-                `Nie udało się: ${result.code}`,
-                result.message ?? 'Spróbuj ponownie',
-              );
-            }
+            if (result.ok) handleGoBack();
+            else Alert.alert(`Nie udało się: ${result.code}`, result.message ?? 'Spróbuj ponownie');
           },
         },
       ],
     );
-  }, [spot, deleteSpot, goBack]);
+  }
 
-  // ── Bike park status pill — driven by spots.submissionStatus.
-  //    (Chunk 4 used a trail-derived heuristic that mislabelled active
-  //     parks as DRAFT; DRAFT belongs to trails.calibration_status.)
-  const spotStateLabel = useMemo(() => {
-    const status = spot?.submissionStatus;
-    if (status === 'pending')  return { text: 'OCZEKUJE',  color: '#FFD93D' };
-    if (status === 'rejected') return { text: 'ODRZUCONY', color: '#FF4365' };
-    return { text: 'AKTYWNY', color: '#00FF8C' };
-  }, [spot?.submissionStatus]);
+  if (spotStatus === 'loading' && !spot) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (spotStatus === 'error' && !spot) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centeredState}>
+          <Text style={styles.errorTitle}>Bike park nie dojechał</Text>
+          <Text style={styles.errorBody}>
+            Sprawdź połączenie i spróbuj jeszcze raz.
+          </Text>
+          <GlowButton label="Spróbuj ponownie" variant="secondary" onPress={refreshSpot} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!spot) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={{ padding: spacing.lg, gap: spacing.md }}>
-          <Text style={{ color: colors.textTertiary, fontSize: 13 }}>
-            Bike park nie znaleziony
-          </Text>
-          <Pressable onPress={goBack} style={styles.backBtn}>
-            <Text style={styles.backText}>← WRÓĆ</Text>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.notFound}>
+          <Text style={styles.notFoundText}>Bike park nie znaleziony</Text>
+          <Pressable onPress={handleGoBack}>
+            <Text style={styles.notFoundBack}>← Wróć</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  const selectedTrail = trails.find((t) => t.id === selectedTrailId);
-  const selectedStats = selectedTrailId
-    ? trailStatsMap.get(selectedTrailId)
-    : undefined;
-
   return (
-    <View style={styles.container}>
-      {/* Floating header overlay — top row + BIKE PARK kicker/title/pills */}
-      <SafeAreaView style={styles.headerOverlay} edges={['top']}>
-        {/* Measuring wrapper: excludes SafeAreaView's top-inset padding
-            so `insets.top + headerHeight` = the exact screen-space
-            y-coordinate where the banner should start. */}
-        <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
-          <View style={styles.headerRow}>
-            <Pressable onPress={goBack} style={styles.backBtn}>
-              <Text style={styles.backText}>←</Text>
-            </Pressable>
-            <View style={{ flex: 1 }} />
-            <View style={styles.ridersTag}>
-              <Text style={styles.ridersCount}>S01</Text>
-              <Text style={styles.ridersLabel}>LIGA</Text>
-            </View>
-          </View>
-          <View style={styles.headerBlock}>
-            <Text style={styles.spotKicker}>⟣ BIKE PARK</Text>
-            <Text style={styles.spotTitle}>{spot.name}</Text>
-            <View style={styles.statusPillRow}>
-              <View style={styles.statusPill}>
-                <View style={[styles.statusDot, { backgroundColor: 'rgba(232, 255, 240, 0.55)' }]} />
-                <Text style={styles.statusPillLabel}>{trails.length} TRAS</Text>
-              </View>
-              <Text style={styles.statusDivider}>·</Text>
-              <View style={styles.statusPill}>
-                <View style={[styles.statusDot, { backgroundColor: spotStateLabel.color }]} />
-                <Text style={[styles.statusPillLabel, { color: spotStateLabel.color }]}>
-                  {spotStateLabel.text}
-                </Text>
-              </View>
-            </View>
-            {isCurator && (
-              <Pressable onPress={handleDeleteSpot} hitSlop={12} style={styles.curatorDelete}>
-                <Text style={styles.curatorDeleteLabel}>Usuń ten bike park</Text>
-              </Pressable>
-            )}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + BOTTOM_CTA_CLEARANCE },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={chunk9Colors.accent.emerald}
+          />
+        }
+      >
+        <View style={styles.headerRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wróć"
+            onPress={handleGoBack}
+            style={styles.backButton}
+          >
+            <Text style={styles.backLabel}>←</Text>
+          </Pressable>
+
+          <View style={styles.seasonBadge}>
+            <Text style={styles.seasonBadgeText}>S01</Text>
           </View>
         </View>
-      </SafeAreaView>
 
-      {/* Training-only banner for unranked venues */}
-      {venue && !venue.rankingEnabled && (
-        <View
-          style={[
-            styles.trainingBanner,
-            {
-              top: insets.top + headerHeight + spacing.md,
-              opacity: headerHeight > 0 ? 1 : 0,
-            },
-          ]}
-        >
-          <Text style={styles.trainingBannerText}>
-            TRYB WALIDACJI · TRASY W WERYFIKACJI
+        <View style={styles.identityBlock}>
+          <Text style={styles.identityKicker}>✦ BIKE PARK</Text>
+          <Text style={styles.identityTitle}>{spot.name}</Text>
+          <Text style={styles.identitySub}>
+            {trails.length} TRAS · {pickSpotStatusLabel(spot.submissionStatus)} · TWÓJ REKORD{' '}
+            {bestPbMs ? formatTimeShort(bestPbMs) : '—'}
           </Text>
         </View>
-      )}
 
-      {/* Full-screen map — or minimal placeholder when no geometry available.
-          Map components hardcode Słotwiny altitude frame / markers, which
-          leak as ghosts when trails=[] or venue config is missing. Guard
-          unconditionally on both. Stylized placeholder lands in Checkpoint C. */}
-      {trails.length > 0 && venue ? (
-        Platform.OS !== 'web' && ArenaMap ? (
-          <ArenaMap
-            venue={venue}
-            trails={trails}
-            selectedTrailId={selectedTrailId}
-            hotTrailId={venue.trails[venue.trails.length - 1]?.id}
-            challengeTrailId={venue.trails[venue.trails.length - 1]?.id}
-            riderPosition={riderPosition}
-            highlightStart={highlightStart}
-            focusTarget={focusTarget}
-            onTrailSelect={handleTrailSelect}
-            onMapPress={() => {
-              handleMapPress();
-              setFocusTarget(null);
-            }}
-          />
-        ) : (
-          <ArenaMapWeb
-            trails={trails}
-            selectedTrailId={selectedTrailId}
-            hotTrailId={venue?.trails[venue.trails.length - 1]?.id}
-            challengeTrailId={venue?.trails[venue.trails.length - 1]?.id}
-            trailStats={trailStatsMap}
-            onTrailSelect={handleTrailSelect}
-            onMapPress={handleMapPress}
-          />
-        )
-      ) : (
-        <EmptyMapPlaceholder />
-      )}
-
-      {/* Empty state — spot has no trails yet. Tap to kick off the
-          Pioneer flow (Sprint 3 Chunk 4 routing). */}
-      {!selectedTrail && trails.length === 0 && trailsStatus === 'empty' && (
-        <View style={[styles.trailStrip, { paddingBottom: insets.bottom + spacing.xs }]}>
+        <View style={styles.actionsRow}>
           <Pressable
-            style={({ pressed }) => [
-              styles.pioneerCta,
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-            onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel="Pokaż mapę bike parku"
+            style={styles.actionButton}
           >
-            <Text style={styles.pioneerCtaLabel}>⟣ DODAJ PIERWSZĄ TRASĘ</Text>
-            <Text style={styles.pioneerCtaSub}>
-              Bądź pierwszym Pionierem tego bike parku
-            </Text>
+            <Text style={styles.actionLabel}>MAPA</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Otwórz ranking"
+            style={styles.actionButton}
+            onPress={() => {
+              if (filteredTrails[0]) router.push(`/trail/${filteredTrails[0].trail.id}`);
+            }}
+          >
+            <Text style={styles.actionLabel}>LEADERBOARD</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Informacje o bike parku"
+            style={styles.actionButton}
+          >
+            <Text style={styles.actionLabel}>INFO</Text>
           </Pressable>
         </View>
-      )}
 
-      {/* Trail list strip at bottom (when no trail selected) */}
-      {!selectedTrail && trails.length > 0 && (
-        <View style={[styles.trailStrip, { paddingBottom: insets.bottom + spacing.xs }]}>
+        {trails.length >= 3 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.trailStripContent}
+            contentContainerStyle={styles.filtersRow}
           >
-            {trails.map((trail) => {
-              const stats = trailStatsMap.get(trail.id);
-              const official = venue?.trails.find((o) => o.id === trail.id);
-              const diffColor = getTrailColor(official?.colorClass, trail.difficulty);
-
-              return (
-                <Pressable
-                  key={trail.id}
-                  style={({ pressed }) => [
-                    styles.trailChip,
-                    { borderLeftWidth: 2.5, borderLeftColor: diffColor },
-                    pressed && { backgroundColor: 'rgba(255,255,255,0.06)', transform: [{ scale: 0.97 }] },
-                  ]}
-                  onPress={() => handleTrailSelect(trail.id)}
-                >
-                  <View style={styles.trailChipHeader}>
-                    <Text style={styles.trailChipName} numberOfLines={1}>{trail.name}</Text>
-                    {trail.pioneerUserId && <PioneerBadge size="xs" />}
-                  </View>
-                  <Text style={styles.trailChipMeta}>
-                    {trail.difficulty.toUpperCase()} · {trail.trailType}
-                  </Text>
-                  {stats?.pbMs && (
-                    <Text style={styles.trailChipPb}>
-                      PB {formatTimeShort(stats.pbMs)}
-                    </Text>
-                  )}
-                  {!stats?.pbMs && (
-                    <Text style={styles.trailChipNoPb}>Brak PB</Text>
-                  )}
-                </Pressable>
-              );
-            })}
-
-            {/* Secondary add-trail CTA — appended after the trail chips */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.addTrailChip,
-                pressed && { transform: [{ scale: 0.97 }], opacity: 0.8 },
-              ]}
-              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-            >
-              <Text style={styles.addTrailChipLabel}>+ DODAJ TRASĘ</Text>
-            </Pressable>
+            <FilterPill
+              label="Wszystkie"
+              count={filterCounts.all}
+              active={filter === 'all'}
+              onPress={() => setFilter('all')}
+            />
+            <FilterPill
+              label="Easy"
+              count={filterCounts.easy}
+              active={filter === 'easy'}
+              onPress={() => setFilter('easy')}
+            />
+            <FilterPill
+              label="Flow"
+              count={filterCounts.flow}
+              active={filter === 'flow'}
+              onPress={() => setFilter('flow')}
+            />
+            <FilterPill
+              label="Tech"
+              count={filterCounts.tech}
+              active={filter === 'tech'}
+              onPress={() => setFilter('tech')}
+            />
           </ScrollView>
-        </View>
-      )}
+        ) : null}
 
-      {/* Selected trail drawer */}
-      {selectedTrail && (
-        <TrailDrawer
-          trail={selectedTrail}
-          stats={selectedStats}
-          challenges={challenges}
-          readiness={readiness}
-          rankingEnabled={venue?.rankingEnabled ?? false}
-          colorClass={venue?.trails.find((t) => t.id === selectedTrail.id)?.colorClass}
-          onShowStart={() => {
-            selectionTick();
-            setHighlightStart(true);
-            // Smart: if rider has GPS, show both rider + start together
-            setFocusTarget(riderPosition ? 'both' : 'start');
-            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-            focusTimerRef.current = setTimeout(() => {
-              setHighlightStart(false);
-              setFocusTarget(null);
-            }, 5000);
-          }}
-          onShowRider={() => {
-            selectionTick();
-            setFocusTarget('rider');
-            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-            focusTimerRef.current = setTimeout(() => {
-              setFocusTarget(null);
-            }, 5000);
-          }}
-          onClose={handleMapPress}
-        />
-      )}
-    </View>
+        {trails.length > 0 ? (
+          <>
+            <View style={styles.listBlock}>
+              {filteredTrails.map((trail) => (
+                <TrailCard
+                  key={trail.trail.id}
+                  {...trail}
+                  onPress={() => router.push(`/trail/${trail.trail.id}`)}
+                  onCtaPress={() =>
+                    router.push({
+                      pathname: '/run/active',
+                      params: {
+                        trailId: trail.trail.id,
+                        trailName: trail.trail.name,
+                      },
+                    })
+                  }
+                />
+              ))}
+            </View>
+
+            {/* Secondary "+ Dodaj trasę" only shows when trails already exist.
+                Pioneer empty state uses its own primary CTA inside the empty card
+                — rendering two add-trail CTAs was confusing in review. */}
+            <GlowButton
+              label="+ Dodaj trasę"
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+              variant="secondary"
+            />
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <Brackets color="dim" />
+            <Text style={styles.emptyEyebrow}>BRAK ZDEFINIOWANYCH TRAS</Text>
+            <Text style={styles.emptyTitle}>
+              PIONIERUJ.{'\n'}ZDEFINIUJ LINIĘ.{'\n'}WYZWIJ INNYCH.
+            </Text>
+            <Text style={styles.emptyBody}>
+              Pierwszy verified zjazd rezerwuje pozycję. Telefon do kieszeni, jeden przejazd i
+              ranking jest gotowy dla kolejnych riderów.
+            </Text>
+
+            <GlowButton
+              label="+ Dodaj pierwszą trasę"
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+              variant="primary"
+            />
+
+            <SegmentLine />
+
+            <View style={styles.howItWorksRow}>
+              <Text style={styles.howItWorksItem}>TELEFON DO KIESZENI</Text>
+              <Text style={styles.howItWorksItem}>ZJEDŹ RAZ</Text>
+              <Text style={styles.howItWorksItem}>RANKING GOTOWY</Text>
+            </View>
+          </View>
+        )}
+
+        {isCurator ? (
+          <Pressable onPress={handleDeleteSpot} style={styles.deleteLink}>
+            <Text style={styles.deleteLinkText}>Usuń ten bike park</Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: chunk9Colors.bg.base,
   },
-  // Training banner — top is computed inline from SafeAreaInsets +
-  // measured header height (see render). Keeps the banner flush below
-  // whatever the header happens to be tall on each device.
-  trainingBanner: {
-    position: 'absolute' as const,
-    left: spacing.lg,
-    right: spacing.lg,
-    zIndex: 5,
-    backgroundColor: 'rgba(255, 149, 0, 0.12)',
-    borderRadius: radii.sm,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center' as const,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 149, 0, 0.20)',
-  },
-  trainingBannerText: {
-    fontFamily: 'Rajdhani_400Regular',
-    fontSize: 8,
-    color: 'rgba(255, 149, 0, 0.70)',
-    letterSpacing: 2,
-  },
-
-  // Floating header
-  headerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: colors.bgOverlay,
+  scrollContent: {
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    gap: chunk9Spacing.sectionVertical,
   },
   headerRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    gap: spacing.md,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.bgCard,
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: chunk9Colors.bg.hairline,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: chunk9Colors.bg.surface,
   },
-  backText: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontSize: 18,
+  backLabel: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+    marginTop: -2,
   },
-  headerCenter: {
-    flex: 1,
+  seasonBadge: {
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: chunk9Colors.bg.surface,
   },
-  seasonLabel: {
-    ...typography.labelSmall,
-    color: colors.textTertiary,
-    letterSpacing: 2,
+  seasonBadgeText: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.primary,
   },
-  // New kicker/title/pill block (B1)
-  headerBlock: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  spotKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: '#00FF8C',
-    letterSpacing: 3,
-    marginBottom: spacing.xs,
-  },
-  spotTitle: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 30,
-    color: colors.textPrimary,
-    letterSpacing: 2,
-    marginBottom: spacing.sm,
-  },
-  statusPillRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  identityBlock: {
     gap: 6,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  identityKicker: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.accent.emerald,
   },
-  statusPillLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 10,
-    letterSpacing: 2,
-    color: 'rgba(232, 255, 240, 0.65)',
+  identityTitle: {
+    ...chunk9Typography.display56,
+    color: chunk9Colors.text.primary,
   },
-  statusDivider: {
-    color: 'rgba(232, 255, 240, 0.35)',
-    fontSize: 12,
-    paddingHorizontal: 2,
+  identitySub: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
   },
-  // Curator delete link
-  curatorDelete: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  curatorDeleteLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    color: 'rgba(255, 67, 101, 0.70)',
-    textDecorationLine: 'underline',
-    letterSpacing: 0.5,
-  },
-  ridersTag: {
-    backgroundColor: colors.accentDim,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    alignItems: 'center',
-  },
-  ridersCount: {
-    ...typography.h3,
-    color: colors.accent,
-    fontSize: 16,
-  },
-  ridersLabel: {
-    ...typography.labelSmall,
-    color: colors.accent,
-    fontSize: 8,
-    letterSpacing: 2,
-  },
-
-  // Trail strip (horizontal scroll at bottom).
-  // paddingBottom is applied inline at each usage site so we can pull
-  // the home-indicator height from insets.bottom at runtime — 34pt is
-  // only right for notched iPhones, 0 on iPhone SE.
-  trailStrip: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-  },
-  trailStripContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  trailChip: {
-    backgroundColor: 'rgba(10, 10, 18, 0.75)',
-    borderRadius: radii.sm + 2,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    minWidth: 110,
-    maxWidth: 160,
-    borderWidth: 0,
-  },
-  // Empty-state Pioneer CTA (trails.length === 0)
-  pioneerCta: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: 'rgba(20, 35, 26, 0.95)',
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: '#00FF8C',
-    alignItems: 'center',
-    shadowColor: '#00FF8C',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  pioneerCtaLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 16,
-    color: '#00FF8C',
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
-  pioneerCtaSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    color: 'rgba(232, 255, 240, 0.55)',
-    letterSpacing: 0.5,
-  },
-  // Secondary "+ DODAJ TRASĘ" — appended chip when trails exist
-  addTrailChip: {
-    borderRadius: radii.sm + 2,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    minWidth: 110,
+  actionButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: chunk9Radii.pill,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 140, 0.45)',
-    backgroundColor: 'rgba(0, 255, 140, 0.05)',
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addTrailChipLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    color: '#00FF8C',
-    letterSpacing: 2,
+  actionLabel: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
-  trailChipHeader: {
+  filtersRow: {
+    gap: 10,
+  },
+  listBlock: {
+    gap: 12,
+  },
+  emptyState: {
+    position: 'relative',
+    gap: chunk9Spacing.cardChildGap,
+    borderRadius: chunk9Radii.card,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
+    padding: chunk9Spacing.cardPadding,
+    overflow: 'hidden',
+  },
+  emptyEyebrow: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.secondary,
+    paddingRight: 18,
+  },
+  emptyTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+  },
+  emptyBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+  },
+  howItWorksRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  howItWorksItem: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.secondary,
+    flex: 1,
+  },
+  deleteLink: {
+    alignSelf: 'center',
+    paddingTop: 4,
+  },
+  deleteLinkText: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.tertiary,
+  },
+  notFound: {
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingTop: 24,
+    gap: 12,
+  },
+  notFoundText: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+  },
+  notFoundBack: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.text.primary,
+  },
+  centeredState: {
+    flex: 1,
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 1,
+    justifyContent: 'center',
+    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    gap: chunk9Spacing.cardChildGap,
   },
-  trailChipDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  errorTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+    textAlign: 'center',
   },
-  trailChipName: {
-    fontFamily: 'Inter_600SemiBold',
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
-    flexShrink: 1,
-  },
-  trailChipMeta: {
-    fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.55)',
-    fontSize: 7.5,
-    letterSpacing: 0.3,
-    marginBottom: 1,
-  },
-  trailChipPb: {
-    fontFamily: 'Inter_500Medium',
-    color: colors.accent,
-    fontSize: 8.5,
-    letterSpacing: 0.5,
-    opacity: 0.9,
-  },
-  trailChipNoPb: {
-    fontFamily: 'Inter_400Regular',
-    color: 'rgba(255, 255, 255, 0.55)',
-    fontSize: 8.5,
+  errorBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
 });

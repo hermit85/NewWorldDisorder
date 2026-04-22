@@ -59,6 +59,15 @@ export const colors = {
   diffHard: '#FF3B30',
   diffExpert: '#FF3B30',
   diffPro: '#FFD700',
+
+  // Chunk 9 redesign aliases
+  chunk9BgBase: '#000000',
+  chunk9BgSurface: '#0B0B0C',
+  chunk9BgHairline: '#1F1F22',
+  chunk9TextPrimary: '#FFFFFF',
+  chunk9TextSecondary: '#8888BC',
+  chunk9TextTertiary: '#606D72',
+  chunk9AccentEmerald: '#00FF87',
 } as const;
 
 export type ColorKey = keyof typeof colors;

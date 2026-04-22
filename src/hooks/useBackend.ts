@@ -27,6 +27,33 @@ export const isProductionMisconfigured = !isSupabaseConfigured && !__DEV__;
 // ── Typed fetch status ──
 export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';
 
+declare global {
+  // DevTools override: global.__DEV_MOCK_HERO_BEAT__ = true
+  // eslint-disable-next-line no-var
+  var __DEV_MOCK_HERO_BEAT__: boolean | undefined;
+}
+
+export const __DEV_MOCK_HERO_BEAT__ = false;
+const DEV_EMPTY_SPOT_ID = 'dev-kopa-empty';
+const DEV_EMPTY_SPOT: Spot = {
+  id: DEV_EMPTY_SPOT_ID,
+  name: 'KOPA',
+  slug: DEV_EMPTY_SPOT_ID,
+  description: '',
+  region: 'Szczyrk',
+  isOfficial: false,
+  coverImage: '',
+  status: 'active',
+  submissionStatus: 'active',
+  activeRidersToday: 0,
+  trailCount: 0,
+};
+
+function shouldUseDevMockHeroBeat(): boolean {
+  if (!__DEV__) return false;
+  return globalThis.__DEV_MOCK_HERO_BEAT__ ?? __DEV_MOCK_HERO_BEAT__;
+}
+
 // ══════════════════════════════════════════════════════════
 // LEADERBOARD
 // ══════════════════════════════════════════════════════════
@@ -162,6 +189,166 @@ export function useChallenges(spotId: string, userId?: string) {
   useEffect(() => { refresh(); }, [refresh]);
 
   return { challenges, status, loading: status === 'loading' };
+}
+
+// ══════════════════════════════════════════════════════════
+// CHUNK 9 — Home + Bike Park data
+// ══════════════════════════════════════════════════════════
+
+export function useHeroBeat(userId?: string) {
+  const [heroBeat, setHeroBeat] = useState<api.HeroBeat | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setHeroBeat(null);
+      setStatus('signed_out');
+      return;
+    }
+
+    if (shouldUseDevMockHeroBeat()) {
+      setHeroBeat({
+        trailId: 'test-background-v1',
+        trailName: 'Test background v1',
+        beaterName: 'Kacper',
+        happenedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+        beaterTimeMs: 88_400,
+        userTimeMs: 90_000,
+        deltaMs: 1_600,
+        previousPosition: 1,
+        currentPosition: 2,
+      });
+      setStatus('ok');
+      return;
+    }
+
+    try {
+      const data = await api.fetchHeroBeat(userId);
+      setHeroBeat(data);
+      setStatus(data ? 'ok' : 'empty');
+    } catch {
+      setHeroBeat(null);
+      setStatus('error');
+    }
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { heroBeat, status, loading: status === 'loading', refresh };
+}
+
+export function useDailyChallenges(userId?: string) {
+  const [challenges, setChallenges] = useState<api.DailyChallengeProgress[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setChallenges([]);
+      setStatus('signed_out');
+      return;
+    }
+
+    try {
+      const data = await api.fetchDailyChallenges(userId);
+      setChallenges(data);
+      setStatus(data.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setChallenges([]);
+      setStatus('error');
+    }
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { challenges, status, loading: status === 'loading', refresh };
+}
+
+export function useStreakState(userId?: string) {
+  const [streak, setStreak] = useState<api.StreakState | null>(null);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setStreak(null);
+      setStatus('signed_out');
+      return;
+    }
+
+    try {
+      const data = await api.fetchStreakState(userId);
+      setStreak(data);
+      setStatus(data.days > 0 ? 'ok' : 'empty');
+    } catch {
+      setStreak(null);
+      setStatus('error');
+    }
+  }, [userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { streak, status, loading: status === 'loading', refresh };
+}
+
+export function useLeagueFeed(userId?: string, limit: number = 5) {
+  const [events, setEvents] = useState<api.FeedEvent[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setEvents([]);
+      setStatus('signed_out');
+      return;
+    }
+
+    try {
+      const data = await api.fetchLeagueFeed(userId, limit);
+      setEvents(data);
+      setStatus(data.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setEvents([]);
+      setStatus('error');
+    }
+  }, [userId, limit, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { events, status, loading: status === 'loading', refresh };
+}
+
+export function useBikeParkTrails(spotId: string | null, userId?: string) {
+  const [trails, setTrails] = useState<api.BikeParkTrailCardData[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  const refresh = useCallback(async () => {
+    if (!spotId) {
+      setTrails([]);
+      setStatus('empty');
+      return;
+    }
+    if (__DEV__ && spotId === DEV_EMPTY_SPOT_ID) {
+      setTrails([]);
+      setStatus('empty');
+      return;
+    }
+
+    try {
+      const data = await api.fetchBikeParkTrails(userId, spotId);
+      setTrails(data);
+      setStatus(data.length > 0 ? 'ok' : 'empty');
+    } catch {
+      setTrails([]);
+      setStatus('error');
+    }
+  }, [spotId, userId, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { trails, status, loading: status === 'loading', refresh };
 }
 
 // ══════════════════════════════════════════════════════════
@@ -576,6 +763,11 @@ export function useSpot(id: string | null) {
 
   const refresh = useCallback(async () => {
     if (!id) { setSpot(null); setStatus('empty'); return; }
+    if (__DEV__ && id === DEV_EMPTY_SPOT_ID) {
+      setSpot(DEV_EMPTY_SPOT);
+      setStatus('ok');
+      return;
+    }
     if (!isSupabaseConfigured) { setSpot(null); setStatus('error'); return; }
     setStatus('loading');
     const res = await api.fetchSpot(id);
