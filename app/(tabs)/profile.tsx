@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Linking, RefreshControl, Share } from 'react-native';
+import * as ExpoLinking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -19,15 +20,33 @@ import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/hap
 import { fetchUserRuns } from '@/lib/api';
 import { purgeOrphanedRuns } from '@/systems/runStore';
 
-// All achievements in the game — locked ones shown as placeholders
-const ACHIEVEMENT_CATALOG = [
-  { slug: 'first-blood', name: 'First Blood', icon: '▲', description: 'Pierwszy zweryfikowany zjazd' },
+// All achievements in the game. `progressTarget` + `progressField`
+// power the numeric "3/20" chip rendered on locked rows whose unlock
+// condition can be read directly off the profile row. Icons stick to
+// the geometric-glyph set (▲ ★ ◆ ⚡ ◇ ♛ ✦) — picked for iOS font
+// coverage after the help-screen emoji tofu incident. ♛ / ✦ were
+// spot-checked on iOS 17 / 18 and render clean; if a future device
+// font strips either, swap to ● or ◉ without touching consumers.
+type AchievementDef = {
+  slug: string;
+  name: string;
+  icon: string;
+  description: string;
+  /** Optional progress key — read off the `User` profile row for the
+   *  numeric "N/target" chip. Omit for achievements whose progress is
+   *  not a single scalar on the profile (e.g. "each trail in a park"). */
+  progressField?: 'totalRuns' | 'totalPbs';
+  progressTarget?: number;
+};
+
+const ACHIEVEMENT_CATALOG: readonly AchievementDef[] = [
+  { slug: 'first-blood', name: 'First Blood', icon: '▲', description: 'Pierwszy zweryfikowany zjazd', progressField: 'totalRuns', progressTarget: 1 },
   { slug: 'top-10-entry', name: 'Top 10', icon: '★', description: 'Wejdź do TOP 10 na dowolnej trasie' },
   { slug: 'weekend-warrior', name: 'Weekend Warrior', icon: '◆', description: '3 zjazdy w jeden weekend' },
-  { slug: 'double-pb', name: 'Double PB', icon: '⚡', description: 'Dwa rekordy w jeden dzień' },
+  { slug: 'double-pb', name: 'Double PB', icon: '⚡', description: 'Dwa rekordy w jeden dzień', progressField: 'totalPbs', progressTarget: 2 },
   { slug: 'trail-hunter', name: 'Trail Hunter', icon: '◇', description: 'Zjedź każdą trasę w bike parku' },
-  { slug: 'slotwiny-local', name: 'Local Hero', icon: '♛', description: '20 zjazdów łącznie' },
-  { slug: 'gravity-addict', name: 'Gravity Addict', icon: '✦', description: '50 zjazdów łącznie' },
+  { slug: 'slotwiny-local', name: 'Local Hero', icon: '♛', description: '20 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 20 },
+  { slug: 'gravity-addict', name: 'Gravity Addict', icon: '✦', description: '50 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 50 },
 ] as const;
 
 export default function ProfileScreen() {
@@ -75,6 +94,14 @@ export default function ProfileScreen() {
       setRefreshing(false);
     }
   }, [userId]);
+
+  const handleInviteRival = useCallback(async () => {
+    tapLight();
+    const url = ExpoLinking.createURL('/');
+    await Share.share({
+      message: `Wbijaj do NWD i spróbuj mnie wyprzedzić. ${url}`,
+    }).catch(() => undefined);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -266,6 +293,14 @@ export default function ProfileScreen() {
             <View style={styles.achievementGrid}>
               {ACHIEVEMENT_CATALOG.map((def) => {
                 const unlocked = achievements.find((a) => a.slug === def.slug);
+                // Progress chip for locked items whose target is a simple
+                // scalar on the profile (totalRuns / totalPbs). Clamped
+                // to [0, target] so a legacy count beyond the goal still
+                // renders sanely on the way to unlock propagation.
+                const currentProgress = !unlocked && def.progressField && def.progressTarget
+                  ? Math.min(user?.[def.progressField] ?? 0, def.progressTarget)
+                  : null;
+
                 return (
                   <View key={def.slug} style={[styles.achievementItem, !unlocked && styles.achievementItemLocked]}>
                     <View style={[
@@ -274,17 +309,28 @@ export default function ProfileScreen() {
                     ]}>
                       <Text style={[
                         styles.achievementBadgeText,
-                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.42)' },
+                        // Locked icons stay visible at reduced opacity
+                        // instead of being swapped to a neutral glyph —
+                        // silhouette recognition still teaches the user
+                        // what's on offer.
+                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.55)' },
                       ]}>
                         {def.icon}
                       </Text>
                     </View>
-                    <Text style={[styles.achievementName, !unlocked && styles.achievementNameLocked]}>
-                      {unlocked ? def.name : '???'}
+                    <Text style={[styles.achievementName, !unlocked && styles.achievementNameLocked]} numberOfLines={1}>
+                      {def.name}
                     </Text>
-                    {!unlocked && (
-                      <Text style={styles.achievementHint}>{def.description}</Text>
-                    )}
+                    <Text style={styles.achievementHint} numberOfLines={2}>
+                      {def.description}
+                    </Text>
+                    {unlocked ? (
+                      <Text style={styles.achievementUnlockedTag}>● ZDOBYTE</Text>
+                    ) : currentProgress != null && def.progressTarget ? (
+                      <Text style={styles.achievementProgress}>
+                        {currentProgress}/{def.progressTarget}
+                      </Text>
+                    ) : null}
                   </View>
                 );
               })}
@@ -305,6 +351,9 @@ export default function ProfileScreen() {
             </Pressable>
             <Pressable style={styles.actionLink} onPress={() => router.push('/onboarding')}>
               <Text style={styles.actionLinkText}>ZASADY</Text>
+            </Pressable>
+            <Pressable style={styles.actionLink} onPress={handleInviteRival}>
+              <Text style={styles.actionLinkText}>ZAPROŚ</Text>
             </Pressable>
             {isAuthenticated ? (
               <Pressable style={styles.actionLink} onPress={handleSignOut}>
@@ -405,9 +454,11 @@ const styles = StyleSheet.create({
   achievementBadgeLocked: { borderColor: colors.mutedBorder, backgroundColor: colors.mutedSurface },
   achievementBadgeText: { fontFamily: 'Rajdhani_700Bold', fontSize: 12, color: colors.textTertiary },
   achievementName: { ...typography.bodySmall, color: colors.textPrimary, textAlign: 'center', fontFamily: 'Inter_600SemiBold' },
-  achievementNameLocked: { color: colors.textTertiary, opacity: 0.92 },
+  achievementNameLocked: { color: colors.textSecondary },
   achievementHint: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 9, opacity: 0.85, marginTop: 2 },
-  achievementItemLocked: { opacity: 0.92 },
+  achievementUnlockedTag: { fontFamily: 'Rajdhani_700Bold', fontSize: 9, color: colors.accent, letterSpacing: 1.2, marginTop: 6 },
+  achievementProgress: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.textSecondary, marginTop: 6, letterSpacing: 0.5 },
+  achievementItemLocked: { opacity: 0.82 },
   signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
   signInTitle: { ...typography.label, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
   signInDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
