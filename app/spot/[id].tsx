@@ -368,14 +368,23 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   actionButton: {
-    paddingVertical: 4,
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionLabel: {
     ...chunk9Typography.label13,
     color: chunk9Colors.text.secondary,
+    textAlign: 'center',
   },
   filtersRow: {
     gap: 10,
