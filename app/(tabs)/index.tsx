@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChallengeItem } from '@/components/ui/ChallengeItem';
 import { FeedRow } from '@/components/ui/FeedRow';
 import { GlowButton } from '@/components/ui/GlowButton';
@@ -46,10 +46,16 @@ function buildStreakSubtitle(params: {
   return 'Zjedź dziś żeby utrzymać';
 }
 
+// Spec v2 section 1.3: tabBarHeight 64. Combined with safe-area bottom so
+// the last scroll item (StreakIndicator / spot shortcut) clears the tab bar
+// on home-indicator devices.
+const TAB_BAR_CLEARANCE = 64;
+
 export default function HomeScreen() {
   const router = useRouter();
   const { profile: authProfile, isAuthenticated } = useAuthContext();
   const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const { profile, status: profileStatus, refresh: refreshProfile } = useProfile(authProfile?.id);
   const { heroBeat, status: heroBeatStatus, refresh: refreshHeroBeat } = useHeroBeat(authProfile?.id);
@@ -148,7 +154,10 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -293,7 +302,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: chunk9Spacing.containerHorizontal,
-    paddingBottom: 36,
     gap: chunk9Spacing.sectionVertical,
   },
   headerRow: {

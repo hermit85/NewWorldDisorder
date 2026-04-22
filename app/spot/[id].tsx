@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Brackets } from '@/components/ui/Brackets';
 import { FilterPill } from '@/components/ui/FilterPill';
@@ -30,6 +30,10 @@ function pickSpotStatusLabel(status: string | undefined): string {
   return 'AKTYWNY';
 }
 
+// Bike park is a detail route (no tab bar), but the bottom CTA "+ Dodaj trasę"
+// and destructive curator link must clear the home-indicator area.
+const BOTTOM_CTA_CLEARANCE = 24;
+
 export default function SpotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -37,6 +41,7 @@ export default function SpotScreen() {
   const { profile } = useAuthContext();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<TrailFilter>('all');
+  const insets = useSafeAreaInsets();
 
   const { spot, status: spotStatus, refresh: refreshSpot } = useSpot(id ?? null);
   const { trails, refresh: refreshTrails } = useBikeParkTrails(id ?? null, profile?.id);
@@ -141,7 +146,10 @@ export default function SpotScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + BOTTOM_CTA_CLEARANCE },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -289,7 +297,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: chunk9Spacing.containerHorizontal,
-    paddingBottom: 40,
     gap: chunk9Spacing.sectionVertical,
   },
   headerRow: {
