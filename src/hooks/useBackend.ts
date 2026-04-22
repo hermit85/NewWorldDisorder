@@ -27,6 +27,33 @@ export const isProductionMisconfigured = !isSupabaseConfigured && !__DEV__;
 // ── Typed fetch status ──
 export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';
 
+declare global {
+  // DevTools override: global.__DEV_MOCK_HERO_BEAT__ = true
+  // eslint-disable-next-line no-var
+  var __DEV_MOCK_HERO_BEAT__: boolean | undefined;
+}
+
+export const __DEV_MOCK_HERO_BEAT__ = false;
+const DEV_EMPTY_SPOT_ID = 'dev-kopa-empty';
+const DEV_EMPTY_SPOT: Spot = {
+  id: DEV_EMPTY_SPOT_ID,
+  name: 'KOPA',
+  slug: DEV_EMPTY_SPOT_ID,
+  description: '',
+  region: 'Szczyrk',
+  isOfficial: false,
+  coverImage: '',
+  status: 'active',
+  submissionStatus: 'active',
+  activeRidersToday: 0,
+  trailCount: 0,
+};
+
+function shouldUseDevMockHeroBeat(): boolean {
+  if (!__DEV__) return false;
+  return globalThis.__DEV_MOCK_HERO_BEAT__ ?? __DEV_MOCK_HERO_BEAT__;
+}
+
 // ══════════════════════════════════════════════════════════
 // LEADERBOARD
 // ══════════════════════════════════════════════════════════
@@ -180,6 +207,22 @@ export function useHeroBeat(userId?: string) {
       return;
     }
 
+    if (shouldUseDevMockHeroBeat()) {
+      setHeroBeat({
+        trailId: 'test-background-v1',
+        trailName: 'Test background v1',
+        beaterName: 'Kacper',
+        happenedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
+        beaterTimeMs: 88_400,
+        userTimeMs: 90_000,
+        deltaMs: 1_600,
+        previousPosition: 1,
+        currentPosition: 2,
+      });
+      setStatus('ok');
+      return;
+    }
+
     try {
       const data = await api.fetchHeroBeat(userId);
       setHeroBeat(data);
@@ -283,6 +326,11 @@ export function useBikeParkTrails(spotId: string | null, userId?: string) {
 
   const refresh = useCallback(async () => {
     if (!spotId) {
+      setTrails([]);
+      setStatus('empty');
+      return;
+    }
+    if (__DEV__ && spotId === DEV_EMPTY_SPOT_ID) {
       setTrails([]);
       setStatus('empty');
       return;
@@ -715,6 +763,11 @@ export function useSpot(id: string | null) {
 
   const refresh = useCallback(async () => {
     if (!id) { setSpot(null); setStatus('empty'); return; }
+    if (__DEV__ && id === DEV_EMPTY_SPOT_ID) {
+      setSpot(DEV_EMPTY_SPOT);
+      setStatus('ok');
+      return;
+    }
     if (!isSupabaseConfigured) { setSpot(null); setStatus('error'); return; }
     setStatus('loading');
     const res = await api.fetchSpot(id);
