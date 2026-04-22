@@ -9,14 +9,15 @@ import { GlowButton } from '@/components/ui/GlowButton';
 import { HeroCard } from '@/components/ui/HeroCard';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
+import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
 import { ranks, getRankForXp, getXpToNextRank } from '@/systems/ranks';
 import { formatRelativeTimestamp } from '@/lib/api';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
-  useActiveSpots,
   useDailyChallenges,
   useHeroBeat,
   useLeagueFeed,
+  usePrimarySpot,
   useProfile,
   useStreakState,
 } from '@/hooks/useBackend';
@@ -62,7 +63,8 @@ export default function HomeScreen() {
   const { challenges, refresh: refreshChallenges } = useDailyChallenges(authProfile?.id);
   const { streak, refresh: refreshStreak } = useStreakState(authProfile?.id);
   const { events, refresh: refreshFeed } = useLeagueFeed(authProfile?.id, 5);
-  const { spots, refresh: refreshSpots } = useActiveSpots();
+  const { data: primarySpotSummary, status: primarySpotStatus, refresh: refreshPrimarySpot } =
+    usePrimarySpot(authProfile?.id ?? null);
 
   // Cold-start loading gate: first render, authed user, no data yet.
   // Spec v2 3.4 — never render blank. Proper Skeleton primitive comes in Chunk 9.1.
@@ -81,7 +83,6 @@ export default function HomeScreen() {
     await Promise.all([refreshProfile(), refreshHeroBeat()]);
   }
 
-  const primarySpot = spots[0] ?? null;
   const currentXp = profile?.xp ?? 0;
   const currentRank = getRankForXp(currentXp);
   const nextRank = getXpToNextRank(currentXp);
@@ -113,7 +114,7 @@ export default function HomeScreen() {
         refreshChallenges(),
         refreshStreak(),
         refreshFeed(),
-        refreshSpots(),
+        refreshPrimarySpot(),
       ]);
     } finally {
       setRefreshing(false);
@@ -218,6 +219,27 @@ export default function HomeScreen() {
           />
         )}
 
+        {/*
+         * Handoff A1: "Twój bike park" restored as section 2. The
+         * primary spot hook resolves to the spot of the most recent
+         * run. Until a run exists, we render the empty variant so
+         * new riders have a visible entry point to /spot/new.
+         * signed_out -> hide (auth tab handles that funnel).
+         */}
+        {primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error' ? (
+          primarySpotSummary ? (
+            <PrimarySpotCard
+              variant="active"
+              spotId={primarySpotSummary.spot.id}
+              spotName={primarySpotSummary.spot.name}
+              trailCount={primarySpotSummary.trailCount}
+              bestDurationMs={primarySpotSummary.bestDurationMs}
+            />
+          ) : primarySpotStatus === 'empty' ? (
+            <PrimarySpotCard variant="empty" />
+          ) : null
+        ) : null}
+
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>DZIENNE WYZWANIA</Text>
@@ -286,18 +308,6 @@ export default function HomeScreen() {
           mode={streak?.mode ?? 'safe'}
           subtitle={streakSubtitle}
         />
-
-        {primarySpot ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Otwórz bike park: ${primarySpot.name}`}
-            onPress={() => router.push(`/spot/${primarySpot.id}`)}
-            style={styles.primarySpotLink}
-          >
-            <Text style={styles.primarySpotLabel}>TWÓJ BIKE PARK</Text>
-            <Text style={styles.primarySpotName}>{primarySpot.name}</Text>
-          </Pressable>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -366,18 +376,6 @@ const styles = StyleSheet.create({
   emptyFeed: {
     ...chunk9Typography.body13,
     color: chunk9Colors.text.secondary,
-  },
-  primarySpotLink: {
-    gap: 2,
-    paddingTop: 4,
-  },
-  primarySpotLabel: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
-  },
-  primarySpotName: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
   },
   centeredState: {
     flex: 1,
