@@ -14,7 +14,7 @@
 // Query: ?state=far|near|on_line_ready|wrong_side|gps_unsure
 // ═══════════════════════════════════════════════════════════
 
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, StyleSheet } from 'react-native';
 import { ApproachView } from '@/components/run/ApproachView';
 import type { ApproachState } from '@/features/run/approachNavigator';
@@ -63,6 +63,7 @@ const FIXTURES: Record<Variant, {
 export default function ApproachPreview() {
   if (!__DEV__) return null;
 
+  const router = useRouter();
   const params = useLocalSearchParams<{ state?: string; variant?: string }>();
   const variant = (params.state ?? 'far') as Variant;
   const fixture = FIXTURES[variant] ?? FIXTURES.far;
@@ -70,6 +71,14 @@ export default function ApproachPreview() {
   // can screenshot the simplified production layout. Default ('dev')
   // keeps all readouts for debugging.
   const approachVariant = params.variant === 'production' ? 'production' : 'dev';
+
+  // Chunk 10.2 dead-end audit: previously onBack was a noop, leaving
+  // the rider stuck on this route with no tab bar and no back button.
+  // Now wires to router.back() with a replace-to-root fallback.
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -80,7 +89,7 @@ export default function ApproachPreview() {
         userAccuracyM={fixture.accuracy}
         userVelocityMps={fixture.velocity}
         userHeading={fixture.heading}
-        onBack={() => undefined}
+        onBack={handleBack}
         variant={approachVariant}
       />
     </SafeAreaView>
