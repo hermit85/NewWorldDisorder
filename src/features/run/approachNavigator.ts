@@ -18,7 +18,7 @@ import { computeHeading, headingDifference } from './geometry';
 import {
   GATE_APPROACH_NEAR_M,
   GATE_APPROACH_READY_M,
-  GATE_ACCURACY_REQUIRED_M,
+  APPROACH_UNSURE_ACCURACY_M,
   GATE_HEADING_TOLERANCE_DEG,
 } from './gates';
 import type { TrailGateConfig } from './types';
@@ -76,10 +76,12 @@ export interface ApproachNavigatorInput {
 export function computeApproachState(input: ApproachNavigatorInput): ApproachState {
   const { userPosition, userHeading, userAccuracyM, trailGate } = input;
 
-  // 1. GPS quality gate. One meter of slack above the armed threshold so
-  //    we don't thrash between gps_unsure ↔ on_line_ready when accuracy
-  //    hovers near 5m.
-  if (userAccuracyM > GATE_ACCURACY_REQUIRED_M + 1) {
+  // 1. GPS quality gate — only block the approach UI at APPROACH_UNSURE_
+  //    ACCURACY_M (20m). Tighter accuracy is still surfaced via the
+  //    ±Nm readout on GOTOWY so the rider can judge signal quality,
+  //    but the navigator doesn't refuse to guide them. Gate engine's
+  //    crossing-quality assessment still uses GATE_ACCURACY_REQUIRED_M.
+  if (userAccuracyM > APPROACH_UNSURE_ACCURACY_M) {
     return { kind: 'gps_unsure', accuracyM: userAccuracyM };
   }
 

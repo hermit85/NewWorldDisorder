@@ -64,7 +64,7 @@ export default function ApproachPreview() {
   if (!__DEV__) return null;
 
   const router = useRouter();
-  const params = useLocalSearchParams<{ state?: string; variant?: string }>();
+  const params = useLocalSearchParams<{ state?: string; variant?: string; armed?: string }>();
   const variant = (params.state ?? 'far') as Variant;
   const fixture = FIXTURES[variant] ?? FIXTURES.far;
   // Chunk 10.1 B2 — ?variant=production hides the dev telemetry so we
@@ -88,6 +88,12 @@ export default function ApproachPreview() {
   const startPoint = { latitude: 49.6182, longitude: 20.4048 };
   const userPosition = { latitude: 49.6186, longitude: 20.4052 };
 
+  // B21 preview wiring. `?armed=1` lets us screenshot the post-arm
+  // copy ("UZBROJONY / Schowaj telefon i jedź") without going through
+  // the real state machine. Default is pre-arm so the UZBRÓJ CTA is
+  // what gets captured on the normal preview URL.
+  const armed = params.variant === 'armed' || params.armed === '1';
+
   return (
     <SafeAreaView style={styles.container}>
       <ApproachView
@@ -99,6 +105,8 @@ export default function ApproachPreview() {
         userHeading={fixture.heading}
         startPoint={startPoint}
         userPosition={userPosition}
+        onArm={() => undefined}
+        armed={armed}
         onBack={handleBack}
         variant={approachVariant}
       />

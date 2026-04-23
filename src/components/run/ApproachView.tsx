@@ -50,6 +50,18 @@ export interface ApproachViewProps {
    *  surfaces under the ready hint. Tapping calls this and flags the run
    *  as unverified downstream (no gate crossing was recorded). */
   onManualStart?: () => void;
+  /** B21 fix. Arms the run (phase → armed_ranked / armed_practice) so
+   *  the gate engine actually watches for a line crossing. Before this
+   *  prop existed arming lived on an invisible full-screen Pressable in
+   *  active.tsx, which B20 field testers never discovered — they read
+   *  "timer wystartuje sam", rode through the line and nothing happened
+   *  because the gate callback rejects crossings outside armed phases.
+   *  Surfacing it as a primary CTA on GOTOWY closes that loop. */
+  onArm?: () => void;
+  /** True iff the current phase is armed_ranked / armed_practice. The
+   *  component swaps the GOTOWY copy + hides the UZBRÓJ button once the
+   *  rider is armed, so the flow visibly progresses Arm → Ride → Timer. */
+  armed?: boolean;
   onBack?: () => void;
   /**
    * 'production' (default) hides technical readouts per Chunk 10.1 B2 —
@@ -98,13 +110,26 @@ function NearContent({
   distanceM,
   headingDeltaDeg,
   relativeArrowDeg,
+  onArm,
+  armed,
 }: {
   distanceM: number;
   headingDeltaDeg: number;
   relativeArrowDeg: number;
+  onArm?: () => void;
+  armed?: boolean;
 }) {
+  // Only nag about approach direction when the rider is genuinely facing
+  // away (> 90°). B20 testers reported being chided at ~30° when they
+  // were just standing square to the line, which is normal at the gate.
   const approachHint =
-    headingDeltaDeg > 90 ? 'Obejdź — podejdź z kierunku trasy.' : 'Podejdź z kierunku trasy.';
+    headingDeltaDeg > 90 ? 'Odwróć się — trasa jest za tobą.' : null;
+
+  const handleArm = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    onArm?.();
+  };
+
   return (
     <View style={styles.stateCenter}>
       <View style={[styles.arrowWrap, { transform: [{ rotate: `${relativeArrowDeg}deg` }] }]}>
@@ -112,7 +137,25 @@ function NearContent({
       </View>
       <Text style={styles.bigDistance}>{Math.round(distanceM)}m</Text>
       <Text style={styles.stateLabel}>DO LINII</Text>
-      <Text style={styles.stateHint}>{approachHint}</Text>
+      {approachHint ? <Text style={styles.stateHint}>{approachHint}</Text> : null}
+      {/* B21 override: GPS bias between pioneer geometry and current fix
+          can leave a rider "stuck" at ~7m from the line while visually
+          standing on it. Offer an arm override so honest riders aren't
+          blocked — the gate engine still verifies downstream (a faked
+          arm can't produce a real line crossing + corridor trace). */}
+      {onArm && !armed ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Uzbrój mimo to"
+          onPress={handleArm}
+          style={({ pressed }) => [
+            styles.armOverrideBtn,
+            pressed && styles.armOverrideBtnPressed,
+          ]}
+        >
+          <Text style={styles.armOverrideLabel}>UZBRÓJ MIMO TO</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -127,10 +170,14 @@ function OnLineReadyContent({
   accuracyM,
   mode,
   onManualStart,
+  onArm,
+  armed,
 }: {
   accuracyM: number;
   mode: 'ranked' | 'training';
   onManualStart?: () => void;
+  onArm?: () => void;
+  armed?: boolean;
 }) {
   const pulse = useSharedValue(1);
   const [showManualFallback, setShowManualFallback] = useState(false);
@@ -140,43 +187,61 @@ function OnLineReadyContent({
     return () => cancelAnimation(pulse);
   }, [pulse]);
 
-  // Arm the fallback timer on mount — i.e. the moment the rider entered
-  // on_line_ready. Cleared on unmount (state change) so leaving + re-
-  // entering resets the clock, which is the right default: if the engine
-  // lost the rider and re-armed, they deserve another auto-detect window.
+  // D3 manual-start window only makes sense once the rider is armed —
+  // before arming there's no run for the gate to miss. Restart the
+  // 15s timer when `armed` flips so the fallback appears relative to
+  // the arm moment, not the time they first reached on_line_ready.
   useEffect(() => {
-    if (!onManualStart) return;
+    if (!onManualStart || !armed) {
+      setShowManualFallback(false);
+      return;
+    }
     const timeout = setTimeout(() => setShowManualFallback(true), MANUAL_START_AFTER_MS);
     return () => clearTimeout(timeout);
-  }, [onManualStart]);
+  }, [onManualStart, armed]);
 
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
-  // D1+D2: gate engine auto-starts the timer in both ranked and training
-  // modes (running_practice is now a first-class phase too). Tap is
-  // retained in training as a manual fallback when the gate doesn't
-  // trigger, and that's still useful hint copy — but the default promise
-  // is "it will start itself".
-  //
-  // Field test B19 feedback: the old copy ("timer wystartuje sam") told
-  // the rider the outcome but not the trigger — they sat still waiting
-  // and tapped in confusion. Name the trigger explicitly.
-  const hint =
-    mode === 'ranked'
-      ? 'Rusz przez linię startu — timer startuje automatycznie.'
-      : 'Rusz przez linię startu — timer startuje sam. Dotknij jeśli nie zaskoczy.';
+  // Copy tracks whether the rider has armed yet. Before arming the app
+  // has to tell them what to do next (tap UZBRÓJ, then ride). After
+  // arming the copy promises the timer; the arm CTA is gone, the
+  // manual-start fallback takes its slot after 15 s if the gate never
+  // fires (GPS glitch, below-threshold speed, tree-line accuracy).
+  const hint = armed
+    ? (mode === 'ranked'
+        ? 'Schowaj telefon i jedź — timer startuje gdy przetniesz linię.'
+        : 'Schowaj telefon i jedź — timer sam zaskoczy na linii. Dotknij jeśli nie.')
+    : 'Dotknij UZBRÓJ, schowaj telefon, przekrocz linię — wtedy timer rusza.';
 
   const handleManualStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
     onManualStart?.();
   };
 
+  const handleArm = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    onArm?.();
+  };
+
   return (
     <View style={styles.stateCenter}>
       <Animated.View style={[styles.armedDot, pulseStyle]} />
-      <Text style={styles.readyTitle}>GOTOWY</Text>
+      <Text style={styles.readyTitle}>{armed ? 'UZBROJONY' : 'GOTOWY'}</Text>
       <Text style={styles.readyAccuracy}>±{accuracyM.toFixed(0)}m</Text>
       <Text style={styles.stateHint}>{hint}</Text>
+      {onArm && !armed ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === 'ranked' ? 'Uzbrój ranked' : 'Uzbrój trening'}
+          onPress={handleArm}
+          style={({ pressed }) => [
+            styles.armBtn,
+            pressed && styles.armBtnPressed,
+          ]}
+        >
+          <Text style={styles.armBtnLabel}>UZBRÓJ</Text>
+        </Pressable>
+      ) : null}
       {showManualFallback && onManualStart ? (
         <View style={styles.manualFallback}>
           <Text style={styles.manualFallbackHint}>
@@ -323,6 +388,8 @@ export const ApproachView = memo(function ApproachView({
   startPoint,
   userPosition,
   onManualStart,
+  onArm,
+  armed,
   onBack,
   variant = 'production',
 }: ApproachViewProps) {
@@ -396,6 +463,8 @@ export const ApproachView = memo(function ApproachView({
             distanceM={state.distanceM}
             headingDeltaDeg={state.headingDeltaDeg}
             relativeArrowDeg={relativeArrowDeg}
+            onArm={onArm}
+            armed={armed}
           />
         )}
         {state.kind === 'on_line_ready' && (
@@ -403,6 +472,8 @@ export const ApproachView = memo(function ApproachView({
             accuracyM={state.accuracyM}
             mode={mode}
             onManualStart={onManualStart}
+            onArm={onArm}
+            armed={armed}
           />
         )}
         {state.kind === 'wrong_side' && (
@@ -594,6 +665,40 @@ const styles = StyleSheet.create({
     ...chunk9Typography.label13,
     color: chunk9Colors.text.primary,
     letterSpacing: 2,
+  },
+  armBtn: {
+    marginTop: 18,
+    paddingHorizontal: 48,
+    paddingVertical: 18,
+    borderRadius: chunk9Radii.pill,
+    backgroundColor: chunk9Colors.accent.emerald,
+  },
+  armBtnPressed: {
+    opacity: 0.82,
+  },
+  armBtnLabel: {
+    ...chunk9Typography.label13,
+    color: '#000',
+    letterSpacing: 4,
+    fontSize: 15,
+  },
+  armOverrideBtn: {
+    marginTop: 22,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.accent.emerald,
+    backgroundColor: 'transparent',
+  },
+  armOverrideBtnPressed: {
+    opacity: 0.7,
+  },
+  armOverrideLabel: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.accent.emerald,
+    letterSpacing: 3,
+    fontSize: 12,
   },
   armedDot: {
     // Emerald instance #2 — only lives here when on_line_ready

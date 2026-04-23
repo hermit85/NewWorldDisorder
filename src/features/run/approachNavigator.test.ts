@@ -67,24 +67,24 @@ function userSouthOfGate(meters: number) {
 // ── GPS quality gate (highest precedence) ──
 
 describe('computeApproachState — gps_unsure overrides everything', () => {
-  it('returns gps_unsure when accuracy exceeds required + 1m slack', () => {
+  it('returns gps_unsure only when accuracy exceeds APPROACH_UNSURE_ACCURACY_M (20m)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1), // on the line
       userHeading: 180,
-      userAccuracyM: 7, // > 6 (5 required + 1 slack)
+      userAccuracyM: 25,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
 
     expect(state.kind).toBe('gps_unsure');
-    if (state.kind === 'gps_unsure') expect(state.accuracyM).toBe(7);
+    if (state.kind === 'gps_unsure') expect(state.accuracyM).toBe(25);
   });
 
   it('returns gps_unsure even when user is far (beats FAR state)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(100),
       userHeading: 180,
-      userAccuracyM: 20,
+      userAccuracyM: 40,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
@@ -92,28 +92,40 @@ describe('computeApproachState — gps_unsure overrides everything', () => {
     expect(state.kind).toBe('gps_unsure');
   });
 
-  it('slack: accuracy 6m exactly does NOT trigger gps_unsure (boundary)', () => {
+  it('urban-GPS accuracy (7m) no longer blocks the navigator UI', () => {
+    // Field test B20: riders at GOTOWY with ±7-10m accuracy kept falling
+    // through to gps_unsure, which hid the start guidance entirely.
+    // Navigator threshold is now 20m; gate engine still uses 5m for its
+    // own crossing-quality assessment.
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: 180,
-      userAccuracyM: 6, // equal to slack boundary
+      userAccuracyM: 7,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
-
-    // Falls through to on_line_ready because we're on the line with good heading
     expect(state.kind).toBe('on_line_ready');
   });
 
-  it('slack: accuracy 6.1m triggers gps_unsure (just over boundary)', () => {
+  it('boundary: accuracy 20m exactly does NOT trigger gps_unsure', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: 180,
-      userAccuracyM: 6.1,
+      userAccuracyM: 20,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
+    expect(state.kind).toBe('on_line_ready');
+  });
 
+  it('boundary: accuracy 20.1m triggers gps_unsure', () => {
+    const state = computeApproachState({
+      userPosition: userNorthOfGate(1),
+      userHeading: 180,
+      userAccuracyM: 20.1,
+      userVelocityMps: 0,
+      trailGate: buildGate(),
+    });
     expect(state.kind).toBe('gps_unsure');
   });
 });

@@ -347,6 +347,22 @@ export default function ActiveRunScreen() {
                   : null
               }
               onManualStart={manualStart}
+              onArm={() => {
+                // B21 field-test fix: riders reaching GOTOWY were never
+                // arming because arming lived only on an invisible full-
+                // screen Pressable. Explicit "UZBRÓJ" CTA in the view
+                // wires here. Ranked when the trail allows + user is
+                // authed; otherwise fall back to practice so the training
+                // flow still works for anonymous / training-only venues.
+                if (isTrainingOnly || !isAuthenticated || state.mode === 'practice') {
+                  armRun('practice');
+                } else {
+                  armRun('ranked');
+                }
+              }}
+              armed={
+                state.phase === 'armed_ranked' || state.phase === 'armed_practice'
+              }
               // onBack intentionally omitted: active.tsx renders its own
               // "← WRÓĆ" (styles.cancelBtn below) during the same phases
               // ApproachView covers. Passing onBack here rendered a second

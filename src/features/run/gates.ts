@@ -60,6 +60,14 @@ export const GATE_APPROACH_READY_M = 3;
  *  guessed direction. */
 export const GATE_ACCURACY_REQUIRED_M = 5;
 
+/** Navigator UI block threshold. Separate from GATE_ACCURACY_REQUIRED_M
+ *  because Apple's foreground GPS in dense urban terrain routinely sits
+ *  at ±7-12m even with a clean sky view — blocking the rider at 6m meant
+ *  B20 field testers saw "GPS SŁABY" at GOTOWY on map. Gate engine still
+ *  uses GATE_ACCURACY_REQUIRED_M for crossing-quality reporting; this
+ *  constant only decides when the approach UI gives up on guidance. */
+export const APPROACH_UNSURE_ACCURACY_M = 20;
+
 /** Max heading deviation from trail bearing tolerated when inside the
  *  ready radius. Matches the Chunk 8 start gate headingToleranceDeg. */
 export const GATE_HEADING_TOLERANCE_DEG = 60;
