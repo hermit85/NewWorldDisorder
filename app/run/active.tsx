@@ -66,6 +66,7 @@ export default function ActiveRunScreen() {
     beginReadinessCheck,
     armRun,
     startRun,
+    manualStart,
     finishRun,
     cancel,
   } = useRealRun(trailId, trailName, spotId, geo, gateConfig, profile?.id);
@@ -341,6 +342,7 @@ export default function ActiveRunScreen() {
                     }
                   : null
               }
+              onManualStart={manualStart}
               onBack={handleBack}
             />
           </View>

@@ -461,6 +461,27 @@ export function useRealRun(
     startRunInternal(false);
   }, [startRunInternal]);
 
+  /**
+   * D3 manual-start fallback. Fires when auto-detection gets stuck in
+   * on_line_ready and the rider hits the "START RĘCZNY" button. Works in
+   * EITHER armed phase — unlike startRun() which is practice-only.
+   *
+   * Since this skips the gate crossing, state.gateAutoStarted stays false
+   * and assessRunQuality downgrades the run on the "missing start crossing"
+   * branch — which is exactly the semantics we want (timer honoured, no
+   * leaderboard entry).
+   */
+  const manualStart = useCallback(() => {
+    const s = stateRef.current;
+    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    if (finalizingRef.current) return;
+    logDebugEvent('run', 'manual_start_fallback', 'info', {
+      trailId,
+      payload: { mode: s.mode, phaseBefore: s.phase },
+    });
+    startRunInternal(false);
+  }, [startRunInternal, trailId]);
+
   const finishRun = useCallback(() => {
     if (stateRef.current.phase !== 'running_practice') return;
     if (finalizingRef.current) return;
@@ -667,6 +688,7 @@ export function useRealRun(
     beginReadinessCheck,
     armRun,
     startRun,
+    manualStart,
     finishRun,
     cancel,
     reset: cancel,

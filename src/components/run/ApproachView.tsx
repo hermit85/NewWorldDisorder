@@ -11,7 +11,7 @@
 // "za linią" when accuracy is actually the problem.
 // ═══════════════════════════════════════════════════════════
 
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -45,6 +45,11 @@ export interface ApproachViewProps {
   startPoint?: LatLng | null;
   /** Rider's current position — rendered as the second marker on the map. */
   userPosition?: LatLng | null;
+  /** D3 fallback. When provided and the rider has been stuck in
+   *  on_line_ready for MANUAL_START_AFTER_MS, a "START RĘCZNY" button
+   *  surfaces under the ready hint. Tapping calls this and flags the run
+   *  as unverified downstream (no gate crossing was recorded). */
+  onManualStart?: () => void;
   onBack?: () => void;
   /**
    * 'production' (default) hides technical readouts per Chunk 10.1 B2 —
@@ -112,19 +117,38 @@ function NearContent({
   );
 }
 
+/** D3: milliseconds stuck in on_line_ready before the manual fallback
+ *  surfaces. Long enough that the gate engine has had multiple GPS
+ *  samples to detect a crossing, short enough that a rider who keeps
+ *  reading "GOTOWY" isn't left frustrated. */
+const MANUAL_START_AFTER_MS = 15_000;
+
 function OnLineReadyContent({
   accuracyM,
   mode,
+  onManualStart,
 }: {
   accuracyM: number;
   mode: 'ranked' | 'training';
+  onManualStart?: () => void;
 }) {
   const pulse = useSharedValue(1);
+  const [showManualFallback, setShowManualFallback] = useState(false);
 
   useEffect(() => {
     pulse.value = withRepeat(withTiming(0.55, { duration: 1200 }), -1, true);
     return () => cancelAnimation(pulse);
   }, [pulse]);
+
+  // Arm the fallback timer on mount — i.e. the moment the rider entered
+  // on_line_ready. Cleared on unmount (state change) so leaving + re-
+  // entering resets the clock, which is the right default: if the engine
+  // lost the rider and re-armed, they deserve another auto-detect window.
+  useEffect(() => {
+    if (!onManualStart) return;
+    const timeout = setTimeout(() => setShowManualFallback(true), MANUAL_START_AFTER_MS);
+    return () => clearTimeout(timeout);
+  }, [onManualStart]);
 
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
@@ -138,12 +162,35 @@ function OnLineReadyContent({
       ? 'W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.'
       : 'W punkcie startowym. Timer wystartuje sam — dotknij jeśli nie zareaguje.';
 
+  const handleManualStart = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+    onManualStart?.();
+  };
+
   return (
     <View style={styles.stateCenter}>
       <Animated.View style={[styles.armedDot, pulseStyle]} />
       <Text style={styles.readyTitle}>GOTOWY</Text>
       <Text style={styles.readyAccuracy}>±{accuracyM.toFixed(0)}m</Text>
       <Text style={styles.stateHint}>{hint}</Text>
+      {showManualFallback && onManualStart ? (
+        <View style={styles.manualFallback}>
+          <Text style={styles.manualFallbackHint}>
+            Timer nie ruszył? Wystartuj ręcznie — przejazd nie wejdzie na ranking.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wystartuj ręcznie"
+            onPress={handleManualStart}
+            style={({ pressed }) => [
+              styles.manualFallbackBtn,
+              pressed && styles.manualFallbackBtnPressed,
+            ]}
+          >
+            <Text style={styles.manualFallbackLabel}>START RĘCZNY</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -271,6 +318,7 @@ export const ApproachView = memo(function ApproachView({
   userHeading,
   startPoint,
   userPosition,
+  onManualStart,
   onBack,
   variant = 'production',
 }: ApproachViewProps) {
@@ -347,7 +395,11 @@ export const ApproachView = memo(function ApproachView({
           />
         )}
         {state.kind === 'on_line_ready' && (
-          <OnLineReadyContent accuracyM={state.accuracyM} mode={mode} />
+          <OnLineReadyContent
+            accuracyM={state.accuracyM}
+            mode={mode}
+            onManualStart={onManualStart}
+          />
         )}
         {state.kind === 'wrong_side' && (
           <WrongSideContent
@@ -511,6 +563,33 @@ const styles = StyleSheet.create({
     ...chunk9Typography.captionMono10,
     color: chunk9Colors.text.tertiary,
     textAlign: 'center',
+  },
+  manualFallback: {
+    marginTop: chunk9Spacing.sectionVertical,
+    alignItems: 'center',
+    gap: chunk9Spacing.cardChildGap,
+    paddingHorizontal: 8,
+  },
+  manualFallbackHint: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.tertiary,
+    textAlign: 'center',
+  },
+  manualFallbackBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.text.secondary,
+    backgroundColor: chunk9Colors.bg.surface,
+  },
+  manualFallbackBtnPressed: {
+    opacity: 0.75,
+  },
+  manualFallbackLabel: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.text.primary,
+    letterSpacing: 2,
   },
   armedDot: {
     // Emerald instance #2 — only lives here when on_line_ready
