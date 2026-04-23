@@ -157,10 +157,14 @@ function OnLineReadyContent({
   // retained in training as a manual fallback when the gate doesn't
   // trigger, and that's still useful hint copy — but the default promise
   // is "it will start itself".
+  //
+  // Field test B19 feedback: the old copy ("timer wystartuje sam") told
+  // the rider the outcome but not the trigger — they sat still waiting
+  // and tapped in confusion. Name the trigger explicitly.
   const hint =
     mode === 'ranked'
-      ? 'W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.'
-      : 'W punkcie startowym. Timer wystartuje sam — dotknij jeśli nie zareaguje.';
+      ? 'Rusz przez linię startu — timer startuje automatycznie.'
+      : 'Rusz przez linię startu — timer startuje sam. Dotknij jeśli nie zaskoczy.';
 
   const handleManualStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);

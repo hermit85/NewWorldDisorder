@@ -347,7 +347,10 @@ export default function ActiveRunScreen() {
                   : null
               }
               onManualStart={manualStart}
-              onBack={handleBack}
+              // onBack intentionally omitted: active.tsx renders its own
+              // "← WRÓĆ" (styles.cancelBtn below) during the same phases
+              // ApproachView covers. Passing onBack here rendered a second
+              // WRÓĆ on top of the parent's.
             />
           </View>
         ) : null}
