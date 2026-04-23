@@ -5,6 +5,64 @@ buildzie. Priorytet rośnie od dołu — najwyższy na górze.
 
 ---
 
+## B21 — ⚠ P0 · Arm-then-cross flow (field test B20)
+
+**Dlaczego:** największa skarga z walk-in testu B20. Mini-mapka
+pokazuje rider w zielonej kropce startu, ale readiness machine
+wciąż trzyma go w `near` / `gps_unsure` / `wrong_side`. User słyszy
+"przesuń się 5-7m" i wychodzi POZA kropkę. Timer nigdy nie ruszy
+sam, a manual fallback ("STARTUJ RĘCZNY") nie odpala w ranked mode
+(fallback idzie do `running_practice`, nie `running_ranked`).
+
+**Target flow (z feedbacku):**
+1. Jestem w start-circle wizualnie → **UZBRÓJ** tap (explicit CTA)
+2. Tap → `armed_ranked` → copy "schowaj telefon i jedź"
+3. Pocket → przekraczam linię → gate engine wykrywa crossing →
+   timer rusza automatycznie
+4. Finisz → liczenie
+
+**Zmiany:**
+
+- **Relax start-circle threshold** — `on_line_ready` detection
+  powinno być tolerant do ±15-20m zamiast obecnego ciasnego radius.
+  Apple GPS ma ±4-10m jitter w mieście, próg trzymania się ciasno
+  powoduje ping-pong między `near` a `on_line`.
+  - File: `src/features/run/approachNavigator.ts` (sprawdzić
+    ON_LINE_READY_RADIUS_M const)
+- **"UZBRÓJ" explicit CTA** zamiast auto-arming. `active.tsx:146`
+  (`armRun('ranked')` w `readiness_check`) powinien przestać być
+  automatyczny. ApproachView gdy `state.kind === 'on_line_ready'`
+  renderuje przycisk "UZBRÓJ RANKED" (primary, duży). Tap → phase
+  flip do `armed_ranked`.
+- **GPS accuracy gate** złagodzić — `gps_unsure` tylko gdy
+  accuracy > 30m (obecnie chyba > 20). W obszarach miejskich
+  ±10-15m jest realnym GPS state dla downhill — blokowanie tego
+  uniemożliwia jazdę.
+- **"Podejdź z kierunku trasy"** pokazywać tylko gdy heading
+  delta > 90° (odwrócony). Obecnie triggeruje przy 30-45° bokiem.
+- **Manual fallback w ranked mode** — obecnie `onManualStart`
+  fires `running_practice` niezależnie od trybu. Jeśli user był
+  w `armed_ranked` i klika manual start, powinien wejść w
+  `running_ranked` z flag'iem "started_manual" (stracone ranking
+  eligibility, ale zachowuje ranked intent).
+
+**Effort:** 4-6h — thresholds + UX CTA + manual-start fix.
+**Risk:** niski — wszystkie zmiany są parametryczne albo dodają
+state transition. Gate engine logic (sama weryfikacja linii)
+nie jest ruszana.
+
+### Pomniejsze z tego samego testu
+- **Pioneer "dodaj trasę" CTA po pierwszej trasie** — trzeba tapnąć
+  kilka razy zanim routing zadziała. Prawdopodobnie brak
+  `Pressable` disabled state podczas submission → race condition
+  na re-entry.
+- **"Jestem w spocie i nie łapie"** — spot geofence radius może być
+  za mały lub `state.lastPoint` nie flush'uje się wystarczająco
+  szybko po wejściu w obszar. Sprawdzić `usePrimarySpot` hook +
+  spot detection w `useRealRun`.
+
+---
+
 ## B21 — Opisy bike parków + tras
 
 **Dlaczego:** bike park i trail mają `description` w DB (`spots.description`,
