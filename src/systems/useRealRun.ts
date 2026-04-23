@@ -261,15 +261,20 @@ export function useRealRun(
 
     const trackingStarted = await startTracking((point) => {
       const currentState = stateRef.current;
-      const isRunningRanked = currentState.phase === 'running_ranked';
-      const isArmedRanked = currentState.phase === 'armed_ranked';
+      // D1+D2: gate engine runs in BOTH ranked and practice phases.
+      // Practice still wins the same auto-start/auto-finish affordance;
+      // leaderboard eligibility is filtered downstream in assessRunQuality.
+      const isRunning =
+        currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
+      const isArmed =
+        currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
       const firstCheckpoint = currentState.checkpoints[0] ?? null;
       const hasPassedFirstCheckpoint = !!firstCheckpoint && (
         firstCheckpoint.passed ||
         distanceMeters(point, firstCheckpoint.coordinate) <= firstCheckpoint.radiusM
       );
 
-      gateEngine.processPoint(point, isRunningRanked, isArmedRanked, hasPassedFirstCheckpoint);
+      gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint);
       gpsHealthRef.current.onSample(point);
 
       safeSetState((s) => {
@@ -328,7 +333,10 @@ export function useRealRun(
 
   gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
     const s = stateRef.current;
-    if (s.phase !== 'armed_ranked') return;
+    // D1+D2: accept auto-start in either armed phase. `startRunInternal`
+    // still reads `s.mode` so the resulting phase matches the user's arm
+    // choice (running_ranked vs running_practice).
+    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
     if (finalizingRef.current) return;
 
     logDebugEvent('run', 'gate_auto_start', 'ok', {
@@ -347,7 +355,9 @@ export function useRealRun(
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
     if (finalizingRef.current) return;
     const s = stateRef.current;
-    if (s.phase !== 'running_ranked') return;
+    // D1+D2: accept auto-finish in either running phase. The finishing
+    // → verifying → completed_* pipeline is mode-agnostic.
+    if (s.phase !== 'running_ranked' && s.phase !== 'running_practice') return;
 
     logDebugEvent('run', 'gate_auto_finish', 'ok', {
       trailId,

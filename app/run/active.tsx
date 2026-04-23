@@ -402,7 +402,7 @@ export default function ActiveRunScreen() {
           <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii startu</Text>
         )}
         {state.phase === 'armed_practice' && (
-          <Text style={styles.instruction}>DOTKNIJ, ABY RUSZYĆ{'\n'}Meta może zakończyć się automatycznie</Text>
+          <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii — dotknij jeśli nie zareaguje</Text>
         )}
         {state.phase === 'running_ranked' && (
           <Text style={styles.instruction}>META ZALICZA SIĘ NA LINII KOŃCA</Text>

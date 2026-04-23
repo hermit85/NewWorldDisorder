@@ -128,14 +128,15 @@ function OnLineReadyContent({
 
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
-  // In ranked mode the gate engine auto-starts the timer when the rider
-  // crosses the line. In training mode there is no gate callback — the
-  // rider has to tap the screen to start, so advertising "timer wystartuje
-  // sam" here would be a lie (walk-test v4 regression).
+  // D1+D2: gate engine auto-starts the timer in both ranked and training
+  // modes (running_practice is now a first-class phase too). Tap is
+  // retained in training as a manual fallback when the gate doesn't
+  // trigger, and that's still useful hint copy — but the default promise
+  // is "it will start itself".
   const hint =
     mode === 'ranked'
       ? 'W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.'
-      : 'W punkcie startowym. Dotknij ekranu, aby wystartować timer.';
+      : 'W punkcie startowym. Timer wystartuje sam — dotknij jeśli nie zareaguje.';
 
   return (
     <View style={styles.stateCenter}>
