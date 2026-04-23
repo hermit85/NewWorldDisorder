@@ -110,14 +110,10 @@ function NearContent({
   distanceM,
   headingDeltaDeg,
   relativeArrowDeg,
-  onArm,
-  armed,
 }: {
   distanceM: number;
   headingDeltaDeg: number;
   relativeArrowDeg: number;
-  onArm?: () => void;
-  armed?: boolean;
 }) {
   // Only nag about approach direction when the rider is genuinely facing
   // away (> 90°). B20 testers reported being chided at ~30° when they
@@ -125,11 +121,14 @@ function NearContent({
   const approachHint =
     headingDeltaDeg > 90 ? 'Odwróć się — trasa jest za tobą.' : null;
 
-  const handleArm = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-    onArm?.();
-  };
-
+  // No arm override in NEAR. Codex / owner review: surfacing UZBRÓJ
+  // across the 3–30 m range shifted the mental model from "stand on
+  // the start" to "arm somewhere nearby". That's the wrong message
+  // for a racing flow — the start line is a line, not a zone. GPS
+  // bias is handled one layer up (APPROACH_UNSURE_ACCURACY_M = 20 so
+  // ±7–10 m doesn't kick the state back to gps_unsure), and the
+  // explicit UZBRÓJ lives in OnLineReadyContent where the rider
+  // really is on the line.
   return (
     <View style={styles.stateCenter}>
       <View style={[styles.arrowWrap, { transform: [{ rotate: `${relativeArrowDeg}deg` }] }]}>
@@ -138,24 +137,6 @@ function NearContent({
       <Text style={styles.bigDistance}>{Math.round(distanceM)}m</Text>
       <Text style={styles.stateLabel}>DO LINII</Text>
       {approachHint ? <Text style={styles.stateHint}>{approachHint}</Text> : null}
-      {/* B21 override: GPS bias between pioneer geometry and current fix
-          can leave a rider "stuck" at ~7m from the line while visually
-          standing on it. Offer an arm override so honest riders aren't
-          blocked — the gate engine still verifies downstream (a faked
-          arm can't produce a real line crossing + corridor trace). */}
-      {onArm && !armed ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Uzbrój mimo to"
-          onPress={handleArm}
-          style={({ pressed }) => [
-            styles.armOverrideBtn,
-            pressed && styles.armOverrideBtnPressed,
-          ]}
-        >
-          <Text style={styles.armOverrideLabel}>UZBRÓJ MIMO TO</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -463,8 +444,6 @@ export const ApproachView = memo(function ApproachView({
             distanceM={state.distanceM}
             headingDeltaDeg={state.headingDeltaDeg}
             relativeArrowDeg={relativeArrowDeg}
-            onArm={onArm}
-            armed={armed}
           />
         )}
         {state.kind === 'on_line_ready' && (
@@ -681,24 +660,6 @@ const styles = StyleSheet.create({
     color: '#000',
     letterSpacing: 4,
     fontSize: 15,
-  },
-  armOverrideBtn: {
-    marginTop: 22,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: chunk9Radii.pill,
-    borderWidth: 1,
-    borderColor: chunk9Colors.accent.emerald,
-    backgroundColor: 'transparent',
-  },
-  armOverrideBtnPressed: {
-    opacity: 0.7,
-  },
-  armOverrideLabel: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
-    letterSpacing: 3,
-    fontSize: 12,
   },
   armedDot: {
     // Emerald instance #2 — only lives here when on_line_ready
