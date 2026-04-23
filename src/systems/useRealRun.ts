@@ -61,6 +61,12 @@ import { isTestMode, shouldSimTrackingFail } from './testMode';
 // Extracted modules
 import { finalizeRun } from './runFinalization';
 import { submitRun, updateProgression, getInitialSaveStatus, toSaveStatus, type BackendSaveStatus } from './runSubmit';
+import {
+  announceAutoStart,
+  announceAutoFinish,
+  announceManualStart,
+  stopGateSpeech,
+} from './gateFeedback';
 
 export type { BackendSaveStatus } from './runSubmit';
 
@@ -349,6 +355,7 @@ export function useRealRun(
       },
     });
 
+    announceAutoStart();
     startRunInternal(true);
   };
 
@@ -375,6 +382,8 @@ export function useRealRun(
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    const finalElapsed = s.startedAt ? Date.now() - s.startedAt : s.elapsedMs;
+    announceAutoFinish(finalElapsed);
     safeSetState((prev) => ({
       ...prev,
       phase: 'finishing' as RunPhaseV2,
@@ -479,6 +488,7 @@ export function useRealRun(
       trailId,
       payload: { mode: s.mode, phaseBefore: s.phase },
     });
+    announceManualStart();
     startRunInternal(false);
   }, [startRunInternal, trailId]);
 
@@ -503,6 +513,7 @@ export function useRealRun(
   const cancel = useCallback(() => {
     finalizingRef.current = false;
     stopAll();
+    stopGateSpeech();
     clearActiveTrace();
     gateEngine.reset();
     safeSetState((s) => ({
@@ -680,6 +691,7 @@ export function useRealRun(
         stopTracking();
         trackingActiveRef.current = false;
       }
+      stopGateSpeech();
     };
   }, []);
 
