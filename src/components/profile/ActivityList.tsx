@@ -24,7 +24,13 @@ import {
 } from '@/systems/runStore';
 import { chunk9Colors, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
-const MAX_VISIBLE = 10;
+// Rider tab lays out Player card → Stats → Aktywność → Osiągnięcia
+// in a single ScrollView. The old ceiling of 10 rows (≈ 700 px on
+// iPhone 16) shoved the badge grid off-screen — after a few runs
+// the rider couldn't see their achievements without scrolling past
+// half the activity list. Default view now collapses to 5 most
+// recent; the expand button shows the rest without leaving the tab.
+const COLLAPSED_VISIBLE = 5;
 
 function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -105,6 +111,7 @@ const RunRow = memo(function RunRow({
 export function ActivityList() {
   const router = useRouter();
   const [runs, setRuns] = useState<FinalizedRun[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     setRuns(getAllFinalizedRuns());
@@ -126,7 +133,13 @@ export function ActivityList() {
     [router],
   );
 
-  const visible = runs.slice(0, MAX_VISIBLE);
+  const handleToggle = useCallback(() => {
+    Haptics.selectionAsync().catch(() => undefined);
+    setExpanded((prev) => !prev);
+  }, []);
+
+  const visible = expanded ? runs : runs.slice(0, COLLAPSED_VISIBLE);
+  const hasMore = runs.length > COLLAPSED_VISIBLE;
 
   if (runs.length === 0) {
     return (
@@ -141,7 +154,7 @@ export function ActivityList() {
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>AKTYWNOŚĆ</Text>
-        {runs.length > MAX_VISIBLE ? (
+        {hasMore ? (
           <Text style={styles.sectionMeta}>{visible.length}/{runs.length}</Text>
         ) : null}
       </View>
@@ -150,6 +163,18 @@ export function ActivityList() {
           <RunRow key={run.sessionId} run={run} onPress={() => handleTap(run)} />
         ))}
       </View>
+      {hasMore ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? 'Zwiń aktywność' : `Pokaż wszystkie ${runs.length} zjazdów`}
+          onPress={handleToggle}
+          style={({ pressed }) => [styles.expandBtn, pressed && styles.expandBtnPressed]}
+        >
+          <Text style={styles.expandLabel}>
+            {expanded ? 'ZWIŃ' : `POKAŻ WSZYSTKIE (${runs.length})`}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -238,5 +263,22 @@ const styles = StyleSheet.create({
   emptyBody: {
     ...chunk9Typography.body13,
     color: chunk9Colors.text.secondary,
+  },
+  expandBtn: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+  },
+  expandBtnPressed: {
+    opacity: 0.6,
+  },
+  expandLabel: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.secondary,
+    letterSpacing: 2,
   },
 });
