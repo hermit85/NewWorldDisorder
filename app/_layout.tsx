@@ -27,6 +27,10 @@ import { initSaveQueue } from '@/systems/saveQueue';
 // src/features/recording/backgroundLocationTask.ts for the guard
 // that makes this import idempotent under Fast Refresh.
 import '@/features/recording/backgroundLocationTask';
+// Ranked / practice real-run task — parallel registration with the
+// pioneer recording task. Same "must run at app init every launch"
+// requirement; see src/systems/realRunBackgroundTask.ts for details.
+import '@/systems/realRunBackgroundTask';
 
 // Debug drawer — only imported in dev
 const DebugDrawerLazy = __DEV__

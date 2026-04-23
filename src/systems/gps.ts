@@ -126,12 +126,29 @@ export function distanceMeters(
 export type LocationCallback = (point: GpsPoint) => void;
 
 let _subscription: Location.LocationSubscription | null = null;
+let _backgroundTaskActive = false;
 
+/**
+ * Start GPS tracking for a ranked / practice run.
+ *
+ * Runs two parallel delivery paths so foreground latency stays tight
+ * AND a backgrounded phone still collects samples:
+ *   1. watchPositionAsync — foreground-only, fires the callback on
+ *      every sample at near-zero latency. This is the hot path while
+ *      the rider is holding the phone on the approach screen.
+ *   2. startLocationUpdatesAsync — TaskManager-backed, keeps
+ *      delivering after the app backgrounds (phone in pocket). Its
+ *      handler pushes samples to realRunBackgroundBuffer; useRealRun's
+ *      1 s tick drains that buffer and forwards new samples to the
+ *      same processPoint pipeline. Task runs in both foreground and
+ *      background — foreground duplicates are filtered by useRealRun
+ *      via a monotonic-timestamp cursor so the gate engine sees each
+ *      sample exactly once.
+ */
 export async function startTracking(
   callback: LocationCallback,
   intervalMs: number = 1000
 ): Promise<boolean> {
-  // Guard: stop existing tracking if already active (prevent orphaned subscription)
   if (_subscription) {
     console.warn('[NWD] startTracking called while already tracking — stopping previous');
     stopTracking();
@@ -141,20 +158,25 @@ export async function startTracking(
     const perm = await checkLocationPermission();
     if (!perm.foreground) return false;
 
-    // Chunk 10 §3.2: align foreground subscription with the background
-    // recorder task. watchPositionAsync is foreground-only, so we can
-    // only set the shared subset of options here; full background
-    // hardening (activityType, foregroundService, deferredUpdatesInterval)
-    // requires migrating useRealRun onto startLocationUpdatesAsync. That
-    // migration is a Chunk 10.1 scope — we keep backward compat here to
-    // avoid breaking the ranked-run flow that walk-test v4 just verified.
+    // Background permission is checked independently via the
+    // LocationProvider api — `GpsPermissionState` only tracks the
+    // foreground bit (Sprint 2 legacy). Read it live here so we
+    // can decide whether to start the parallel TaskManager path.
+    let hasBackground = false;
+    try {
+      const bg = await Location.getBackgroundPermissionsAsync();
+      hasBackground = bg.status === 'granted';
+    } catch {
+      // Platform without background permissions (web fallback) or
+      // an OS that revoked silently — treat as missing, foreground
+      // tracking still runs.
+      hasBackground = false;
+    }
+
     _subscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
         timeInterval: intervalMs,
-        // Chunk 10: deliver every sample so gpsHealthTracker can see the
-        // real native cadence. The prior 5m dedup masked background
-        // throttling gaps.
         distanceInterval: 0,
       },
       (loc) => {
@@ -172,6 +194,39 @@ export async function startTracking(
         }
       }
     );
+
+    // Start the parallel background task. Missing Always permission
+    // is NOT a hard error here — foreground via watchPositionAsync
+    // still works, we just lose the backgrounded-phone tracking. The
+    // recording screen banner already warns the rider about the
+    // tradeoff when Always is denied.
+    if (hasBackground) {
+      try {
+        const { REAL_RUN_LOCATION_TASK_NAME } = await import('./realRunBackgroundTask');
+        const running = await Location.hasStartedLocationUpdatesAsync(REAL_RUN_LOCATION_TASK_NAME);
+        if (!running) {
+          await Location.startLocationUpdatesAsync(REAL_RUN_LOCATION_TASK_NAME, {
+            accuracy: Location.Accuracy.BestForNavigation,
+            activityType: Location.LocationActivityType.Fitness,
+            distanceInterval: 0,
+            timeInterval: intervalMs,
+            deferredUpdatesInterval: 0,
+            pausesUpdatesAutomatically: false,
+            showsBackgroundLocationIndicator: true,
+            foregroundService: {
+              notificationTitle: 'NWD · zjazd aktywny',
+              notificationBody: 'GPS śledzi twój zjazd',
+            },
+          });
+        }
+        _backgroundTaskActive = true;
+      } catch (e) {
+        // Background task failure is non-fatal — log and continue
+        // with foreground-only tracking so the rider isn't blocked.
+        if (__DEV__) console.warn('[NWD] startLocationUpdatesAsync failed:', e);
+      }
+    }
+
     return true;
   } catch (e) {
     console.error('[NWD] startTracking failed:', e);
@@ -183,6 +238,24 @@ export function stopTracking(): void {
   if (_subscription) {
     _subscription.remove();
     _subscription = null;
+  }
+  if (_backgroundTaskActive) {
+    _backgroundTaskActive = false;
+    // Fire-and-forget — the task stop is asynchronous but the caller
+    // already treats stopTracking as sync. A failure here leaves an
+    // orphan task that the next startTracking will clean via the
+    // hasStartedLocationUpdatesAsync check.
+    void (async () => {
+      try {
+        const { REAL_RUN_LOCATION_TASK_NAME } = await import('./realRunBackgroundTask');
+        const running = await Location.hasStartedLocationUpdatesAsync(REAL_RUN_LOCATION_TASK_NAME);
+        if (running) {
+          await Location.stopLocationUpdatesAsync(REAL_RUN_LOCATION_TASK_NAME);
+        }
+      } catch (e) {
+        if (__DEV__) console.warn('[NWD] stopLocationUpdatesAsync failed:', e);
+      }
+    })();
   }
 }
 

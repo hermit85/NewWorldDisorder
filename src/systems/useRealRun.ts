@@ -26,6 +26,7 @@ import {
   stopTracking,
   distanceMeters,
 } from './gps';
+import * as realRunBgBuffer from './realRunBackgroundBuffer';
 import {
   useRunGateEngine,
   type GateCrossingResult,
@@ -196,6 +197,11 @@ export function useRealRun(
   const trackingActiveRef = useRef(false);
   const mountedRef = useRef(true);
   const finalizingRef = useRef(false);
+  /** Highest sample timestamp the gate engine has already consumed.
+   *  Foreground watchPositionAsync and the background TaskManager
+   *  task both deliver into processSample — this cursor dedups
+   *  samples that arrive via both paths during a foreground window. */
+  const lastProcessedTsRef = useRef<number>(0);
 
   const safeSetState = useCallback((updater: (s: RealRunState) => RealRunState) => {
     if (mountedRef.current) setState(updater);
@@ -283,11 +289,21 @@ export function useRealRun(
 
     safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
 
-    const trackingStarted = await startTracking((point) => {
+    // Fresh background-buffer window. Anything that leaked in between
+    // runs (cancelled attempt, Fast Refresh) is dropped before the new
+    // tracking session starts.
+    realRunBgBuffer.reset();
+    lastProcessedTsRef.current = 0;
+
+    const processSample = (point: GpsPoint) => {
+      // Dedup: foreground watchPositionAsync and the background task
+      // both deliver while app is in foreground. Monotonic-timestamp
+      // cursor keeps the gate engine / state machine from counting
+      // the same physical sample twice.
+      if (point.timestamp <= lastProcessedTsRef.current) return;
+      lastProcessedTsRef.current = point.timestamp;
+
       const currentState = stateRef.current;
-      // D1+D2: gate engine runs in BOTH ranked and practice phases.
-      // Practice still wins the same auto-start/auto-finish affordance;
-      // leaderboard eligibility is filtered downstream in assessRunQuality.
       const isRunning =
         currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
       const isArmed =
@@ -301,9 +317,6 @@ export function useRealRun(
       gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint);
       gpsHealthRef.current.onSample(point);
 
-      // Snapshot diagnostics once per sample — cheap (ref reads only) and
-      // keeps the debug overlay fresh in armed/pre-run phases where the
-      // 50ms timer tick isn't running yet.
       const sampleDiagnostics = gateEngine.getDiagnostics();
 
       safeSetState((s) => {
@@ -347,6 +360,24 @@ export function useRealRun(
           gateLastFinishAttempt: sampleDiagnostics.lastFinishAttempt,
         };
       });
+    };
+
+    /** Forward any samples the background task has pushed into the
+     *  ring buffer since we last drained. Called at the start of
+     *  every foreground sample delivery AND on AppState → 'active'
+     *  transitions so a resumed app catches up immediately rather
+     *  than waiting for the next watchPositionAsync fire. */
+    const drainBackgroundBuffer = () => {
+      const backlog = realRunBgBuffer.drainAfter(lastProcessedTsRef.current);
+      for (const p of backlog) processSample(p);
+    };
+
+    const trackingStarted = await startTracking((point) => {
+      // Drain BEFORE processing this foreground sample so the gate
+      // engine sees a contiguous, monotonically-ordered stream even
+      // when the app was just resumed from background.
+      drainBackgroundBuffer();
+      processSample(point);
     }, 1000);
 
     if (trackingStarted) {
@@ -568,6 +599,11 @@ export function useRealRun(
     stopGateSpeech();
     clearActiveTrace();
     gateEngine.reset();
+    // Drop any samples the background task may have pushed after
+    // the rider bailed — they would otherwise replay into the next
+    // attempt via drainBackgroundBuffer on the first fresh sample.
+    realRunBgBuffer.reset();
+    lastProcessedTsRef.current = 0;
     // Full reset via the factory — previous partial reset leaked
     // `mode`, `runSessionId`, `lastPoint`, `gps`, `readiness`,
     // `pointCount` and checkpoints into the next attempt. Permission-
