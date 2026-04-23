@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "17",
+      "buildNumber": "19",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"

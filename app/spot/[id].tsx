@@ -191,12 +191,8 @@ export default function SpotScreen() {
           </View>
         </View>
 
-        {/* B3: identity block collapsed. Dropped '✦ BIKE PARK' kicker
-            (context is obvious from the route) and the '{status} · TWÓJ
-            REKORD' status/PB line in favour of a lowercase one-liner
-            'X tras · Rekord Y'. Status is already conveyed by the badge
-            per-trail card. */}
         <View style={styles.identityBlock}>
+          <Text style={styles.identityKicker}>✦ BIKE PARK</Text>
           <Text style={styles.identityTitle}>{spot.name}</Text>
           <Text style={styles.identitySub}>
             {trails.length} {trails.length === 1 ? 'trasa' : trails.length < 5 ? 'trasy' : 'tras'}
@@ -294,28 +290,33 @@ export default function SpotScreen() {
         ) : (
           <View style={styles.emptyState}>
             <Brackets color="dim" />
-            <Text style={styles.emptyEyebrow}>BRAK ZDEFINIOWANYCH TRAS</Text>
+            <Text style={styles.emptyEyebrow}>MISSJA OTWARTA · PIONEER SLOT WOLNY</Text>
             <Text style={styles.emptyTitle}>
               Pionieruj.{'\n'}Zdefiniuj linię.{'\n'}Wyzwij innych.
             </Text>
-            <Text style={styles.emptyBody}>
-              Pierwszy verified zjazd rezerwuje pozycję. Telefon do kieszeni, jeden przejazd i
-              ranking jest gotowy dla kolejnych riderów.
-            </Text>
 
-            <GlowButton
-              label="+ Dodaj pierwszą trasę"
-              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-              variant="primary"
-            />
+            <View style={styles.howItWorksRow}>
+              <View style={styles.howItWorksCell}>
+                <Text style={styles.howItWorksIndex}>01</Text>
+                <Text style={styles.howItWorksItem}>TELEFON DO KIESZENI</Text>
+              </View>
+              <View style={styles.howItWorksCell}>
+                <Text style={styles.howItWorksIndex}>02</Text>
+                <Text style={styles.howItWorksItem}>ZJEDŹ RAZ</Text>
+              </View>
+              <View style={styles.howItWorksCell}>
+                <Text style={styles.howItWorksIndex}>03</Text>
+                <Text style={styles.howItWorksItem}>RANKING GOTOWY</Text>
+              </View>
+            </View>
 
             <SegmentLine />
 
-            <View style={styles.howItWorksRow}>
-              <Text style={styles.howItWorksItem}>TELEFON DO KIESZENI</Text>
-              <Text style={styles.howItWorksItem}>ZJEDŹ RAZ</Text>
-              <Text style={styles.howItWorksItem}>RANKING GOTOWY</Text>
-            </View>
+            <GlowButton
+              label="+ Zostań Pionierem"
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+              variant="primary"
+            />
           </View>
         )}
 
@@ -443,19 +444,22 @@ const styles = StyleSheet.create({
     ...chunk9Typography.display28,
     color: chunk9Colors.text.primary,
   },
-  emptyBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
-  },
   howItWorksRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 10,
   },
+  howItWorksCell: {
+    flex: 1,
+    gap: 4,
+  },
+  howItWorksIndex: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.accent.emerald,
+  },
   howItWorksItem: {
     ...chunk9Typography.captionMono10,
     color: chunk9Colors.text.secondary,
-    flex: 1,
   },
   deleteLink: {
     alignSelf: 'center',

@@ -1,0 +1,19 @@
+appId: com.nwdisorder.app
+name: 03 · Tabs · navigate between START/SPOTY/TABLICA/RIDER
+tags:
+  - tabs
+# Requires authenticated session. Skips if user is on auth/onboarding.
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    timeout: 15000
+    visible: "LIGA GRAVITY"
+# Tab bar labels are always rendered — tapping them proves the route switches.
+- tapOn: "SPOTY"
+- tapOn: "TABLICA"
+- tapOn: "RIDER"
+- tapOn: "START"
+- extendedWaitUntil:
+    timeout: 5000
+    visible: "LIGA GRAVITY"

@@ -189,80 +189,71 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <View>
-          <SectionHeader
-            label={heroBeat ? 'Pojedynek dnia' : 'Liga'}
-            glyph={heroBeat ? '▲' : '◆'}
-            glyphColor={heroBeat ? chunk9Colors.accent.emerald : chunk9Colors.text.secondary}
-            spacingTop="none"
-          />
-          {heroBeat ? (
+        {/*
+         * Fresh-rider priority: a user with no runs AND no primary spot
+         * has one job — add a bike park and carve their first trail.
+         * Showing "Dziś bez zmian · Zaproś rywala" above that CTA inverts
+         * the priority (social feature they can't use yet). So for zero-
+         * state we promote PrimarySpotCard(empty) to hero position and
+         * skip the empty HeroCard entirely. Once they have a run, the
+         * normal hero beat / stable-day copy resumes on top.
+         */}
+        {(() => {
+          const hasHeroBeat = !!heroBeat;
+          const hasPrimarySpot = !!primarySpotSummary;
+          const isFreshRider =
+            !hasHeroBeat &&
+            !hasPrimarySpot &&
+            (profile?.totalRuns ?? 0) === 0;
+
+          const heroCard = hasHeroBeat ? (
             <HeroCard
               variant="active"
-              trailName={heroBeat.trailName}
-              beaterName={heroBeat.beaterName}
-              happenedAt={heroBeat.happenedAt}
-              deltaMs={heroBeat.deltaMs}
-              beaterTimeMs={heroBeat.beaterTimeMs}
-              userTimeMs={heroBeat.userTimeMs}
+              trailName={heroBeat!.trailName}
+              beaterName={heroBeat!.beaterName}
+              happenedAt={heroBeat!.happenedAt}
+              deltaMs={heroBeat!.deltaMs}
+              beaterTimeMs={heroBeat!.beaterTimeMs}
+              userTimeMs={heroBeat!.userTimeMs}
               onPrimary={() =>
                 router.push({
                   pathname: '/run/active',
                   params: {
-                    trailId: heroBeat.trailId,
-                    trailName: heroBeat.trailName,
+                    trailId: heroBeat!.trailId,
+                    trailName: heroBeat!.trailName,
                   },
                 })
               }
             />
-          ) : (
-            <HeroCard
-              variant="empty"
-              onSecondary={handleInviteRival}
-            />
-          )}
-        </View>
+          ) : isFreshRider ? null : (
+            <HeroCard variant="empty" onSecondary={handleInviteRival} />
+          );
 
-        {/*
-         * Handoff A1: "Twój bike park" restored as section 2. The
-         * primary spot hook resolves to the spot of the most recent
-         * run. Until a run exists, we render the empty variant so
-         * new riders have a visible entry point to /spot/new.
-         * signed_out -> hide (auth tab handles that funnel).
-         */}
-        {primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error' ? (
-          primarySpotSummary ? (
-            <View>
-              <SectionHeader
-                label="Twój spot"
-                glyph="◉"
-                glyphColor={chunk9Colors.text.secondary}
-                spacingTop="none"
-                action={{
-                  label: 'Zmień',
-                  onPress: () => router.push('/(tabs)/spots'),
-                }}
-              />
-              <PrimarySpotCard
-                variant="active"
-                spotId={primarySpotSummary.spot.id}
-                spotName={primarySpotSummary.spot.name}
-                trailCount={primarySpotSummary.trailCount}
-                bestDurationMs={primarySpotSummary.bestDurationMs}
-              />
-            </View>
-          ) : primarySpotStatus === 'empty' ? (
-            <View>
-              <SectionHeader
-                label="Twój spot"
-                glyph="◉"
-                glyphColor={chunk9Colors.text.secondary}
-                spacingTop="none"
-              />
-              <PrimarySpotCard variant="empty" />
-            </View>
-          ) : null
-        ) : null}
+          const spotCardVisible =
+            primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error';
+          const spotCard = spotCardVisible
+            ? hasPrimarySpot
+              ? (
+                <PrimarySpotCard
+                  variant="active"
+                  spotId={primarySpotSummary!.spot.id}
+                  spotName={primarySpotSummary!.spot.name}
+                  trailCount={primarySpotSummary!.trailCount}
+                  bestDurationMs={primarySpotSummary!.bestDurationMs}
+                />
+              )
+              : primarySpotStatus === 'empty'
+                ? <PrimarySpotCard variant="empty" />
+                : null
+            : null;
+
+          // Fresh rider → spot card is THE hero. Everyone else → normal order.
+          return isFreshRider ? (
+            <>{spotCard}{heroCard}</>
+          ) : (
+            <>{heroCard}{spotCard}</>
+          );
+        })()}
 
         {/*
          * B1 density reduction: shortened header from

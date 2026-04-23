@@ -275,12 +275,12 @@ export default function AuthScreen() {
 
             <View style={styles.resendRow}>
               <Pressable
-                style={styles.skipBtn}
+                style={[styles.skipBtn, resendCooldown > 0 && styles.skipBtnDisabled]}
                 onPress={handleResend}
                 disabled={resendCooldown > 0}
               >
-                <Text style={[styles.skipText, resendCooldown > 0 && { color: colors.textTertiary }]}>
-                  {resendCooldown > 0 ? `WYŚLIJ PONOWNIE (${resendCooldown}s)` : 'WYŚLIJ PONOWNIE'}
+                <Text style={[styles.skipText, resendCooldown > 0 && styles.skipTextDisabled]}>
+                  {resendCooldown > 0 ? `PONOWNIE ZA ${resendCooldown}s` : 'WYŚLIJ PONOWNIE'}
                 </Text>
               </Pressable>
 
@@ -378,7 +378,9 @@ const styles = StyleSheet.create({
   ctaDisabled: { opacity: 0.5 },
   ctaText: { ...typography.cta, color: colors.bg, letterSpacing: 4, fontSize: 15 },
   skipBtn: { alignItems: 'center', paddingVertical: spacing.md },
+  skipBtnDisabled: { opacity: 0.35 },
   skipText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
+  skipTextDisabled: { color: colors.textTertiary },
   resendRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg },
   inboxCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.accent },
   inboxIcon: { fontSize: 40, marginBottom: spacing.md },

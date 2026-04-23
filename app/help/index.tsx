@@ -70,12 +70,16 @@ export default function HelpScreen() {
           spacingTop="none"
         />
         <View style={styles.rulesCard}>
-          <RuleRow icon="🏁" text="Startuj z bramki" />
-          <RuleRow icon="📍" text="Trzymaj się trasy" />
-          <RuleRow icon="✓" text="Przejedź checkpointy" />
-          <RuleRow icon="🎯" text="Finiszuj na bramce mety" />
-          <RuleRow icon="📶" text="Utrzymuj silny GPS" />
-          <RuleRow icon="🏆" text="Tylko zweryfikowane zjazdy wchodzą na tablicę" />
+          {/* Uniform bullets: mixed emoji icons rendered as tofu/placeholder
+              for 5 of 6 rows on iOS, only ✓ showed. Switching to a single
+              glyph removes the rendering lottery. Section label is supplied
+              by the SectionHeader above so no in-card title needed. */}
+          <RuleRow icon="●" text="Startuj z bramki" />
+          <RuleRow icon="●" text="Trzymaj się trasy" />
+          <RuleRow icon="●" text="Przejedź checkpointy" />
+          <RuleRow icon="●" text="Finiszuj na bramce mety" />
+          <RuleRow icon="●" text="Utrzymuj silny GPS" />
+          <RuleRow icon="●" text="Tylko zweryfikowane zjazdy wchodzą na tablicę" />
         </View>
 
         {/* FAQ */}

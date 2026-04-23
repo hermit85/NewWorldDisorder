@@ -1,0 +1,30 @@
+appId: com.nwdisorder.app
+name: 00 · Smoke · cold launch
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    timeout: 15000
+    visible:
+      text: ".*"
+# App must reach one of: onboarding, auth, or tabs. Any of these = bootstrap OK.
+- runFlow:
+    when:
+      visible:
+        text: "WEJDŹ DO LIGI"
+    commands:
+      - assertVisible: "WEJDŹ DO LIGI"
+- runFlow:
+    when:
+      visible:
+        text: "WYŚLIJ KOD"
+    commands:
+      - assertVisible: "EMAIL"
+- runFlow:
+    when:
+      visible:
+        text: "LIGA GRAVITY"
+    commands:
+      - assertVisible: "LIGA GRAVITY"

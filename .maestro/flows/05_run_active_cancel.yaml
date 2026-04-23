@@ -1,0 +1,34 @@
+appId: com.nwdisorder.app
+name: 05 · Run · deep-link into active run → cancel
+tags:
+  - run
+env:
+  TRAIL_ID: ""
+  TRAIL_NAME: "E2E Trail"
+# Requires an authenticated session and a valid TRAIL_ID for the environment.
+# Export TRAIL_ID before running:
+#   TRAIL_ID=<uuid> maestro test .maestro/flows/05_run_active_cancel.yaml
+---
+- launchApp:
+    clearState: false
+- openLink: nwd://run/active?trailId=${TRAIL_ID}&trailName=${TRAIL_NAME}
+- extendedWaitUntil:
+    timeout: 20000
+    visible:
+      text: "(DOTKNIJ EKRAN|GPS ●|Tryb treningu|GOTOWOŚĆ)"
+# Cancel path — ← WRÓĆ button becomes visible during idle/readiness phases.
+- runFlow:
+    when:
+      visible: "← WRÓĆ"
+    commands:
+      - tapOn: "← WRÓĆ"
+      - extendedWaitUntil:
+          timeout: 5000
+          visible:
+            text: "(LIGA GRAVITY|START|SPOTY)"
+- runFlow:
+    when:
+      notVisible: "← WRÓĆ"
+    commands:
+      # Fallback: use native back if cancel button not rendered (e.g. approach view).
+      - back
