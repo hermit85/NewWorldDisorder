@@ -332,6 +332,15 @@ export default function ActiveRunScreen() {
                   : (state.lastPoint?.speed ?? 0)
               }
               userHeading={state.gateHeadingDeg}
+              startPoint={gateConfig?.startGate.center ?? null}
+              userPosition={
+                state.lastPoint
+                  ? {
+                      latitude: state.lastPoint.latitude,
+                      longitude: state.lastPoint.longitude,
+                    }
+                  : null
+              }
               onBack={handleBack}
             />
           </View>

@@ -11,9 +11,10 @@
 // "za linią" when accuracy is actually the problem.
 // ═══════════════════════════════════════════════════════════
 
-import { memo, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -26,6 +27,8 @@ import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/th
 
 // ── Props ──
 
+export type LatLng = { latitude: number; longitude: number };
+
 export interface ApproachViewProps {
   trailName: string;
   mode: 'ranked' | 'training';
@@ -36,6 +39,12 @@ export interface ApproachViewProps {
   userVelocityMps: number;
   /** Raw user heading [0,360) or null. Only rendered in 'dev' variant. */
   userHeading: number | null;
+  /** Start gate coordinates. When set together with userPosition a mini
+   *  map renders above the state content so the rider can see where the
+   *  line is rather than relying on compass + distance alone. */
+  startPoint?: LatLng | null;
+  /** Rider's current position — rendered as the second marker on the map. */
+  userPosition?: LatLng | null;
   onBack?: () => void;
   /**
    * 'production' (default) hides technical readouts per Chunk 10.1 B2 —
@@ -103,7 +112,13 @@ function NearContent({
   );
 }
 
-function OnLineReadyContent({ accuracyM }: { accuracyM: number }) {
+function OnLineReadyContent({
+  accuracyM,
+  mode,
+}: {
+  accuracyM: number;
+  mode: 'ranked' | 'training';
+}) {
   const pulse = useSharedValue(1);
 
   useEffect(() => {
@@ -113,14 +128,95 @@ function OnLineReadyContent({ accuracyM }: { accuracyM: number }) {
 
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
 
+  // In ranked mode the gate engine auto-starts the timer when the rider
+  // crosses the line. In training mode there is no gate callback — the
+  // rider has to tap the screen to start, so advertising "timer wystartuje
+  // sam" here would be a lie (walk-test v4 regression).
+  const hint =
+    mode === 'ranked'
+      ? 'W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.'
+      : 'W punkcie startowym. Dotknij ekranu, aby wystartować timer.';
+
   return (
     <View style={styles.stateCenter}>
       <Animated.View style={[styles.armedDot, pulseStyle]} />
       <Text style={styles.readyTitle}>GOTOWY</Text>
       <Text style={styles.readyAccuracy}>±{accuracyM.toFixed(0)}m</Text>
-      <Text style={styles.stateHint}>
-        W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.
-      </Text>
+      <Text style={styles.stateHint}>{hint}</Text>
+    </View>
+  );
+}
+
+// ── Start-point mini map ──
+//
+// Small non-interactive map rendered above the state content so the rider
+// can see *where* the start line is rather than navigating by compass +
+// distance alone. Centered on the midpoint of start ↔ user with a region
+// padded to the larger of the two axes plus a 2× margin, so both markers
+// stay comfortably inside the viewport no matter the approach direction.
+
+const MIN_LATITUDE_DELTA = 0.0015; // ≈ 160m at 49° lat — tight enough for on-line state
+const MAP_PADDING_FACTOR = 2.4;
+
+function StartPointMap({
+  startPoint,
+  userPosition,
+}: {
+  startPoint: LatLng;
+  userPosition: LatLng | null;
+}) {
+  const region = useMemo(() => {
+    if (!userPosition) {
+      return {
+        latitude: startPoint.latitude,
+        longitude: startPoint.longitude,
+        latitudeDelta: MIN_LATITUDE_DELTA,
+        longitudeDelta: MIN_LATITUDE_DELTA,
+      };
+    }
+    const midLat = (startPoint.latitude + userPosition.latitude) / 2;
+    const midLng = (startPoint.longitude + userPosition.longitude) / 2;
+    const latSpan = Math.abs(startPoint.latitude - userPosition.latitude);
+    const lngSpan = Math.abs(startPoint.longitude - userPosition.longitude);
+    const latitudeDelta = Math.max(MIN_LATITUDE_DELTA, latSpan * MAP_PADDING_FACTOR);
+    const longitudeDelta = Math.max(MIN_LATITUDE_DELTA, lngSpan * MAP_PADDING_FACTOR);
+    return { latitude: midLat, longitude: midLng, latitudeDelta, longitudeDelta };
+  }, [startPoint, userPosition]);
+
+  return (
+    <View style={styles.mapWrap}>
+      <MapView
+        style={StyleSheet.absoluteFill}
+        provider={PROVIDER_DEFAULT}
+        region={region}
+        pointerEvents="none"
+        liteMode={Platform.OS === 'android'}
+        showsCompass={false}
+        showsScale={false}
+        showsPointsOfInterests={false}
+        toolbarEnabled={false}
+      >
+        <Marker
+          coordinate={startPoint}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
+        >
+          <View style={styles.startMarker}>
+            <Text style={styles.startMarkerText}>S</Text>
+          </View>
+        </Marker>
+        {userPosition ? (
+          <Marker
+            coordinate={userPosition}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <View style={styles.userMarkerOuter}>
+              <View style={styles.userMarkerInner} />
+            </View>
+          </Marker>
+        ) : null}
+      </MapView>
     </View>
   );
 }
@@ -172,6 +268,8 @@ export const ApproachView = memo(function ApproachView({
   userAccuracyM,
   userVelocityMps,
   userHeading,
+  startPoint,
+  userPosition,
   onBack,
   variant = 'production',
 }: ApproachViewProps) {
@@ -227,6 +325,14 @@ export const ApproachView = memo(function ApproachView({
         ) : null}
       </View>
 
+      {/* Start-point map — renders only when we have a start gate + at
+          least a user fix. Sits above the state content so "where am I
+          vs. where's the line" is visible at a glance. Web falls back
+          to nothing because react-native-maps has no web target. */}
+      {startPoint && Platform.OS !== 'web' ? (
+        <StartPointMap startPoint={startPoint} userPosition={userPosition ?? null} />
+      ) : null}
+
       {/* State-specific body */}
       <View style={styles.body}>
         {state.kind === 'far' && (
@@ -239,7 +345,9 @@ export const ApproachView = memo(function ApproachView({
             relativeArrowDeg={relativeArrowDeg}
           />
         )}
-        {state.kind === 'on_line_ready' && <OnLineReadyContent accuracyM={state.accuracyM} />}
+        {state.kind === 'on_line_ready' && (
+          <OnLineReadyContent accuracyM={state.accuracyM} mode={mode} />
+        )}
         {state.kind === 'wrong_side' && (
           <WrongSideContent
             bearingExpected={state.bearingExpected}
@@ -323,6 +431,45 @@ const styles = StyleSheet.create({
   },
   modeBadgeTextRanked: {
     color: chunk9Colors.accent.emerald,
+  },
+  mapWrap: {
+    height: 180,
+    borderRadius: chunk9Radii.card,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
+    overflow: 'hidden',
+  },
+  startMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: chunk9Colors.accent.emerald,
+    borderWidth: 2,
+    borderColor: chunk9Colors.bg.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startMarkerText: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.bg.base,
+    fontWeight: '700',
+  },
+  userMarkerOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(80, 140, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userMarkerInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4A9EFF',
+    borderWidth: 2,
+    borderColor: chunk9Colors.bg.base,
   },
   body: {
     flex: 1,
