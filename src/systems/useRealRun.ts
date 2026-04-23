@@ -31,6 +31,7 @@ import {
   type GateCrossingResult,
   type RunQualityAssessment,
   type TrailGateConfig,
+  type GateAttemptDiagnostic,
 } from '@/features/run';
 import { signedDistanceFromGateLine, headingDifference } from '@/features/run/geometry';
 import { computeReadiness, getStartGateReadinessInput } from './verification';
@@ -98,6 +99,13 @@ export interface RealRunState {
   gateDistToStartM: number | null;
   gateDistToFinishM: number | null;
   gateHeadingDeltaDeg: number | null;
+  /** Last start-gate crossing attempt — populated on every tick while armed.
+   *  `null` means the engine hasn't evaluated a point yet. */
+  gateLastStartAttempt: GateAttemptDiagnostic | null;
+  /** Last finish-gate crossing attempt — populated while running. */
+  gateLastFinishAttempt: GateAttemptDiagnostic | null;
+  /** Perpendicular-velocity threshold (m/s) the engine rejects crossings below. */
+  gateVelocityMinMps: number;
 }
 
 const isWeb = Platform.OS === 'web';
@@ -147,6 +155,9 @@ export function useRealRun(
     gateDistToStartM: null,
     gateDistToFinishM: null,
     gateHeadingDeltaDeg: null,
+    gateLastStartAttempt: null,
+    gateLastFinishAttempt: null,
+    gateVelocityMinMps: 1.0,
   });
 
   // ── Gate Engine ──
@@ -283,6 +294,11 @@ export function useRealRun(
       gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint);
       gpsHealthRef.current.onSample(point);
 
+      // Snapshot diagnostics once per sample — cheap (ref reads only) and
+      // keeps the debug overlay fresh in armed/pre-run phases where the
+      // 50ms timer tick isn't running yet.
+      const sampleDiagnostics = gateEngine.getDiagnostics();
+
       safeSetState((s) => {
         // During run: add points and update checkpoint truth.
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
@@ -304,6 +320,8 @@ export function useRealRun(
             pointCount: s.pointCount + 1,
             checkpoints: updatedCps,
             elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
+            gateLastStartAttempt: sampleDiagnostics.lastStartAttempt,
+            gateLastFinishAttempt: sampleDiagnostics.lastFinishAttempt,
           };
         }
 
@@ -313,7 +331,14 @@ export function useRealRun(
           gpsUpdate,
           getStartGateReadinessInput(point, gateConfig?.startGate ?? null),
         );
-        return { ...s, gps: gpsUpdate, readiness: readinessUpdate, lastPoint: point };
+        return {
+          ...s,
+          gps: gpsUpdate,
+          readiness: readinessUpdate,
+          lastPoint: point,
+          gateLastStartAttempt: sampleDiagnostics.lastStartAttempt,
+          gateLastFinishAttempt: sampleDiagnostics.lastFinishAttempt,
+        };
       });
     }, 1000);
 
@@ -452,6 +477,8 @@ export function useRealRun(
         }
       }
 
+      const diagnostics = gateEngine.getDiagnostics();
+
       safeSetState((s) => ({
         ...s,
         elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
@@ -461,6 +488,9 @@ export function useRealRun(
         gateDistToStartM: distToStart,
         gateDistToFinishM: distToFinish,
         gateHeadingDeltaDeg: headingDelta,
+        gateLastStartAttempt: diagnostics.lastStartAttempt,
+        gateLastFinishAttempt: diagnostics.lastFinishAttempt,
+        gateVelocityMinMps: diagnostics.velocityMinMps,
       }));
     }, 50);
   }, [gateConfig, trailId, trailName, geo, safeSetState, gateEngine]);
@@ -535,6 +565,8 @@ export function useRealRun(
       gateDistToStartM: null,
       gateDistToFinishM: null,
       gateHeadingDeltaDeg: null,
+      gateLastStartAttempt: null,
+      gateLastFinishAttempt: null,
     }));
   }, [stopAll, safeSetState, gateEngine]);
 
