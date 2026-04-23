@@ -61,6 +61,12 @@ import { isTestMode, shouldSimTrackingFail } from './testMode';
 // Extracted modules
 import { finalizeRun } from './runFinalization';
 import { submitRun, updateProgression, getInitialSaveStatus, toSaveStatus, type BackendSaveStatus } from './runSubmit';
+import {
+  announceAutoStart,
+  announceAutoFinish,
+  announceManualStart,
+  stopGateSpeech,
+} from './gateFeedback';
 
 export type { BackendSaveStatus } from './runSubmit';
 
@@ -261,15 +267,20 @@ export function useRealRun(
 
     const trackingStarted = await startTracking((point) => {
       const currentState = stateRef.current;
-      const isRunningRanked = currentState.phase === 'running_ranked';
-      const isArmedRanked = currentState.phase === 'armed_ranked';
+      // D1+D2: gate engine runs in BOTH ranked and practice phases.
+      // Practice still wins the same auto-start/auto-finish affordance;
+      // leaderboard eligibility is filtered downstream in assessRunQuality.
+      const isRunning =
+        currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
+      const isArmed =
+        currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
       const firstCheckpoint = currentState.checkpoints[0] ?? null;
       const hasPassedFirstCheckpoint = !!firstCheckpoint && (
         firstCheckpoint.passed ||
         distanceMeters(point, firstCheckpoint.coordinate) <= firstCheckpoint.radiusM
       );
 
-      gateEngine.processPoint(point, isRunningRanked, isArmedRanked, hasPassedFirstCheckpoint);
+      gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint);
       gpsHealthRef.current.onSample(point);
 
       safeSetState((s) => {
@@ -328,7 +339,10 @@ export function useRealRun(
 
   gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
     const s = stateRef.current;
-    if (s.phase !== 'armed_ranked') return;
+    // D1+D2: accept auto-start in either armed phase. `startRunInternal`
+    // still reads `s.mode` so the resulting phase matches the user's arm
+    // choice (running_ranked vs running_practice).
+    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
     if (finalizingRef.current) return;
 
     logDebugEvent('run', 'gate_auto_start', 'ok', {
@@ -341,13 +355,16 @@ export function useRealRun(
       },
     });
 
+    announceAutoStart();
     startRunInternal(true);
   };
 
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
     if (finalizingRef.current) return;
     const s = stateRef.current;
-    if (s.phase !== 'running_ranked') return;
+    // D1+D2: accept auto-finish in either running phase. The finishing
+    // → verifying → completed_* pipeline is mode-agnostic.
+    if (s.phase !== 'running_ranked' && s.phase !== 'running_practice') return;
 
     logDebugEvent('run', 'gate_auto_finish', 'ok', {
       trailId,
@@ -365,6 +382,8 @@ export function useRealRun(
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    const finalElapsed = s.startedAt ? Date.now() - s.startedAt : s.elapsedMs;
+    announceAutoFinish(finalElapsed);
     safeSetState((prev) => ({
       ...prev,
       phase: 'finishing' as RunPhaseV2,
@@ -451,6 +470,28 @@ export function useRealRun(
     startRunInternal(false);
   }, [startRunInternal]);
 
+  /**
+   * D3 manual-start fallback. Fires when auto-detection gets stuck in
+   * on_line_ready and the rider hits the "START RĘCZNY" button. Works in
+   * EITHER armed phase — unlike startRun() which is practice-only.
+   *
+   * Since this skips the gate crossing, state.gateAutoStarted stays false
+   * and assessRunQuality downgrades the run on the "missing start crossing"
+   * branch — which is exactly the semantics we want (timer honoured, no
+   * leaderboard entry).
+   */
+  const manualStart = useCallback(() => {
+    const s = stateRef.current;
+    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    if (finalizingRef.current) return;
+    logDebugEvent('run', 'manual_start_fallback', 'info', {
+      trailId,
+      payload: { mode: s.mode, phaseBefore: s.phase },
+    });
+    announceManualStart();
+    startRunInternal(false);
+  }, [startRunInternal, trailId]);
+
   const finishRun = useCallback(() => {
     if (stateRef.current.phase !== 'running_practice') return;
     if (finalizingRef.current) return;
@@ -472,6 +513,7 @@ export function useRealRun(
   const cancel = useCallback(() => {
     finalizingRef.current = false;
     stopAll();
+    stopGateSpeech();
     clearActiveTrace();
     gateEngine.reset();
     safeSetState((s) => ({
@@ -649,6 +691,7 @@ export function useRealRun(
         stopTracking();
         trackingActiveRef.current = false;
       }
+      stopGateSpeech();
     };
   }, []);
 
@@ -657,6 +700,7 @@ export function useRealRun(
     beginReadinessCheck,
     armRun,
     startRun,
+    manualStart,
     finishRun,
     cancel,
     reset: cancel,
