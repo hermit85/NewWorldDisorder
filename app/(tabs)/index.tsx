@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ChallengeItem } from '@/components/ui/ChallengeItem';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { HeroCard } from '@/components/ui/HeroCard';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
@@ -262,10 +263,13 @@ export default function HomeScreen() {
          * conveys the countdown.
          */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>WYZWANIA</Text>
-            <Text style={styles.sectionMeta}>{formatChallengeCountdown()}</Text>
-          </View>
+          <SectionHeader
+            label="Wyzwania"
+            glyph="✦"
+            glyphColor={chunk9Colors.accent.emerald}
+            meta={formatChallengeCountdown()}
+            spacingTop="none"
+          />
 
           <View style={styles.challengeProgressTrack}>
             <View
@@ -296,11 +300,23 @@ export default function HomeScreen() {
             RIDER tab (handoff B1) — keeps home focused on "what should
             I do right now" instead of "what are others doing". */}
 
-        <StreakIndicator
-          days={streak?.days ?? 0}
-          mode={streak?.mode ?? 'safe'}
-          subtitle={streakSubtitle}
-        />
+        <View>
+          <SectionHeader
+            label="Passa"
+            glyph="●"
+            glyphColor={
+              (streak?.days ?? 0) > 0
+                ? chunk9Colors.accent.emerald
+                : chunk9Colors.text.secondary
+            }
+            spacingTop="none"
+          />
+          <StreakIndicator
+            days={streak?.days ?? 0}
+            mode={streak?.mode ?? 'safe'}
+            subtitle={streakSubtitle}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -335,22 +351,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 10,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: chunk9Spacing.cardChildGap,
-  },
-  sectionTitle: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
-    flexShrink: 1,
-  },
-  sectionMeta: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
-    textAlign: 'right',
   },
   challengeProgressTrack: {
     height: 3,

@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { Brackets } from '@/components/ui/Brackets';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { GlowButton } from '@/components/ui/GlowButton';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SegmentLine } from '@/components/ui/SegmentLine';
 import { TrailCard } from '@/components/ui/TrailCard';
 import { formatTimeShort } from '@/content/copy';
@@ -244,24 +245,37 @@ export default function SpotScreen() {
               </View>
             ) : null}
 
-            <View style={styles.listBlock}>
-              {filteredTrails.map((trail) => (
-                <TrailCard
-                  key={trail.trail.id}
-                  {...trail}
-                  onPress={() => router.push(`/trail/${trail.trail.id}`)}
-                  onCtaPress={() =>
-                    router.push(
-                      pickRunDestination({
-                        trailId: trail.trail.id,
-                        spotId: spot.id,
-                        trailName: trail.trail.name,
-                        calibrationStatus: trail.calibrationStatus,
-                      }),
-                    )
-                  }
-                />
-              ))}
+            <View>
+              <SectionHeader
+                label="Trasy"
+                glyph="▼"
+                glyphColor={chunk9Colors.text.secondary}
+                meta={
+                  filteredTrails.length === trails.length
+                    ? String(trails.length)
+                    : `${filteredTrails.length} z ${trails.length}`
+                }
+                spacingTop="none"
+              />
+              <View style={styles.listBlock}>
+                {filteredTrails.map((trail) => (
+                  <TrailCard
+                    key={trail.trail.id}
+                    {...trail}
+                    onPress={() => router.push(`/trail/${trail.trail.id}`)}
+                    onCtaPress={() =>
+                      router.push(
+                        pickRunDestination({
+                          trailId: trail.trail.id,
+                          spotId: spot.id,
+                          trailName: trail.trail.name,
+                          calibrationStatus: trail.calibrationStatus,
+                        }),
+                      )
+                    }
+                  />
+                ))}
+              </View>
             </View>
 
             {/* Secondary "+ Dodaj trasę" only shows when trails already exist.

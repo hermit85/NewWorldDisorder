@@ -9,6 +9,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { LEGAL } from '@/constants/legal';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 
 interface FAQ {
   q: string;
@@ -58,15 +59,21 @@ export default function HelpScreen() {
             <Text style={styles.backText}>← WRÓĆ</Text>
           </Pressable>
           <Text style={styles.title}>JAK DZIAŁA NWD</Text>
+          <Text style={styles.subtitle}>Krótki przewodnik po lidze</Text>
         </View>
 
         {/* Zasady */}
+        <SectionHeader
+          label="Zasady"
+          glyph="✦"
+          glyphColor={colors.accent}
+          spacingTop="none"
+        />
         <View style={styles.rulesCard}>
-          <Text style={styles.rulesTitle}>ZASADY</Text>
           {/* Uniform bullets: mixed emoji icons rendered as tofu/placeholder
               for 5 of 6 rows on iOS, only ✓ showed. Switching to a single
-              glyph removes the rendering lottery and the "this rule is
-              checked-off" semantic that ✓ accidentally implied. */}
+              glyph removes the rendering lottery. Section label is supplied
+              by the SectionHeader above so no in-card title needed. */}
           <RuleRow icon="●" text="Startuj z bramki" />
           <RuleRow icon="●" text="Trzymaj się trasy" />
           <RuleRow icon="●" text="Przejedź checkpointy" />
@@ -76,7 +83,13 @@ export default function HelpScreen() {
         </View>
 
         {/* FAQ */}
-        <Text style={styles.sectionTitle}>FAQ</Text>
+        <SectionHeader
+          label="FAQ"
+          glyph="?"
+          glyphColor={colors.textSecondary}
+          meta={`${faqs.length}`}
+          spacingTop="xl"
+        />
         {faqs.map((faq, i) => (
           <View key={i} style={styles.faqItem}>
             <Text style={styles.faqQ}>{faq.q}</Text>
@@ -85,8 +98,13 @@ export default function HelpScreen() {
         ))}
 
         {/* Support / contact */}
+        <SectionHeader
+          label="Potrzebujesz pomocy"
+          glyph="✉"
+          glyphColor={colors.textSecondary}
+          spacingTop="xl"
+        />
         <View style={styles.supportCard}>
-          <Text style={styles.supportTitle}>POTRZEBUJESZ POMOCY?</Text>
           <Text style={styles.supportBody}>
             Masz pytanie albo problem ze zjazdem? Napisz do nas.
           </Text>
@@ -130,21 +148,19 @@ function RuleRow({ icon, text }: { icon: string; text: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
-  header: { marginBottom: spacing.xl },
+  header: { marginBottom: spacing.xl, gap: 4 },
   backBtn: { marginBottom: spacing.md },
   backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
-  title: { ...typography.label, color: colors.textSecondary, letterSpacing: 4, marginBottom: spacing.sm },
+  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 4 },
+  subtitle: { ...typography.labelSmall, color: colors.textSecondary, fontSize: 11, letterSpacing: 1.5 },
   rulesCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.xl, borderWidth: 1, borderColor: colors.accent },
-  rulesTitle: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3, marginBottom: spacing.md },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   ruleIcon: { fontSize: 18, width: 28, textAlign: 'center' },
   ruleText: { ...typography.body, color: colors.textPrimary },
-  sectionTitle: { ...typography.label, color: colors.textSecondary, letterSpacing: 3, marginBottom: spacing.md },
   faqItem: { backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.lg, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
   faqQ: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', marginBottom: spacing.sm },
   faqA: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
-  supportCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.xl, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  supportTitle: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2, marginBottom: spacing.sm },
+  supportCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   supportBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.md },
   supportBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   supportBtnText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1, fontSize: 11 },

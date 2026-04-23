@@ -4,7 +4,12 @@
 // ═══════════════════════════════════════════════════════════
 
 export { useRunGateEngine } from './useRunGateEngine';
-export type { GateEngine, GateEngineCallbacks } from './useRunGateEngine';
+export type {
+  GateEngine,
+  GateEngineCallbacks,
+  GateAttemptDiagnostic,
+  GateDiagnostics,
+} from './useRunGateEngine';
 
 export {
   getTrailGateConfig,
