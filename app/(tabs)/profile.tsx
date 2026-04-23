@@ -349,7 +349,11 @@ export default function ProfileScreen() {
             <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
               <Text style={styles.actionLinkText}>POMOC</Text>
             </Pressable>
-            <Pressable style={styles.actionLink} onPress={() => router.push('/onboarding')}>
+            {/* ZASADY lives in /help (dedicated Zasady block + FAQ).
+                Using /onboarding here was wrong anyway — onboarding is the
+                first-time funnel (and the guard added in the MVWTU PR now
+                rightly bounces authed users away from it). */}
+            <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
               <Text style={styles.actionLinkText}>ZASADY</Text>
             </Pressable>
             <Pressable style={styles.actionLink} onPress={handleInviteRival}>
@@ -466,8 +470,12 @@ const styles = StyleSheet.create({
   signInBtnText: { ...typography.cta, color: colors.bg, letterSpacing: 3, fontSize: 13 },
   appInfo: { alignItems: 'center', paddingTop: spacing.xxl, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xxl, gap: spacing.xxs },
   appInfoText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 10, letterSpacing: 1 },
-  appActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.lg },
-  actionLink: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm },
+  // flex-wrap so a 4th or 5th action pill falls to a second row
+  // instead of horizontal-overflow clipping — Darek flagged this
+  // the moment ZAPROŚ landed. Horizontal padding compacted from
+  // lg -> md and gap kept generous so wrapped rows still breathe.
+  appActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, rowGap: spacing.sm, marginTop: spacing.lg, justifyContent: 'center' },
+  actionLink: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm },
   actionLinkText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2 },
   legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, paddingHorizontal: spacing.md },
   legalLinkText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9, textDecorationLine: 'underline' },
