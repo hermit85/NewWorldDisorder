@@ -133,6 +133,9 @@ export function DebugOverlay({ state }: Props) {
             />
           </View>
 
+          {/* ── GATE DIAG ── live perpendicular velocity + last attempt ── */}
+          <GateDiagBlock state={state} />
+
           <Row label="CP" value={`${cpPassed}/${cpTotal}`} color={cpPassed === cpTotal && cpTotal > 0 ? colors.accent : colors.textTertiary} />
           <Row label="PTS" value={String(state.pointCount)} />
         </View>
@@ -261,6 +264,67 @@ function GateCell({ label, distM, crossed, fallback }: {
       ) : (
         <Text style={styles.gateCellValue}>—</Text>
       )}
+    </View>
+  );
+}
+
+// ── Gate diagnostics block ──
+//
+// Translates the last detectGateCrossing attempt + live perpendicular
+// velocity into one glanceable block. When gate auto-start "should have
+// fired but didn't" this is where the answer comes from: is perpMps below
+// the 1.0 m/s floor? did the geometric crossing register at all? did we
+// pick up wrong-side / low-speed flags?
+//
+// Live perpMps is derived from gateSpeedKmh + gateHeadingDeltaDeg (the
+// exact inputs the engine itself uses on a real crossing), so the
+// live number matches what the engine would compute if this moment were
+// a crossing event.
+const DEG_TO_RAD = Math.PI / 180;
+
+function livePerpMps(state: RealRunState): number | null {
+  if (state.gateSpeedKmh == null || state.gateHeadingDeltaDeg == null) return null;
+  const speedMps = state.gateSpeedKmh / 3.6;
+  return Math.abs(speedMps * Math.cos(state.gateHeadingDeltaDeg * DEG_TO_RAD));
+}
+
+function formatLastAttempt(state: RealRunState): { label: string; color: string } {
+  const a = state.gateLastStartAttempt;
+  if (!a) return { label: 'no samples', color: colors.textTertiary };
+  if (a.crossed && a.velocityOk) return { label: '✓ accepted', color: colors.accent };
+  if (a.crossed && !a.velocityOk) {
+    const perp = a.perpMps != null ? ` (${a.perpMps.toFixed(2)} m/s)` : '';
+    return { label: `rejected: too slow${perp}`, color: colors.red };
+  }
+  // Not geometrically crossed — show whichever side + flags are present
+  const flagsStr = a.flags.length > 0 ? ` · ${a.flags.join(',')}` : '';
+  return { label: `no cross${flagsStr}`, color: colors.orange };
+}
+
+function GateDiagBlock({ state }: { state: RealRunState }) {
+  const perp = livePerpMps(state);
+  const threshold = state.gateVelocityMinMps;
+  const perpColor =
+    perp == null ? colors.textTertiary : perp >= threshold ? colors.accent : colors.red;
+  const lastAttempt = formatLastAttempt(state);
+
+  return (
+    <View style={styles.diagBlock}>
+      <View style={styles.diagHeader}>
+        <Text style={styles.diagHeaderLabel}>GATE DIAG</Text>
+        <Text style={styles.diagHeaderHint}>need: cross + perp ≥ {threshold.toFixed(1)}</Text>
+      </View>
+      <View style={styles.diagRow}>
+        <Text style={styles.rowLabel}>PERP (live)</Text>
+        <Text style={[styles.rowValue, { color: perpColor }]}>
+          {perp != null ? `${perp.toFixed(2)} m/s` : '—'}
+          <Text style={styles.cellUnit}>{perp != null ? `  / ${threshold.toFixed(1)}` : ''}</Text>
+        </Text>
+      </View>
+      <View style={styles.diagRow}>
+        <Text style={styles.rowLabel}>Last attempt</Text>
+        <Text style={[styles.rowValue, { color: lastAttempt.color }]}>{lastAttempt.label}</Text>
+      </View>
     </View>
   );
 }
@@ -413,6 +477,38 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 2,
     paddingVertical: 2,
+  },
+
+  // Gate diagnostics
+  diagBlock: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginBottom: spacing.sm,
+    backgroundColor: 'rgba(16, 16, 24, 0.6)',
+  },
+  diagHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  diagHeaderLabel: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    fontSize: 8,
+    letterSpacing: 2,
+  },
+  diagHeaderHint: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    fontSize: 8,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 1,
   },
 
   // Row

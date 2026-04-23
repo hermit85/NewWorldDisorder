@@ -24,6 +24,7 @@ import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
 import { getFinalizedRun, subscribeFinalizedRun } from '@/systems/runStore';
 import { retryRunSubmit } from '@/systems/retrySubmit';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useResultImpact, ScopeImpact, useProfile } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
@@ -580,7 +581,12 @@ function StandardResultScreen() {
         {/* ═══ LEAGUE IMPACT — scoped positions ═══ */}
         {scopedImpact.length > 0 && isSaved && (
           <View style={styles.impactSection}>
-            <Text style={styles.impactTitle}>POZYCJA W LIDZE</Text>
+            <SectionHeader
+              label="Pozycja w lidze"
+              glyph="▲"
+              glyphColor={colors.textSecondary}
+              spacingTop="none"
+            />
             <View style={styles.impactGrid}>
               {scopedImpact.map((s) => (
                 <ScopeImpactChip key={s.scope} impact={s} />
@@ -593,6 +599,12 @@ function StandardResultScreen() {
         <View style={styles.divider} />
 
         {/* ═══ CTAs ═══ */}
+        <SectionHeader
+          label="Co dalej"
+          glyph="→"
+          glyphColor={colors.textSecondary}
+          spacingTop="none"
+        />
         <Pressable
           style={({ pressed }) => [
             styles.runAgainBtn,
@@ -1033,7 +1045,6 @@ const styles = StyleSheet.create({
 
   // League impact
   impactSection: { marginBottom: spacing.lg },
-  impactTitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 8, textAlign: 'center', marginBottom: spacing.md },
   impactGrid: { flexDirection: 'row', gap: spacing.sm },
 
   // Divider

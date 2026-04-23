@@ -66,6 +66,7 @@ export default function ActiveRunScreen() {
     beginReadinessCheck,
     armRun,
     startRun,
+    manualStart,
     finishRun,
     cancel,
   } = useRealRun(trailId, trailName, spotId, geo, gateConfig, profile?.id);
@@ -332,6 +333,16 @@ export default function ActiveRunScreen() {
                   : (state.lastPoint?.speed ?? 0)
               }
               userHeading={state.gateHeadingDeg}
+              startPoint={gateConfig?.startGate.center ?? null}
+              userPosition={
+                state.lastPoint
+                  ? {
+                      latitude: state.lastPoint.latitude,
+                      longitude: state.lastPoint.longitude,
+                    }
+                  : null
+              }
+              onManualStart={manualStart}
               onBack={handleBack}
             />
           </View>
@@ -393,7 +404,7 @@ export default function ActiveRunScreen() {
           <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii startu</Text>
         )}
         {state.phase === 'armed_practice' && (
-          <Text style={styles.instruction}>DOTKNIJ, ABY RUSZYĆ{'\n'}Meta może zakończyć się automatycznie</Text>
+          <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii — dotknij jeśli nie zareaguje</Text>
         )}
         {state.phase === 'running_ranked' && (
           <Text style={styles.instruction}>META ZALICZA SIĘ NA LINII KOŃCA</Text>

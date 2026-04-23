@@ -15,7 +15,7 @@
 
 import { useRef, useCallback } from 'react';
 import { GpsPoint, distanceMeters } from '@/systems/gps';
-import { TrailGateConfig, GateEngineState, GateCrossingResult, SmoothedPosition, RunQualityAssessment } from './types';
+import { TrailGateConfig, GateEngineState, GateCrossingResult, SmoothedPosition, RunQualityAssessment, CrossingFlag } from './types';
 import { smoothPosition, computeHeading, computeSpeedKmh, detectGateCrossing, headingDifference } from './geometry';
 import { runAntiCheat } from './antiCheat';
 import { assessRunQuality } from './quality';
@@ -52,6 +52,30 @@ export interface GateEngineCallbacks {
   onFinishCrossing: (crossing: GateCrossingResult) => void;
 }
 
+/**
+ * Last attempt to detect a gate crossing. Populated on every processPoint
+ * tick while armed/running so the debug overlay can answer "why didn't the
+ * gate fire?" without guessing. `crossed` is the geometric result;
+ * `velocityOk` is the perpendicular-velocity post-filter; `perpMps` is the
+ * velocity we computed (null when we lacked heading or speed).
+ */
+export interface GateAttemptDiagnostic {
+  crossed: boolean;
+  velocityOk: boolean;
+  perpMps: number | null;
+  distanceFromCenterM: number | null;
+  flags: CrossingFlag[];
+  /** When this attempt was evaluated (ms). */
+  at: number;
+}
+
+export interface GateDiagnostics {
+  lastStartAttempt: GateAttemptDiagnostic | null;
+  lastFinishAttempt: GateAttemptDiagnostic | null;
+  /** The constant velocity threshold (m/s) — exposed for UI reference. */
+  velocityMinMps: number;
+}
+
 export interface GateEngine {
   /** Process a new GPS point. Call this from the tracking callback. */
   processPoint: (
@@ -70,6 +94,8 @@ export interface GateEngine {
   getCurrentSpeedKmh: () => number | null;
   /** Get total accumulated distance */
   getTotalDistanceM: () => number;
+  /** Diagnostics for the debug overlay: last crossing attempt + thresholds. */
+  getDiagnostics: () => GateDiagnostics;
   /** Run full quality assessment after run completion */
   assessQuality: (
     allPoints: GpsPoint[],
@@ -118,6 +144,8 @@ export function useRunGateEngine(
 
   const allRunPointsRef = useRef<GpsPoint[]>([]);
   const lastRunPointRef = useRef<GpsPoint | null>(null);
+  const lastStartAttemptRef = useRef<GateAttemptDiagnostic | null>(null);
+  const lastFinishAttemptRef = useRef<GateAttemptDiagnostic | null>(null);
 
   const reset = useCallback(() => {
     stateRef.current = {
@@ -135,6 +163,8 @@ export function useRunGateEngine(
     };
     allRunPointsRef.current = [];
     lastRunPointRef.current = null;
+    lastStartAttemptRef.current = null;
+    lastFinishAttemptRef.current = null;
   }, []);
 
   const processPoint = useCallback((
@@ -186,6 +216,15 @@ export function useRunGateEngine(
         // low-data runs.
         const perpMps = perpendicularVelocityMps(crossing, config.startGate.trailBearing);
         const velocityOk = perpMps == null || perpMps >= GATE_VELOCITY_MIN_MPS;
+
+        lastStartAttemptRef.current = {
+          crossed: crossing.crossed,
+          velocityOk,
+          perpMps,
+          distanceFromCenterM: crossing.distanceFromCenterM,
+          flags: crossing.flags,
+          at: point.timestamp,
+        };
 
         if (crossing.crossed && velocityOk) {
           state.startCrossing = crossing;
@@ -242,6 +281,15 @@ export function useRunGateEngine(
               durationSec,
               minDurationSec: config.finishUnlockMinTimeSec,
             });
+
+            lastFinishAttemptRef.current = {
+              crossed: crossing.crossed,
+              velocityOk: true, // finish has no perp-velocity gate today
+              perpMps: perpendicularVelocityMps(crossing, config.finishGate.trailBearing),
+              distanceFromCenterM: crossing.distanceFromCenterM,
+              flags: crossing.flags,
+              at: point.timestamp,
+            };
 
             if (crossing.crossed) {
               state.finishCrossing = crossing;
@@ -310,6 +358,11 @@ export function useRunGateEngine(
     getCurrentHeading: () => stateRef.current.currentHeading,
     getCurrentSpeedKmh: () => stateRef.current.currentSpeedKmh,
     getTotalDistanceM: () => stateRef.current.totalDistanceM,
+    getDiagnostics: () => ({
+      lastStartAttempt: lastStartAttemptRef.current,
+      lastFinishAttempt: lastFinishAttemptRef.current,
+      velocityMinMps: GATE_VELOCITY_MIN_MPS,
+    }),
     assessQuality,
     reset,
   };

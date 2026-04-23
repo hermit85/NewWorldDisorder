@@ -11,9 +11,10 @@
 // "za linią" when accuracy is actually the problem.
 // ═══════════════════════════════════════════════════════════
 
-import { memo, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -26,6 +27,8 @@ import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/th
 
 // ── Props ──
 
+export type LatLng = { latitude: number; longitude: number };
+
 export interface ApproachViewProps {
   trailName: string;
   mode: 'ranked' | 'training';
@@ -36,6 +39,17 @@ export interface ApproachViewProps {
   userVelocityMps: number;
   /** Raw user heading [0,360) or null. Only rendered in 'dev' variant. */
   userHeading: number | null;
+  /** Start gate coordinates. When set together with userPosition a mini
+   *  map renders above the state content so the rider can see where the
+   *  line is rather than relying on compass + distance alone. */
+  startPoint?: LatLng | null;
+  /** Rider's current position — rendered as the second marker on the map. */
+  userPosition?: LatLng | null;
+  /** D3 fallback. When provided and the rider has been stuck in
+   *  on_line_ready for MANUAL_START_AFTER_MS, a "START RĘCZNY" button
+   *  surfaces under the ready hint. Tapping calls this and flags the run
+   *  as unverified downstream (no gate crossing was recorded). */
+  onManualStart?: () => void;
   onBack?: () => void;
   /**
    * 'production' (default) hides technical readouts per Chunk 10.1 B2 —
@@ -103,24 +117,154 @@ function NearContent({
   );
 }
 
-function OnLineReadyContent({ accuracyM }: { accuracyM: number }) {
+/** D3: milliseconds stuck in on_line_ready before the manual fallback
+ *  surfaces. Long enough that the gate engine has had multiple GPS
+ *  samples to detect a crossing, short enough that a rider who keeps
+ *  reading "GOTOWY" isn't left frustrated. */
+const MANUAL_START_AFTER_MS = 15_000;
+
+function OnLineReadyContent({
+  accuracyM,
+  mode,
+  onManualStart,
+}: {
+  accuracyM: number;
+  mode: 'ranked' | 'training';
+  onManualStart?: () => void;
+}) {
   const pulse = useSharedValue(1);
+  const [showManualFallback, setShowManualFallback] = useState(false);
 
   useEffect(() => {
     pulse.value = withRepeat(withTiming(0.55, { duration: 1200 }), -1, true);
     return () => cancelAnimation(pulse);
   }, [pulse]);
 
+  // Arm the fallback timer on mount — i.e. the moment the rider entered
+  // on_line_ready. Cleared on unmount (state change) so leaving + re-
+  // entering resets the clock, which is the right default: if the engine
+  // lost the rider and re-armed, they deserve another auto-detect window.
+  useEffect(() => {
+    if (!onManualStart) return;
+    const timeout = setTimeout(() => setShowManualFallback(true), MANUAL_START_AFTER_MS);
+    return () => clearTimeout(timeout);
+  }, [onManualStart]);
+
   const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  // D1+D2: gate engine auto-starts the timer in both ranked and training
+  // modes (running_practice is now a first-class phase too). Tap is
+  // retained in training as a manual fallback when the gate doesn't
+  // trigger, and that's still useful hint copy — but the default promise
+  // is "it will start itself".
+  const hint =
+    mode === 'ranked'
+      ? 'W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.'
+      : 'W punkcie startowym. Timer wystartuje sam — dotknij jeśli nie zareaguje.';
+
+  const handleManualStart = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+    onManualStart?.();
+  };
 
   return (
     <View style={styles.stateCenter}>
       <Animated.View style={[styles.armedDot, pulseStyle]} />
       <Text style={styles.readyTitle}>GOTOWY</Text>
       <Text style={styles.readyAccuracy}>±{accuracyM.toFixed(0)}m</Text>
-      <Text style={styles.stateHint}>
-        W punkcie startowym. Rusz kiedy gotowy — timer wystartuje sam.
-      </Text>
+      <Text style={styles.stateHint}>{hint}</Text>
+      {showManualFallback && onManualStart ? (
+        <View style={styles.manualFallback}>
+          <Text style={styles.manualFallbackHint}>
+            Timer nie ruszył? Wystartuj ręcznie — przejazd nie wejdzie na ranking.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wystartuj ręcznie"
+            onPress={handleManualStart}
+            style={({ pressed }) => [
+              styles.manualFallbackBtn,
+              pressed && styles.manualFallbackBtnPressed,
+            ]}
+          >
+            <Text style={styles.manualFallbackLabel}>START RĘCZNY</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Start-point mini map ──
+//
+// Small non-interactive map rendered above the state content so the rider
+// can see *where* the start line is rather than navigating by compass +
+// distance alone. Centered on the midpoint of start ↔ user with a region
+// padded to the larger of the two axes plus a 2× margin, so both markers
+// stay comfortably inside the viewport no matter the approach direction.
+
+const MIN_LATITUDE_DELTA = 0.0015; // ≈ 160m at 49° lat — tight enough for on-line state
+const MAP_PADDING_FACTOR = 2.4;
+
+function StartPointMap({
+  startPoint,
+  userPosition,
+}: {
+  startPoint: LatLng;
+  userPosition: LatLng | null;
+}) {
+  const region = useMemo(() => {
+    if (!userPosition) {
+      return {
+        latitude: startPoint.latitude,
+        longitude: startPoint.longitude,
+        latitudeDelta: MIN_LATITUDE_DELTA,
+        longitudeDelta: MIN_LATITUDE_DELTA,
+      };
+    }
+    const midLat = (startPoint.latitude + userPosition.latitude) / 2;
+    const midLng = (startPoint.longitude + userPosition.longitude) / 2;
+    const latSpan = Math.abs(startPoint.latitude - userPosition.latitude);
+    const lngSpan = Math.abs(startPoint.longitude - userPosition.longitude);
+    const latitudeDelta = Math.max(MIN_LATITUDE_DELTA, latSpan * MAP_PADDING_FACTOR);
+    const longitudeDelta = Math.max(MIN_LATITUDE_DELTA, lngSpan * MAP_PADDING_FACTOR);
+    return { latitude: midLat, longitude: midLng, latitudeDelta, longitudeDelta };
+  }, [startPoint, userPosition]);
+
+  return (
+    <View style={styles.mapWrap}>
+      <MapView
+        style={StyleSheet.absoluteFill}
+        provider={PROVIDER_DEFAULT}
+        region={region}
+        pointerEvents="none"
+        liteMode={Platform.OS === 'android'}
+        showsCompass={false}
+        showsScale={false}
+        showsPointsOfInterests={false}
+        toolbarEnabled={false}
+      >
+        <Marker
+          coordinate={startPoint}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
+        >
+          <View style={styles.startMarker}>
+            <Text style={styles.startMarkerText}>S</Text>
+          </View>
+        </Marker>
+        {userPosition ? (
+          <Marker
+            coordinate={userPosition}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <View style={styles.userMarkerOuter}>
+              <View style={styles.userMarkerInner} />
+            </View>
+          </Marker>
+        ) : null}
+      </MapView>
     </View>
   );
 }
@@ -172,6 +316,9 @@ export const ApproachView = memo(function ApproachView({
   userAccuracyM,
   userVelocityMps,
   userHeading,
+  startPoint,
+  userPosition,
+  onManualStart,
   onBack,
   variant = 'production',
 }: ApproachViewProps) {
@@ -227,6 +374,14 @@ export const ApproachView = memo(function ApproachView({
         ) : null}
       </View>
 
+      {/* Start-point map — renders only when we have a start gate + at
+          least a user fix. Sits above the state content so "where am I
+          vs. where's the line" is visible at a glance. Web falls back
+          to nothing because react-native-maps has no web target. */}
+      {startPoint && Platform.OS !== 'web' ? (
+        <StartPointMap startPoint={startPoint} userPosition={userPosition ?? null} />
+      ) : null}
+
       {/* State-specific body */}
       <View style={styles.body}>
         {state.kind === 'far' && (
@@ -239,7 +394,13 @@ export const ApproachView = memo(function ApproachView({
             relativeArrowDeg={relativeArrowDeg}
           />
         )}
-        {state.kind === 'on_line_ready' && <OnLineReadyContent accuracyM={state.accuracyM} />}
+        {state.kind === 'on_line_ready' && (
+          <OnLineReadyContent
+            accuracyM={state.accuracyM}
+            mode={mode}
+            onManualStart={onManualStart}
+          />
+        )}
         {state.kind === 'wrong_side' && (
           <WrongSideContent
             bearingExpected={state.bearingExpected}
@@ -324,6 +485,45 @@ const styles = StyleSheet.create({
   modeBadgeTextRanked: {
     color: chunk9Colors.accent.emerald,
   },
+  mapWrap: {
+    height: 180,
+    borderRadius: chunk9Radii.card,
+    borderWidth: 1,
+    borderColor: chunk9Colors.bg.hairline,
+    backgroundColor: chunk9Colors.bg.surface,
+    overflow: 'hidden',
+  },
+  startMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: chunk9Colors.accent.emerald,
+    borderWidth: 2,
+    borderColor: chunk9Colors.bg.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startMarkerText: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.bg.base,
+    fontWeight: '700',
+  },
+  userMarkerOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(80, 140, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userMarkerInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4A9EFF',
+    borderWidth: 2,
+    borderColor: chunk9Colors.bg.base,
+  },
   body: {
     flex: 1,
     alignItems: 'stretch',
@@ -363,6 +563,33 @@ const styles = StyleSheet.create({
     ...chunk9Typography.captionMono10,
     color: chunk9Colors.text.tertiary,
     textAlign: 'center',
+  },
+  manualFallback: {
+    marginTop: chunk9Spacing.sectionVertical,
+    alignItems: 'center',
+    gap: chunk9Spacing.cardChildGap,
+    paddingHorizontal: 8,
+  },
+  manualFallbackHint: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.tertiary,
+    textAlign: 'center',
+  },
+  manualFallbackBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: chunk9Radii.pill,
+    borderWidth: 1,
+    borderColor: chunk9Colors.text.secondary,
+    backgroundColor: chunk9Colors.bg.surface,
+  },
+  manualFallbackBtnPressed: {
+    opacity: 0.75,
+  },
+  manualFallbackLabel: {
+    ...chunk9Typography.label13,
+    color: chunk9Colors.text.primary,
+    letterSpacing: 2,
   },
   armedDot: {
     // Emerald instance #2 — only lives here when on_line_ready

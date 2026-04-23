@@ -13,6 +13,7 @@ import { spacing, radii } from '@/theme/spacing';
 import { useTrail, useSpot, useDeleteTrail } from '@/hooks/useBackend';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { Difficulty, PeriodType } from '@/data/types';
@@ -327,19 +328,34 @@ export default function TrailDetailScreen() {
 
         {/* ═══ BOARD — top riders ═══ */}
         <View style={styles.boardSection}>
-          <View style={styles.boardHeader}>
-            <Text style={styles.sectionLabel}>TABLICA</Text>
-            <View style={styles.scopeTabs}>
-              {([['day', 'DZIŚ'], ['weekend', 'WEEKEND'], ['all_time', 'SEZON']] as [PeriodType, string][]).map(([key, label]) => (
-                <Pressable
-                  key={key}
-                  style={[styles.scopeTab, boardScope === key && styles.scopeTabActive]}
-                  onPress={() => setBoardScope(key)}
-                >
-                  <Text style={[styles.scopeTabText, boardScope === key && styles.scopeTabTextActive]}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+          <SectionHeader
+            label="Tablica"
+            glyph="▲"
+            glyphColor={colors.accent}
+            action={
+              leaderboard.length > 5
+                ? {
+                    label: 'Pełna tablica',
+                    onPress: () =>
+                      router.push({
+                        pathname: '/(tabs)/leaderboard',
+                        params: { trailId: trail.id, scope: boardScope },
+                      }),
+                  }
+                : undefined
+            }
+            spacingTop="none"
+          />
+          <View style={styles.scopeTabs}>
+            {([['day', 'DZIŚ'], ['weekend', 'WEEKEND'], ['all_time', 'SEZON']] as [PeriodType, string][]).map(([key, label]) => (
+              <Pressable
+                key={key}
+                style={[styles.scopeTab, boardScope === key && styles.scopeTabActive]}
+                onPress={() => setBoardScope(key)}
+              >
+                <Text style={[styles.scopeTabText, boardScope === key && styles.scopeTabTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
           </View>
 
           {lbLoading && <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />}
@@ -394,14 +410,6 @@ export default function TrailDetailScreen() {
             </>
           )}
 
-          {leaderboard.length > 5 && (
-            <Pressable style={styles.fullBoardBtn} onPress={() => router.push({
-              pathname: '/(tabs)/leaderboard',
-              params: { trailId: trail.id, scope: boardScope },
-            })}>
-              <Text style={styles.fullBoardText}>PEŁNA TABLICA →</Text>
-            </Pressable>
-          )}
         </View>
 
         <View style={{ height: 120 }} />
@@ -546,9 +554,7 @@ const styles = StyleSheet.create({
 
   // Board
   boardSection: { marginTop: spacing.sm },
-  boardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  sectionLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 9 },
-  scopeTabs: { flexDirection: 'row', gap: spacing.xs },
+  scopeTabs: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md },
   scopeTab: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border },
   scopeTabActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
   scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 1 },
@@ -562,8 +568,6 @@ const styles = StyleSheet.create({
   lbName: { ...typography.body, color: colors.textPrimary, flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   lbTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.textSecondary, letterSpacing: 1 },
   lbDots: { ...typography.body, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.xs },
-  fullBoardBtn: { alignItems: 'center', paddingVertical: spacing.md, marginTop: spacing.sm },
-  fullBoardText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 3 },
 
   // CTAs
   ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.sm },
