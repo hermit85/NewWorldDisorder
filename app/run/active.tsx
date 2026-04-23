@@ -161,6 +161,16 @@ export default function ActiveRunScreen() {
         startRun();
         break;
       case 'running_ranked':
+        // Auto-started ranked runs must cross the real finish gate —
+        // no manual bailout, keeps the leaderboard honest. Manual-
+        // started ranked runs (no gateAutoStarted flag) are already
+        // flagged non-leaderboard by assessQuality, so letting the
+        // rider tap to stop the timer is the same semantic as the
+        // running_practice path below.
+        if (!state.gateAutoStarted) {
+          tapHeavy();
+          finishRun();
+        }
         break;
       case 'running_practice':
         tapHeavy();
@@ -348,17 +358,16 @@ export default function ActiveRunScreen() {
               }
               onManualStart={manualStart}
               onArm={() => {
-                // B21 field-test fix: riders reaching GOTOWY were never
-                // arming because arming lived only on an invisible full-
-                // screen Pressable. Explicit "UZBRÓJ" CTA in the view
-                // wires here. Ranked when the trail allows + user is
-                // authed; otherwise fall back to practice so the training
-                // flow still works for anonymous / training-only venues.
-                if (isTrainingOnly || !isAuthenticated || state.mode === 'practice') {
-                  armRun('practice');
-                } else {
-                  armRun('ranked');
-                }
+                // Ranked-vs-practice is decided from venue / auth /
+                // readiness, never from `state.mode` — `mode` defaults
+                // to 'practice' on a fresh useRealRun, so reading it
+                // here silently demoted every fresh ranked attempt into
+                // practice (Codex review P0.1, pre-B21).
+                const canRank =
+                  !isTrainingOnly &&
+                  isAuthenticated &&
+                  state.readiness.rankedEligible;
+                armRun(canRank ? 'ranked' : 'practice');
               }}
               armed={
                 state.phase === 'armed_ranked' || state.phase === 'armed_practice'
@@ -430,7 +439,11 @@ export default function ActiveRunScreen() {
           <Text style={styles.instruction}>SCHOWAJ TELEFON I JEDŹ{'\n'}Timer ruszy po przecięciu linii — dotknij jeśli nie zareaguje</Text>
         )}
         {state.phase === 'running_ranked' && (
-          <Text style={styles.instruction}>META ZALICZA SIĘ NA LINII KOŃCA</Text>
+          <Text style={styles.instruction}>
+            {state.gateAutoStarted
+              ? 'META ZALICZA SIĘ NA LINII KOŃCA'
+              : 'TRYB RĘCZNY — DOTKNIJ, ABY ZAKOŃCZYĆ'}
+          </Text>
         )}
         {state.phase === 'running_practice' && (
           <Text style={styles.instruction}>DOTKNIJ, ABY ZAKOŃCZYĆ</Text>

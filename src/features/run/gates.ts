@@ -159,18 +159,25 @@ export function buildTrailGateConfigFromPioneer(
 
 // ── Default gate parameters ──
 
+// Gate widths pull from GATE_LINE_LENGTH_M so the spec constant and
+// the runtime config can't drift apart (Codex review P1.1 — before
+// this alignment the constant existed but the builder used 10 / 12).
+// Narrow start line is deliberate: honest racing wants a real line,
+// not a fuzzy zone. Finish keeps a tiny bit more slack because GPS
+// bias compounds over the trace and a finish miss wastes the whole
+// descent, while a false-positive start only invalidates the arming.
 const DEFAULT_START_GATE: Omit<GateDefinition, 'center' | 'trailBearing'> = {
-  lineWidthM: 10,
-  zoneDepthM: 8,
-  entryRadiusM: 12,
+  lineWidthM: GATE_LINE_LENGTH_M, // 4 m
+  zoneDepthM: 6,
+  entryRadiusM: 10,
   headingToleranceDeg: 60,
   minTriggerSpeedKmh: 2,
 };
 
 const DEFAULT_FINISH_GATE: Omit<GateDefinition, 'center' | 'trailBearing'> = {
-  lineWidthM: 12,
-  zoneDepthM: 10,
-  entryRadiusM: 14,
+  lineWidthM: GATE_LINE_LENGTH_M + 2, // 6 m
+  zoneDepthM: 8,
+  entryRadiusM: 12,
   headingToleranceDeg: 75, // forgiving but not wide open
   minTriggerSpeedKmh: 1.5, // slower trigger for finish
 };

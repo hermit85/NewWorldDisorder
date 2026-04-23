@@ -118,7 +118,12 @@ export function useRealRun(
   gateConfig: TrailGateConfig | null,
   userId?: string,
 ) {
-  const [state, setState] = useState<RealRunState>({
+  // Single source of truth for initial / post-cancel state. Before
+  // this factory `cancel()` cherry-picked fields (phase, timer, etc)
+  // and left others — including `mode` — leaking forward. A second
+  // attempt inherited `mode='ranked'` from the cancelled one, which
+  // in turn masked the P0.1 arm-routing bug (Codex review P2.1).
+  const makeInitialState = useCallback((): RealRunState => ({
     runSessionId: '',
     phase: 'idle',
     mode: 'practice',
@@ -158,7 +163,9 @@ export function useRealRun(
     gateLastStartAttempt: null,
     gateLastFinishAttempt: null,
     gateVelocityMinMps: 1.0,
-  });
+  }), [trailId, trailName, geo]);
+
+  const [state, setState] = useState<RealRunState>(makeInitialState);
 
   // ── Gate Engine ──
   const gateStartCallbackRef = useRef<(crossing: GateCrossingResult) => void>(() => {});
@@ -519,11 +526,26 @@ export function useRealRun(
       payload: { mode: s.mode, phaseBefore: s.phase },
     });
     announceManualStart();
+    // Seed the gate engine's autoStartTimestamp so the finish lockout
+    // has a reference time (getFinishGateLockoutReason computes
+    // durationSec = now - autoStartTimestamp). Without this the ranked
+    // manual-start path produced a run that could never unlock meta
+    // — durationSec stayed 0, finishLockoutReason was always 'time'
+    // (Codex review P0.2).
+    gateEngine.markManualStart(Date.now());
     startRunInternal(false);
-  }, [startRunInternal, trailId]);
+  }, [startRunInternal, trailId, gateEngine]);
 
   const finishRun = useCallback(() => {
-    if (stateRef.current.phase !== 'running_practice') return;
+    const s = stateRef.current;
+    // Manual finish is allowed for practice as before, and for ranked
+    // runs that started via manualStart() (gateAutoStarted=false).
+    // An auto-started ranked run still has to cross the finish gate —
+    // no manual bailout there, that's how ranked stays honest.
+    const canFinishManually =
+      s.phase === 'running_practice' ||
+      (s.phase === 'running_ranked' && s.gateAutoStarted === false);
+    if (!canFinishManually) return;
     if (finalizingRef.current) return;
     finalizingRef.current = true;
     logDebugEvent('run', 'finishing', 'start', { trailId, payload: { elapsed: state.elapsedMs } });
@@ -546,29 +568,16 @@ export function useRealRun(
     stopGateSpeech();
     clearActiveTrace();
     gateEngine.reset();
+    // Full reset via the factory — previous partial reset leaked
+    // `mode`, `runSessionId`, `lastPoint`, `gps`, `readiness`,
+    // `pointCount` and checkpoints into the next attempt. Permission-
+    // denied state is deliberately preserved through the reset so a
+    // cancelled run on a locked-out device doesn't silently re-arm.
     safeSetState((s) => ({
-      ...s,
-      phase: 'idle',
-      startedAt: null,
-      elapsedMs: 0,
-      verification: null,
-      trace: null,
-      error: null,
-      backendStatus: 'idle',
-      backendResult: null,
-      runQuality: null,
-      gateAutoStarted: false,
-      gateAutoFinished: false,
-      gateHeadingDeg: null,
-      gateSpeedKmh: null,
-      gateTotalDistanceM: 0,
-      gateDistToStartM: null,
-      gateDistToFinishM: null,
-      gateHeadingDeltaDeg: null,
-      gateLastStartAttempt: null,
-      gateLastFinishAttempt: null,
+      ...makeInitialState(),
+      permissionDenied: s.permissionDenied,
     }));
-  }, [stopAll, safeSetState, gateEngine]);
+  }, [stopAll, safeSetState, gateEngine, makeInitialState]);
 
   // ══════════════════════════════════════════
   // FINALIZATION EFFECT

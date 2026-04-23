@@ -2015,6 +2015,12 @@ export interface SeedRunResult {
   versionId: string;
   isPioneer: true;
   leaderboardPosition: number;
+  /** Migration 20260423190000: true when the pioneer run also flipped
+   *  its parent park from pending → active (Opcja B' submitter-self-
+   *  active flow). Clients can surface a dedicated "park w lidze"
+   *  celebration on first publish. false / undefined for parks that
+   *  were already active before the run. */
+  spotAutoActivated?: boolean;
 }
 
 /** Polish copy for every error code emitted by the Sprint-4 RPCs.
@@ -2101,6 +2107,7 @@ export async function finalizeSeedRun(
         versionId:           res.version_id as string,
         isPioneer:           true,
         leaderboardPosition: res.leaderboard_position as number,
+        spotAutoActivated:   res.spot_auto_activated === true,
       },
     };
   }

@@ -436,9 +436,14 @@ describe('Chunk 8 gate unification', () => {
     });
 
     test('2.4 heading misalignment is flagged on an oblique crossing', () => {
+      // Narrow gate (lineWidthM: 4) means the crossing has to stay
+      // within ±2 m lateral to count as crossed. Tighten `along`
+      // to 0.5 m so the vector's angle against the trail bearing
+      // (≈63°) still trips poor_heading while both endpoints sit
+      // comfortably inside the ±2 m line window.
       const points = [
-        pointFromGate(startGate, -1, -4, 1_000),
-        pointFromGate(startGate, 1, 4, 2_000),
+        pointFromGate(startGate, -0.5, -1, 1_000),
+        pointFromGate(startGate, 0.5, 1, 2_000),
       ];
 
       const crossing = detectGateCrossing(points, startGate);

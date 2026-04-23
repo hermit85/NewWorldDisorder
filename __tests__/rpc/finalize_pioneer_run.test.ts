@@ -26,7 +26,7 @@
 // No real Supabase — `@/lib/supabase` is mocked at module level.
 // ═══════════════════════════════════════════════════════════
 
-import { finalizePioneerRun } from '@/lib/api';
+import { finalizePioneerRun, finalizeSeedRun } from '@/lib/api';
 import type { PioneerGeometry, PioneerRunPayload } from '@/lib/api';
 
 // ── Mock Supabase client ──
@@ -257,6 +257,83 @@ describe('finalize_pioneer_run RPC contract', () => {
         trailStatus: 'calibrating',
         leaderboardPosition: 1,
       });
+    }
+  });
+
+  // ── spot_auto_activated plumbing (migration 20260423190000) ──
+  //
+  // The SQL migration itself only runs against a live Postgres, but
+  // we can still pin the contract between the server's new flag and
+  // the client SeedRunResult shape. If a future migration drops the
+  // field or renames it to e.g. `spot_activated`, this catches the
+  // drift — the whole submitter-self-active feature hinges on it.
+
+  test('spot_auto_activated:true plumbs to SeedRunResult.spotAutoActivated', async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        run_id: 'run-uuid-self-active',
+        seed_source: 'rider',
+        trust_tier: 'provisional',
+        version_id: 'version-uuid-2',
+        leaderboard_position: 1,
+        spot_auto_activated: true,
+      },
+      error: null,
+    });
+
+    const result = await finalizeSeedRun({
+      trailId: 'trail-uuid-0001',
+      geometry: BASE_GEOMETRY,
+      durationMs: BASE_RUN_PAYLOAD.duration_ms,
+      gpsTrace: null,
+      medianAccuracyM: 4.2,
+      qualityTier: 'valid',
+      verificationStatus: 'verified',
+      startedAt: new Date(STARTED_AT),
+      finishedAt: new Date(FINISHED_AT),
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.spotAutoActivated).toBe(true);
+    }
+  });
+
+  test('missing spot_auto_activated (already-active spot) yields false, not undefined', async () => {
+    // Non-submitter pioneers on an already-active park must not
+    // get a celebratory toast. The RPC leaves the flag false /
+    // omits it, and the wrapper defaults to `false` rather than
+    // leaking an undefined into the UI.
+    mockRpc.mockResolvedValueOnce({
+      data: {
+        ok: true,
+        run_id: 'run-uuid-already-active',
+        seed_source: 'rider',
+        trust_tier: 'provisional',
+        version_id: 'version-uuid-3',
+        leaderboard_position: 2,
+        // spot_auto_activated omitted on purpose — pre-migration
+        // responses and non-flip paths both look like this.
+      },
+      error: null,
+    });
+
+    const result = await finalizeSeedRun({
+      trailId: 'trail-uuid-0002',
+      geometry: BASE_GEOMETRY,
+      durationMs: BASE_RUN_PAYLOAD.duration_ms,
+      gpsTrace: null,
+      medianAccuracyM: 4.2,
+      qualityTier: 'valid',
+      verificationStatus: 'verified',
+      startedAt: new Date(STARTED_AT),
+      finishedAt: new Date(FINISHED_AT),
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.spotAutoActivated).toBe(false);
     }
   });
 

@@ -106,6 +106,13 @@ export interface GateEngine {
     gpsQuality: 'unavailable' | 'locking' | 'weak' | 'good' | 'excellent',
     avgAccuracyM: number,
   ) => RunQualityAssessment;
+  /** Seed autoStartTimestamp from an external caller (manual-start
+   *  fallback). Without this the finish lockout never unlocks because
+   *  `durationSec = (now - null)` stays 0. The run is still flagged
+   *  downstream as missing its real startCrossing — assessQuality
+   *  downgrades it off the leaderboard — but the timer now ticks and
+   *  the finish gate can still fire if the rider does cross it. */
+  markManualStart: (timestamp: number) => void;
   /** Reset engine state */
   reset: () => void;
 }
@@ -364,6 +371,15 @@ export function useRunGateEngine(
       velocityMinMps: GATE_VELOCITY_MIN_MPS,
     }),
     assessQuality,
+    markManualStart: (timestamp: number) => {
+      // Seed only when we haven't already detected a real crossing,
+      // so a late auto-detection + earlier manual-start don't fight
+      // for the same slot. Manual-started runs keep startCrossing
+      // null on purpose — that's how assessQuality tells them apart.
+      if (stateRef.current.autoStartTimestamp == null) {
+        stateRef.current.autoStartTimestamp = timestamp;
+      }
+    },
     reset,
   };
 }
