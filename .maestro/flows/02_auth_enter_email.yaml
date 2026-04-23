@@ -1,0 +1,24 @@
+appId: com.nwdisorder.app
+name: 02 · Auth · email → OTP screen
+tags:
+  - auth
+env:
+  TEST_EMAIL: e2e+maestro@nwdisorder.test
+---
+- launchApp:
+    clearState: false
+- openLink: nwd://auth
+- extendedWaitUntil:
+    timeout: 15000
+    visible: "EMAIL"
+- tapOn:
+    text: "twoj@email.com"
+- inputText: ${TEST_EMAIL}
+- tapOn: "WYŚLIJ KOD"
+# Assert we advanced to OTP entry screen. Not validating real email delivery.
+- extendedWaitUntil:
+    timeout: 15000
+    visible: "TWÓJ KOD"
+- assertVisible: "POTWIERDŹ"
+- assertVisible:
+    text: "(WYŚLIJ PONOWNIE|PONOWNIE ZA .*)"

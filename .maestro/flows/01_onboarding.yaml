@@ -1,0 +1,33 @@
+appId: com.nwdisorder.app
+name: 01 · Onboarding · 3 slides → GPS gate
+tags:
+  - onboarding
+# Runs only on fresh install. If onboarding already completed, skip via runFlow.when.
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: never
+- extendedWaitUntil:
+    timeout: 15000
+    visible: "WEJDŹ DO LIGI"
+- tapOn: "WEJDŹ DO LIGI"
+- extendedWaitUntil:
+    timeout: 5000
+    visible: "ROZUMIEM"
+- tapOn: "ROZUMIEM"
+- extendedWaitUntil:
+    timeout: 5000
+    visible: "ZACZYNAM"
+- tapOn: "ZACZYNAM"
+# After slide 3 CTA the app shows the GPS gate with AKTYWUJ GPS / JADĘ TRENING.
+- extendedWaitUntil:
+    timeout: 10000
+    visible: "WERYFIKACJA"
+- assertVisible: "AKTYWUJ GPS"
+- assertVisible: "JADĘ TRENING"
+# Finish onboarding without GPS so subsequent flows land on tabs.
+- tapOn: "JADĘ TRENING"
+- extendedWaitUntil:
+    timeout: 10000
+    visible: "LIGA GRAVITY"

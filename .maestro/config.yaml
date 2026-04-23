@@ -1,0 +1,10 @@
+appId: com.nwdisorder.app
+---
+- runFlow: flows/00_smoke_launch.yaml
+- runFlow: flows/01_onboarding.yaml
+- runFlow: flows/02_auth_enter_email.yaml
+- runFlow: flows/03_tabs_navigation.yaml
+- runFlow: flows/04_spots_browse.yaml
+# flows/05_run_active_cancel.yaml — opt-in; requires TRAIL_ID from live env.
+# Run separately:
+#   maestro test -e TRAIL_ID=<uuid> .maestro/flows/05_run_active_cancel.yaml

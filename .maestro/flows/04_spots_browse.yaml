@@ -1,0 +1,37 @@
+appId: com.nwdisorder.app
+name: 04 · Spots · filter + open detail
+tags:
+  - spots
+---
+- launchApp:
+    clearState: false
+- tapOn: "SPOTY"
+# Screen header "SPOTY" renders unconditionally — proves the route mounted.
+- extendedWaitUntil:
+    timeout: 10000
+    visible:
+      text: "SPOTY"
+      index: 1
+# Filter pills only render when the list has items. Exercise them if present.
+- runFlow:
+    when:
+      visible: "Wszystkie"
+    commands:
+      - tapOn: "Aktywne"
+      - assertVisible: "Aktywne"
+      - tapOn: "Nowe"
+      - assertVisible: "Nowe"
+      - tapOn: "Wszystkie"
+# Open first spot card only if the list has real entries. Otherwise pass — list
+# is empty for an unauthenticated session and that's a valid state to smoke.
+- runFlow:
+    when:
+      visible:
+        id: "^Otwórz bike park .*"
+    commands:
+      - tapOn:
+          id: "^Otwórz bike park .*"
+      - extendedWaitUntil:
+          timeout: 5000
+          visible: "BIKE PARK"
+      - back
