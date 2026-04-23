@@ -369,9 +369,10 @@ export default function ProfileScreen() {
           <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
             <Text style={styles.actionLinkText}>POMOC</Text>
           </Pressable>
-          <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
-            <Text style={styles.actionLinkText}>ZASADY</Text>
-          </Pressable>
+          {/* B20 review: ZASADY button removed — routed to /help
+              just like POMOC, which made a duplicate nav row and
+              confused testers ("zasady to w sumie co?"). /help
+              already surfaces league rules as its first section. */}
           {isAuthenticated && (
             <Pressable style={styles.actionLink} onPress={handleSignOut}>
               <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
