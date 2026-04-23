@@ -37,6 +37,14 @@ function trailsLabel(n: number): string {
   return `${n} tras`;
 }
 
+function spotsLabel(n: number): string {
+  if (n === 1) return '1 spot';
+  const lastDigit = n % 10;
+  const lastTwo = n % 100;
+  if (lastDigit >= 2 && lastDigit <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${n} spoty`;
+  return `${n} spotów`;
+}
+
 function applyFilter(spots: Spot[], filter: Filter): Spot[] {
   if (filter === 'all') return spots;
   if (filter === 'active') return spots.filter((s) => s.status === 'active' && s.trailCount > 0);
@@ -103,6 +111,11 @@ export default function SpotsScreen() {
   const isEmptyAll = status === 'empty' || (status === 'ok' && spots.length === 0);
   const isEmptyFilter = status === 'ok' && spots.length > 0 && visible.length === 0;
 
+  const activeCount = spots.filter((s) => s.status === 'active' && s.trailCount > 0).length;
+  const headerSubtitle = isEmptyAll
+    ? null
+    : `${spotsLabel(spots.length)} · ${activeCount} aktywne`;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -115,7 +128,12 @@ export default function SpotsScreen() {
           />
         }
       >
-        <Text style={styles.header}>SPOTY</Text>
+        <View style={styles.screenHeader}>
+          <Text style={styles.screenTitle}>SPOTY</Text>
+          {headerSubtitle ? (
+            <Text style={styles.screenSubtitle}>{headerSubtitle}</Text>
+          ) : null}
+        </View>
 
         {isEmptyAll ? null : (
           <View style={styles.filterRow}>
@@ -166,9 +184,18 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
     gap: chunk9Spacing.sectionVertical,
   },
-  header: {
-    ...chunk9Typography.label13,
+  screenHeader: {
+    gap: 4,
+  },
+  screenTitle: {
+    ...chunk9Typography.display28,
     color: chunk9Colors.text.primary,
+    letterSpacing: 4,
+  },
+  screenSubtitle: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.text.secondary,
+    letterSpacing: 1.5,
   },
   filterRow: {
     flexDirection: 'row',
