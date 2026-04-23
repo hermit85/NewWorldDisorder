@@ -92,24 +92,19 @@ export default function NewTrailScreen() {
       ]);
       return;
     }
-    // Bike park doesn't exist in DB (deleted / bad deep-link) or is
-    // inactive (pending curator approval). In either case, creating a
-    // trail under it would fail server-side — stop the rider here with
-    // a clear message instead of letting them fill the whole form.
+    // Bike park doesn't exist in DB (deleted / bad deep-link).
+    // A pending park is fine — migration 20260423180000 lets the
+    // submitter pioneer their own pending park, and RLS guarantees
+    // that if we could fetch it we're either the submitter or a
+    // curator. The RPC still guards the non-submitter / rejected
+    // edge cases server-side.
     if (spotStatus === 'empty' || spotStatus === 'error') {
       Alert.alert(
         'Bike park nie dostępny',
-        'Ten bike park został usunięty albo jeszcze nie jest aktywny. Wybierz inny z listy.',
+        'Ten bike park został usunięty albo nie istnieje. Wybierz inny z listy.',
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/spots') }],
       );
       return;
-    }
-    if (spotStatus === 'ok' && spot && spot.submissionStatus !== 'active') {
-      Alert.alert(
-        'Bike park czeka na akceptację',
-        'Zanim dodasz trasę, kurator musi zatwierdzić ten bike park.',
-        [{ text: 'OK', onPress: () => router.back() }],
-      );
     }
   }, [isAuthenticated, spotId, spotStatus, spot, router]);
 

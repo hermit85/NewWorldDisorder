@@ -53,18 +53,32 @@ function applyFilter(spots: Spot[], filter: Filter): Spot[] {
 }
 
 function SpotRow({ spot, onPress }: { spot: Spot; onPress: () => void }) {
-  const statusLabel =
-    spot.trailCount === 0 ? 'NOWY'
-      : spot.status === 'active' ? 'AKTYWNY'
-      : spot.status === 'seasonal' ? 'SEZONOWY'
-      : 'ZAMKNIĘTY';
-  const statusTone =
-    spot.trailCount === 0 ? styles.statusNew
-      : spot.status === 'active' ? styles.statusActive
-      : styles.statusMuted;
+  // Pending rows only reach this list for the submitter (RLS filters
+  // other people's drafts). Surface the state explicitly so the rider
+  // recognises their own submission-in-flight rather than mistaking
+  // it for a fresh pioneer slot open to everyone.
+  const isOwnPending = spot.submissionStatus === 'pending';
 
-  const metaLine =
-    spot.trailCount > 0
+  const statusLabel = isOwnPending
+    ? 'TWOJE · CZEKA'
+    : spot.trailCount === 0
+      ? 'NOWY'
+      : spot.status === 'active'
+        ? 'AKTYWNY'
+        : spot.status === 'seasonal'
+          ? 'SEZONOWY'
+          : 'ZAMKNIĘTY';
+  const statusTone = isOwnPending
+    ? styles.statusPending
+    : spot.trailCount === 0
+      ? styles.statusNew
+      : spot.status === 'active'
+        ? styles.statusActive
+        : styles.statusMuted;
+
+  const metaLine = isOwnPending
+    ? (spot.region ? `${spot.region} · pojedź pioneer run żeby aktywować` : 'Pojedź pioneer run żeby aktywować')
+    : spot.trailCount > 0
       ? `${trailsLabel(spot.trailCount)}${spot.region ? ` · ${spot.region}` : ''}`
       : spot.region || 'Czeka na pierwszą trasę';
 
@@ -231,6 +245,7 @@ const styles = StyleSheet.create({
   },
   statusActive: { color: chunk9Colors.accent.emerald },
   statusNew: { color: '#FFB547' },
+  statusPending: { color: '#7EE8FA' },
   statusMuted: { color: chunk9Colors.text.tertiary },
   chevron: {
     ...chunk9Typography.display28,

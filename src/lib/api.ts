@@ -1574,10 +1574,18 @@ export async function fetchPrimarySpot(
 }
 
 export async function fetchSpots(): Promise<ApiResult<Spot[]>> {
+  // Pioneer self-active flow (migration 20260423180000): the rider
+  // who submitted a park sees it in SPOTY while it's still pending
+  // so they can open the detail screen and ride the first pioneer
+  // run (which flips the park to active). RLS policy on `spots`
+  // already restricts pending-row visibility to submitter + curator,
+  // so widening the IN list here doesn't leak anyone else's drafts.
+  // Rejected rows stay off the list — a future "moje zgłoszenia"
+  // surface can expose them with the rejection reason.
   const { data, error } = await db()
     .from('spots')
     .select('*')
-    .eq('status', 'active')
+    .in('status', ['active', 'pending'])
     .order('name');
   if (error) return { ok: false, code: 'fetch_failed', message: error.message };
   return { ok: true, data: (data ?? []).map(mapSpot) };

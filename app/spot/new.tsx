@@ -131,6 +131,10 @@ export default function NewSpotScreen() {
             <SuccessCard
               name={trimmedName}
               queued={submission.queued}
+              spotId={submission.spotId}
+              onAddTrail={(spotId) =>
+                router.replace({ pathname: '/trail/new', params: { spotId } })
+              }
               onContinue={handleClose}
             />
           ) : submission.kind === 'duplicate' ? (
@@ -302,21 +306,41 @@ function Step3({
 function SuccessCard({
   name,
   queued,
+  spotId,
+  onAddTrail,
   onContinue,
 }: {
   name: string;
   queued: boolean;
+  spotId: string | null;
+  onAddTrail: (spotId: string) => void;
   onContinue: () => void;
 }) {
+  // Pioneer self-active flow (migration 20260423180000): once the
+  // park is submitted, the submitter can create the first trail
+  // immediately and ride it — the successful pioneer run is what
+  // flips the park to `active` and publishes it to the league.
+  // Queued (offline) path still falls back to "we'll send it when
+  // you're back online"; the trail handoff happens on the next app
+  // launch once the queued submission lands a real spotId.
+  const canChainToTrail = !queued && spotId !== null;
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Zgłoszono «{name}»</Text>
+      <Text style={styles.cardTitle}>Park wrzucony «{name}»</Text>
       <Text style={styles.cardBody}>
         {queued
-          ? 'Zapisałem lokalnie. Wyślę, gdy wróci sieć.'
-          : 'Sprawdzimy w 24h. Dostaniesz notyfikację, gdy będzie zatwierdzony.'}
+          ? 'Zapisałem lokalnie. Wyślę, gdy wróci sieć. Potem dorzucisz pierwszą trasę.'
+          : 'Teraz dorzuć pierwszą trasę i pojedź ją jako pionier — twój czysty zjazd aktywuje park w lidze.'}
       </Text>
-      <GlowButton label="Wróć do listy" variant="primary" onPress={onContinue} />
+      {canChainToTrail ? (
+        <GlowButton
+          label="Dodaj pierwszą trasę"
+          variant="primary"
+          onPress={() => onAddTrail(spotId!)}
+        />
+      ) : (
+        <GlowButton label="Wróć do listy" variant="primary" onPress={onContinue} />
+      )}
     </View>
   );
 }
