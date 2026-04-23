@@ -170,10 +170,6 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSkip = () => {
-    router.replace('/(tabs)');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -215,10 +211,6 @@ export default function AuthScreen() {
               ) : (
                 <Text style={styles.ctaText}>WYŚLIJ KOD</Text>
               )}
-            </Pressable>
-
-            <Pressable style={styles.skipBtn} onPress={handleSkip}>
-              <Text style={styles.skipText}>PRZEGLĄDAJ BEZ LOGOWANIA</Text>
             </Pressable>
 
             <Text style={styles.legalNote}>
@@ -335,9 +327,6 @@ export default function AuthScreen() {
             </View>
             <Pressable style={styles.cta} onPress={retryAuth}>
               <Text style={styles.ctaText}>SPRÓBUJ PONOWNIE</Text>
-            </Pressable>
-            <Pressable style={styles.skipBtn} onPress={handleSkip}>
-              <Text style={styles.skipText}>PRZEGLĄDAJ BEZ LOGOWANIA</Text>
             </Pressable>
           </View>
         )}
