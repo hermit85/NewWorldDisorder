@@ -13,6 +13,8 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { ActivityList } from '@/components/profile/ActivityList';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Divider } from '@/components/ui/Divider';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
@@ -250,6 +252,12 @@ export default function ProfileScreen() {
             </View>
 
             {/* Stats */}
+            <SectionHeader
+              label="Statystyki"
+              glyph="▣"
+              glyphColor={colors.textTertiary}
+              spacingTop="xl"
+            />
             <View style={styles.statsRow}>
               <StatBox label={copy.totalRuns} value={profileStatus === 'ok' ? String(user?.totalRuns ?? 0) : '—'} />
               <StatBox label={copy.personalBests} value={profileStatus === 'ok' ? String(user?.totalPbs ?? 0) : '—'} />
@@ -257,12 +265,22 @@ export default function ProfileScreen() {
             </View>
 
             {/* Aktywność — handoff A6 moved run history here from the old ZJAZDY tab */}
+            <SectionHeader
+              label="Aktywność"
+              glyph="▼"
+              glyphColor={colors.textTertiary}
+              spacingTop="xl"
+            />
             <ActivityList />
 
             {/* Achievements — full catalog with locked/unlocked states */}
-            <Text style={styles.sectionTitle}>
-              OSIĄGNIĘCIA · {achievements.length}/{ACHIEVEMENT_CATALOG.length}
-            </Text>
+            <SectionHeader
+              label="Osiągnięcia"
+              glyph="★"
+              glyphColor={colors.gold}
+              meta={`${achievements.length}/${ACHIEVEMENT_CATALOG.length}`}
+              spacingTop="xl"
+            />
             <View style={styles.achievementGrid}>
               {ACHIEVEMENT_CATALOG.map((def) => {
                 const unlocked = achievements.find((a) => a.slug === def.slug);
@@ -292,30 +310,41 @@ export default function ProfileScreen() {
           </>
         )}
 
-        {/* App info */}
+        <Divider variant="strong" />
+
+        {/* Konto — nav links */}
+        <SectionHeader
+          label="Konto"
+          glyph="◉"
+          glyphColor={colors.textTertiary}
+          spacingTop="none"
+        />
+        <View style={styles.appActions}>
+          <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
+            <Text style={styles.actionLinkText}>POMOC</Text>
+          </Pressable>
+          <Pressable style={styles.actionLink} onPress={() => router.push('/onboarding')}>
+            <Text style={styles.actionLinkText}>ZASADY</Text>
+          </Pressable>
+          {isAuthenticated ? (
+            <Pressable style={styles.actionLink} onPress={handleSignOut}>
+              <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.actionLink} onPress={() => router.push('/auth')}>
+              <Text style={[styles.actionLinkText, { color: colors.accent }]}>ZALOGUJ</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Stopka — app info + legal. Last block on the page, visually
+            quiet so it reads as chrome not content. */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>New World Disorder</Text>
           <Text style={styles.appInfoText}>Sezon 01 · Słotwiny Arena</Text>
           {isAuthenticated && (
             <Text style={styles.appInfoText}>{authUser?.email ?? ''}</Text>
           )}
-          <View style={styles.appActions}>
-            <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
-              <Text style={styles.actionLinkText}>POMOC</Text>
-            </Pressable>
-            <Pressable style={styles.actionLink} onPress={() => router.push('/onboarding')}>
-              <Text style={styles.actionLinkText}>ZASADY</Text>
-            </Pressable>
-            {isAuthenticated ? (
-              <Pressable style={styles.actionLink} onPress={handleSignOut}>
-                <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
-              </Pressable>
-            ) : (
-              <Pressable style={styles.actionLink} onPress={() => router.push('/auth')}>
-                <Text style={[styles.actionLinkText, { color: colors.accent }]}>ZALOGUJ</Text>
-              </Pressable>
-            )}
-          </View>
 
           {/* Legal links — always visible, reviewer-reachable */}
           <View style={styles.legalRow}>
@@ -397,7 +426,6 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   statValue: { ...typography.timeMedium, color: colors.textPrimary },
   statLabel: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xxs },
-  sectionTitle: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.md },
   achievementGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   achievementItem: { width: '47%', backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   achievementBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
