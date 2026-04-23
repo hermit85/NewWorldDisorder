@@ -1,4 +1,4 @@
-# Codex review — pre-Build-21 sanity check
+# Codex review — pre-Build-21 sanity check (round 2)
 
 ## Zasada #1
 
@@ -6,6 +6,40 @@
 Twoja rola: czytać, uruchamiać testy (read-only), zgłaszać znalezione
 problemy w raporcie. Jeśli masz silną rekomendację zmiany — opisz ją,
 ale jej nie wykonuj.
+
+## Round 2 delta
+
+Pierwsza runda (commit `dd4e63a`) zgłosiła 3 P0 + 3 P1. Wszystkie
+P0 + P1.1 zamknięte w commicie `37fb9e0`. P1.2 (background GPS dla
+ranked runs) zamknięte w commicie `b94cb79`. Tym razem szczególny
+focus na:
+
+1. **`b94cb79` — background GPS parallel-delivery.** Nowe moduły
+   `src/systems/realRunBackgroundBuffer.ts` + `realRunBackgroundTask.ts`
+   oraz zmiany w `src/systems/gps.ts` + `src/systems/useRealRun.ts`.
+   Sprawdź:
+   - dedup (lastProcessedTsRef + timestamp monotonic)
+   - czy ring buffer nie rośnie bez granic (MAX_BUFFER_SIZE trim)
+   - czy startTracking poprawnie startuje / stopuje TaskManager task
+   - czy AppState → 'active' drain dzieje się w rozsądnym czasie
+     (aktualnie tylko reaktywnie: pierwszy foreground sample uruchamia
+     drainBackgroundBuffer — czy jest to wystarczające?)
+   - czy brak Always permission nie wywala startTracking
+   - race condition: co jeśli user cancel'uje podczas gdy task
+     wciąż pisze do buffera?
+
+2. **`37fb9e0` — Codex round 1 fixes.** Te szczególnie warto
+   re-verify:
+   - P0.1 ranked routing w `app/run/active.tsx` — czy warunek
+     `canRank = !isTrainingOnly && isAuthenticated && state.readiness.rankedEligible`
+     nie ma luk
+   - P0.2 manualStart + markManualStart + finishRun manual-ranked
+     path — czy spójne
+   - P0.3 migracja `20260423190000_seed_run_self_active_flow.sql`
+     — czy atomic flip spotu jest idempotentny, czy race condition
+     między dwoma concurrent pioneer runs nie istnieje
+   - P2.1 makeInitialState factory + cancel() — czy permissionDenied
+     preservation nie pozwala na dziwne stany
 
 ## Kontekst
 
