@@ -10,7 +10,8 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
-import { ranks, getRankForXp, getXpToNextRank } from '@/systems/ranks';
+import { getRankForXp } from '@/systems/ranks';
+import { getLevelProgress } from '@/systems/xp';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
   useDailyChallenges,
@@ -80,14 +81,19 @@ export default function HomeScreen() {
     await Promise.all([refreshProfile(), refreshHeroBeat()]);
   }
 
+  // Home uses the same 100-XP-per-level progression as the RIDER
+  // tab (src/systems/xp.ts). Before Codex round 2 P2.3 the Home
+  // XPBar computed `level` from the rank tier index (Rookie=1,
+  // Rider=2, …), which let Home say LVL 1 while the profile card
+  // one tab over said LVL 5 for the same rider. `currentRank` stays
+  // separate because the rank *label* (Rookie/Rider/Legend/…) is
+  // its own progression that runs alongside the level counter.
   const currentXp = profile?.xp ?? 0;
   const currentRank = getRankForXp(currentXp);
-  const nextRank = getXpToNextRank(currentXp);
-  const level = Math.max(1, ranks.findIndex((rank) => rank.id === currentRank.id) + 1);
-  const currentLevelXp = Math.max(0, currentXp - currentRank.xpThreshold);
-  const levelMaxXp = nextRank.nextRank
-    ? nextRank.nextRank.xpThreshold - currentRank.xpThreshold
-    : Math.max(currentLevelXp, 1);
+  const levelProgress = getLevelProgress(currentXp);
+  const level = levelProgress.level;
+  const currentLevelXp = levelProgress.currentXp;
+  const levelMaxXp = levelProgress.nextLevelXp;
 
   const challengeCompletionRatio =
     challenges.length > 0

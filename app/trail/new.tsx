@@ -162,6 +162,13 @@ export default function NewTrailScreen() {
     setSubmission({ kind: 'error', message });
   }, [canAdvanceStep1, difficulty, trailType, spotId, trimmed, submit, router]);
 
+  // Render-path auth gate (Codex round 2 P2.2): the useEffect above
+  // queues a router.replace('/auth') for anon riders, but the screen
+  // still mounts + renders the trail form for one tick before the
+  // replace lands. Skip the render entirely for anon so there's no
+  // flash and no wasted mount/fetch cycle.
+  if (!isAuthenticated) return null;
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
