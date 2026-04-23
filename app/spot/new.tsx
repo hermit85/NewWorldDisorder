@@ -172,7 +172,9 @@ export default function NewSpotScreen() {
               />
             ) : step === 2 ? (
               <View style={styles.footerRow}>
-                <GlowButton label="Pomiń" variant="secondary" onPress={() => setStep(3)} />
+                <View style={{ flex: 1 }}>
+                  <GlowButton label="Pomiń" variant="secondary" onPress={() => setStep(3)} />
+                </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <GlowButton label="Dalej" variant="primary" onPress={() => setStep(3)} />

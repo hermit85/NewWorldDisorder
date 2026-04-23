@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, AppState, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -116,24 +116,6 @@ export default function ActiveRunScreen() {
         gapMs: userEntry.bestDurationMs - rivalEntry.bestDurationMs,
       }
     : null;
-
-  // ── Background detection: warn rider if GPS may have gaps ──
-  const [bgWarning, setBgWarning] = useState(false);
-  const wasBackgroundedRef = useRef(false);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      const running = state.phase === 'running_ranked' || state.phase === 'running_practice';
-      if (nextState !== 'active' && running) {
-        wasBackgroundedRef.current = true;
-      }
-      if (nextState === 'active' && wasBackgroundedRef.current && running) {
-        setBgWarning(true);
-        wasBackgroundedRef.current = false;
-      }
-    });
-    return () => subscription.remove();
-  }, [state.phase]);
 
   // Triple-tap trail name to toggle debug — dev builds only.
   // In production this is a no-op so reviewers can't surface
@@ -428,17 +410,7 @@ export default function ActiveRunScreen() {
         )}
       </Pressable>
 
-      {/* Background warning */}
-      {bgWarning && (
-        <Pressable style={styles.bgWarning} onPress={() => setBgWarning(false)}>
-          <Text style={styles.bgWarningText}>
-            Appka była w tle — GPS mógł zgubić punkty. Wynik może nie przejść weryfikacji.
-          </Text>
-          <Text style={styles.bgWarningDismiss}>ZAMKNIJ</Text>
-        </Pressable>
-      )}
-
-      {/* Cancel */}
+{/* Cancel */}
       {showCancel && (
         <Pressable style={styles.cancelBtn} onPress={handleCancel}>
           <Text style={styles.cancelText}>← WRÓĆ</Text>
@@ -537,30 +509,5 @@ const styles = StyleSheet.create({
   cancelText: {
     ...typography.label,
     color: colors.textTertiary,
-  },
-  bgWarning: {
-    position: 'absolute',
-    top: 50,
-    left: spacing.lg,
-    right: spacing.lg,
-    backgroundColor: 'rgba(255, 149, 0, 0.15)',
-    borderWidth: 1,
-    borderColor: colors.orange,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  bgWarningText: {
-    ...typography.bodySmall,
-    color: colors.orange,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing.xs,
-  },
-  bgWarningDismiss: {
-    ...typography.labelSmall,
-    color: colors.orange,
-    letterSpacing: 2,
   },
 });
