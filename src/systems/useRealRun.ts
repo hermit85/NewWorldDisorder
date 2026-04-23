@@ -188,6 +188,13 @@ export function useRealRun(
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
       gpsHealthRef.current.setAppState(next === 'active' ? 'active' : 'background');
+      // Codex round 2 P1: proactive drain on resume. Without this,
+      // the rider sees a stale timer / approach state until
+      // watchPositionAsync happens to fire again — which iOS can
+      // delay for several seconds after a long background window.
+      if (next === 'active' && drainBufferRef.current) {
+        drainBufferRef.current();
+      }
     });
     return () => sub.remove();
   }, []);
@@ -202,6 +209,13 @@ export function useRealRun(
    *  task both deliver into processSample — this cursor dedups
    *  samples that arrive via both paths during a foreground window. */
   const lastProcessedTsRef = useRef<number>(0);
+  /** Published by beginReadinessCheck so an AppState → 'active'
+   *  listener can drain the background buffer immediately on resume
+   *  instead of waiting for the next watchPositionAsync fire (Codex
+   *  round 2 P1 — iOS can delay the first foreground sample by
+   *  several seconds after a long background window). Null when no
+   *  run is active. */
+  const drainBufferRef = useRef<(() => void) | null>(null);
 
   const safeSetState = useCallback((updater: (s: RealRunState) => RealRunState) => {
     if (mountedRef.current) setState(updater);
@@ -216,6 +230,13 @@ export function useRealRun(
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    // Plant a timestamp floor so the background task (whose
+    // Location.stopLocationUpdatesAsync is asynchronous and may
+    // fire once or twice more) can't leak samples into the next
+    // session. The drain closure is also released so a resume
+    // handler doesn't drain into a stale processSample.
+    realRunBgBuffer.resetWithFloor(Date.now());
+    drainBufferRef.current = null;
   }, []);
 
   // ── State ref for callbacks ──
@@ -287,12 +308,18 @@ export function useRealRun(
     const gps = buildGpsState(pos);
     const readiness = computeReadiness(gps, getStartGateReadinessInput(pos, gateConfig?.startGate ?? null));
 
-    safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos }));
+    // Clear any sticky permissionDenied from an earlier deny. Codex
+    // round 2 P1 — the flag was only ever set to true, never back
+    // to false, so a rider who granted permission after a previous
+    // denial stayed in the pseudo-locked branch until remount.
+    safeSetState((s) => ({ ...s, gps, readiness, lastPoint: pos, permissionDenied: false }));
 
-    // Fresh background-buffer window. Anything that leaked in between
-    // runs (cancelled attempt, Fast Refresh) is dropped before the new
-    // tracking session starts.
-    realRunBgBuffer.reset();
+    // Fresh background-buffer window with a "now" floor. Anything
+    // older than this instant — late task samples from a cancelled
+    // prior attempt, Fast Refresh leftovers — is rejected on push.
+    // Without the floor `reset()` would open the door to cross-
+    // session leakage because stopLocationUpdatesAsync is async.
+    realRunBgBuffer.resetWithFloor(Date.now());
     lastProcessedTsRef.current = 0;
 
     const processSample = (point: GpsPoint) => {
@@ -371,6 +398,11 @@ export function useRealRun(
       const backlog = realRunBgBuffer.drainAfter(lastProcessedTsRef.current);
       for (const p of backlog) processSample(p);
     };
+
+    // Publish for the hook-level AppState listener. Cleared in
+    // cancel() / finalization so a resumed app after an abandoned
+    // run doesn't try to drain into a stale processSample closure.
+    drainBufferRef.current = drainBackgroundBuffer;
 
     const trackingStarted = await startTracking((point) => {
       // Drain BEFORE processing this foreground sample so the gate
@@ -595,14 +627,10 @@ export function useRealRun(
 
   const cancel = useCallback(() => {
     finalizingRef.current = false;
-    stopAll();
+    stopAll(); // also resets buffer with floor + clears drainBufferRef
     stopGateSpeech();
     clearActiveTrace();
     gateEngine.reset();
-    // Drop any samples the background task may have pushed after
-    // the rider bailed — they would otherwise replay into the next
-    // attempt via drainBackgroundBuffer on the first fresh sample.
-    realRunBgBuffer.reset();
     lastProcessedTsRef.current = 0;
     // Full reset via the factory — previous partial reset leaked
     // `mode`, `runSessionId`, `lastPoint`, `gps`, `readiness`,

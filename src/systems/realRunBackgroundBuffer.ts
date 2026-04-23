@@ -34,18 +34,40 @@ import type { GpsPoint } from './gps';
 const MAX_BUFFER_SIZE = 600; // 10 min at 1 Hz
 
 let buffer: GpsPoint[] = [];
+/** Samples whose timestamp is < `timestampFloor` are dropped at
+ *  push time. Needed because `Location.stopLocationUpdatesAsync`
+ *  is asynchronous: the background task can still fire one or two
+ *  more times after `stopTracking()` returns. Without a floor those
+ *  late samples would be picked up by the next run's drain tick
+ *  (Codex round 2 P1 cancel→restart race). */
+let timestampFloor = 0;
 
 /** Clear every buffered sample. Call at the start of a new run
  *  (readiness_check) so samples from a cancelled prior attempt
  *  don't get replayed into the fresh gate engine. */
 export function reset(): void {
   buffer = [];
+  timestampFloor = 0;
+}
+
+/** Same as reset() but also plants a timestamp floor — any sample
+ *  older than `floorTs` will be rejected on push. Use this when
+ *  winding down a run (cancel / finalize) so late task deliveries
+ *  from the still-running background subscription don't leak into
+ *  the next readiness_check. Pass `Date.now()` for "drop everything
+ *  from before now". */
+export function resetWithFloor(floorTs: number): void {
+  buffer = [];
+  timestampFloor = floorTs;
 }
 
 /** Append a sample from the task handler. Trims the ring to the
  *  newest MAX_BUFFER_SIZE entries so a backgrounded run that outlives
- *  expectations doesn't balloon memory. */
+ *  expectations doesn't balloon memory. Samples older than the
+ *  current `timestampFloor` are dropped — they belong to a prior,
+ *  wound-down session. */
 export function push(sample: GpsPoint): void {
+  if (sample.timestamp < timestampFloor) return;
   buffer.push(sample);
   if (buffer.length > MAX_BUFFER_SIZE) {
     buffer = buffer.slice(-MAX_BUFFER_SIZE);
