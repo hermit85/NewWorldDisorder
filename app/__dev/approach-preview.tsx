@@ -80,6 +80,14 @@ export default function ApproachPreview() {
     else router.replace('/');
   };
 
+  // Chunk 10.1 mini-map: production's ApproachView takes startPoint +
+  // userPosition from the live gate config / GPS fix. The preview
+  // fixture didn't pass either, so the map was silently empty.
+  // Fake coords around Słotwiny so the map renders and we can verify
+  // the marker + region-padding behaviour at screenshot time.
+  const startPoint = { latitude: 49.6182, longitude: 20.4048 };
+  const userPosition = { latitude: 49.6186, longitude: 20.4052 };
+
   return (
     <SafeAreaView style={styles.container}>
       <ApproachView
@@ -89,6 +97,8 @@ export default function ApproachPreview() {
         userAccuracyM={fixture.accuracy}
         userVelocityMps={fixture.velocity}
         userHeading={fixture.heading}
+        startPoint={startPoint}
+        userPosition={userPosition}
         onBack={handleBack}
         variant={approachVariant}
       />
