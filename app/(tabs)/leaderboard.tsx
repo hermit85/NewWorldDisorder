@@ -170,11 +170,12 @@ export default function LeaderboardScreen() {
         {/* Header */}
         <View style={styles.titleRow}>
           <View style={styles.titleMain}>
-            <Text style={styles.title}>TABLICA WYNIKÓW</Text>
+            <Text style={styles.title}>TABLICA</Text>
             <View style={styles.trustDot} />
           </View>
           <Text style={styles.subtitle}>
-            {venue?.rankingEnabled === false ? 'WALIDACJA TRENINGOWA' : 'TYLKO ZWERYFIKOWANE ZJAZDY'}
+            {venue?.rankingEnabled === false ? 'Walidacja treningowa' : 'Tylko zweryfikowane zjazdy'}
+            {totalEntries > 0 ? ` · ${totalEntries} ${totalEntries === 1 ? 'rider' : 'riderów'}` : ''}
           </Text>
         </View>
 
@@ -587,11 +588,11 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  titleRow: { marginBottom: spacing.sm },
+  titleRow: { marginBottom: spacing.md, gap: 4 },
   titleMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.textPrimary, letterSpacing: 4 },
-  trustDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, marginTop: spacing.xxs, fontSize: 9 },
+  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 4 },
+  trustDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  subtitle: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 1.5, fontSize: 11 },
 
   // Venue tabs
   venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
