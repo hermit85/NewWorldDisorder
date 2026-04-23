@@ -369,16 +369,12 @@ export default function ProfileScreen() {
           <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
             <Text style={styles.actionLinkText}>POMOC</Text>
           </Pressable>
-          <Pressable style={styles.actionLink} onPress={() => router.push('/onboarding')}>
+          <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
             <Text style={styles.actionLinkText}>ZASADY</Text>
           </Pressable>
-          {isAuthenticated ? (
+          {isAuthenticated && (
             <Pressable style={styles.actionLink} onPress={handleSignOut}>
               <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
-            </Pressable>
-          ) : (
-            <Pressable style={styles.actionLink} onPress={() => router.push('/auth')}>
-              <Text style={[styles.actionLinkText, { color: colors.accent }]}>ZALOGUJ</Text>
             </Pressable>
           )}
         </View>

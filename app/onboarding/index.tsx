@@ -203,7 +203,7 @@ function IndicatorSegment({ isActive, isDone }: { isActive: boolean; isDone: boo
 
 // ── CTA Button ───────────────────────────────────────────
 
-function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'gps' }) {
+function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -213,7 +213,7 @@ function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPre
     Animated.spring(scale, { toValue: 1, damping: 12, stiffness: 300, mass: 0.8, useNativeDriver: true }).start();
   };
 
-  const bgColor = variant === 'gps' ? colors.blue : variant === 'secondary' ? 'transparent' : colors.accent;
+  const bgColor = variant === 'secondary' ? 'transparent' : colors.accent;
   const textColor = variant === 'secondary' ? colors.textSecondary : '#0A0A0F';
   const borderStyle = variant === 'secondary' ? { borderWidth: 1, borderColor: colors.border } : {};
 
@@ -275,7 +275,10 @@ export default function OnboardingScreen() {
   const handleEnterApp = useCallback(async () => {
     notifySuccess();
     await completeOnboarding(); // full gate completed — now safe to mark done
-    router.replace('/(tabs)');
+    // New riders need a session before the app is useful (rankings, PBs,
+    // streaks). Auth screen exposes its own "PRZEGLĄDAJ BEZ LOGOWANIA"
+    // escape hatch for the curious, so this isn't a hard wall.
+    router.replace('/auth');
   }, [router, completeOnboarding]);
 
   const handleCta = useCallback(() => {
@@ -314,23 +317,28 @@ export default function OnboardingScreen() {
 
           <View style={styles.gpsActions}>
             {!permissionAsked ? (
-              <RaceCTA label="AKTYWUJ GPS" onPress={handleRequestPermission} variant="gps" />
+              // Single CTA before the prompt: the rider must engage with the
+              // permission dialog (grant or deny). We used to offer a
+              // "JADĘ TRENING" bypass here, but since every exit from
+              // onboarding now lands on /auth anyway, dual CTAs just
+              // misled the rider into thinking they were choosing a mode.
+              <RaceCTA label="AKTYWUJ GPS" onPress={handleRequestPermission} />
             ) : permissionGranted ? (
-              <View style={styles.gpsGranted}>
-                <Text style={styles.gpsGrantedText}>GPS AKTYWNY</Text>
-                <View style={styles.gpsGrantedDot} />
-              </View>
+              <>
+                <View style={styles.gpsGranted}>
+                  <Text style={styles.gpsGrantedText}>GPS AKTYWNY</Text>
+                  <View style={styles.gpsGrantedDot} />
+                </View>
+                <RaceCTA label="WCHODZĘ" onPress={handleEnterApp} />
+              </>
             ) : (
-              <View style={styles.gpsDenied}>
-                <Text style={styles.gpsDeniedText}>Włącz GPS w Ustawieniach aby jechać rankingowo.</Text>
-              </View>
+              <>
+                <View style={styles.gpsDenied}>
+                  <Text style={styles.gpsDeniedText}>Włącz GPS w Ustawieniach aby jechać rankingowo.</Text>
+                </View>
+                <RaceCTA label="DALEJ" onPress={handleEnterApp} variant="secondary" />
+              </>
             )}
-
-            <RaceCTA
-              label={permissionGranted ? 'WCHODZĘ' : 'JADĘ TRENING'}
-              onPress={handleEnterApp}
-              variant={permissionGranted ? 'primary' : 'secondary'}
-            />
           </View>
         </Animated.View>
       </SafeAreaView>
@@ -402,7 +410,7 @@ const styles = StyleSheet.create({
   ctaBtn: { borderRadius: radii.lg, paddingVertical: spacing.lg + 2, alignItems: 'center' },
   ctaBtnText: { ...typography.cta, letterSpacing: 3, fontFamily: fonts.bodySemiBold },
   gpsContent: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xxl },
-  gpsTag: { ...typography.labelSmall, color: colors.blue, letterSpacing: 6, marginBottom: spacing.xl },
+  gpsTag: { ...typography.labelSmall, color: colors.accent, letterSpacing: 6, marginBottom: spacing.xl },
   gpsTitle: { ...typography.h1, color: colors.textPrimary, fontSize: 28, lineHeight: 36, marginBottom: spacing.lg, letterSpacing: -0.3 },
   gpsBody: { ...typography.body, color: colors.textSecondary, lineHeight: 24, marginBottom: spacing.xxl + spacing.lg, maxWidth: 300 },
   gpsActions: { gap: spacing.md },

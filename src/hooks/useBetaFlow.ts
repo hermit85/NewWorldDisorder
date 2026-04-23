@@ -15,7 +15,9 @@ const KEYS = {
 // Bump this to force re-onboarding after onboarding content changes.
 // 0.3.0 = pre-Sprint 26A old onboarding
 // 0.4.0 = Sprint 26A+ race game intro rewrite
-const CURRENT_BETA = '0.4.0';
+// 0.5.0 = onboarding now routes to /auth (P0 fix — force every rider
+//         who last saw the pre-auth flow to re-run intro + land on auth)
+const CURRENT_BETA = '0.5.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{

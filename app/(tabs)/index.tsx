@@ -148,6 +148,47 @@ export default function HomeScreen() {
     );
   }
 
+  // Anonymous users get a focused "join the league" prompt instead of
+  // fake-zero stats (ROOKIE · LVL 1 · 0/500 XP, 0-day streak). The
+  // public widgets that happen to work without a session (PrimarySpot,
+  // challenges, hero beat) are all driven by authProfile?.id and return
+  // empty/signed_out here, so rendering them would just be noise.
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
+          ]}
+        >
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.brand}>NWD</Text>
+              <Text style={styles.brandSub}>LIGA GRAVITY</Text>
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dołącz do ligi"
+            style={styles.anonCard}
+            onPress={() => router.push('/auth')}
+          >
+            <Text style={styles.anonTag}>SEZON 01 · SŁOTWINY ARENA</Text>
+            <Text style={styles.anonTitle}>Dołącz do ligi</Text>
+            <Text style={styles.anonBody}>
+              Stwórz rider tag, zapisuj zjazdy i walcz o miejsce na tablicy.
+            </Text>
+            <View style={styles.anonBtn}>
+              <Text style={styles.anonBtnText}>ZALOGUJ SIĘ</Text>
+            </View>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -382,5 +423,40 @@ const styles = StyleSheet.create({
     ...chunk9Typography.body13,
     color: chunk9Colors.text.secondary,
     textAlign: 'center',
+  },
+  anonCard: {
+    borderWidth: 1,
+    borderColor: chunk9Colors.accent.emerald,
+    borderRadius: 14,
+    padding: 22,
+    gap: 12,
+    marginTop: 8,
+  },
+  anonTag: {
+    ...chunk9Typography.captionMono10,
+    color: chunk9Colors.accent.emerald,
+    letterSpacing: 2,
+  },
+  anonTitle: {
+    ...chunk9Typography.display28,
+    color: chunk9Colors.text.primary,
+  },
+  anonBody: {
+    ...chunk9Typography.body13,
+    color: chunk9Colors.text.secondary,
+    lineHeight: 20,
+  },
+  anonBtn: {
+    marginTop: 8,
+    backgroundColor: chunk9Colors.accent.emerald,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  anonBtnText: {
+    ...chunk9Typography.captionMono10,
+    color: '#000',
+    letterSpacing: 3,
+    fontSize: 13,
   },
 });
