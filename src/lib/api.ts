@@ -635,6 +635,20 @@ function weekendStart(): string {
   return d.toISOString();
 }
 
+/** Top-N cap for scoped leaderboard rows returned to the UI. Matches
+ *  fetchLeaderboard(all_time)'s 50-row budget so lists render uniformly.
+ *  FAZA 2 #2. */
+const SCOPED_LEADERBOARD_TOP_N = 50;
+
+/** Upper bound on raw run rows pulled from the DB for scoped boards.
+ *  We dedup in-memory (best time per user), so the cap must stay well
+ *  above SCOPED_LEADERBOARD_TOP_N to give every real top-N user at
+ *  least one row in the window. 500 covers a busy weekend (e.g. 200
+ *  runs spread across 80 unique riders, sorted by time, top-N is
+ *  always in the first ~150 rows). Without this cap, a viral trail
+ *  could return thousands of rows on flaky park Wi-Fi. */
+const SCOPED_LEADERBOARD_RAW_CAP = 500;
+
 export async function fetchScopedLeaderboard(
   trailId: string,
   scope: 'today' | 'weekend',
@@ -642,7 +656,8 @@ export async function fetchScopedLeaderboard(
 ): Promise<LeaderboardRow[]> {
   const since = scope === 'today' ? todayStart() : weekendStart();
 
-  // Query runs grouped by user, best time per user on this trail since cutoff
+  // Query runs grouped by user, best time per user on this trail since
+  // cutoff. FAZA 2 #2: bounded fetch — see SCOPED_LEADERBOARD_RAW_CAP.
   const { data, error } = await db()
     .from('runs')
     .select(`
@@ -659,7 +674,8 @@ export async function fetchScopedLeaderboard(
     .eq('trail_id', trailId)
     .eq('counted_in_leaderboard', true)
     .gte('started_at', since)
-    .order('duration_ms', { ascending: true });
+    .order('duration_ms', { ascending: true })
+    .limit(SCOPED_LEADERBOARD_RAW_CAP);
 
   if (error) throw new Error(`fetchScopedLeaderboard failed: ${error.message}`);
   if (!data || data.length === 0) return [];
@@ -672,7 +688,9 @@ export async function fetchScopedLeaderboard(
     }
   }
 
-  const sorted = Array.from(bestByUser.values()).sort((a, b) => a.duration_ms - b.duration_ms);
+  const sorted = Array.from(bestByUser.values())
+    .sort((a, b) => a.duration_ms - b.duration_ms)
+    .slice(0, SCOPED_LEADERBOARD_TOP_N);
   const leaderTime = sorted[0]?.duration_ms ?? 0;
 
   return sorted.map((e: any, i: number) => ({

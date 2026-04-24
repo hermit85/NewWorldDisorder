@@ -66,7 +66,18 @@ function notifyChangeListeners(): void {
 
 // ── Persistence helpers ──
 
-async function persistToStorage(): Promise<void> {
+/** Debounce window for persistToStorage. FAZA 2 #3: bursts of writes
+ *  (e.g. final submit → update retryCount → update saveStatus, all
+ *  within a few ms) used to each JSON-stringify up to 15 runs with
+ *  their sampled GPS traces. Coalescing them into a single disk write
+ *  cuts cold-storage work by ~3-5× on typical finalize/retry flows.
+ *  Kept short (150ms) so a process crash still loses at most ~150ms of
+ *  state — hydration already recovers stuck 'saving' runs anyway. */
+const PERSIST_DEBOUNCE_MS = 150;
+let _persistTimer: ReturnType<typeof setTimeout> | null = null;
+let _persistInFlight: Promise<void> | null = null;
+
+async function writeToStorage(): Promise<void> {
   try {
     const entries = Array.from(_runCache.values())
       .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -75,6 +86,28 @@ async function persistToStorage(): Promise<void> {
   } catch (e) {
     console.warn('[NWD] runStore persist failed:', e);
   }
+}
+
+function persistToStorage(): void {
+  if (_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    _persistTimer = null;
+    _persistInFlight = writeToStorage().finally(() => {
+      _persistInFlight = null;
+    });
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+/** Force any pending debounced write to flush synchronously. Use before
+ *  a hydration-style sequence where a prior write must be on disk before
+ *  the next action (e.g. the 'saving' → 'queued' recovery path). */
+export async function flushRunStorePersistence(): Promise<void> {
+  if (_persistTimer) {
+    clearTimeout(_persistTimer);
+    _persistTimer = null;
+    await writeToStorage();
+  }
+  if (_persistInFlight) await _persistInFlight;
 }
 
 /** Hydrate in-memory store from AsyncStorage. Call once at app start.

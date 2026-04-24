@@ -375,21 +375,29 @@ export function useRealRun(
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
 
-          // Update checkpoints
+          // Update checkpoints — FAZA 2 #1: preserve array identity when
+          // no checkpoint actually flips. The old code mapped on every
+          // GPS sample (1-2Hz for a 30-min run → thousands of new array
+          // allocations), which invalidated downstream memoization. Most
+          // samples don't cross any checkpoint; those can keep the same
+          // reference and skip the spread/return.
+          let flipped = false;
           const updatedCps = s.checkpoints.map((cp) => {
             if (cp.passed) return cp;
             if (distanceMeters(point, cp.coordinate) <= cp.radiusM) {
+              flipped = true;
               return { ...cp, passed: true, passedAt: point.timestamp };
             }
             return cp;
           });
+          const checkpoints = flipped ? updatedCps : s.checkpoints;
 
           return {
             ...s,
             gps: buildGpsState(point),
             lastPoint: point,
             pointCount: s.pointCount + 1,
-            checkpoints: updatedCps,
+            checkpoints,
             elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
             gateLastStartAttempt: sampleDiagnostics.lastStartAttempt,
             gateLastFinishAttempt: sampleDiagnostics.lastFinishAttempt,

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, Linking, AppState } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -336,24 +336,46 @@ export default function ActiveRunScreen() {
       state.phase === 'armed_practice');
   const showReadiness = state.phase === 'readiness_check' && !showApproachPreRun;
 
-  const approachState =
-    showApproachPreRun && state.lastPoint && gateConfig
-      ? computeApproachState({
-          userPosition: {
-            latitude: state.lastPoint.latitude,
-            longitude: state.lastPoint.longitude,
-          },
-          // GpsPoint does not carry heading; the gate engine already
-          // derives it from the last two buffered points. Speed is the
-          // same story — prefer the derived gateSpeedKmh (converted to
-          // m/s) over raw .speed which can lag on fresh fixes.
-          userHeading: state.gateHeadingDeg,
-          userAccuracyM: state.lastPoint.accuracy ?? 99,
-          userVelocityMps:
-            state.gateSpeedKmh != null ? state.gateSpeedKmh / 3.6 : (state.lastPoint.speed ?? 0),
-          trailGate: gateConfig,
-        })
-      : null;
+  // FAZA 2 #1: memoize userPosition + approachState so ApproachView's
+  // memo guard can actually short-circuit when the rider is stationary.
+  // Without this, every parent render (e.g. from the 1Hz timer) produced
+  // a new userPosition object identity and forced ApproachView to
+  // re-render its map + body even when lat/lng hadn't moved.
+  const userPosition = useMemo(
+    () =>
+      state.lastPoint
+        ? { latitude: state.lastPoint.latitude, longitude: state.lastPoint.longitude }
+        : null,
+    [state.lastPoint?.latitude, state.lastPoint?.longitude],
+  );
+
+  const userVelocityMps =
+    state.gateSpeedKmh != null ? state.gateSpeedKmh / 3.6 : (state.lastPoint?.speed ?? 0);
+
+  const approachState = useMemo(
+    () =>
+      showApproachPreRun && userPosition && gateConfig
+        ? computeApproachState({
+            userPosition,
+            // GpsPoint does not carry heading; the gate engine already
+            // derives it from the last two buffered points. Speed is the
+            // same story — prefer the derived gateSpeedKmh (converted to
+            // m/s) over raw .speed which can lag on fresh fixes.
+            userHeading: state.gateHeadingDeg,
+            userAccuracyM: state.lastPoint?.accuracy ?? 99,
+            userVelocityMps,
+            trailGate: gateConfig,
+          })
+        : null,
+    [
+      showApproachPreRun,
+      userPosition,
+      gateConfig,
+      state.gateHeadingDeg,
+      state.lastPoint?.accuracy,
+      userVelocityMps,
+    ],
+  );
 
   const modeBadge = state.mode === 'ranked'
     ? { label: 'RANKING', color: colors.accent, bg: colors.accentDim }
@@ -412,14 +434,7 @@ export default function ActiveRunScreen() {
               }
               userHeading={state.gateHeadingDeg}
               startPoint={gateConfig?.startGate.center ?? null}
-              userPosition={
-                state.lastPoint
-                  ? {
-                      latitude: state.lastPoint.latitude,
-                      longitude: state.lastPoint.longitude,
-                    }
-                  : null
-              }
+              userPosition={userPosition}
               onManualStart={manualStart}
               onArm={() => {
                 // Ranked-vs-practice is decided from venue / auth /
