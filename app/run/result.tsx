@@ -203,12 +203,18 @@ function StandardResultScreen() {
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
-  // Checkpoint A: prefer runStore.trailName (K4), fall back to DB fetch
-  // when it is missing (cold start after app restart). Hook must be
-  // called unconditionally so we pass null when trailName already exists.
-  const { trail: fetchedTrail } = useTrail(
-    run?.trailId && !run?.trailName ? run.trailId : null,
+  // Always fetch the trail when we have a saved run so we can detect
+  // orphans (trail deleted server-side after the run was submitted) and
+  // also fall back to DB trailName on cold start. For unsaved/local-only
+  // runs there is no orphan risk, so we skip the fetch unless the cached
+  // trailName is missing.
+  const needsTrailFetch = !!run?.trailId &&
+    (run.saveStatus === 'saved' || !run.trailName);
+  const { trail: fetchedTrail, status: trailStatus } = useTrail(
+    needsTrailFetch ? run!.trailId : null,
   );
+  const isOrphan =
+    run?.saveStatus === 'saved' && !!run?.trailId && trailStatus === 'empty';
 
   const { profile: currentProfile } = useProfile(authProfile?.id);
 
@@ -605,51 +611,82 @@ function StandardResultScreen() {
           glyphColor={colors.textSecondary}
           spacingTop="none"
         />
-        <Pressable
-          style={({ pressed }) => [
-            styles.runAgainBtn,
-            pressed && styles.runAgainBtnPressed,
-          ]}
-          onPress={() => {
-            tapMedium();
-            router.replace({ pathname: '/run/active', params: { trailId: run.trailId, trailName } });
-          }}
-        >
-          <Text style={styles.runAgainText}>JEDŹ PONOWNIE</Text>
-        </Pressable>
-
-        <View style={styles.secondaryCtaRow}>
-          <Pressable
-            style={[
-              styles.secondaryBtn,
-              showRank && { borderColor: colors.accent + '60' },
-            ]}
-            onPress={() => {
-              tapLight();
-              router.replace({
-                pathname: '/(tabs)/leaderboard',
-                params: { trailId: run.trailId, scope: 'all_time' },
-              });
-            }}
-          >
-            <Text style={[
-              styles.secondaryBtnText,
-              showRank && { color: colors.accent },
-            ]}>
-              {showRank ? `RANKING · #${rankPosition}` : 'RANKING'}
+        {isOrphan ? (
+          // Orphan recovery: the trail/spot was deleted server-side after
+          // this run was submitted. The time + PB + rank metadata are all
+          // in the local cache so we keep them visible above — but any CTA
+          // that navigates to the trail or starts a new run on it will 404.
+          // Show one clean exit instead of three broken buttons.
+          <View style={styles.orphanCard}>
+            <Text style={styles.orphanTitle}>TRASA ZOSTAŁA USUNIĘTA</Text>
+            <Text style={styles.orphanBody}>
+              Zjazd zachowany w Twojej historii, ale tej trasy już nie ma
+              w lidze. Nie możesz jej powtórzyć ani wejść w jej ranking.
             </Text>
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wróć do profilu"
+              style={({ pressed }) => [
+                styles.runAgainBtn,
+                pressed && styles.runAgainBtnPressed,
+              ]}
+              onPress={() => {
+                tapMedium();
+                router.replace('/(tabs)/profile');
+              }}
+            >
+              <Text style={styles.runAgainText}>WRÓĆ DO PROFILU</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Pressable
+              style={({ pressed }) => [
+                styles.runAgainBtn,
+                pressed && styles.runAgainBtnPressed,
+              ]}
+              onPress={() => {
+                tapMedium();
+                router.replace({ pathname: '/run/active', params: { trailId: run.trailId, trailName } });
+              }}
+            >
+              <Text style={styles.runAgainText}>JEDŹ PONOWNIE</Text>
+            </Pressable>
 
-          <Pressable
-            style={styles.secondaryBtn}
-            onPress={() => {
-              tapLight();
-              router.replace(`/trail/${run.trailId}`);
-            }}
-          >
-            <Text style={styles.secondaryBtnText}>TRASA</Text>
-          </Pressable>
-        </View>
+            <View style={styles.secondaryCtaRow}>
+              <Pressable
+                style={[
+                  styles.secondaryBtn,
+                  showRank && { borderColor: colors.accent + '60' },
+                ]}
+                onPress={() => {
+                  tapLight();
+                  router.replace({
+                    pathname: '/(tabs)/leaderboard',
+                    params: { trailId: run.trailId, scope: 'all_time' },
+                  });
+                }}
+              >
+                <Text style={[
+                  styles.secondaryBtnText,
+                  showRank && { color: colors.accent },
+                ]}>
+                  {showRank ? `RANKING · #${rankPosition}` : 'RANKING'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.secondaryBtn}
+                onPress={() => {
+                  tapLight();
+                  router.replace(`/trail/${run.trailId}`);
+                }}
+              >
+                <Text style={styles.secondaryBtnText}>TRASA</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
         {/* Field test debug — dev builds only */}
         {__DEV__ && (
           <View style={styles.debugCard}>
@@ -1066,6 +1103,26 @@ const styles = StyleSheet.create({
   secondaryCtaRow: { flexDirection: 'row', gap: spacing.sm },
   secondaryBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
   secondaryBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
+
+  orphanCard: {
+    backgroundColor: 'rgba(255,149,0,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,149,0,0.25)',
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  orphanTitle: {
+    ...typography.label,
+    color: colors.orange,
+    letterSpacing: 3,
+    marginBottom: spacing.sm,
+  },
+  orphanBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+  },
 
   // Field test debug card
   debugCard: {
