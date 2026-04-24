@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -18,6 +18,7 @@ import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@
 import { buildTrailGeoFromPioneer } from '@/features/run/gates';
 import { buildTrailGateConfigFromPioneer } from '@/features/run';
 import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
+import { useLocationPermission } from '@/features/permissions/useLocationPermission';
 
 export default function ActiveRunScreen() {
   const { trailId = '', trailName = 'Unknown Trail' } =
@@ -94,6 +95,47 @@ export default function ActiveRunScreen() {
     cancel,
   } = useRealRun(trailId, trailName, spotId, geo, gateConfig, profile?.id);
 
+  // Ranked background-permission preflight (F1#6). iOS silently kills
+  // foreground-only GPS when the phone screen locks or the app is
+  // pocketed — a ranked timer started without "Always" location will
+  // die mid-run and burn the rider's attempt. We force the Always ask
+  // at arm time so the rider is either opted-in or consciously chooses
+  // practice. No silent foreground-only ranked runs.
+  const permission = useLocationPermission();
+
+  const armRankedWithPreflight = useCallback(async () => {
+    if (permission.backgroundStatus === 'granted') {
+      armRun('ranked');
+      return;
+    }
+    const result = permission.backgroundStatus === 'undetermined'
+      ? await permission.requestBackground()
+      : permission.backgroundStatus;
+    if (result === 'granted') {
+      armRun('ranked');
+      return;
+    }
+    // Denied (or denied-after-prompt). Offer two honest paths:
+    // open iOS Settings to flip the grant, or accept a practice run.
+    // Never silently downgrade without telling the rider.
+    Alert.alert(
+      'Potrzebna zgoda „Zawsze"',
+      'Ranking wymaga nagrywania GPS gdy telefon jest w kieszeni. Bez zgody „Zawsze" zjazd przejdzie w tryb treningu (bez miejsca w tablicy).',
+      [
+        {
+          text: 'Ustawienia',
+          onPress: () => { void Linking.openSettings(); },
+        },
+        {
+          text: 'Jedź jako trening',
+          style: 'default',
+          onPress: () => { armRun('practice'); },
+        },
+        { text: 'Anuluj', style: 'cancel' },
+      ],
+    );
+  }, [permission, armRun]);
+
   // ── Gaming context: user PB + rival above (Chunk 5) ─────────
   //
   // Reuses existing fetch paths — useUserTrailStats for the PB map,
@@ -153,7 +195,7 @@ export default function ActiveRunScreen() {
           armRun('practice');
         } else if (state.readiness.rankedEligible && isAuthenticated) {
           tapMedium();
-          armRun('ranked');
+          void armRankedWithPreflight();
         } else if (state.readiness.rankedEligible && !isAuthenticated) {
           tapLight();
           router.push('/auth');
@@ -380,7 +422,11 @@ export default function ActiveRunScreen() {
                   !isTrainingOnly &&
                   isAuthenticated &&
                   state.readiness.rankedEligible;
-                armRun(canRank ? 'ranked' : 'practice');
+                if (canRank) {
+                  void armRankedWithPreflight();
+                } else {
+                  armRun('practice');
+                }
               }}
               armed={
                 state.phase === 'armed_ranked' || state.phase === 'armed_practice'
