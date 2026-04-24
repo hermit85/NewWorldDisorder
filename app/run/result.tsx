@@ -576,6 +576,34 @@ function StandardResultScreen() {
           </View>
         )}
 
+        {/* ═══ CORRIDOR RESCUE AUDIT — why was this verified without a gate read? ═══ */}
+        {isVerified && v?.acceptedVia === 'corridor_rescue' && (
+          <View style={styles.rescueCard}>
+            <Text style={styles.rescueLabel}>ZALICZONE PRZEZ KORYTARZ</Text>
+            <Text style={styles.rescueBody}>
+              Bramka nie odczytała przecięcia, ale przejazd spełnia warunki pełnej trasy:
+            </Text>
+            <View style={styles.rescueRow}>
+              <Text style={styles.rescueBullet}>✓</Text>
+              <Text style={styles.rescueRowText}>
+                Checkpointy: {v.checkpointsPassed}/{v.checkpointsTotal}
+              </Text>
+            </View>
+            <View style={styles.rescueRow}>
+              <Text style={styles.rescueBullet}>✓</Text>
+              <Text style={styles.rescueRowText}>
+                Korytarz: {Math.round(v.corridor.coveragePercent)}% pokrycia · maks. odchyłka {Math.round(v.corridor.maxDeviationM)} m
+              </Text>
+            </View>
+            <View style={styles.rescueRow}>
+              <Text style={styles.rescueBullet}>✓</Text>
+              <Text style={styles.rescueRowText}>
+                Sygnał GPS: {v.avgAccuracyM.toFixed(1)} m średnio
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ═══ STATUS CONTEXT — soft human explanation ═══ */}
         {!isVerified && !isPractice && vStatus !== 'pending' && (
           <View style={styles.statusContextCard}>
@@ -1077,6 +1105,45 @@ const styles = StyleSheet.create({
   },
   statusContextLabel: { ...typography.labelSmall, letterSpacing: 3, fontSize: 10 },
   statusContextBody: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center', lineHeight: 20 },
+
+  // Corridor rescue audit card — shown when a ranked run verified via
+  // corridor_rescue instead of a gate read, so the rider sees the
+  // specific evidence that made the rescue eligible.
+  rescueCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accent + '40',
+    gap: spacing.xs,
+  },
+  rescueLabel: {
+    ...typography.labelSmall,
+    letterSpacing: 3,
+    fontSize: 10,
+    color: colors.accent,
+    marginBottom: spacing.xs,
+  },
+  rescueBody: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.xs,
+  },
+  rescueRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  rescueBullet: {
+    ...typography.bodySmall,
+    color: colors.accent,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  rescueRowText: {
+    ...typography.bodySmall,
+    color: colors.textPrimary,
+    flex: 1,
+    lineHeight: 20,
+  },
 
   // (retry card merged into saveFailCard / saveQueuedCard above)
 
