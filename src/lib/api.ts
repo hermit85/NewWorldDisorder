@@ -472,11 +472,24 @@ export function normalizeRunRow(run: DbRun): DbRun {
   };
 }
 
+// B23.1: when submit_run returns null, callers (result.tsx's WYŚLIJ TERAZ,
+// useRealRun's initial save) previously had no way to know *why* it was
+// rejected — only `console.warn` which is invisible on TestFlight. This
+// module-level cache lets the retry path surface the actual error code to
+// the rider ("Serwer: corridor_coverage_low" instead of dead silence).
+// Cleared at the start of every submit; callers should pull immediately
+// after an await'd null return, before any other submit can race in.
+let _lastSubmitRunError: { code: string; detail: string } | null = null;
+export function getLastSubmitRunError(): { code: string; detail: string } | null {
+  return _lastSubmitRunError;
+}
+
 export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResult | null> {
   const {
     userId, spotId, trailId, mode, startedAt, finishedAt,
     durationMs, verification, trace, xpAwarded, qualityTier,
   } = params;
+  _lastSubmitRunError = null;
 
   // Slim down GPS trace for storage (remove raw points array, keep summary)
   const traceForStorage = {
@@ -512,12 +525,22 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   });
 
   if (error || !data) {
+    _lastSubmitRunError = {
+      code: 'rpc_transport',
+      detail: error?.message ?? 'RPC returned no data',
+    };
     console.error('[NWD] submit_run RPC failed:', error);
     return null;
   }
 
   const result = data as any;
   if (!result.ok) {
+    _lastSubmitRunError = {
+      code: result.code ?? 'unknown',
+      detail: Array.isArray(result.invalidation_reasons)
+        ? result.invalidation_reasons.join(', ')
+        : (result.message ?? JSON.stringify(result)),
+    };
     console.warn('[NWD] submit_run rejected:', result.code);
     return null;
   }

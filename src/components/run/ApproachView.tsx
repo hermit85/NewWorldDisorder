@@ -299,8 +299,14 @@ function StartPointMap({
           anchor={{ x: 0.5, y: 0.5 }}
           tracksViewChanges={false}
         >
+          {/* B23.1 visual: shrunk + center tick. Walk-test gripe was "start
+              jest za duży" — the old 28px S marker at the tight mini-map
+              zoom read as a zone, not a line. The actual gate line is 4m
+              (GATE_LINE_LENGTH_M) and the rider needs to hit its center,
+              not the marker halo. The tick is the real target. */}
           <View style={styles.startMarker}>
             <Text style={styles.startMarkerText}>S</Text>
+            <View style={styles.startCenterTick} />
           </View>
         </Marker>
         {userPosition ? (
@@ -548,19 +554,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   startMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    // B23.1: shrunk from 28→14 so the marker reads as a point-of-aim,
+    // not a pool. Real gate line is 4 m — the pin's job is just to
+    // anchor the rider's eye to the trailhead. The inner tick is the
+    // actual "aim here" cue.
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: chunk9Colors.accent.emerald,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: chunk9Colors.bg.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
   startMarkerText: {
-    ...chunk9Typography.captionMono10,
+    // Tiny S label — kept for recognition but no longer filling the pin.
+    fontSize: 8,
+    lineHeight: 10,
     color: chunk9Colors.bg.base,
     fontWeight: '700',
+  },
+  startCenterTick: {
+    // 2 px bullseye centered on the gate line midpoint. Sits on top of
+    // the S marker via absolute positioning. Visually: "aim here" dot.
+    position: 'absolute',
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: chunk9Colors.bg.base,
   },
   userMarkerOuter: {
     width: 22,

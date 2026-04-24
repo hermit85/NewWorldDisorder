@@ -200,6 +200,10 @@ function StandardResultScreen() {
   const [timeScaleAnim] = useState(new Animated.Value(0.8));
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   const [retrying, setRetrying] = useState(false);
+  // B23.1: surface RPC rejection code on WYŚLIJ TERAZ failure so the rider
+  // sees why — B22/B23 walk-test had silent retry failures with zero
+  // feedback ("wciskam zapisz ale nie działa"). Cleared on next retry start.
+  const [retryError, setRetryError] = useState<{ code: string; detail?: string } | null>(null);
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
@@ -280,14 +284,23 @@ function StandardResultScreen() {
     if (!run.userId) return;
 
     setRetrying(true);
+    setRetryError(null);
     selectionTick();
 
-    const { success } = await retryRunSubmit(run);
+    const retryResult = await retryRunSubmit(run);
 
-    if (success) {
+    if (retryResult.success) {
       notifySuccess();
     } else {
       notifyWarning();
+      // B23.1: populate visible error so the rider knows retry actually
+      // fired and why it failed. Without this the queued card looks
+      // identical before and after a tap.
+      if (retryResult.errorCode) {
+        setRetryError({ code: retryResult.errorCode, detail: retryResult.errorDetail });
+      } else {
+        setRetryError({ code: 'unknown', detail: retryResult.error });
+      }
     }
     setRetrying(false);
     forceUpdate();
@@ -440,6 +453,12 @@ function StandardResultScreen() {
                   </Text>
                 </Pressable>
               )}
+              {retryError && (
+                <Text style={styles.saveRetryErrorText}>
+                  Serwer: {retryError.code}
+                  {retryError.detail ? ` — ${retryError.detail}` : ''}
+                </Text>
+              )}
             </View>
           ) : isQueued ? (
             <View style={styles.saveQueuedCard}>
@@ -457,6 +476,12 @@ function StandardResultScreen() {
                     {retrying ? 'ZAPISUJĘ…' : 'WYŚLIJ TERAZ'}
                   </Text>
                 </Pressable>
+              )}
+              {retryError && (
+                <Text style={styles.saveRetryErrorText}>
+                  Serwer: {retryError.code}
+                  {retryError.detail ? ` — ${retryError.detail}` : ''}
+                </Text>
               )}
             </View>
           ) : isPractice ? (
@@ -1091,6 +1116,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   retryInlineBtnText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 10 },
+  // B23.1: RPC rejection detail under the retry button. Keeps the rider
+  // in the loop when retry fails silently on the server side.
+  saveRetryErrorText: {
+    ...typography.bodySmall,
+    color: colors.orange,
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: spacing.xs,
+    opacity: 0.85,
+  },
 
   // Status context card (non-verified explanation)
   statusContextCard: {

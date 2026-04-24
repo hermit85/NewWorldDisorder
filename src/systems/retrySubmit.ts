@@ -14,7 +14,7 @@
 
 import { FinalizedRun, updateFinalizedRun } from './runStore';
 import { submitRunToBackend } from '@/hooks/useBackend';
-import { SubmitRunResult } from '@/lib/api';
+import { SubmitRunResult, getLastSubmitRunError } from '@/lib/api';
 import { calculateRunXp } from './xp';
 import { logDebugEvent } from './debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
@@ -23,6 +23,12 @@ export interface RetryResult {
   success: boolean;
   result: SubmitRunResult | null;
   error?: string;
+  /** B23.1: surface the RPC rejection code (from api.submitRun's
+   *  _lastSubmitRunError cache). Populated after a null result so
+   *  result.tsx can render "Serwer odrzucił: corridor_coverage_low"
+   *  instead of an invisible console.warn. */
+  errorCode?: string;
+  errorDetail?: string;
 }
 
 /**
@@ -107,9 +113,18 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       triggerRefresh();
       return { success: true, result };
     } else {
-      logDebugEvent('save', 'retry_null', 'fail', { runSessionId: run.sessionId });
+      const rpcError = getLastSubmitRunError();
+      logDebugEvent('save', 'retry_null', 'fail', {
+        runSessionId: run.sessionId,
+        payload: { errorCode: rpcError?.code, errorDetail: rpcError?.detail },
+      });
       updateFinalizedRun(run.sessionId, { saveStatus: 'queued' });
-      return { success: false, result: null };
+      return {
+        success: false,
+        result: null,
+        errorCode: rpcError?.code,
+        errorDetail: rpcError?.detail,
+      };
     }
   } catch (e) {
     logDebugEvent('save', 'retry_error', 'fail', {
@@ -117,6 +132,12 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       payload: { error: String(e) },
     });
     updateFinalizedRun(run.sessionId, { saveStatus: 'queued' });
-    return { success: false, result: null, error: String(e) };
+    return {
+      success: false,
+      result: null,
+      error: String(e),
+      errorCode: 'exception',
+      errorDetail: String(e),
+    };
   }
 }
