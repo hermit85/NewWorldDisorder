@@ -122,7 +122,11 @@ export function TrailDrawer({ trail, stats, challenges = [], readiness, rankingE
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.headerRow}>
-            <Pressable onPress={handleViewTrail}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Otwórz trasę ${trail.name}`}
+              onPress={handleViewTrail}
+            >
               <Text style={[styles.trailName, isCompact && styles.trailNameCompact]}>{trail.name}</Text>
             </Pressable>
             <View style={[styles.diffBadge, { borderColor: diffColor }]}>
@@ -189,6 +193,8 @@ export function TrailDrawer({ trail, stats, challenges = [], readiness, rankingE
           <View style={styles.readinessActions}>
             {readiness.level !== 'ready' && readiness.level !== 'no_gps' && onShowStart && (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Znajdź start"
                 style={({ pressed }) => [styles.inlineActionBtn, pressed && styles.inlineActionBtnPressed]}
                 onPress={() => { tapLight(); onShowStart(); }}
               >
@@ -204,6 +210,8 @@ export function TrailDrawer({ trail, stats, challenges = [], readiness, rankingE
 
       {/* CTA */}
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={ctaConfig.text}
         style={[
           styles.startBtn,
           { backgroundColor: ctaConfig.color },
@@ -369,6 +377,8 @@ const styles = StyleSheet.create({
     marginLeft: 'auto' as const,
   },
   inlineActionBtn: {
+    minHeight: 44,
+    justifyContent: 'center' as const,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radii.sm,
@@ -392,9 +402,11 @@ const styles = StyleSheet.create({
   },
   // ── CTA ──
   startBtn: {
+    minHeight: 52,
     borderRadius: radii.md,
     paddingVertical: spacing.sm + 3,
     alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginTop: spacing.sm,
   },
   startBtnText: {
