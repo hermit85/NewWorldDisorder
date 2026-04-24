@@ -60,6 +60,12 @@ export const TrailCard = memo(function TrailCard({
     userData.pbMs ? `PB ${formatTimeShort(userData.pbMs)}` : null,
     userData.position ? formatRankLabel(userData.position) : null,
   ].filter(Boolean);
+  const accessibilityLabel = [
+    `Trasa ${trail.name}`,
+    metaParts.join(', '),
+    subtitle,
+    `Akcja: ${ctaLabel}`,
+  ].filter(Boolean).join('. ');
 
   const handleCardPress = useCallback(() => {
     // Spec v2 1.5: card tap fires haptic.tap (CTA delegates to GlowButton)
@@ -70,6 +76,7 @@ export const TrailCard = memo(function TrailCard({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={handleCardPress}
       style={({ pressed }) => [
         styles.container,
