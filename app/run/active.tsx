@@ -187,6 +187,17 @@ export default function ActiveRunScreen() {
         beginReadinessCheck();
         break;
       case 'readiness_check':
+        // B21: when ApproachView is showing, arming must be explicit —
+        // tapping anywhere on screen used to auto-arm ranked, which B20
+        // field testers did by accident while fumbling with the phone
+        // walking up to the gate. The UZBRÓJ button inside ApproachView
+        // is the only sanctioned path; whole-screen taps become no-ops.
+        // The legacy ReadinessPanel branch (no GPS fix or no gate
+        // config) still needs a tap to progress, so we only suppress
+        // when showApproachPreRun is truthy.
+        if (showApproachPreRun) {
+          break;
+        }
         if (isTrainingOnly) {
           // Training-only venue: always practice, never ranked
           tapLight();
