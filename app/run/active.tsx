@@ -11,12 +11,10 @@ import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { ApproachView } from '@/components/run/ApproachView';
 import { DebugOverlay } from '@/components/run/DebugOverlay';
 import { computeApproachState } from '@/features/run/approachNavigator';
-import { getVenueForTrail } from '@/data/venues';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, notifyError } from '@/systems/haptics';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@/hooks/useBackend';
-import { buildTrailGeoFromPioneer } from '@/features/run/gates';
-import { buildTrailGateConfigFromPioneer } from '@/features/run';
+import { resolveVenue } from '@/features/run/resolveVenue';
 import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
 import { useLocationPermission } from '@/features/permissions/useLocationPermission';
 
@@ -31,12 +29,21 @@ export default function ActiveRunScreen() {
 
   const { profile, isAuthenticated } = useAuthContext();
 
-  // Resolve venue for this trail. getVenueForTrail still exists but
-  // the registry is empty after Checkpoint B — so venueMatch is null
-  // in the common case. We fall back to DB for the parent spot id.
-  const venueMatch = getVenueForTrail(trailId);
+  // Trail context fetch. Geometry is only fetched for DB-sourced
+  // trails; the static registry carries its own geo inline so we skip
+  // the network trip when resolveVenue will pick the static branch.
   const { trail: dbTrail, status: trailStatus } = useTrail(trailId || null);
-  const spotId = venueMatch?.venueId ?? dbTrail?.spotId ?? '';
+  const { geometry: pioneerGeometryRaw } = useTrailGeometry(trailId || null);
+  const venue = resolveVenue({
+    trailId: trailId || null,
+    trailName,
+    dbTrail: dbTrail ? { spotId: dbTrail.spotId } : null,
+    pioneerGeometryRaw,
+  });
+  const spotId = venue.spotId;
+  const isTrainingOnly = venue.source === 'static' && !venue.rankingEnabled;
+  const geo = venue.trailGeo;
+  const gateConfig = venue.gateConfig;
 
   // Guard: deep-linked trailId points at a trail that doesn't exist in
   // DB (deleted, bad link, legacy id). Without this, the screen happily
@@ -50,7 +57,7 @@ export default function ActiveRunScreen() {
       router.replace('/');
       return;
     }
-    if (!venueMatch && trailStatus === 'empty') {
+    if (venue.source !== 'static' && trailStatus === 'empty') {
       guardedRef.current = true;
       Alert.alert(
         'Trasa nie istnieje',
@@ -58,32 +65,7 @@ export default function ActiveRunScreen() {
         [{ text: 'Wróć', onPress: () => router.replace('/') }],
       );
     }
-  }, [trailId, trailStatus, venueMatch, router]);
-  const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
-
-  // Rehydrate trail geo from Pioneer geometry (Sprint 3 Chunk 6).
-  // 1st preference: hardcoded venueMatch (Słotwiny legacy). Falls back
-  // to the Pioneer line persisted on trails.geometry. If the trail is
-  // still a draft (no Pioneer yet), geo stays null → gate engine runs
-  // with no corridor → ranked runs finalise as 'unverified'.
-  const { geometry: pioneerGeometryRaw } = useTrailGeometry(
-    venueMatch ? null : (trailId || null),
-  );
-  const geo = venueMatch
-    ? (venueMatch.venue.trailGeo.find((g: { trailId: string }) => g.trailId === trailId) ?? null)
-    : buildTrailGeoFromPioneer(trailId || null, pioneerGeometryRaw);
-  const gateConfig = venueMatch
-    ? (geo ? buildTrailGateConfigFromPioneer(trailId || '', trailName, {
-        version: 1,
-        points: geo.polyline.map((p, i) => ({ lat: p.latitude, lng: p.longitude, t: i })),
-        meta: {
-          totalDistanceM: 0,
-          totalDescentM: 0,
-          durationS: 0,
-          medianAccuracyM: 0,
-        },
-      }) : null)
-    : buildTrailGateConfigFromPioneer(trailId || null, trailName, pioneerGeometryRaw);
+  }, [trailId, trailStatus, venue.source, router]);
 
   const {
     state,
