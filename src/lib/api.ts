@@ -478,26 +478,6 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     durationMs, verification, trace, xpAwarded, qualityTier,
   } = params;
 
-  const isLeaderboardEligible = verification.isLeaderboardEligible;
-
-  // Check if this is a PB
-  let isPb = false;
-  let previousBestMs: number | null = null;
-  if (isLeaderboardEligible) {
-    const { data: existingBest } = await db()
-      .from('runs')
-      .select('duration_ms')
-      .eq('user_id', userId)
-      .eq('trail_id', trailId)
-      .eq('counted_in_leaderboard', true)
-      .order('duration_ms', { ascending: true })
-      .limit(1)
-      .single();
-
-    previousBestMs = existingBest?.duration_ms ?? null;
-    isPb = !existingBest || durationMs < existingBest.duration_ms;
-  }
-
   // Slim down GPS trace for storage (remove raw points array, keep summary)
   const traceForStorage = {
     pointCount: trace.points.length,
@@ -505,7 +485,6 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     finishedAt: trace.finishedAt,
     durationMs: trace.durationMs,
     mode: trace.mode,
-    // Store only every Nth point to save space
     sampledPoints: trace.points.filter((_, i) => i % 3 === 0).map(p => ({
       lat: Math.round(p.latitude * 1e6) / 1e6,
       lng: Math.round(p.longitude * 1e6) / 1e6,
@@ -513,70 +492,64 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     })),
   };
 
-  // Insert run
-  const { data: run, error } = await db()
-    .from('runs')
-    .insert({
-      user_id: userId,
-      spot_id: spotId,
-      trail_id: trailId,
-      mode,
-      started_at: new Date(startedAt).toISOString(),
-      finished_at: new Date(finishedAt).toISOString(),
-      duration_ms: durationMs,
-      verification_status: verification.status,
-      verification_summary: { ...verification, qualityTier: qualityTier ?? null } as any,
-      gps_trace: traceForStorage as any,
-      is_pb: isPb,
-      xp_awarded: xpAwarded,
-      counted_in_leaderboard: isLeaderboardEligible,
-    })
-    .select()
-    .single();
+  // F1#9: server-side eligibility validation. The RPC re-validates the
+  // verification summary against the same thresholds the client uses
+  // and owns the decision on counted_in_leaderboard / is_pb. Any
+  // tampered payload still lands as a history row (mode=practice path)
+  // but cannot land on the leaderboard.
+  const verificationPayload = { ...verification, qualityTier: qualityTier ?? null };
+  const { data, error } = await db().rpc('submit_run', {
+    p_spot_id: spotId,
+    p_trail_id: trailId,
+    p_mode: mode,
+    p_started_at: new Date(startedAt).toISOString(),
+    p_finished_at: new Date(finishedAt).toISOString(),
+    p_duration_ms: durationMs,
+    p_verification_status: verification.status,
+    p_verification_summary: verificationPayload as any,
+    p_gps_trace: traceForStorage as any,
+    p_xp_awarded: xpAwarded,
+  });
 
-  if (error || !run) {
-    console.error('[NWD] Failed to submit run:', error);
+  if (error || !data) {
+    console.error('[NWD] submit_run RPC failed:', error);
     return null;
   }
 
-  // Update leaderboard if eligible
-  let leaderboardResult = null;
-  if (isLeaderboardEligible) {
-    const { data } = await db().rpc('upsert_leaderboard_entry', {
-      p_user_id: userId,
-      p_trail_id: trailId,
-      p_period_type: 'all_time',
-      p_duration_ms: durationMs,
-      p_run_id: run.id,
-    });
-
-    if (data) {
-      leaderboardResult = {
-        position: (data as any).position,
-        previousPosition: (data as any).previous_position,
-        delta: (data as any).delta,
-        isNewBest: (data as any).is_new_best,
-      };
-    }
+  const result = data as any;
+  if (!result.ok) {
+    console.warn('[NWD] submit_run rejected:', result.code);
+    return null;
   }
 
-  // Update profile stats (atomic RPCs)
+  const run = result.run as DbRun;
+  const isPb = !!result.is_pb;
+  const previousBestMs = (result.previous_best_ms as number | null) ?? null;
+
+  const leaderboardResult = result.leaderboard
+    ? {
+        position: result.leaderboard.position,
+        previousPosition: result.leaderboard.previous_position,
+        delta: result.leaderboard.delta,
+        isNewBest: result.leaderboard.is_new_best,
+      }
+    : null;
+
+  // Profile stats + favorite trail stay client-driven for now — these
+  // are derived aggregates, not trust-critical. Leaderboard integrity
+  // (the only thing a cheater would target) now lives server-side.
   const runCounts = await incrementProfileRuns(userId, isPb);
   if (xpAwarded > 0) {
     await updateProfileXp(userId, xpAwarded);
   }
-
-  // Update best_position if this run achieved a better leaderboard spot
   if (leaderboardResult && leaderboardResult.position > 0) {
     await updateBestPosition(userId, leaderboardResult.position);
   }
-
-  // Update favorite_trail_id based on most runs
   if (runCounts) {
     await updateFavoriteTrail(userId, trailId);
   }
 
-  return { run: normalizeRunRow(run as DbRun), leaderboardResult, isPb, previousBestMs };
+  return { run: normalizeRunRow(run), leaderboardResult, isPb, previousBestMs };
 }
 
 // ═══════════════════════════════════════════════════════════
