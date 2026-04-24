@@ -2,7 +2,7 @@
 
 ## Executive Summary
 - 🟢 Naprawione do tej pory: 11.
-- 🟡 Do zatwierdzenia: 20.
+- 🟡 Do zatwierdzenia: 23 (po KROK 4b — motion/cache/typography).
 - 🔴 Do dyskusji strategicznej: 1 (zaufanie do wyniku ligi bez server-side re-weryfikacji).
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
@@ -145,7 +145,7 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 2. 🟡 `trail/[id]` cichy fail leaderboardu — lbLoading blokuje sekcję board bez error fallback. Impact 4, Effort S.
 3. 🟡 `(tabs)/spots` brak skeletonu przed fetch — flicker "brak" → lista. Impact 3, Effort S.
 
-## Krok 3 — UI/UX Sweep
+## Krok 4 — UI/UX Sweep
 
 ### Trail picker / bottom sheet
 **Cel usera:** szybko wybrać trasę, zrozumieć czy jedzie ranking/trening/Pioneer i nie pomylić „otwórz trasę” z „startuj”.
@@ -228,6 +228,32 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 
 **Edge cases / missing states:** auth ma rate-limit handling, onboarding ma permission ask; profile offline działa przez lokalny run store, ale nie mówi userowi jasno które dane są lokalne vs zsynchronizowane.
 
+### Krok 4b — Reads/writes economics + motion/typography
+
+Uzupełnienie sweepu o ekonomikę backendu i a11y, których nie pokrywa UI-pass.
+
+**Reads/writes per ranked ride (z `src/lib/api.ts`, 46 SELECTów + 13 RPC w źródle):**
+
+| Etap | Reads | Writes |
+|---|---:|---:|
+| Home tab | 3–5 | 0 |
+| Spots list | 1 | 0 |
+| Spot detail | 2 | 0 |
+| Trail detail | 4 | 0 |
+| Pre-ride | 0 | 0 |
+| Run complete | 0 | 1 RPC (atomowe: run + lb entry) |
+| Result | 0 (runStore lokalny) | 0 |
+| **Sum per ride** | **~10 SELECT** | **1 RPC** |
+
+- 🟢 Run submit atomowy przez `finalize_seed_run` — tańsze niż INSERT + UPSERT.
+- 🟡 Brak klient-side cache TTL. Każde wejście w `trail/[id]` = 4 fresh fetche. Przy skali 1000 riderów × 10 ride/d = ~100k reads/d (>free tier Supabase 50k).
+- 🟡 Brak paginacji na leaderboardzie. Dziś nieistotne, przy wzroście bazy istotne.
+
+**Motion + typography (poza touch-target pass):**
+- 🔴 Brak `AccessibilityInfo.isReduceMotionEnabled` guarda — Reanimated transitions lecą niezależnie od systemowego ustawienia. Problem a11y + motion sickness.
+- 🟡 Trzy systemy typo: `typography.ts` (legacy), `chunk9.ts` (nowy UI), `gameHud.ts` (live stats). Fragmentacja = rozjazd letter-spacing/line-height między ekranami.
+- 🟡 `chunk9Typography.body13 = 13pt` poniżej outdoor-readable. Display56 i stat19 (ranglówka/timer) OK; kopia wokół wymaga squintu w słońcu.
+
 ## 🟡 Rekomendacje do zatwierdzenia
 
 | Problem | Impact (1-5) | Effort | Proponowany fix | Diff preview |
@@ -253,6 +279,9 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 | Result/ranking secondary actions są poprawne, ale leaderboard period/trail chips nadal są małe dla użycia na miejscu. | 3 | S | Podnieść minHeight do 44 dla period chips i trail selectorów, dodać `accessibilityLabel`. | `app/(tabs)/leaderboard.tsx`. |
 | Profile/legal/help ma sporo tekstowych linków bez jednolitego 44 pt targetu. | 2 | S | Drugi a11y pass poza core flow: `hitSlop` albo minHeight dla legal/help/settings links. | `app/(tabs)/profile.tsx`, `app/help/index.tsx`, `app/settings/delete-account.tsx`. |
 | `corridor_rescue` nie tłumaczy riderowi „dlaczego zaliczone/niezaliczone” na result screenie. | 4 | M | Pokazać 2-3 warunki zrozumiałe dla ridera: bramki, korytarz, GPS; ukryć techniczne progi w dev/debug. | `app/run/result.tsx`, `src/systems/runFinalization.ts`. |
+| Brak `useReducedMotion` guarda w Reanimated transitions — a11y gap + motion sickness. | 3 | S | Wrapper hook czytający `AccessibilityInfo.isReduceMotionEnabled()` + bypass w kluczowych sharedTransitions. | Global small hook + audytowane callsity. |
+| `useLeaderboard` fetchuje bez cache — na każde wejście w trail/[id] świeży SELECT. Przy skali koszt i latency rosną. | 4 | S | 30-60s in-memory cache w hooku po kluczu `(trailId, periodType, scope)`. | `src/hooks/useBackend.ts`. Samodzielne. |
+| Trzy współistniejące systemy typograficzne (`typography.ts`, `chunk9.ts`, `gameHud.ts`). | 2 | M | Zdecydować source of truth; prawdopodobnie `chunk9` dla UI + `gameHud` dla live stats, wygasić `typography.ts`. | Stopniowa migracja ekran po ekranie. |
 
 ## 🔴 Do dyskusji strategicznej
 
@@ -272,5 +301,5 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 | 6 | Cancellable fetch guardy w `useBackend.ts` | 3 | M | 🟡 |
 | 7 | Zaktualizować `docs/CURRENT_STATE.md` | 2 | S | 🟡 |
 | 8 | Orphan run recovery na `run/result` | 4 | M | 🟡 |
-| 9 | Oszacować reads/writes per ride | 3 | S | W toku |
+| 9 | Leaderboard TTL cache (reads OK, ale leaderboard hot path) | 4 | S | 🟡 |
 | 10 | Produkt/GTM: retention, viral, monetization, moat | 4 | M | Przed nami |
