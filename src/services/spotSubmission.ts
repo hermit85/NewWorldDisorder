@@ -134,23 +134,29 @@ export async function drainSubmissionQueue(): Promise<{ drained: number; failed:
     let failed = 0;
 
     for (const item of q) {
-      const res = await api.submitSpot({
-        name: item.name,
-        lat: item.lat,
-        lng: item.lng,
-        region: item.region,
-        description: item.description,
-      });
-      if (res.ok) {
-        drained++;
-      } else if (res.code === 'rpc_error' && isNetworkError(res.message)) {
-        // Still offline — keep in queue.
+      try {
+        const res = await api.submitSpot({
+          name: item.name,
+          lat: item.lat,
+          lng: item.lng,
+          region: item.region,
+          description: item.description,
+        });
+        if (res.ok) {
+          drained++;
+        } else if (res.code === 'rpc_error' && isNetworkError(res.message)) {
+          // Still offline — keep in queue.
+          remaining.push(item);
+          failed++;
+        } else {
+          // Hard reject (duplicate/validation/auth) — drop from queue. User's
+          // submission was meaningfully refused; leaving it would loop forever.
+          logDebugEvent('queue', 'spot_drain_drop', 'warn', { payload: { code: res.code } });
+        }
+      } catch (e) {
         remaining.push(item);
         failed++;
-      } else {
-        // Hard reject (duplicate/validation/auth) — drop from queue. User's
-        // submission was meaningfully refused; leaving it would loop forever.
-        logDebugEvent('queue', 'spot_drain_drop', 'warn', { payload: { code: res.code } });
+        logDebugEvent('queue', 'spot_drain_error', 'warn', { payload: { error: String(e) } });
       }
     }
 
