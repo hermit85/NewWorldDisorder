@@ -13,15 +13,17 @@
 // ═══════════════════════════════════════════════════════════
 
 import { memo, useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   getAllFinalizedRuns,
+  removeFinalizedRunBySession,
   subscribeFinalizedRun,
   type FinalizedRun,
   type SaveStatus,
 } from '@/systems/runStore';
+import { deleteRun } from '@/lib/api';
 import { chunk9Colors, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
 
 // Rider tab lays out Player card → Stats → Aktywność → Osiągnięcia
@@ -78,9 +80,11 @@ function getSaveHint(status: SaveStatus): string | null {
 const RunRow = memo(function RunRow({
   run,
   onPress,
+  onLongPress,
 }: {
   run: FinalizedRun;
   onPress: () => void;
+  onLongPress: () => void;
 }) {
   const pill = getStatusPill(run);
   const hint = getSaveHint(run.saveStatus);
@@ -88,8 +92,10 @@ const RunRow = memo(function RunRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Zjazd ${run.trailName}, ${formatDuration(run.durationMs)}, ${pill.text}`}
+      accessibilityLabel={`Zjazd ${run.trailName}, ${formatDuration(run.durationMs)}, ${pill.text}. Długie przytrzymanie — usuń.`}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={600}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.rowLeft}>
@@ -138,6 +144,36 @@ export function ActivityList() {
     setExpanded((prev) => !prev);
   }, []);
 
+  const handleLongPress = useCallback((run: FinalizedRun) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    const backendId = run.backendResult?.run?.id;
+    Alert.alert(
+      'Usunąć zjazd?',
+      `${run.trailName} · ${formatDuration(run.durationMs)}\n\nTej akcji nie cofniesz. Jeśli to był twój PB na tej trasie, kolejny najlepszy zjazd zajmie jego miejsce.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Usuń',
+          style: 'destructive',
+          onPress: async () => {
+            // Unsaved local-only run (e.g. offline queue still pending):
+            // no backend id yet, only drop from the cache.
+            if (!backendId) {
+              removeFinalizedRunBySession(run.sessionId);
+              return;
+            }
+            const res = await deleteRun(backendId);
+            if (res.ok) {
+              removeFinalizedRunBySession(run.sessionId);
+            } else {
+              Alert.alert('Nie udało się usunąć', res.message);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
   const visible = expanded ? runs : runs.slice(0, COLLAPSED_VISIBLE);
   const hasMore = runs.length > COLLAPSED_VISIBLE;
 
@@ -160,7 +196,12 @@ export function ActivityList() {
       </View>
       <View style={styles.list}>
         {visible.map((run) => (
-          <RunRow key={run.sessionId} run={run} onPress={() => handleTap(run)} />
+          <RunRow
+            key={run.sessionId}
+            run={run}
+            onPress={() => handleTap(run)}
+            onLongPress={() => handleLongPress(run)}
+          />
         ))}
       </View>
       {hasMore ? (

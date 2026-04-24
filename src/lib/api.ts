@@ -1981,6 +1981,32 @@ export async function deleteTrail(trailId: string): Promise<ApiResult<void>> {
   return callCleanupRpc('delete_trail_cascade', { p_trail_id: trailId });
 }
 
+/** Owner or curator run delete (migration 20260424120000). Mirrors
+ *  the same response shape as the cleanup RPCs so callers can use
+ *  the same error copy / retry UI. Does NOT yet expose the
+ *  leaderboard-recalc result fields — once a delete survives the
+ *  in-session retry + the local store mutation, the next
+ *  incremental leaderboard refresh will pick up the promoted entry
+ *  on its own. */
+export async function deleteRun(runId: string): Promise<ApiResult<void>> {
+  try {
+    const { data, error } = await db().rpc('delete_run', { p_run_id: runId });
+    if (error) {
+      const isMissing = /function .*does not exist/i.test(error.message ?? '')
+        || error.code === '42883';
+      return cleanupError(isMissing ? 'rpc_missing' : 'rpc_failed', {
+        pgCode: error.code,
+        pgMessage: error.message,
+      });
+    }
+    const res = data as { ok?: boolean; code?: string } | null;
+    if (res?.ok === true) return { ok: true, data: undefined };
+    return cleanupError(res?.code ?? 'rpc_failed', { rpcResponse: res });
+  } catch (e: any) {
+    return cleanupError('rpc_exception', { threw: e?.message ?? String(e) });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 // SPRINT 4 — Trust + Versioning + Pioneer Foundation (ADR-012)
 // ═══════════════════════════════════════════════════════════

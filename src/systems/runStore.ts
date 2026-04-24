@@ -211,6 +211,36 @@ export function purgeOrphanedRuns(liveDbRunIds: Set<string>): number {
   return removed;
 }
 
+/** Drop a single run from the local cache after a successful
+ *  server-side delete (see api.deleteRun). Identified by sessionId
+ *  because that's how the UI tracks rows; the DB run id is stored
+ *  on the backendResult and may or may not exist for local-only
+ *  runs that never saved. Returns true if the entry existed. */
+export function removeFinalizedRunBySession(sessionId: string): boolean {
+  const existed = _runCache.delete(sessionId);
+  if (existed) {
+    notifyChangeListeners();
+    persistToStorage();
+  }
+  return existed;
+}
+
+/** Drop the first local run whose backend id matches — used when
+ *  delete_run was invoked from a surface that only has the DB run
+ *  id (e.g. the result screen) and we want the activity list to
+ *  refresh without a full cache purge. */
+export function removeFinalizedRunByBackendId(backendRunId: string): boolean {
+  for (const [sessionId, run] of _runCache.entries()) {
+    if (run.backendResult?.run?.id === backendRunId) {
+      _runCache.delete(sessionId);
+      notifyChangeListeners();
+      persistToStorage();
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Subscribe to changes — returns unsubscribe function */
 export function subscribeFinalizedRun(callback: () => void): () => void {
   _changeListeners.add(callback);

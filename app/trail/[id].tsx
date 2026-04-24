@@ -67,6 +67,18 @@ export default function TrailDetailScreen() {
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
   const spotName = spot?.name ?? venueMatch?.venue.name;
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
+  // Pioneer self-delete eligibility mirrors the server-side gate in
+  // migration 20260424120000: rider must be the trail's pioneer AND
+  // the trail must still be in an in-flight state. The server also
+  // checks runs_contributed <= 1; that field isn't exposed to the
+  // client, so on rare boundary cases the UI offers the action but
+  // the RPC returns 'unauthorized' and the alert surfaces it.
+  const isPioneerSelf =
+    !!profile?.id &&
+    !!trail?.pioneerUserId &&
+    profile.id === trail.pioneerUserId &&
+    (trail.calibrationStatus === 'draft' || trail.calibrationStatus === 'calibrating');
+  const canDeleteTrail = isCurator || isPioneerSelf;
   const { submit: deleteTrail } = useDeleteTrail();
 
   const [boardScope, setBoardScope] = useState<PeriodType>('all_time');
@@ -166,7 +178,7 @@ export default function TrailDetailScreen() {
             </Text>
           </Pressable>
 
-          {isCurator && (
+          {canDeleteTrail && (
             <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.curatorDelete}>
               <Text style={styles.curatorDeleteLabel}>Usuń tę trasę</Text>
             </Pressable>
@@ -411,6 +423,12 @@ export default function TrailDetailScreen() {
           )}
 
         </View>
+
+        {canDeleteTrail && (
+          <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.curatorDelete}>
+            <Text style={styles.curatorDeleteLabel}>Usuń tę trasę</Text>
+          </Pressable>
+        )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
