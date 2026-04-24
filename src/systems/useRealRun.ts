@@ -797,6 +797,14 @@ export function useRealRun(
       // verified_pass_rate_weekly materialize into dashboards.
       verification.gpsHealth = gpsHealthRef.current.summary();
 
+      // B23 telemetry: persist gate engine diagnostics so a failed
+      // auto-start leaves evidence. Without this we're rebuilding the B22
+      // walk-test postmortem (debug overlay screenshots, guesses) every
+      // time a rider reports "timer didn't fire". Cheap append —
+      // verification_summary is jsonb and this adds ~10 fields per run.
+      // Sampling rate is already on verification.gpsHealth.samplesPerSec.
+      verification.gateDiagnostics = gateEngine.getDiagnostics();
+
       setTraceVerification(verification);
       saveCompletedRun({ ...completedTrace, verification });
 

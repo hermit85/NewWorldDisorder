@@ -58,11 +58,25 @@ export interface GateEngineCallbacks {
  * gate fire?" without guessing. `crossed` is the geometric result;
  * `velocityOk` is the perpendicular-velocity post-filter; `perpMps` is the
  * velocity we computed (null when we lacked heading or speed).
+ *
+ * B23 telemetry: `headingDeltaDeg` and `crossingType` added so the DB
+ * `verification_summary.gateDiagnostics` can answer "why did auto-start
+ * fail?" after the fact, not just while the debug overlay is open. This
+ * is the diagnostic-first response to the B22 walk-test where we had to
+ * pull fields we never persisted to reason about a failed run.
  */
 export interface GateAttemptDiagnostic {
   crossed: boolean;
   velocityOk: boolean;
   perpMps: number | null;
+  /** Delta between rider heading and trail bearing (deg, 0-180). Null when
+   *  we lacked either heading or we were outside the crossing branch. */
+  headingDeltaDeg: number | null;
+  /** 'hard' when a sign-change line cross was detected (Phase 1 in geometry.ts),
+   *  'soft' when the start-zone fallback fired (Phase 3), null when no crossing
+   *  was recognised at all this tick. Lets us tell a near-miss from a
+   *  fallback-firing in retrospect. */
+  crossingType: 'hard' | 'soft' | null;
   distanceFromCenterM: number | null;
   flags: CrossingFlag[];
   /** When this attempt was evaluated (ms). */
@@ -72,8 +86,25 @@ export interface GateAttemptDiagnostic {
 export interface GateDiagnostics {
   lastStartAttempt: GateAttemptDiagnostic | null;
   lastFinishAttempt: GateAttemptDiagnostic | null;
+  /** Total count of crossing evaluations run while armed (start) / running
+   *  (finish). Rises by 1 each GPS sample the engine considered. `attempts`
+   *  without `lastAttempt.crossed` means the engine looked and rejected. */
+  startAttempts: number;
+  finishAttempts: number;
   /** The constant velocity threshold (m/s) — exposed for UI reference. */
   velocityMinMps: number;
+}
+
+/** Derive crossing type from CrossingFlags. 'soft_crossing' means the
+ *  zone-proximity fallback fired (Phase 3, geometry.ts:277+). Otherwise a
+ *  crossing=true result came from Phase 1 sign-change line crossing. */
+function crossingTypeFromFlags(
+  crossed: boolean,
+  flags: CrossingFlag[],
+): 'hard' | 'soft' | null {
+  if (!crossed) return null;
+  if (flags.includes('soft_crossing')) return 'soft';
+  return 'hard';
 }
 
 export interface GateEngine {
@@ -153,6 +184,14 @@ export function useRunGateEngine(
   const lastRunPointRef = useRef<GpsPoint | null>(null);
   const lastStartAttemptRef = useRef<GateAttemptDiagnostic | null>(null);
   const lastFinishAttemptRef = useRef<GateAttemptDiagnostic | null>(null);
+  // B23 telemetry: count how many times we even tried a crossing eval.
+  // If `startAttempts = 0` on a failed run → engine was never armed or
+  // config was missing. If `startAttempts = N, crossed = false, lastAttempt
+  // = null` → all N attempts were below the "recentPoints >= 2" guard.
+  // If `startAttempts = N` with a rejecting lastAttempt → engine saw it
+  // and filtered it. These are three very different bug classes.
+  const startAttemptsRef = useRef(0);
+  const finishAttemptsRef = useRef(0);
 
   const reset = useCallback(() => {
     stateRef.current = {
@@ -172,6 +211,8 @@ export function useRunGateEngine(
     lastRunPointRef.current = null;
     lastStartAttemptRef.current = null;
     lastFinishAttemptRef.current = null;
+    startAttemptsRef.current = 0;
+    finishAttemptsRef.current = 0;
   }, []);
 
   const processPoint = useCallback((
@@ -208,6 +249,7 @@ export function useRunGateEngine(
       // Use last few points for crossing detection
       const recentPoints = state.positionBuffer.slice(-6);
       if (recentPoints.length >= 2) {
+        startAttemptsRef.current += 1;
         const crossing = detectGateCrossing(recentPoints, config.startGate, {
           isFinish: false,
           currentHeading: state.currentHeading,
@@ -223,11 +265,16 @@ export function useRunGateEngine(
         // low-data runs.
         const perpMps = perpendicularVelocityMps(crossing, config.startGate.trailBearing);
         const velocityOk = perpMps == null || perpMps >= GATE_VELOCITY_MIN_MPS;
+        const headingDeltaDeg = crossing.riderHeadingDeg != null
+          ? headingDifference(crossing.riderHeadingDeg, config.startGate.trailBearing)
+          : null;
 
         lastStartAttemptRef.current = {
           crossed: crossing.crossed,
           velocityOk,
           perpMps,
+          headingDeltaDeg,
+          crossingType: crossingTypeFromFlags(crossing.crossed, crossing.flags),
           distanceFromCenterM: crossing.distanceFromCenterM,
           flags: crossing.flags,
           at: point.timestamp,
@@ -281,6 +328,7 @@ export function useRunGateEngine(
 
           const recentForFinish = allRunPointsRef.current.slice(-8);
           if (recentForFinish.length >= 2) {
+            finishAttemptsRef.current += 1;
             const crossing = detectGateCrossing(recentForFinish, config.finishGate, {
               isFinish: true,
               totalDistanceM: state.totalDistanceM,
@@ -288,11 +336,16 @@ export function useRunGateEngine(
               durationSec,
               minDurationSec: config.finishUnlockMinTimeSec,
             });
+            const headingDeltaDeg = crossing.riderHeadingDeg != null
+              ? headingDifference(crossing.riderHeadingDeg, config.finishGate.trailBearing)
+              : null;
 
             lastFinishAttemptRef.current = {
               crossed: crossing.crossed,
               velocityOk: true, // finish has no perp-velocity gate today
               perpMps: perpendicularVelocityMps(crossing, config.finishGate.trailBearing),
+              headingDeltaDeg,
+              crossingType: crossingTypeFromFlags(crossing.crossed, crossing.flags),
               distanceFromCenterM: crossing.distanceFromCenterM,
               flags: crossing.flags,
               at: point.timestamp,
@@ -368,6 +421,8 @@ export function useRunGateEngine(
     getDiagnostics: () => ({
       lastStartAttempt: lastStartAttemptRef.current,
       lastFinishAttempt: lastFinishAttemptRef.current,
+      startAttempts: startAttemptsRef.current,
+      finishAttempts: finishAttemptsRef.current,
       velocityMinMps: GATE_VELOCITY_MIN_MPS,
     }),
     assessQuality,

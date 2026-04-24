@@ -131,6 +131,17 @@ export interface VerificationResult {
   // runs.verification_summary so the run_kpi_daily and
   // verified_pass_rate_weekly views can surface KPI trends.
   gpsHealth?: import('@/features/run/gpsHealthTracker').GpsHealthSummary;
+
+  // B23 telemetry: per-run gate crossing diagnostics. Populated by
+  // useRealRun at finalization from `gateEngine.getDiagnostics()`. Lets
+  // us answer "why did auto-start fail?" from `runs.verification_summary`
+  // alone, without needing the debug overlay live. Fields are a
+  // snapshot of the *last* attempt plus a cumulative attempt count,
+  // since keeping every attempt would balloon the trace — the last one
+  // is the most informative for a failed run and the counter tells us
+  // whether the engine was even active. Sampling rate lives on the
+  // existing `gpsHealth.samplesPerSec` — deliberately not duplicated here.
+  gateDiagnostics?: import('@/features/run/useRunGateEngine').GateDiagnostics;
 }
 
 // ── Truth map payload ──
