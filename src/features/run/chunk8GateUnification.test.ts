@@ -699,4 +699,139 @@ describe('Chunk 8 gate unification', () => {
       expect((normalized.verification_summary as Record<string, unknown>).acceptedVia).toBe('corridor_rescue');
     });
   });
+
+  describe('Group 6 — B23.2 soft_crossing directional-progress guard', () => {
+    // All three scenarios use only Phase 3 (soft_crossing). None of the
+    // pre-arm or arm-phase samples cross the gate line (signedDist stays
+    // positive the whole time), so Phase 1 cannot fire — Phase 3 is the
+    // only path that could trigger a start.
+    const config = buildTrailGateConfigFromPioneer(
+      'linia-test-v1',
+      'Linia test v1',
+      aToBGeometry,
+    )!;
+    const startGate = config.startGate;
+    const PROGRESS_THRESHOLD_M = 2;
+
+    test('6.1 walk-in to gate then arm-and-stand does NOT trigger start (Codex P1: pre-arm samples excluded)', () => {
+      // The bug before B23.2 final: rider walks to the gate, arms near the
+      // line, stands still. The walk-in displacement leaked into the
+      // motion-proof window, so soft_crossing fired as if the rider were
+      // moving. B23.2 scopes the window to timestamps >= armedAt.
+      const harness = renderGateEngine(config);
+
+      act(() => {
+        // Walk-in phase (isArmed=false): -10m → -2m over 3s
+        harness.engine.processPoint(pointFromGate(startGate, -10, 0, 0), false, false, false);
+        harness.engine.processPoint(pointFromGate(startGate, -7, 0, 1_000), false, false, false);
+        harness.engine.processPoint(pointFromGate(startGate, -4, 0, 2_000), false, false, false);
+        harness.engine.processPoint(pointFromGate(startGate, -2, 0, 3_000), false, false, false);
+      });
+
+      act(() => {
+        // Arm at t=4000 and stand at -2m for 5s (well past the 3s window
+        // minimum, so the guard definitely evaluates and sees zero progress).
+        harness.engine.processPoint(pointFromGate(startGate, -2, 0, 4_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -2, 0, 5_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -2, 0, 6_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -2, 0, 9_000), false, true, false);
+      });
+
+      expect(harness.startCalls).toHaveLength(0);
+      const diag = harness.engine.getDiagnostics().lastStartAttempt;
+      expect(diag).not.toBeNull();
+      expect(diag!.crossingType).toBe('soft');
+      expect(diag!.directionalProgressM).not.toBeNull();
+      // Exactly zero — all post-arm samples sit at alongM=-2, so signed
+      // distance endpoints are identical (no jitter in these fixtures).
+      expect(Math.abs(diag!.directionalProgressM!)).toBeLessThan(PROGRESS_THRESHOLD_M);
+      harness.unmount();
+    });
+
+    test('6.2 stand then arm then slow walk-through with sparse samples DOES trigger start (iPhone 13 case)', () => {
+      // This is the regression B23.1 introduced when it blocked Phase 3
+      // entirely. Weak-GPS phones only get samples every ~3s at walking
+      // speed; Phase 1 sign-change can't catch that. The walker is
+      // legitimately crossing — we just have to prove the motion is
+      // post-arm and directional, not standstill jitter.
+      const harness = renderGateEngine(config);
+
+      act(() => {
+        // Pre-arm stand at -10m (outside the 6m soft-crossing zone)
+        harness.engine.processPoint(pointFromGate(startGate, -10, 0, 0), false, false, false);
+        harness.engine.processPoint(pointFromGate(startGate, -10, 0, 1_000), false, false, false);
+      });
+
+      act(() => {
+        // Arm at t=2000, then sparse slow walk: 2m per 3s ≈ 0.67 m/s
+        harness.engine.processPoint(pointFromGate(startGate, -10, 0, 2_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -7, 0, 5_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -4, 0, 8_000), false, true, false);
+      });
+
+      expect(harness.startCalls).toHaveLength(1);
+      const diag = harness.engine.getDiagnostics().lastStartAttempt;
+      expect(diag!.crossingType).toBe('soft');
+      expect(diag!.directionalProgressM).not.toBeNull();
+      expect(diag!.directionalProgressM!).toBeGreaterThanOrEqual(PROGRESS_THRESHOLD_M);
+      harness.unmount();
+    });
+
+    test('6.4 hard crossing from a pre-arm → post-arm pair is REJECTED (Codex 2nd review)', () => {
+      // Rider walks across the gate line while still disarmed, then
+      // taps UZBRÓJ. Before the post-arm scope fix, the first post-arm
+      // sample could pair with a pre-arm sample in the detection
+      // window and trip Phase 1 sign-change, auto-starting the timer
+      // from a crossing that happened before the rider committed to
+      // the run. This regression-guards that: only post-arm samples
+      // are eligible for crossing detection.
+      const harness = renderGateEngine(config);
+
+      act(() => {
+        // Pre-arm walk across the line: -3m → +3m between t=0 and t=1000.
+        // Without the fix, this pair produces a sign-change crossing.
+        harness.engine.processPoint(pointFromGate(startGate, -3, 0, 0), false, false, false);
+        harness.engine.processPoint(pointFromGate(startGate, 3, 0, 1_000), false, false, false);
+      });
+
+      act(() => {
+        // Arm AFTER crossing, continue downhill. Both post-arm samples
+        // are past the line, so no post-arm sign change exists.
+        harness.engine.processPoint(pointFromGate(startGate, 5, 0, 2_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, 7, 0, 3_000), false, true, false);
+      });
+
+      expect(harness.startCalls).toHaveLength(0);
+      harness.unmount();
+    });
+
+    test('6.3 parallel movement along the line does NOT trigger start (Codex P2: direction matters)', () => {
+      // Rider walks alongside the gate line (pure lateral motion). Even
+      // though the samples sit inside the soft-crossing zone, the
+      // along-trail signed distance never changes — progress stays at
+      // zero, so the guard rejects.
+      const harness = renderGateEngine(config);
+
+      act(() => {
+        // Arm at lateralM=-3, alongM=-3. All samples stay at alongM=-3,
+        // so signedDist is constant — only lateralM varies.
+        harness.engine.processPoint(pointFromGate(startGate, -3, -3, 0), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -3, -2, 1_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -3, 0, 2_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -3, 2, 3_000), false, true, false);
+        harness.engine.processPoint(pointFromGate(startGate, -3, 3, 4_000), false, true, false);
+      });
+
+      expect(harness.startCalls).toHaveLength(0);
+      const diag = harness.engine.getDiagnostics().lastStartAttempt;
+      expect(diag).not.toBeNull();
+      // Either Phase 3 rejected on heading (directionalProgressM=null
+      // because not soft) or Phase 3 fired and progress=0 blocked it.
+      if (diag!.crossingType === 'soft') {
+        expect(diag!.directionalProgressM).not.toBeNull();
+        expect(Math.abs(diag!.directionalProgressM!)).toBeLessThan(PROGRESS_THRESHOLD_M);
+      }
+      harness.unmount();
+    });
+  });
 });

@@ -204,6 +204,16 @@ function StandardResultScreen() {
   // sees why — B22/B23 walk-test had silent retry failures with zero
   // feedback ("wciskam zapisz ale nie działa"). Cleared on next retry start.
   const [retryError, setRetryError] = useState<{ code: string; detail?: string } | null>(null);
+  // B23.2: bullet-proof retry-visibility counter. B26 walk-test showed the
+  // retryError banner still "invisible" — user reported tap→nothing. Either
+  // (a) the tap didn't fire the handler (touch bug), (b) the banner rendered
+  // but was too subtle to notice, or (c) some race cleared the state. This
+  // counter flips the moment the handler enters, BEFORE any await or guard
+  // return. If it stays at 0 after a user tap, we know the handler never
+  // fired; if it flips but we still see no error, we know the handler ran
+  // and we can chase the missing RPC error.
+  const [retryAttempts, setRetryAttempts] = useState(0);
+  const [lastRetryAt, setLastRetryAt] = useState<number | null>(null);
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
@@ -279,6 +289,23 @@ function StandardResultScreen() {
 
   // ── Retry save — uses canonical path (same as saveQueue) ──
   const handleRetrySave = async () => {
+    // B23.2: flip the counter FIRST, before any guard. This is the only
+    // way we can tell from a screenshot whether the tap fired the handler
+    // or bounced off the touch layer. Value is rendered below in the
+    // retry card regardless of error/success.
+    const tapAt = Date.now();
+    setLastRetryAt(tapAt);
+    setRetryAttempts((n) => n + 1);
+    logDebugEvent('save', 'retry_tap', 'info', {
+      runSessionId: run?.sessionId,
+      payload: {
+        saveStatus: run?.saveStatus,
+        hasUserId: !!run?.userId,
+        retrying,
+        tapAt,
+      },
+    });
+
     if (!run || retrying) return;
     if (run.saveStatus !== 'failed' && run.saveStatus !== 'queued' && run.saveStatus !== 'offline') return;
     if (!run.userId) return;
@@ -459,6 +486,12 @@ function StandardResultScreen() {
                   {retryError.detail ? ` — ${retryError.detail}` : ''}
                 </Text>
               )}
+              {retryAttempts > 0 && (
+                <Text style={styles.saveRetryDebugText}>
+                  Prób: {retryAttempts}
+                  {lastRetryAt ? ` · ostatnia ${new Date(lastRetryAt).toLocaleTimeString()}` : ''}
+                </Text>
+              )}
             </View>
           ) : isQueued ? (
             <View style={styles.saveQueuedCard}>
@@ -481,6 +514,12 @@ function StandardResultScreen() {
                 <Text style={styles.saveRetryErrorText}>
                   Serwer: {retryError.code}
                   {retryError.detail ? ` — ${retryError.detail}` : ''}
+                </Text>
+              )}
+              {retryAttempts > 0 && (
+                <Text style={styles.saveRetryDebugText}>
+                  Prób: {retryAttempts}
+                  {lastRetryAt ? ` · ostatnia ${new Date(lastRetryAt).toLocaleTimeString()}` : ''}
                 </Text>
               )}
             </View>
@@ -1116,16 +1155,30 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   retryInlineBtnText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 10 },
-  // B23.1: RPC rejection detail under the retry button. Keeps the rider
-  // in the loop when retry fails silently on the server side.
+  // B23.1/.2: RPC rejection detail + tap counter under the retry button.
+  // B25.1 shipped `saveRetryErrorText` at 11px/0.85 opacity and the user
+  // reported no feedback — either too subtle, or the state never set. So:
+  //   - Error: bumped to 13px, opacity 1, full orange, bolder body copy.
+  //   - Debug counter: always rendered once retry was tapped, so a repeat
+  //     screenshot gives us unambiguous evidence of whether the handler
+  //     ever fired (the banner alone can't — it only shows on failure).
   saveRetryErrorText: {
-    ...typography.bodySmall,
+    ...typography.body,
     color: colors.orange,
     textAlign: 'center',
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     marginTop: spacing.xs,
-    opacity: 0.85,
+    fontWeight: '600',
+  },
+  saveRetryDebugText: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: spacing.xxs,
+    letterSpacing: 1,
   },
 
   // Status context card (non-verified explanation)
