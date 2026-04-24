@@ -268,6 +268,15 @@ export function useRunGateEngine(
         const headingDeltaDeg = crossing.riderHeadingDeg != null
           ? headingDifference(crossing.riderHeadingDeg, config.startGate.trailBearing)
           : null;
+        // B23.1 hotfix (walk-test "timer odpala się stojąc"): reject Phase 3
+        // `soft_crossing` fallback for LIVE auto-start. Phase 3 has no
+        // velocity gate — it accepts any point inside the gate zone with
+        // a loose heading check, and stationary GPS drift (~1-2 m/s jitter)
+        // trivially passes both. The fallback is still useful for offline
+        // finalization (quality.ts downgrades perfect→valid when it fires),
+        // but it must not arm the timer for a stationary rider. Live
+        // auto-start requires a real Phase 1 sign-change crossing.
+        const isSoftCrossing = crossing.flags.includes('soft_crossing');
 
         lastStartAttemptRef.current = {
           crossed: crossing.crossed,
@@ -280,7 +289,7 @@ export function useRunGateEngine(
           at: point.timestamp,
         };
 
-        if (crossing.crossed && velocityOk) {
+        if (crossing.crossed && velocityOk && !isSoftCrossing) {
           state.startCrossing = crossing;
           state.autoStartTimestamp = crossing.crossingTimestamp;
           state.phase = 'running';
