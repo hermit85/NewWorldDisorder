@@ -19,6 +19,7 @@ import { colors } from '@/theme/colors';
 import { AuthProvider } from '@/hooks/AuthContext';
 import { hydrateRunStore } from '@/systems/runStore';
 import { initSaveQueue } from '@/systems/saveQueue';
+import { initSubmissionQueue } from '@/services/spotSubmission';
 
 // Side-effect import — registers the background location task with
 // expo-task-manager at app init. MUST happen on every launch,
@@ -91,6 +92,7 @@ export default function RootLayout() {
   useEffect(() => {
     hydrateRunStore().then(() => {
       initSaveQueue();
+      initSubmissionQueue();
     });
   }, []);
 
