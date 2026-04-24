@@ -310,7 +310,12 @@ export default function ActiveRunScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Pressable style={styles.fullscreen} onPress={handleTap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={phaseLabel}
+        style={styles.fullscreen}
+        onPress={handleTap}
+      >
         {/* Trail name (triple-tap for debug) */}
         <Pressable onPress={handleDebugTap}>
           <Text style={styles.trailName}>{trailName.toUpperCase()}</Text>
@@ -463,7 +468,12 @@ export default function ActiveRunScreen() {
 
 {/* Cancel */}
       {showCancel && (
-        <Pressable style={styles.cancelBtn} onPress={handleCancel}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Wróć"
+          style={styles.cancelBtn}
+          onPress={handleCancel}
+        >
           <Text style={styles.cancelText}>← WRÓĆ</Text>
         </Pressable>
       )}
