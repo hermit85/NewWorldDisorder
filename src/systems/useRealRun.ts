@@ -204,6 +204,18 @@ export function useRealRun(
   const trackingActiveRef = useRef(false);
   const mountedRef = useRef(true);
   const finalizingRef = useRef(false);
+  /** Synchronous mirror of the run phase, updated inside gate callbacks
+   *  (and manual lifecycle transitions) the instant they fire. The
+   *  React-committed `state.phase` only lands on the next render, so
+   *  a drain loop that processes many samples in one tick would read
+   *  a stale `stateRef.current.phase` for every sample after the one
+   *  that caused the phase transition — losing isRunning coverage for
+   *  the rest of the backlog. In particular: on a deep background
+   *  backlog, sample N fires start crossing (phase flips to running),
+   *  but samples N+1..M in the same drain still see `armed_*` via
+   *  stateRef and skip the finish gate check. Using this ref as the
+   *  oracle fixes the Codex P0.1 finding. */
+  const livePhaseRef = useRef<RunPhaseV2>('idle');
   /** Gate finish crossing timestamp — captured in the finish callback
    *  so the finalization effect can pass it to `finishTrace`. Without
    *  this the trace's `finishedAt` falls back to `Date.now()` at
@@ -337,10 +349,16 @@ export function useRealRun(
       lastProcessedTsRef.current = point.timestamp;
 
       const currentState = stateRef.current;
+      // Codex P0.1: read phase from the synchronous ref, not React
+      // state. During a drain loop after a long background window,
+      // the start callback flips phase mid-loop and subsequent
+      // samples must see the new phase to accumulate distance and
+      // evaluate the finish gate.
+      const livePhase = livePhaseRef.current;
       const isRunning =
-        currentState.phase === 'running_ranked' || currentState.phase === 'running_practice';
+        livePhase === 'running_ranked' || livePhase === 'running_practice';
       const isArmed =
-        currentState.phase === 'armed_ranked' || currentState.phase === 'armed_practice';
+        livePhase === 'armed_ranked' || livePhase === 'armed_practice';
       const firstCheckpoint = currentState.checkpoints[0] ?? null;
       const hasPassedFirstCheckpoint = !!firstCheckpoint && (
         firstCheckpoint.passed ||
@@ -493,6 +511,7 @@ export function useRealRun(
     // source so the UI doesn't briefly show a different number.
     const finishTs = crossing.crossingTimestamp ?? Date.now();
     autoFinishTimestampRef.current = finishTs;
+    livePhaseRef.current = 'finishing';
     const finalElapsed = s.startedAt ? finishTs - s.startedAt : s.elapsedMs;
     announceAutoFinish(finalElapsed);
     safeSetState((prev) => ({
@@ -510,11 +529,10 @@ export function useRealRun(
   const armRun = useCallback((mode: RunMode) => {
     logDebugEvent('run', 'armed', 'info', { trailId, payload: { mode } });
     gpsHealthRef.current.markArmed();
-    safeSetState((s) => ({
-      ...s,
-      mode,
-      phase: mode === 'ranked' ? 'armed_ranked' : 'armed_practice',
-    }));
+    const nextPhase: RunPhaseV2 =
+      mode === 'ranked' ? 'armed_ranked' : 'armed_practice';
+    livePhaseRef.current = nextPhase;
+    safeSetState((s) => ({ ...s, mode, phase: nextPhase }));
   }, [safeSetState]);
 
   const startRunInternal = useCallback((
@@ -535,11 +553,14 @@ export function useRealRun(
       payload: { mode: currentMode, autoStarted, startedAt },
     });
     const trace = beginTrace(trailId, trailName, currentMode, startedAt);
+    const runPhase: RunPhaseV2 =
+      currentMode === 'ranked' ? 'running_ranked' : 'running_practice';
+    livePhaseRef.current = runPhase;
 
     safeSetState((s) => ({
       ...s,
       runSessionId: sessionId,
-      phase: s.mode === 'ranked' ? 'running_ranked' : 'running_practice',
+      phase: runPhase,
       startedAt,
       elapsedMs: 0,
       trace,
@@ -634,6 +655,7 @@ export function useRealRun(
     if (!canFinishManually) return;
     if (finalizingRef.current) return;
     finalizingRef.current = true;
+    livePhaseRef.current = 'finishing';
     logDebugEvent('run', 'finishing', 'start', { trailId, payload: { elapsed: state.elapsedMs } });
 
     if (timerRef.current) {
@@ -651,6 +673,7 @@ export function useRealRun(
   const cancel = useCallback(() => {
     finalizingRef.current = false;
     autoFinishTimestampRef.current = null;
+    livePhaseRef.current = 'idle';
     stopAll(); // also resets buffer with floor + clears drainBufferRef
     stopGateSpeech();
     clearActiveTrace();
