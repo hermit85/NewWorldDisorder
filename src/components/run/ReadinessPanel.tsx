@@ -80,12 +80,22 @@ export function ReadinessPanel({ readiness, onStartPractice, onRetryGps, onBack 
       {showPracticeFallback && (onStartPractice || onBack) && (
         <View style={styles.fallbackRow}>
           {onStartPractice && (
-            <Pressable style={styles.fallbackBtn} onPress={onStartPractice}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Jedź trening"
+              style={styles.fallbackBtn}
+              onPress={onStartPractice}
+            >
               <Text style={styles.fallbackBtnText}>JEDŹ TRENING</Text>
             </Pressable>
           )}
           {onBack && (
-            <Pressable style={styles.fallbackBtnGhost} onPress={onBack}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wróć"
+              style={styles.fallbackBtnGhost}
+              onPress={onBack}
+            >
               <Text style={styles.fallbackGhostText}>WRÓĆ</Text>
             </Pressable>
           )}
@@ -165,10 +175,12 @@ const styles = StyleSheet.create({
   },
   fallbackBtn: {
     flex: 1,
+    minHeight: 44,
     backgroundColor: 'rgba(0, 122, 255, 0.15)',
     borderRadius: radii.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   fallbackBtnText: {
     ...typography.labelSmall,
@@ -177,11 +189,13 @@ const styles = StyleSheet.create({
   },
   fallbackBtnGhost: {
     flex: 1,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   fallbackGhostText: {
     ...typography.labelSmall,
