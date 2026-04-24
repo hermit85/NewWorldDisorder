@@ -82,7 +82,12 @@ export default function TrailDetailScreen() {
   const { submit: deleteTrail } = useDeleteTrail();
 
   const [boardScope, setBoardScope] = useState<PeriodType>('all_time');
-  const { entries: leaderboard, loading: lbLoading } = useLeaderboard(id ?? '', boardScope, profile?.id);
+  const {
+    entries: leaderboard,
+    loading: lbLoading,
+    status: lbStatus,
+    refresh: lbRefresh,
+  } = useLeaderboard(id ?? '', boardScope, profile?.id);
   const { stats: trailStats } = useUserTrailStats(profile?.id);
 
   const goBack = () => {
@@ -372,7 +377,24 @@ export default function TrailDetailScreen() {
 
           {lbLoading && <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />}
 
-          {!lbLoading && top5.length === 0 && (
+          {!lbLoading && lbStatus === 'error' && (
+            <View style={styles.errorLb}>
+              <Text style={styles.emptyText}>Nie udało się załadować tablicy</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ponów ładowanie tablicy"
+                onPress={() => lbRefresh()}
+                style={({ pressed }) => [
+                  styles.errorLbBtn,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={styles.errorLbBtnText}>PONÓW</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!lbLoading && lbStatus !== 'error' && top5.length === 0 && (
             <View style={styles.emptyLb}>
               <Text style={styles.emptyText}>Tablica pusta</Text>
               <Text style={styles.emptyHint}>Postaw pierwszy czas</Text>
@@ -580,6 +602,18 @@ const styles = StyleSheet.create({
   emptyLb: { alignItems: 'center', paddingVertical: spacing.xl },
   emptyText: { ...typography.body, color: colors.textSecondary },
   emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
+  errorLb: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md },
+  errorLbBtn: {
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorLbBtnText: { ...typography.label, color: colors.accent, letterSpacing: 3 },
   lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   lbRowHighlight: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 0, marginVertical: spacing.xxs },
   lbPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textTertiary, width: 36 },
