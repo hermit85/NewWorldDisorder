@@ -1,8 +1,8 @@
 # NWD Audit Report — 2026-04-24
 
 ## Executive Summary
-- 🟢 Naprawione do tej pory: 6.
-- 🟡 Do zatwierdzenia: 14.
+- 🟢 Naprawione do tej pory: 11.
+- 🟡 Do zatwierdzenia: 20.
 - 🔴 Do dyskusji strategicznej: 1 (zaufanie do wyniku ligi bez server-side re-weryfikacji).
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
@@ -86,6 +86,11 @@
 | `app/_layout.tsx` | Cleanup timera globalnego debug triggera przy unmount roota. | `ac3429d` | memory leak |
 | `app/(tabs)/_layout.tsx` | Haptic feedback opakowany w `.catch(() => undefined)` — odrzucone promise nie propaguje się jako unhandled rejection na Androidzie bez OS-level haptics. | `d9d69da` | stability |
 | `app/run/recording.tsx` | Haptic feedback w Pioneer recording opakowany w `.catch(() => undefined)`, żeby nie przerywał flow nagrywania ani nie generował unhandled rejection. | `62634d2` | stability |
+| `src/components/ui/GlowButton.tsx` | Inline CTA ma teraz minimum 44 pt touch target; wcześniej linkowe CTA były zbyt małe pod rękawiczki. | `5a15a8c` | a11y/ui |
+| `src/components/ui/TrailCard.tsx` | Trail card dostał pełne `accessibilityLabel` z nazwą, metadanymi i akcją. | `8488d3d` | a11y |
+| `src/components/run/ReadinessPanel.tsx` | Pre-ride fallback buttons mają role/labele i minimum 44 pt. | `43e18a2` | a11y/ui |
+| `app/run/active.tsx` | Full-screen active run control i back button mają role/labele. | `7b7170c` | a11y |
+| `src/components/map/TrailDrawer.tsx` | Bottom sheet actions dostały role/labele i większe touch targety. | `0ad7581` | a11y/ui |
 
 ## Krok 2 — Sweep Bugowy
 
@@ -140,6 +145,89 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 2. 🟡 `trail/[id]` cichy fail leaderboardu — lbLoading blokuje sekcję board bez error fallback. Impact 4, Effort S.
 3. 🟡 `(tabs)/spots` brak skeletonu przed fetch — flicker "brak" → lista. Impact 3, Effort S.
 
+## Krok 3 — UI/UX Sweep
+
+### Trail picker / bottom sheet
+**Cel usera:** szybko wybrać trasę, zrozumieć czy jedzie ranking/trening/Pioneer i nie pomylić „otwórz trasę” z „startuj”.
+
+**Co zrobiłem (🟢):**
+- `5a15a8c` — inline CTA w `GlowButton` ma minimum 44 pt touch target.
+- `8488d3d` — `TrailCard` ma pełny accessibility label z nazwą trasy, metadanymi i akcją.
+- `0ad7581` — `TrailDrawer` ma większe action targets oraz role/labele.
+
+**Co proponuję (🟡):**
+- Rozstrzygnąć list-first vs map/bottom-sheet-first. Dziś główny flow idzie przez listę w `spot/[id]`, a `TrailDrawer` jest komponentem istniejącym, ale nie wygląda na główne entry.
+- Rozdzielić tap card vs CTA. Teraz karta jest `Pressable`, a w środku jest CTA; w rękawiczkach to może dać przypadkowe wejście w szczegóły zamiast startu.
+- Dodać „glove mode” dla listy tras: większa wysokość karty, CTA pełnej szerokości, mniej drobnego tekstu.
+
+**Edge cases / missing states:** empty jest mocny w `spot/[id]`, loading/error są OK; offline jest głównie pull-to-refresh, brak jasnego „masz stare dane”; słabe GPS nie dotyczy samego pickera; słońce/rękawiczki nadal ryzykowne przez drobne badge/metadane.
+
+### Pre-ride / ranked start screen
+**Cel usera:** stanąć na starcie, uzbroić ranking, schować telefon i wiedzieć, że timer naprawdę zadziała.
+
+**Co zrobiłem (🟢):**
+- `43e18a2` — fallback actions w `ReadinessPanel` mają większy target i accessibility.
+- `7b7170c` — full-screen control w `run/active` ma accessibility label zależny od aktualnego phase label.
+
+**Co proponuję (🟡):**
+- Background-location preflight przed ranked: jeśli „Zawsze” nie jest granted, pokaż jasny wybór „włącz” albo „jedź trening”. To jest warunek zaufania do timingu w kieszeni.
+- W stanie `GOTOWY`/`UZBROJONY` jeszcze mocniej oddzielić „tapnij UZBRÓJ” od „jedź”; dziś flow jest lepszy niż ukryty full-screen tap, ale w stresie nadal wymaga przeczytania instrukcji.
+- Dodać tryb ultra-high-contrast dla pełnego słońca: większy status, mniej subtelnych ramek, mniej tekstu pomocniczego.
+
+**Edge cases / missing states:** permission denied jest obsłużone, weak GPS jest obsłużone, brak gate config degraduje do treningu; offline nie blokuje startu, ale brak sieci nie jest jawnie komunikowany przed przejazdem; rękawiczki OK po poprawkach, ale copy nadal wymaga >2 s uwagi.
+
+### Rider timer (armed / running / finished)
+**Cel usera:** po starcie nie czytać UI, tylko mieć pewność czy timer działa i co zrobić na mecie.
+
+**Co zrobiłem (🟢):**
+- `7b7170c` — główny ekran aktywnego runu i back control są dostępne jako kontrolki dla accessibility.
+
+**Co proponuję (🟡):**
+- Running state powinien mieć jeszcze większy kontrast i jedną dominującą informację: czas + „RANKING/TRENING”. Live stats są przydatne, ale w czasie jazdy to za dużo do czytania.
+- Dla finished/invalidated dodać krótką, jednoznaczną mikrocopy na ekranie przed przejściem do result: „dotknij wynik” jest OK, ale nie mówi czy wynik wszedł do ligi.
+- Dodać haptic/speech fallback tylko po krytycznych przejściach, nie przy każdym małym stanie, żeby rider nie ignorował sygnałów.
+
+**Edge cases / missing states:** brak GPS w trakcie runu degraduje przez verification, ale UI live nie daje jasnego „GPS przerwany”; noc OK przez dark UI, słońce ryzykowne przez subtelne kolory; rękawiczki OK dzięki full-screen tap.
+
+### Gate radius + distance indicator + arrow
+**Cel usera:** dojść na właściwą stronę linii startu bez zgadywania i bez patrzenia długo w telefon.
+
+**Co zrobiłem (🟢):**
+- `0ad7581` — istniejący bottom-sheet action „Znajdź start” ma label i większy target.
+
+**Co proponuję (🟡):**
+- Pokazywać confidence, nie tylko dystans: „±18m” przy ready state powinno wyglądać jak ostrzeżenie, nie jak neutralna metryka.
+- W `ApproachView` mapa ma stałą wysokość 180; przy małych ekranach może zjadać miejsce na instrukcję. Rozważyć kompaktowy wariant tylko z arrow + distance.
+- Dodać „nie idź dalej, jesteś za linią” jako bardziej agresywny visual state, bo wrong-side jest krytyczny dla ranked startu.
+
+**Edge cases / missing states:** weak GPS jest wykryty; brak headingu jest optymistyczny, co jest anti-frustration, ale może mylić ridera; słońce ryzykowne dla mini-mapy; rękawiczki nie są problemem, bo tu user raczej idzie, nie jedzie.
+
+### Results / ranking screen
+**Cel usera:** natychmiast wiedzieć: czas, czy wynik wszedł do ligi, co poprawić i gdzie wrócić.
+
+**Co zrobiłem (🟢):**
+- Brak nowych fixów w tym kroku; wcześniejsze offline/status cards są już obecne w kodzie.
+
+**Co proponuję (🟡):**
+- `run/result` orphan recovery: gdy trasa/spot zniknie, pokaż recovery CTA zamiast „Unknown Trail”/fallback.
+- `trail/[id]` leaderboard error state: gdy board fetch failuje, pokaż retry w sekcji tablicy.
+- Leaderboard chips/tabs są drobne; po jeździe OK, ale w terenie warto zwiększyć touch target dla okresów i trail selectorów.
+
+**Edge cases / missing states:** queued/offline save ma UI, failed ma retry; missing run ma zbyt słaby recovery; empty leaderboard jest OK; słabe GPS jest opisane, ale `corridor_rescue` nie ma czytelnego audit trail dla ridera.
+
+### Pozostałe ekrany
+**Cel usera:** onboarding/auth/profile/help nie mogą przeszkadzać core league loopowi.
+
+**Co zrobiłem (🟢):**
+- Brak nowych fixów w tej podsekcji.
+
+**Co proponuję (🟡):**
+- Profile actions i legal links mają drobne teksty; warto w kolejnym pass podnieść touch targets tam, gdzie nie ma `hitSlop`.
+- `spots` lista potrzebuje skeletonu, żeby nie migała empty state przed fetch.
+- `docs/CURRENT_STATE.md` zaktualizować, bo myli taby i starą strukturę.
+
+**Edge cases / missing states:** auth ma rate-limit handling, onboarding ma permission ask; profile offline działa przez lokalny run store, ale nie mówi userowi jasno które dane są lokalne vs zsynchronizowane.
+
 ## 🟡 Rekomendacje do zatwierdzenia
 
 | Problem | Impact (1-5) | Effort | Proponowany fix | Diff preview |
@@ -159,6 +247,12 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 | `run/result` dla orphan runu (trasa/spot skasowane) nie ma drogi powrotu — "Unknown Trail" i brak CTA. Pokrywa się z `bug_orphan_run_lock`. | 4 | M | Fallback screen z "Trasa została usunięta — zjazd zachowany w historii" + WRÓĆ do profile/home. | `app/run/result.tsx`, może mały nowy komponent `OrphanRunCard`. |
 | `trail/[id]` cicho fail-uje gdy leaderboard się nie załaduje — lbLoading blokuje board bez error fallback. | 4 | S | Dodać error/retry CTA wewnątrz sekcji "Tablica" analogicznie jak w `(tabs)/leaderboard`. | `app/trail/[id].tsx` ~linie board render. |
 | `(tabs)/spots` brak skeletonu → flicker "Brak bike parków" przed listą. | 3 | S | Dodać małe skeleton rows dopóki `useActiveSpots` nie zwróci. | `app/(tabs)/spots.tsx`. |
+| Trail card ma zagnieżdżony CTA w zewnętrznym `Pressable`; w rękawiczkach user może przypadkowo otworzyć szczegóły zamiast startu albo odwrotnie. | 4 | S | Rozdzielić card tap i CTA: karta jako statyczny container + osobne pełnoszerokie CTA, albo stop propagation na CTA jeśli RN event model to potwierdzi w testach. | `src/components/ui/TrailCard.tsx`, `app/spot/[id].tsx`. |
+| `ApproachView` mini-mapa ma stałe 180 px i może zjadać miejsce na instrukcję na małych ekranach. | 3 | S | Dodać compact layout dla małej wysokości: arrow + distance bez mapy albo mapa 120 px. | `src/components/run/ApproachView.tsx`. |
+| Live timer pokazuje sporo drobnych live stats w trakcie jazdy; w słońcu i adrenalnie rider powinien widzieć głównie czas + status. | 4 | M | Tryb ride HUD: większy czas/status, live stats zwinięte do jednego paska albo dev-only. | `app/run/active.tsx`, `src/components/run/MotivationStack.tsx`. |
+| Result/ranking secondary actions są poprawne, ale leaderboard period/trail chips nadal są małe dla użycia na miejscu. | 3 | S | Podnieść minHeight do 44 dla period chips i trail selectorów, dodać `accessibilityLabel`. | `app/(tabs)/leaderboard.tsx`. |
+| Profile/legal/help ma sporo tekstowych linków bez jednolitego 44 pt targetu. | 2 | S | Drugi a11y pass poza core flow: `hitSlop` albo minHeight dla legal/help/settings links. | `app/(tabs)/profile.tsx`, `app/help/index.tsx`, `app/settings/delete-account.tsx`. |
+| `corridor_rescue` nie tłumaczy riderowi „dlaczego zaliczone/niezaliczone” na result screenie. | 4 | M | Pokazać 2-3 warunki zrozumiałe dla ridera: bramki, korytarz, GPS; ukryć techniczne progi w dev/debug. | `app/run/result.tsx`, `src/systems/runFinalization.ts`. |
 
 ## 🔴 Do dyskusji strategicznej
 
@@ -174,7 +268,7 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 | 2 | Ranked background-permission preflight | 5 | M | 🟡 |
 | 3 | Corridor distance point-to-segment zamiast point-to-point | 4 | M | 🟡 |
 | 4 | Network-based retry dla offline queues | 4 | M | 🟡 |
-| 5 | UI sweep pre-ride i live timer pod rękawiczki/słońce | 5 | M | W toku |
+| 5 | UI sweep pre-ride i live timer pod rękawiczki/słońce | 5 | M | 🟢/🟡 pass done |
 | 6 | Cancellable fetch guardy w `useBackend.ts` | 3 | M | 🟡 |
 | 7 | Zaktualizować `docs/CURRENT_STATE.md` | 2 | S | 🟡 |
 | 8 | Orphan run recovery na `run/result` | 4 | M | 🟡 |
