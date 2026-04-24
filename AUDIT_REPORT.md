@@ -2,8 +2,8 @@
 
 ## Executive Summary
 - 🟢 Naprawione do tej pory: 6.
-- 🟡 Do zatwierdzenia: 8.
-- 🔴 Do dyskusji strategicznej: 0 na tym etapie audytu.
+- 🟡 Do zatwierdzenia: 11.
+- 🔴 Do dyskusji strategicznej: 1 (zaufanie do wyniku ligi bez server-side re-weryfikacji).
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
 - Flow Pioneer/kalibracji też istnieje: zgłoszenie bike parku → tworzenie traila → nagranie linii → review → `finalizePioneerRun`.
@@ -101,6 +101,20 @@
 | Uprawnienia location/motion | 🟡 | Location permissiony są obsłużone, motion permissions nie są używane. Ryzyko: ranked/practice flow nie komunikuje jasno braku background location tak dobrze jak Pioneer recording. |
 | Realtime Supabase | Info | Brak aktywnych realtime kanałów poza auth listenerem, więc nie ma dziś subskrypcji `postgres_changes` do odpinania. |
 
+### Krok 2b — Pogłębiony review ranking/timing
+
+Dodatkowy przegląd gate engine + finalizacji + RPC `finalize_seed_run` + `delete_run` od strony correctness, cheating i spójności rankingu.
+
+| Obszar | Status | Wniosek |
+|---|---|---|
+| Monotoniczność timestampów w live distance | 🔴 | `totalTraceDistanceM()` ([src/systems/runFinalization.ts:203](src/systems/runFinalization.ts:203)) i akumulacja `state.totalDistanceM` w `processPoint` ([src/systems/useRealRun.ts:259](src/systems/useRealRun.ts:259)) sumują dystans w kolejności dostarczenia próbek. Jedna out-of-order próbka z background bufora (rare, ale możliwa po AppState blackout) zawyża dystans. Finalizacja NIE sortuje przed sumowaniem. |
+| Start/finish timestamp correctness | 🟢 | `autoStartTimestamp` i `autoFinishTimestamp` pochodzą z `loc.timestamp` GPS. `finalizingRef` blokuje podwójny finish. Manual start jest jawnie downgradowany przez `startCrossing: null` → ineligible w `quality.ts:131`. |
+| Hardcoded `counted_in_leaderboard = true` w RPC | 🟡 | `finalize_seed_run` (`012_sprint_4_rpcs.sql`, linia ~113) wstawia `counted_in_leaderboard = true` bez server-side re-oceny eligibility. Klient wysyła już zweryfikowane, ale jakakolwiek rozjazd między client-side `quality.ts` a założeniami RPC → leaderboard w niezgodzie z rzeczywistością. |
+| `delete_run` promocja bez `trail_version_id` filtra | 🟡 | Promocja next-best run (migration `20260424`, linia ~136) selectuje po `trail_id + user_id`, nie po wersji trasy. Przy rekalibracji traila rider może mieć ranking na v1 a run na v2 — promocja może wybrać niewłaściwą wersję. |
+| Brak globalnego rerank po `delete_run` | 🟡 | Komentarz w migracji 20260424 jawnie mówi "out of scope — next incremental job". Jeśli job nigdy nie odpali (a na prodzie **nie widzę cron/edge function do rerank**), ranking zostanie niespójny dla innych riderów dopóki następny PB ich nie przeszachuje organicznie. |
+| Cheating: forged `gps_trace` | 🔴 strategiczne | RPC ufa klientowi — `gps_trace jsonb` wstawiany wprost. Nie ma commitmentu/signature, który wiąże trace z urządzeniem ridera w sesji. Replay ataku cudzym tracem jest architektonicznie możliwy. Decyzja do KROK 5 (czy warto dziś rozwiązywać). |
+| Anti-cheat (non-forged) | 🟢 | `antiCheat.ts`: too_few_points, time-travel, 300m teleport, >120km/h, min 100m movement — wszystkie są i klient-side, i duplikowane w RPC check'ach. |
+
 ## 🟡 Rekomendacje do zatwierdzenia
 
 | Problem | Impact (1-5) | Effort | Proponowany fix | Diff preview |
@@ -113,10 +127,16 @@
 | Ranked/practice run potrafi działać foreground-only, gdy brak background location; user może schować telefon i stracić sample bez tak mocnego ostrzeżenia jak w Pioneer recording. | 5 | M | Przed armed ranked sprawdzić background permission i pokazać jasny wybór: włącz „Zawsze” albo jedź trening/foreground-only. | `app/run/active.tsx`, `src/systems/gps.ts`, prawdopodobnie nowy state w `useRealRun`; dotyka core flow = 🟡. |
 | `evaluateCorridor()` mierzy dystans do najbliższego punktu polyline, nie do segmentu linii; przy rzadszej Pioneer geometrii może fałszywie zaniżać corridor coverage. | 4 | M | Liczyć dystans punkt-segment dla każdego odcinka albo uprościć geometrię z kontrolą maksymalnego odstępu punktów. | `src/systems/realVerification.ts` + testy; gate/corridor = 🟡. |
 | `corridor_rescue` jest mocne produktowo, ale akceptacja/odrzucenie zależy od kilku progów bez UI-audit trail dla ridera. | 5 | M | Dodać jasne explanation/telemetrię w result/debug: które warunki rescue przeszły, które nie. | `src/systems/runFinalization.ts`, result/debug UI; ranking trust = 🟡. |
+| `totalTraceDistanceM()` i live `totalDistanceM` sumują w kolejności dostarczenia, nie po timestampie. Out-of-order background sample → zawyżony dystans → fałszywy corridor rescue pass. | 5 | S | Przed sumowaniem w finalizacji skopiować `points` i posortować po `timestamp`; w `processPoint` zaakceptować próbkę tylko gdy `ts > lastProcessedTs` (już jest guard, ale akumulacja jest przed nim). | `src/systems/runFinalization.ts`, `src/systems/useRealRun.ts`. Małe, samodzielne. |
+| RPC `finalize_seed_run` hardcoduje `counted_in_leaderboard = true` — żadna server-side re-weryfikacja kryteriów eligibility. | 4 | M | Przenieść decyzję eligibility do SQL funkcji validateRunEligibility(duration, distance, avgAccuracy, pointCount, geometry) i wywołać ją w RPC przed insertem. | Migracja + mirror logiki z `quality.ts`. Dotyka rankingu → 🟡. |
+| `delete_run` promocja bez filtra `trail_version_id` — przy rekalibracji traila może promować run z innej wersji. | 3 | S | Dodać `and trail_version_id = v_run.trail_version_id` do selecta next-best (linia ~137 migracji 20260424). | Nowa migracja (patch do delete_run). Bezpieczna. |
+| Brak zadania/joba do globalnego rerank po usunięciu runu. Inni riderzy widzą starą pozycję aż organicznie ktoś ich przeszacuje. | 4 | M | Albo inkrementalny rerank w samym RPC po promocji (prosty UPDATE z window function), albo edge-function cron po delete. | Migracja lub nowy edge function. Produktowo ważne, bo PB/ranking to core. |
 
 ## 🔴 Do dyskusji strategicznej
 
-Do uzupełnienia po Krokach 4-5. Na etapie Kroku 2 nie wprowadzałem żadnych zmian 🔴.
+| Temat | Dlaczego strategiczne | Decyzja do podjęcia |
+|---|---|---|
+| **Trust model: klient jest wiarygodny** — `gps_trace`, `verification_summary`, `geometry` idą do RPC bez cryptographic commitmentu. Attacker z read-access do czyjegoś runa może podstawić trace jako własny. | To nie bug, to model zaufania. Dziś NWD zakłada "rider jest uczciwy" — na MVP/early community OK, ale gdy pojawi się stawka (season prizes, sponsoring, oficjalne rankingi parku), ten model przestaje wystarczać. | Założenie na KROK 5: czy wprowadzamy signed device attestation / server-side geometry replay / trail-version nonce, czy akceptujemy social-trust model i liczymy na detection po fakcie (outlier times, duplicate traces). |
 
 ## TOP 10 do zrobienia teraz
 
