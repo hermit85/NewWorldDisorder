@@ -88,9 +88,16 @@ export function evaluateCorridor(
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     let minDist = Infinity;
-    for (const linePoint of officialLine) {
-      const d = distanceMeters(p, linePoint);
-      if (d < minDist) minDist = d;
+    if (officialLine.length === 1) {
+      minDist = distanceMeters(p, officialLine[0]);
+    } else {
+      // Point-to-segment: vertex-only distance overstates deviation between
+      // widely-spaced polyline points — a rider exactly on the line can read
+      // tens of metres off from the nearest vertex.
+      for (let j = 0; j < officialLine.length - 1; j++) {
+        const d = distanceToSegmentM(p, officialLine[j], officialLine[j + 1]);
+        if (d < minDist) minDist = d;
+      }
     }
 
     if (minDist <= CORRIDOR_WIDTH_M) {
@@ -126,6 +133,28 @@ export function evaluateCorridor(
     coveragePercent: (insideCount / points.length) * 100,
     deviations,
   };
+}
+
+// Local planar projection around the segment midpoint. Meters-per-degree
+// adjusted for latitude — accurate to <1m within a few-km polyline segment,
+// which is more than enough for 50m corridor checks.
+function distanceToSegmentM(
+  p: { latitude: number; longitude: number },
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const latRef = (a.latitude + b.latitude) / 2;
+  const mPerLat = 111320;
+  const mPerLng = 111320 * Math.cos((latRef * Math.PI) / 180);
+  const bx = (b.longitude - a.longitude) * mPerLng;
+  const by = (b.latitude - a.latitude) * mPerLat;
+  const px = (p.longitude - a.longitude) * mPerLng;
+  const py = (p.latitude - a.latitude) * mPerLat;
+  const lenSq = bx * bx + by * by;
+  if (lenSq < 1e-6) return Math.hypot(px, py);
+  let t = (px * bx + py * by) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - t * bx, py - t * by);
 }
 
 // ── GPS quality assessment ──
