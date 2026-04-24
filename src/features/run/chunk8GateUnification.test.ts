@@ -441,12 +441,20 @@ describe('Chunk 8 gate unification', () => {
       // to 0.5 m so the vector's angle against the trail bearing
       // (≈63°) still trips poor_heading while both endpoints sit
       // comfortably inside the ±2 m line window.
+      //
+      // B22: the shared DEFAULT_START_GATE now uses 90° tolerance to
+      // permit walk-test crossings, which is wider than the 63° oblique
+      // angle here — the flag would no longer fire with production
+      // thresholds. Override locally to the pre-B22 60° tolerance; the
+      // intent of this test is to verify the flag mechanism, not the
+      // threshold value (that's a separate production knob).
+      const tightStartGate = { ...startGate, headingToleranceDeg: 60 };
       const points = [
-        pointFromGate(startGate, -0.5, -1, 1_000),
-        pointFromGate(startGate, 0.5, 1, 2_000),
+        pointFromGate(tightStartGate, -0.5, -1, 1_000),
+        pointFromGate(tightStartGate, 0.5, 1, 2_000),
       ];
 
-      const crossing = detectGateCrossing(points, startGate);
+      const crossing = detectGateCrossing(points, tightStartGate);
 
       expect(crossing.crossed).toBe(true);
       expect(crossing.flags).toContain('poor_heading');

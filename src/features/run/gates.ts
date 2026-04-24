@@ -84,16 +84,26 @@ export const APPROACH_UNSURE_ACCURACY_M = 30;
  *  the wrong_side prompt, and 30-45° side-approach is a perfectly
  *  legitimate rolling start. Only flip to wrong_side when the rider
  *  is actually facing away (>90° means facing the rear hemisphere).
- *  The gate engine's start gate uses its own headingToleranceDeg
- *  (still 60°) for the actual crossing check, which is correct —
- *  you can approach from wide angles but must be pointed downhill
- *  when you cross. */
+ *  The gate engine's start gate had its own headingToleranceDeg
+ *  (historically 60°) for the actual crossing check; B22 aligned it
+ *  with the approach value (90°) after walk-test showed the 60° check
+ *  rejected crossings for walkers whose heading jittered on slow
+ *  speeds. See DEFAULT_START_GATE below. */
 export const GATE_HEADING_TOLERANCE_DEG = 90;
 
 /** Minimum perpendicular velocity (m/s) across the gate line for the
  *  Chunk 8 crossing detector to accept a cross. Filters out a stationary
- *  rider sitting on the line. */
-export const GATE_VELOCITY_MIN_MPS = 1.0;
+ *  rider sitting on the line.
+ *
+ *  B22 walk-test hotfix: lowered 1.0 → 0.3. Walking perpendicular to the
+ *  gate at 1.1-1.4 m/s often produced perp-velocity projections <1.0 m/s
+ *  (any non-orthogonal approach reduces the perpendicular component),
+ *  and the crossing was silently rejected — `gateLastStartAttempt.velocityOk=false`.
+ *  A real rider on a bike at the start is 4-8 m/s, so 0.3 doesn't open an
+ *  anti-cheat hole; you still need actual motion across the line (the
+ *  detector still requires a sample pair on opposite sides of the line).
+ *  Revisit to a ranked/practice split once crowd-confirm lands. */
+export const GATE_VELOCITY_MIN_MPS = 0.3;
 
 /** Narrow unknown JSON → PioneerGeometry shape. Returns null when the
  *  structure does not match (legacy v0 rows, truncated payloads). */
@@ -184,20 +194,26 @@ export function buildTrailGateConfigFromPioneer(
 // not a fuzzy zone. Finish keeps a tiny bit more slack because GPS
 // bias compounds over the trace and a finish miss wastes the whole
 // descent, while a false-positive start only invalidates the arming.
+// B22 walk-test hotfix — both gates relaxed so walking-speed testers can
+// actually cross. Heading tolerances moved in line with the approach
+// navigator (which was relaxed to 90° in B21); minTriggerSpeedKmh dropped
+// below walking so the low-speed gate doesn't pre-empt GATE_VELOCITY_MIN_MPS.
+// The narrow lineWidthM stays honest — you still need to physically cross
+// the 4-6 m line, not just be near it.
 const DEFAULT_START_GATE: Omit<GateDefinition, 'center' | 'trailBearing'> = {
   lineWidthM: GATE_LINE_LENGTH_M, // 4 m
   zoneDepthM: 6,
   entryRadiusM: 10,
-  headingToleranceDeg: 60,
-  minTriggerSpeedKmh: 2,
+  headingToleranceDeg: 90, // B22: was 60° — walking heading jitter exceeded that
+  minTriggerSpeedKmh: 1,   // B22: was 2 — now below walking, delegated to GATE_VELOCITY_MIN_MPS
 };
 
 const DEFAULT_FINISH_GATE: Omit<GateDefinition, 'center' | 'trailBearing'> = {
   lineWidthM: GATE_LINE_LENGTH_M + 2, // 6 m
   zoneDepthM: 8,
   entryRadiusM: 12,
-  headingToleranceDeg: 75, // forgiving but not wide open
-  minTriggerSpeedKmh: 1.5, // slower trigger for finish
+  headingToleranceDeg: 90, // B22: was 75 — same reason as start gate
+  minTriggerSpeedKmh: 0.8, // B22: was 1.5 — slow finish walk-outs shouldn't be rejected
 };
 
 // ── Auto-compute bearing from first/last polyline segments ──
