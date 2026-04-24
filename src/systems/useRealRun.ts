@@ -375,22 +375,28 @@ export function useRealRun(
         if (s.phase === 'running_ranked' || s.phase === 'running_practice') {
           addPoint(point);
 
-          // Update checkpoints — FAZA 2 #1: preserve array identity when
-          // no checkpoint actually flips. The old code mapped on every
-          // GPS sample (1-2Hz for a 30-min run → thousands of new array
-          // allocations), which invalidated downstream memoization. Most
-          // samples don't cross any checkpoint; those can keep the same
-          // reference and skip the spread/return.
-          let flipped = false;
-          const updatedCps = s.checkpoints.map((cp) => {
-            if (cp.passed) return cp;
+          // Update checkpoints — FAZA 2 #1 / R2: preserve array identity
+          // when no checkpoint actually flips. The original code mapped on
+          // every GPS sample (1-2Hz for a 30-min run → thousands of new
+          // array allocations), which invalidated downstream memoization.
+          //
+          // R2 P2: short-circuit further — skip the `.map()` entirely when
+          // nothing flips, and bail out of the loop as soon as every CP is
+          // already passed. `.map()` always allocates a fresh array even
+          // when every element is returned identical; replacing it with a
+          // lazy-cloning for-loop means the common case (no crossing this
+          // sample) allocates zero objects. distanceMeters is only called
+          // on still-pending checkpoints.
+          let updatedCps: typeof s.checkpoints | null = null;
+          for (let i = 0; i < s.checkpoints.length; i++) {
+            const cp = s.checkpoints[i];
+            if (cp.passed) continue;
             if (distanceMeters(point, cp.coordinate) <= cp.radiusM) {
-              flipped = true;
-              return { ...cp, passed: true, passedAt: point.timestamp };
+              if (!updatedCps) updatedCps = s.checkpoints.slice();
+              updatedCps[i] = { ...cp, passed: true, passedAt: point.timestamp };
             }
-            return cp;
-          });
-          const checkpoints = flipped ? updatedCps : s.checkpoints;
+          }
+          const checkpoints = updatedCps ?? s.checkpoints;
 
           return {
             ...s,
@@ -398,7 +404,12 @@ export function useRealRun(
             lastPoint: point,
             pointCount: s.pointCount + 1,
             checkpoints,
-            elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
+            // Codex FAZA2-R2 P2: clamp to >=0. If gate auto-start used a
+            // crossing timestamp slightly ahead of wall clock (or wall
+            // clock jumped back after NTP sync), Date.now() - startedAt
+            // can briefly go negative. UI would flash "--:--" or render
+            // a backwards timer for a frame.
+            elapsedMs: s.startedAt ? Math.max(0, Date.now() - s.startedAt) : s.elapsedMs,
             gateLastStartAttempt: sampleDiagnostics.lastStartAttempt,
             gateLastFinishAttempt: sampleDiagnostics.lastFinishAttempt,
           };
@@ -465,11 +476,14 @@ export function useRealRun(
   // ══════════════════════════════════════════
 
   gateStartCallbackRef.current = (crossing: GateCrossingResult) => {
-    const s = stateRef.current;
-    // D1+D2: accept auto-start in either armed phase. `startRunInternal`
-    // still reads `s.mode` so the resulting phase matches the user's arm
-    // choice (running_ranked vs running_practice).
-    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    // Codex FAZA2 P0: phase guard reads `livePhaseRef` (synchronous mirror)
+    // rather than `stateRef.current.phase`, because React's committed state
+    // lags the ref by one render. If a crossing arrives in that gap we'd
+    // otherwise drop the auto-start. `startRunInternal` still reads
+    // `stateRef.current.mode` to pick the running phase — that one is
+    // stable within a batch, so no sync mirror needed.
+    const livePhase = livePhaseRef.current;
+    if (livePhase !== 'armed_ranked' && livePhase !== 'armed_practice') return;
     if (finalizingRef.current) return;
 
     logDebugEvent('run', 'gate_auto_start', 'ok', {
@@ -492,10 +506,14 @@ export function useRealRun(
 
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
     if (finalizingRef.current) return;
+    // Codex FAZA2 P0: phase guard reads `livePhaseRef` — same reason as
+    // the start callback. Committed `state.phase` lags by a render and a
+    // finish line that sits a tick after the start crossing would be
+    // dropped. Stable fields (`startedAt`, `elapsedMs`) still come from
+    // `stateRef` below since they don't race with phase transitions.
+    const livePhase = livePhaseRef.current;
+    if (livePhase !== 'running_ranked' && livePhase !== 'running_practice') return;
     const s = stateRef.current;
-    // D1+D2: accept auto-finish in either running phase. The finishing
-    // → verifying → completed_* pipeline is mode-agnostic.
-    if (s.phase !== 'running_ranked' && s.phase !== 'running_practice') return;
 
     logDebugEvent('run', 'gate_auto_finish', 'ok', {
       trailId,
@@ -520,12 +538,15 @@ export function useRealRun(
     const finishTs = crossing.crossingTimestamp ?? Date.now();
     autoFinishTimestampRef.current = finishTs;
     livePhaseRef.current = 'finishing';
-    const finalElapsed = s.startedAt ? finishTs - s.startedAt : s.elapsedMs;
+    // Codex FAZA2-R2 P2: clamp — crossing timestamps can rarely land a
+    // few ms before startedAt on sparse GPS streams where the gate
+    // engine backdated the start crossing to a prior sample.
+    const finalElapsed = s.startedAt ? Math.max(0, finishTs - s.startedAt) : s.elapsedMs;
     announceAutoFinish(finalElapsed);
     safeSetState((prev) => ({
       ...prev,
       phase: 'finishing' as RunPhaseV2,
-      elapsedMs: prev.startedAt ? finishTs - prev.startedAt : prev.elapsedMs,
+      elapsedMs: prev.startedAt ? Math.max(0, finishTs - prev.startedAt) : prev.elapsedMs,
       gateAutoFinished: true,
     }));
   };
@@ -603,7 +624,10 @@ export function useRealRun(
 
       safeSetState((s) => ({
         ...s,
-        elapsedMs: s.startedAt ? Date.now() - s.startedAt : 0,
+        // Codex FAZA2-R2 P2: clamp to >=0. See clamp note above on the
+        // processSample path — same root cause applies here on the 50ms
+        // timer tick, which runs every frame.
+        elapsedMs: s.startedAt ? Math.max(0, Date.now() - s.startedAt) : 0,
         gateHeadingDeg: heading,
         gateSpeedKmh: gateEngine.getCurrentSpeedKmh(),
         gateTotalDistanceM: gateEngine.getTotalDistanceM(),
@@ -674,7 +698,9 @@ export function useRealRun(
     safeSetState((s) => ({
       ...s,
       phase: 'finishing',
-      elapsedMs: s.startedAt ? Date.now() - s.startedAt : s.elapsedMs,
+      // Codex FAZA2-R2 P2: clamp — manual finish path, same reason as
+      // the other elapsedMs sites.
+      elapsedMs: s.startedAt ? Math.max(0, Date.now() - s.startedAt) : s.elapsedMs,
     }));
   }, [safeSetState]);
 

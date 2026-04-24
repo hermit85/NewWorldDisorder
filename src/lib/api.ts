@@ -637,17 +637,21 @@ function weekendStart(): string {
 
 /** Top-N cap for scoped leaderboard rows returned to the UI. Matches
  *  fetchLeaderboard(all_time)'s 50-row budget so lists render uniformly.
- *  FAZA 2 #2. */
+ *  FAZA 2 #2 — enforced server-side by fetch_scoped_leaderboard RPC. */
 const SCOPED_LEADERBOARD_TOP_N = 50;
 
-/** Upper bound on raw run rows pulled from the DB for scoped boards.
- *  We dedup in-memory (best time per user), so the cap must stay well
- *  above SCOPED_LEADERBOARD_TOP_N to give every real top-N user at
- *  least one row in the window. 500 covers a busy weekend (e.g. 200
- *  runs spread across 80 unique riders, sorted by time, top-N is
- *  always in the first ~150 rows). Without this cap, a viral trail
- *  could return thousands of rows on flaky park Wi-Fi. */
-const SCOPED_LEADERBOARD_RAW_CAP = 500;
+/** Row shape returned by the fetch_scoped_leaderboard RPC. Keep in sync
+ *  with the RETURNS TABLE declaration in the matching migration. */
+interface ScopedLeaderboardRpcRow {
+  user_id: string;
+  trail_id: string;
+  best_duration_ms: number;
+  rank_position: number;
+  username: string;
+  display_name: string;
+  rank_id: string;
+  avatar_url: string | null;
+}
 
 export async function fetchScopedLeaderboard(
   trailId: string,
@@ -656,57 +660,40 @@ export async function fetchScopedLeaderboard(
 ): Promise<LeaderboardRow[]> {
   const since = scope === 'today' ? todayStart() : weekendStart();
 
-  // Query runs grouped by user, best time per user on this trail since
-  // cutoff. FAZA 2 #2: bounded fetch — see SCOPED_LEADERBOARD_RAW_CAP.
-  const { data, error } = await db()
-    .from('runs')
-    .select(`
-      user_id,
-      duration_ms,
-      trail_id,
-      profiles!inner (
-        username,
-        display_name,
-        rank_id,
-        avatar_url
-      )
-    `)
-    .eq('trail_id', trailId)
-    .eq('counted_in_leaderboard', true)
-    .gte('started_at', since)
-    .order('duration_ms', { ascending: true })
-    .limit(SCOPED_LEADERBOARD_RAW_CAP);
+  // Codex FAZA2-R2 P1: the previous implementation pulled up to 500 raw
+  // run rows and deduped in JS. A handful of heavy repeat attempters
+  // could crowd the window and starve legitimate top-50 riders. The
+  // RPC does DISTINCT ON (user_id) server-side, so the window we see
+  // is already one-row-per-rider and LIMIT p_limit is correctness-safe.
+  const { data, error } = await db().rpc('fetch_scoped_leaderboard', {
+    p_trail_id: trailId,
+    p_since: since,
+    p_limit: SCOPED_LEADERBOARD_TOP_N,
+  });
 
   if (error) throw new Error(`fetchScopedLeaderboard failed: ${error.message}`);
-  if (!data || data.length === 0) return [];
+  const rows = (data ?? []) as ScopedLeaderboardRpcRow[];
+  if (rows.length === 0) return [];
 
-  // Deduplicate: keep only best time per user
-  const bestByUser = new Map<string, any>();
-  for (const run of data) {
-    if (!bestByUser.has(run.user_id) || run.duration_ms < bestByUser.get(run.user_id).duration_ms) {
-      bestByUser.set(run.user_id, run);
-    }
-  }
+  // RPC already returns rows sorted by best_duration_ms asc with
+  // rank_position filled in via row_number(). We only need to flag
+  // the current user and compute gap-to-leader.
+  const leaderTime = rows[0]?.best_duration_ms ?? 0;
 
-  const sorted = Array.from(bestByUser.values())
-    .sort((a, b) => a.duration_ms - b.duration_ms)
-    .slice(0, SCOPED_LEADERBOARD_TOP_N);
-  const leaderTime = sorted[0]?.duration_ms ?? 0;
-
-  return sorted.map((e: any, i: number) => ({
+  return rows.map((e) => ({
     userId: e.user_id,
-    username: (e.profiles as any).username,
-    displayName: (e.profiles as any).display_name,
-    rankId: (e.profiles as any).rank_id,
+    username: e.username,
+    displayName: e.display_name,
+    rankId: e.rank_id,
     trailId: e.trail_id,
     periodType: scope,
-    bestDurationMs: e.duration_ms,
-    rankPosition: i + 1,
+    bestDurationMs: e.best_duration_ms,
+    rankPosition: e.rank_position,
     previousPosition: null,
     delta: 0,
-    gapToLeader: e.duration_ms - leaderTime,
+    gapToLeader: e.best_duration_ms - leaderTime,
     isCurrentUser: e.user_id === currentUserId,
-    avatarUrl: (e.profiles as any).avatar_url ?? null,
+    avatarUrl: e.avatar_url ?? null,
   }));
 }
 
@@ -2062,6 +2049,10 @@ const SEED_RUN_ERRORS: Record<string, string> = {
   not_authorized:           'Brak uprawnień do tej operacji',
   no_current_version:       'Trasa nie ma aktywnej wersji',
   rpc_failed:               'Nie udało się zapisać zjazdu. Spróbuj ponownie.',
+  // Codex FAZA2-R2 P2 — mig 20260426 added this code for "spot still
+  // pending curator review; only the submitter may pioneer it". Without
+  // a mapping, the UI fell back to the generic rpc_failed copy.
+  pending_spot_forbidden:   'Ten bike park czeka na pioniera który go zgłosił. Poczekaj aż zaklepią go kuratorzy — wtedy otworzy się dla wszystkich.',
 
   // Sprint 4.5 / mig 013 — specific geometry / duration / accuracy codes.
   // Generic fallback copy; validators module provides the dynamic version.
