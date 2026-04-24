@@ -2,8 +2,9 @@
 
 ## Executive Summary
 - 🟢 Naprawione do tej pory: 11.
-- 🟡 Do zatwierdzenia: 23 (po KROK 4b — motion/cache/typography).
-- 🔴 Do dyskusji strategicznej: 1 (zaufanie do wyniku ligi bez server-side re-weryfikacji).
+- 🟡 Do zatwierdzenia: 28 (po KROK 4 — performance, cache, koszt Supabase).
+- 🔴 Po KROK 5: 4 strategiczne decyzje (trust model, crowd validation, region taxonomy, monetization path).
+- 🔴 Do dyskusji strategicznej: 4 (trust model / crowd validation / PL-only region / monetization path).
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
 - Flow Pioneer/kalibracji też istnieje: zgłoszenie bike parku → tworzenie traila → nagranie linii → review → `finalizePioneerRun`.
@@ -120,7 +121,7 @@ Dodatkowy przegląd gate engine + finalizacji + RPC `finalize_seed_run` + `delet
 | Cheating: forged `gps_trace` | 🔴 strategiczne | RPC ufa klientowi — `gps_trace jsonb` wstawiany wprost. Nie ma commitmentu/signature, który wiąże trace z urządzeniem ridera w sesji. Replay ataku cudzym tracem jest architektonicznie możliwy. Decyzja do KROK 5 (czy warto dziś rozwiązywać). |
 | Anti-cheat (non-forged) | 🟢 | `antiCheat.ts`: too_few_points, time-travel, 300m teleport, >120km/h, min 100m movement — wszystkie są i klient-side, i duplikowane w RPC check'ach. |
 
-## Krok 3 — State coverage (loading / empty / error / offline)
+## Krok 3a — State coverage (loading / empty / error / offline)
 
 Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck spinnerów, useless errorów.
 
@@ -145,7 +146,7 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 2. 🟡 `trail/[id]` cichy fail leaderboardu — lbLoading blokuje sekcję board bez error fallback. Impact 4, Effort S.
 3. 🟡 `(tabs)/spots` brak skeletonu przed fetch — flicker "brak" → lista. Impact 3, Effort S.
 
-## Krok 4 — UI/UX Sweep
+## Krok 3b — UI/UX Sweep
 
 ### Trail picker / bottom sheet
 **Cel usera:** szybko wybrać trasę, zrozumieć czy jedzie ranking/trening/Pioneer i nie pomylić „otwórz trasę” z „startuj”.
@@ -228,31 +229,58 @@ Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck s
 
 **Edge cases / missing states:** auth ma rate-limit handling, onboarding ma permission ask; profile offline działa przez lokalny run store, ale nie mówi userowi jasno które dane są lokalne vs zsynchronizowane.
 
-### Krok 4b — Reads/writes economics + motion/typography
+## Krok 4 — Performance & Architektura
 
-Uzupełnienie sweepu o ekonomikę backendu i a11y, których nie pokrywa UI-pass.
+### Re-render storms / state fan-out
 
-**Reads/writes per ranked ride (z `src/lib/api.ts`, 46 SELECTów + 13 RPC w źródle):**
+| Obszar | Wniosek | Impact |
+|---|---|---:|
+| Globalny `triggerRefresh()` | `useBackend.ts` ma ponad 20 hooków zależnych od jednego globalnego `refreshSignal`. Jeden zapis runu/avataru/spotu może odświeżyć home, profile, leaderboards, spots i trail data naraz. Dla usera: więcej spinnerów i wolniejsze ekrany po jeździe. Dla kosztów: niepotrzebne reads. | 4 |
+| Live run loop | `useRealRun.ts` ma timer UI co 50 ms. Sam zegar ma sens, ale jeśli do jednego renderu dołączymy dużo telemetry/UI, telefon w kieszeni może grzać baterię. Dla ridera: większe ryzyko dropów GPS i battery drain na dłuższej sesji. | 4 |
+| `useBackend.ts` | Plik ma ~980 linii i dużo podobnych fetch hooków bez wspólnego cache/cancel strategy. Dla biznesu: szybkie iterowanie jest coraz droższe, bo mała zmiana danych może zepsuć kilka ekranów. | 3 |
 
-| Etap | Reads | Writes |
-|---|---:|---:|
-| Home tab | 3–5 | 0 |
-| Spots list | 1 | 0 |
-| Spot detail | 2 | 0 |
-| Trail detail | 4 | 0 |
-| Pre-ride | 0 | 0 |
-| Run complete | 0 | 1 RPC (atomowe: run + lb entry) |
-| Result | 0 (runStore lokalny) | 0 |
-| **Sum per ride** | **~10 SELECT** | **1 RPC** |
+### Supabase reads/writes per ranked ride
 
-- 🟢 Run submit atomowy przez `finalize_seed_run` — tańsze niż INSERT + UPSERT.
-- 🟡 Brak klient-side cache TTL. Każde wejście w `trail/[id]` = 4 fresh fetche. Przy skali 1000 riderów × 10 ride/d = ~100k reads/d (>free tier Supabase 50k).
-- 🟡 Brak paginacji na leaderboardzie. Dziś nieistotne, przy wzroście bazy istotne.
+Aktualny ranked submit NIE wygląda na jeden atomowy RPC. Live ranked flow idzie przez `submitRunToBackend()` → `api.submitRun()`:
 
-**Motion + typography (poza touch-target pass):**
-- 🔴 Brak `AccessibilityInfo.isReduceMotionEnabled` guarda — Reanimated transitions lecą niezależnie od systemowego ustawienia. Problem a11y + motion sickness.
-- 🟡 Trzy systemy typo: `typography.ts` (legacy), `chunk9.ts` (nowy UI), `gameHud.ts` (live stats). Fragmentacja = rozjazd letter-spacing/line-height między ekranami.
-- 🟡 `chunk9Typography.body13 = 13pt` poniżej outdoor-readable. Display56 i stat19 (ranglówka/timer) OK; kopia wokół wymaga squintu w słońcu.
+| Etap | Szacunek | Co to znaczy biznesowo |
+|---|---:|---|
+| Przed jazdą: home + spot + trail | ~7-12 SELECT | Akceptowalne w MVP, ale bez cache każdy powrót do ekranu robi świeży koszt i latency. |
+| Zapis ranked runu | 1 SELECT PB + 1 INSERT run + 1 RPC leaderboard + 1 RPC run counts + 0-2 XP/best/favorite updates | Działa, ale nie jest atomowe end-to-end. Gdy część write'ów padnie, wynik może istnieć bez pełnej progresji/profilu. |
+| Po zapisie: progression | 1 profile fetch opcjonalnie + active challenges + 0-N challenge/achievement writes | Fajne retentionowo, ale koszt rośnie z liczbą challenge'y. |
+| Result impact | 3 leaderboard reads (today/weekend/all_time) | Daje szybki feedback po jeździe, ale to hot path dla każdego przejazdu. |
+| **Razem per udany ranked ride** | **około 10-18 reads + 3-8 writes/RPC** | Przy 1000 riderów i 10 przejazdach/dzień to robi się realny koszt i realne latency, zanim jeszcze policzymy przeglądanie rankingów. |
+
+`finalize_seed_run` jest atomowy, ale dotyczy Pioneer/kalibracji traila, nie zwykłego ranked runu.
+
+### Hot reads / N+1
+
+| Miejsce | Problem | Impact |
+|---|---|---:|
+| `fetchBikeParkTrails()` | Startuje 5 równoległych zapytań, a potem dla każdego "beaten by" robi `fetchLeaderboard()` w pętli. Dla parku z wieloma trasami to klasyczne N+1. | 4 |
+| `fetchRiderBoardContext()` | Dla każdej trasy odpala 3 boardy: all-time, today, weekend. Przy 8 trasach to 24 zapytania sekwencyjnie. | 4 |
+| `fetchResultImpact()` | Po runie robi 3 board reads. To produktowo wartościowe, ale powinno być batchowane albo cache'owane. | 3 |
+| Leaderboard pagination | `fetchLeaderboard()` ma `.limit(50)`, scoped leaderboard też limituje, więc nie ma najgorszego scenariusza "ściągnij wszystko". To plus. | 1 |
+
+### Bundle / kod do utrzymania
+
+Największe pliki: `src/lib/api.ts` (~2222 linie), `app/run/recording.tsx` (~1438), `app/run/result.tsx` (~1081), `src/hooks/useBackend.ts` (~980), `src/systems/useRealRun.ts` (~814). To nie jest problem sam w sobie, ale oznacza, że koszt zmian w core flow rośnie: trudniej testować, trudniej robić małe diffy, łatwiej o regresję. Refactor tych plików to 🟡, bo przekracza 100 linii i dotyka core.
+
+Assets są lekkie: `assets/` ~400 KB, `src/` ~1 MB, `app/` ~460 KB. Nie widzę dziś dużego ryzyka bundle z assetów. Mapbox koszt = 0, bo Mapbox nie jest używany.
+
+### Realtime Supabase
+
+Nie znalazłem aktywnych `supabase.channel()` ani `postgres_changes`. To dobre dla kosztu i stabilności. Trade-off: leaderboard nie jest live, więc "ktoś właśnie Cię przebił" wymaga refresh/poll/push w przyszłości.
+
+### Offline-first readiness
+
+Run queue i spot submission queue istnieją i po Krok 2 są poprawione, ale appka nadal jest "offline-tolerant", nie pełne offline-first. Brakuje: network listenera, jasnego statusu "dane sprzed X min", cache dla rankingów/spotów i product copy odróżniającej brak sieci od błędu serwera.
+
+### Motion + typography
+
+- 🔴 Brak `AccessibilityInfo.isReduceMotionEnabled` guarda — animacje mogą iść wbrew systemowemu ustawieniu. To a11y i komfort, zwłaszcza gdy user po jeździe jest zmęczony.
+- 🟡 Trzy systemy typo: `typography.ts`, `chunk9.ts`, `gameHud.ts`. Fragmentacja zwiększa ryzyko niespójnego UI.
+- 🟡 `chunk9Typography.body13 = 13pt` bywa za małe na outdoor/słońce. Display/timer są OK; opisowe copy wymaga większej czytelności.
 
 ## 🟡 Rekomendacje do zatwierdzenia
 
@@ -281,13 +309,73 @@ Uzupełnienie sweepu o ekonomikę backendu i a11y, których nie pokrywa UI-pass.
 | `corridor_rescue` nie tłumaczy riderowi „dlaczego zaliczone/niezaliczone” na result screenie. | 4 | M | Pokazać 2-3 warunki zrozumiałe dla ridera: bramki, korytarz, GPS; ukryć techniczne progi w dev/debug. | `app/run/result.tsx`, `src/systems/runFinalization.ts`. |
 | Brak `useReducedMotion` guarda w Reanimated transitions — a11y gap + motion sickness. | 3 | S | Wrapper hook czytający `AccessibilityInfo.isReduceMotionEnabled()` + bypass w kluczowych sharedTransitions. | Global small hook + audytowane callsity. |
 | `useLeaderboard` fetchuje bez cache — na każde wejście w trail/[id] świeży SELECT. Przy skali koszt i latency rosną. | 4 | S | 30-60s in-memory cache w hooku po kluczu `(trailId, periodType, scope)`. | `src/hooks/useBackend.ts`. Samodzielne. |
+| Globalny `triggerRefresh()` odświeża zbyt dużo naraz — po zapisie runu może pociągnąć home/profile/leaderboards/spots/trails. | 4 | M | Zastąpić jeden globalny licznik domenowym invalidation: `runs`, `profile`, `spots`, `leaderboard`; hooki subskrybują tylko potrzebny klucz. | `src/hooks/useRefresh.ts`, `src/hooks/useBackend.ts`, call sites po save/avatar/spot. |
+| `fetchBikeParkTrails()` ma N+1 dla "beaten by" — po 5 bazowych readach dociąga leaderboard per trail. | 4 | M | Dodać RPC/view `fetch_bike_park_trail_cards(spot_id, user_id)` zwracające gotowe card metrics w jednym strzale. | Migracja SQL + wymiana `fetchBikeParkTrails`; DB/API touch = 🟡. |
+| `fetchRiderBoardContext()` robi 3 leaderboardy per trasa sekwencyjnie. | 4 | M | Batch RPC: dla listy `trailIds` zwrócić all-time/today/weekend positions i board sizes. | Nowy RPC + `useVenueActivity`; ogranicza koszt home/retention. |
+| Ranked save nie jest atomowy end-to-end: run insert, leaderboard, profile stats, XP/favorite lecą jako osobne operacje. | 5 | L | Zaprojektować `finalize_ranked_run` RPC, które zapisuje run, PB, leaderboard, profile stats i wynik progresji w jednej transakcji. | Migracja + zmiana `src/lib/api.ts`/`runSubmit.ts`; ranking core = 🟡/🔴 graniczne. |
+| `useRealRun` renderuje timer co 50 ms razem z szerszym stanem runu. | 4 | M | Odizolować high-frequency timer w małym komponencie/refie, a GPS/status telemetry throttle'ować do 250-1000 ms. | `src/systems/useRealRun.ts`, `app/run/active.tsx`; core run UI = 🟡. |
 | Trzy współistniejące systemy typograficzne (`typography.ts`, `chunk9.ts`, `gameHud.ts`). | 2 | M | Zdecydować source of truth; prawdopodobnie `chunk9` dla UI + `gameHud` dla live stats, wygasić `typography.ts`. | Stopniowa migracja ekran po ekranie. |
+
+## Krok 5 — Produkt/GTM
+
+### Retention hooks — co przyciąga ridera z powrotem?
+
+| Hook | Stan w kodzie | Siła |
+|---|---|---|
+| PB na trasie | ✅ `is_pb` + `ResultPBBadge` + `increment_profile_runs` | Mocny — rider wie kiedy bije własny czas |
+| Rywal (gap above/below) | ✅ `MotivationStack`, `RivalAbove` komponent | Mocny — social proof, „dogonić Kasię” |
+| Season | 🟡 tylko `spots.season_label = 'SEASON 01'` + hero beat; brak agregowanego season board | Słaby — nie ma wrażenia startu/końca sezonu |
+| Streak | ✅ `useStreakState` na home | Średni — drobny, nie eksponowany |
+| Daily challenges | ✅ `challenges` tabela + `useDailyChallenges` | Średni — istnieje, ale UX challenge wymaga pokazania efektu |
+| Rank progression (rider→sender→…) | ✅ `increment_profile_xp` + rank thresholds | Średni — widoczne na profilu, ale nie wchodzi do loop po każdym rundzie |
+
+🟡 **Największa dziura retencyjna**: sezon nie ma końcówki. Brak countdown, brak wyraźnego podium finale, brak "sezon 2 start w dn. X". Bez tego nie ma cyklicznego triggera powrotu.
+
+### Viral / akwizycja
+
+- 🔴 **Brak mechaniki share'owania wyniku**. Result screen nie ma "udostępnij czas/PB" (Instagram story/Strava). Najtańszy viral hook nie zrobiony.
+- 🟡 **Pioneer submission jako user-generated content**: każdy rider może dodać bike park + trail → silny UGC moat, ale flow wymaga zaufanego ridera z kalibracją. Dziś nie ma mechaniki "zaproś do parku" / deep link do konkretnego parku.
+- 🟡 **Leaderboard profilu jest publiczny w DB (RLS: SELECT all)** ale nie ma web-widoku ani share link. Strava poor-man's social loop wyczekuje implementacji.
+
+### Monetization
+
+- 🔴 **Brak dziś** — żadnego IAP, RevenueCat, subscription, donatów. Per `docs/CURRENT_STATE.md` status NOT_STARTED.
+- 🟡 **Potencjał**: premium features, które NIE blokują core ligi (bo to zabiłoby trust): cosmetic ranks/avatars, advanced stats (split times, corridor analysis), prywatne league/club creation, sponsored park rewards.
+- 🟡 **Anti-pattern do unikania**: pay-to-rank. Jakiekolwiek IAP wpływające na leaderboard = koniec zaufania.
+
+### Moat & competitive position
+
+- 🟢 **Pioneer-first geometry** — pierwszy rider na trasie zostawia kanoniczną linię, kolejne runy są scorowane względem niej. To tworzy "first-mover advantage" per-trail i lock-in dla early community.
+- 🔴 **Crowd validation gap** (memory note `crowd_validation_gap`) — brak RPC do crowd-confirm poprawnej geometrii po kalibracji. Jeśli Pioneer narysuje złą linię, trasa jest zepsuta permanentnie. To NIE moat — to product blocker.
+- 🔴 **PL-only region taxonomy** (memory note `world_app_vs_voivodeship`) — `spots.region` hardcoded do 16 województw. Rider poza PL nie ma jak zgłosić parku. Blokuje globalny rollout.
+- 🟡 **Game framing vs utility framing** (memory note `feedback_game_framing`) — UI ma jeszcze fragmenty utility-speak (CURRENT_STATE.md używa słów "feature", "flow"). Każdy ekran musi czytać się jak gra (quest, mission, slot, season).
+
+### Trust model — decyzja strategiczna
+
+| Opcja | Co zyskujemy | Co kosztuje | Kiedy podjąć |
+|---|---|---|---|
+| **A. Social-trust (status quo)** — klient wysyła trace, RPC ufa; detection outlierów po fakcie (duplikaty, niemożliwe czasy, report-a-rider). | Szybkie do zbudowania; wystarczy dla early community 100-1000 riderów. | Przy rosnącej stawce (sponsorzy, season prizes) cheat jest trywialny; kompromituje tablice. | Zostajemy tu dopóki nie ma monetizacji ani formalnej ligi. |
+| **B. Server-side re-verify** — RPC re-ocenia eligibility (`validateRunEligibility` w SQL) + cross-check duplikatów trace. | Średni koszt; eliminuje 80% taniego cheatu (manualne replay'e). | Nie chroni przed sfałszowanym trace z drugiego urządzenia. | Gdy tablice zaczynają mieć stawkę społeczną (np. publiczny podium Słotwiny). |
+| **C. Device attestation + nonce** — serwer wydaje session nonce, klient podpisuje każdy sample, attestation (Apple DeviceCheck / Google Play Integrity). | Eliminuje forgery bez root/jailbreak. | Drogie w implementacji; bariera dla Android side-load community. | Przy oficjalnych rankingach parku lub sponsoring contract. |
+
+**Rekomendacja**: A → B w horyzoncie 3 miesięcy (gdy liga wchodzi na 100+ aktywnych riderów/park). C odłożyć do momentu, gdy jest realna stawka.
+
+### TOP 5 product priorities
+
+1. 🔴 **Crowd validation RPC** — riderzy po Pioneer mogą flag / confirm / contribute do rekalibracji. Bez tego pierwsza zła linia = zepsuta trasa na zawsze.
+2. 🔴 **Run result share** — generator karty wyniku (PNG) + share sheet. Najcieniszy viral hook, najtańszy.
+3. 🟡 **Season finale/countdown** — agregowany season board + widoczny end-date + triggered "Season 02 starts" push. Retencja cykliczna.
+4. 🟡 **Region taxonomy globalization** — `spots.country` + `spots.region` z fallbackiem. Odblokowuje non-PL rollout.
+5. 🟡 **Server-side eligibility re-verify w RPC (trust model B)** — mirror `quality.ts` do SQL przed insertem. Tańszy hedge niż pełne attestation.
 
 ## 🔴 Do dyskusji strategicznej
 
 | Temat | Dlaczego strategiczne | Decyzja do podjęcia |
 |---|---|---|
-| **Trust model: klient jest wiarygodny** — `gps_trace`, `verification_summary`, `geometry` idą do RPC bez cryptographic commitmentu. Attacker z read-access do czyjegoś runa może podstawić trace jako własny. | To nie bug, to model zaufania. Dziś NWD zakłada "rider jest uczciwy" — na MVP/early community OK, ale gdy pojawi się stawka (season prizes, sponsoring, oficjalne rankingi parku), ten model przestaje wystarczać. | Założenie na KROK 5: czy wprowadzamy signed device attestation / server-side geometry replay / trail-version nonce, czy akceptujemy social-trust model i liczymy na detection po fakcie (outlier times, duplicate traces). |
+| **Trust model: klient jest wiarygodny** — `gps_trace`, `verification_summary`, `geometry` idą do RPC bez cryptographic commitmentu. Attacker z read-access do czyjegoś runa może podstawić trace jako własny. | Dziś NWD zakłada "rider jest uczciwy" — na MVP/early community OK, ale gdy pojawi się stawka ten model przestaje wystarczać. | Opcja A (status quo) teraz → B (server re-verify) w 3 mies. → C (attestation) przy oficjalnej stawce. |
+| **Crowd validation gap** — Pioneer rysuje linię raz i trwa ona do ręcznej interwencji. Błędna geometria = permanentnie zepsuta trasa. | Core product blocker; podkopuje cały Pioneer-first moat. Bez tego async racing się nie skaluje. | Zaprojektować RPC `submit_calibration_vote(trail_id, action: 'confirm'/'flag'/'contribute_geometry')` i UI do głosowania po każdym rundzie. |
+| **PL-only region taxonomy** — 16 województw hardcoded blokuje wejście na rynki non-PL. | Jeśli celem jest globalna app, trzeba zmienić teraz, bo migracja regionów po większej bazie jest droższa. | Refactor `spots.region` → `spots.country_code` + `spots.admin_region` przed pierwszym non-PL riderem. |
+| **Monetization ścieżka** — dziś brak. Decyzja "kiedy zacząć i na czym" determinuje roadmapę 6 miesięcy. | Zbyt wczesne paywall = śmierć early community. Zbyt późne = brak bufora finansowego. | Uzgodnić model: cosmetic-only vs premium-stats vs sponsored-park revenue share. Żadne z nich nie może dotykać rankingu. |
 
 ## TOP 10 do zrobienia teraz
 
@@ -295,11 +383,11 @@ Uzupełnienie sweepu o ekonomikę backendu i a11y, których nie pokrywa UI-pass.
 |---:|---|---:|---|---|
 | 1 | Uporządkować źródło prawdy dla venue/trail geometry | 5 | M | 🟡 |
 | 2 | Ranked background-permission preflight | 5 | M | 🟡 |
-| 3 | Corridor distance point-to-segment zamiast point-to-point | 4 | M | 🟡 |
-| 4 | Network-based retry dla offline queues | 4 | M | 🟡 |
-| 5 | UI sweep pre-ride i live timer pod rękawiczki/słońce | 5 | M | 🟢/🟡 pass done |
-| 6 | Cancellable fetch guardy w `useBackend.ts` | 3 | M | 🟡 |
-| 7 | Zaktualizować `docs/CURRENT_STATE.md` | 2 | S | 🟡 |
-| 8 | Orphan run recovery na `run/result` | 4 | M | 🟡 |
-| 9 | Leaderboard TTL cache (reads OK, ale leaderboard hot path) | 4 | S | 🟡 |
-| 10 | Produkt/GTM: retention, viral, monetization, moat | 4 | M | Przed nami |
+| 3 | Ranked save atomowy server-side (`finalize_ranked_run`) albo jawny recovery dla partial writes | 5 | L | 🟡/🔴 |
+| 4 | Corridor distance point-to-segment zamiast point-to-point | 4 | M | 🟡 |
+| 5 | Network-based retry dla offline queues | 4 | M | 🟡 |
+| 6 | Zbić hot reads: `fetchBikeParkTrails` N+1 + `fetchRiderBoardContext` 3x per trail | 4 | M | 🟡 |
+| 7 | Orphan run recovery na `run/result` | 4 | M | 🟡 |
+| 8 | Trail/result share card jako viral hook | 5 | M | 🔴 |
+| 9 | Crowd validation dla Pioneer geometry | 5 | L | 🔴 |
+| 10 | Season finale/countdown jako retention loop | 4 | M | 🟡 |
