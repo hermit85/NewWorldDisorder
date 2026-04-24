@@ -106,7 +106,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 navigation.navigate(route.name, route.params);
               }
               if (Platform.OS === 'ios') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
               }
             }}
             style={styles.pressable}
