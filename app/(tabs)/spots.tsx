@@ -124,6 +124,11 @@ export default function SpotsScreen() {
 
   const isEmptyAll = status === 'empty' || (status === 'ok' && spots.length === 0);
   const isEmptyFilter = status === 'ok' && spots.length > 0 && visible.length === 0;
+  // Cold-start skeleton — avoids a blank screen (and, on slow links, a
+  // jarring filter-row-then-empty flicker) while useActiveSpots resolves.
+  // Refresh hits keep the existing list visible so we only show skeleton
+  // when we truly have nothing cached.
+  const isInitialLoading = status === 'loading' && spots.length === 0;
 
   const activeCount = spots.filter((s) => s.status === 'active' && s.trailCount > 0).length;
   const headerSubtitle = isEmptyAll
@@ -149,7 +154,7 @@ export default function SpotsScreen() {
           ) : null}
         </View>
 
-        {isEmptyAll ? null : (
+        {isEmptyAll || isInitialLoading ? null : (
           <View style={styles.filterRow}>
             <FilterPill label="Wszystkie" active={filter === 'all'} onPress={() => setFilter('all')} />
             <FilterPill label="Aktywne" active={filter === 'active'} onPress={() => setFilter('active')} />
@@ -157,7 +162,16 @@ export default function SpotsScreen() {
           </View>
         )}
 
-        {status === 'error' ? (
+        {isInitialLoading ? (
+          <View style={styles.list} accessibilityLabel="Ładuję spoty" accessibilityRole="progressbar">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View key={i} style={styles.rowSkeleton}>
+                <View style={styles.skeletonTitle} />
+                <View style={styles.skeletonMeta} />
+              </View>
+            ))}
+          </View>
+        ) : status === 'error' ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Tryb awaryjny</Text>
             <Text style={styles.emptyBody}>Spoty nie dojechały. Spróbuj jeszcze raz.</Text>
@@ -252,6 +266,25 @@ const styles = StyleSheet.create({
     color: chunk9Colors.text.tertiary,
     fontSize: 22,
     lineHeight: 22,
+  },
+  rowSkeleton: {
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: chunk9Colors.bg.hairline,
+    gap: 8,
+  },
+  skeletonTitle: {
+    height: 16,
+    width: '60%',
+    borderRadius: 4,
+    backgroundColor: chunk9Colors.bg.hairline,
+  },
+  skeletonMeta: {
+    height: 10,
+    width: '35%',
+    borderRadius: 4,
+    backgroundColor: chunk9Colors.bg.hairline,
+    opacity: 0.6,
   },
   rowMeta: {
     ...chunk9Typography.body13,
