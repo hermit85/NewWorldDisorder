@@ -112,6 +112,12 @@ export default function RootLayout() {
     tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 1200);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    };
+  }, []);
+
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
   }
