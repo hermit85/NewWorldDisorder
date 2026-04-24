@@ -127,7 +127,10 @@ const styles = StyleSheet.create({
   },
   inlineLink: {
     alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 4,
+    paddingHorizontal: 4,
   },
   inlineLinkPressed: {
     opacity: 0.75,
