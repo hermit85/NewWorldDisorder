@@ -204,6 +204,12 @@ export function useRealRun(
   const trackingActiveRef = useRef(false);
   const mountedRef = useRef(true);
   const finalizingRef = useRef(false);
+  /** Gate finish crossing timestamp — captured in the finish callback
+   *  so the finalization effect can pass it to `finishTrace`. Without
+   *  this the trace's `finishedAt` falls back to `Date.now()` at
+   *  finalize-time, and `durationMs = Date.now() - startedAt` drifts
+   *  from the true gate-to-gate interval (Codex P0.2). */
+  const autoFinishTimestampRef = useRef<number | null>(null);
   /** Highest sample timestamp the gate engine has already consumed.
    *  Foreground watchPositionAsync and the background TaskManager
    *  task both deliver into processSample — this cursor dedups
@@ -451,7 +457,11 @@ export function useRealRun(
     });
 
     announceAutoStart();
-    startRunInternal(true);
+    // Thread the gate crossing timestamp through so trace.startedAt
+    // reflects the real on-course moment, not the callback wall-clock
+    // (Codex P0.2). `crossingTimestamp` is always set on a crossed
+    // result — the gate engine only calls us with `crossed=true`.
+    startRunInternal(true, crossing.crossingTimestamp ?? undefined);
   };
 
   gateFinishCallbackRef.current = (crossing: GateCrossingResult) => {
@@ -477,12 +487,18 @@ export function useRealRun(
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    const finalElapsed = s.startedAt ? Date.now() - s.startedAt : s.elapsedMs;
+    // Codex P0.2: ranked elapsed must be gate-to-gate, not wall-clock.
+    // Capture the finish crossing timestamp here so finalization can
+    // seal the trace with it, and derive `elapsedMs` from the same
+    // source so the UI doesn't briefly show a different number.
+    const finishTs = crossing.crossingTimestamp ?? Date.now();
+    autoFinishTimestampRef.current = finishTs;
+    const finalElapsed = s.startedAt ? finishTs - s.startedAt : s.elapsedMs;
     announceAutoFinish(finalElapsed);
     safeSetState((prev) => ({
       ...prev,
       phase: 'finishing' as RunPhaseV2,
-      elapsedMs: prev.startedAt ? Date.now() - prev.startedAt : prev.elapsedMs,
+      elapsedMs: prev.startedAt ? finishTs - prev.startedAt : prev.elapsedMs,
       gateAutoFinished: true,
     }));
   };
@@ -501,23 +517,30 @@ export function useRealRun(
     }));
   }, [safeSetState]);
 
-  const startRunInternal = useCallback((autoStarted: boolean = false) => {
+  const startRunInternal = useCallback((
+    autoStarted: boolean = false,
+    startedAtMs?: number,
+  ) => {
     finalizingRef.current = false;
+    autoFinishTimestampRef.current = null;
     const sessionId = createRunSessionId();
     const currentMode = stateRef.current.mode;
+    // Codex P0.2: for gate auto-start, use the crossing timestamp so
+    // trace + state + server RPC all agree on the same `startedAt`.
+    // Manual-start and practice fall back to wall-clock.
+    const startedAt = startedAtMs ?? Date.now();
     logDebugEvent('run', 'started', 'ok', {
       runSessionId: sessionId,
       trailId,
-      payload: { mode: currentMode, autoStarted },
+      payload: { mode: currentMode, autoStarted, startedAt },
     });
-    const trace = beginTrace(trailId, trailName, currentMode);
-    const now = Date.now();
+    const trace = beginTrace(trailId, trailName, currentMode, startedAt);
 
     safeSetState((s) => ({
       ...s,
       runSessionId: sessionId,
       phase: s.mode === 'ranked' ? 'running_ranked' : 'running_practice',
-      startedAt: now,
+      startedAt,
       elapsedMs: 0,
       trace,
       checkpoints: geo ? buildCheckpoints(geo) : [],
@@ -627,6 +650,7 @@ export function useRealRun(
 
   const cancel = useCallback(() => {
     finalizingRef.current = false;
+    autoFinishTimestampRef.current = null;
     stopAll(); // also resets buffer with floor + clears drainBufferRef
     stopGateSpeech();
     clearActiveTrace();
@@ -662,7 +686,10 @@ export function useRealRun(
       if (!mountedRef.current) return;
       safeSetState((s) => ({ ...s, phase: 'verifying' }));
 
-      const completedTrace = finishTrace();
+      // Codex P0.2: seal trace with gate finish timestamp when we have
+      // one. Practice / manual-finish paths leave it null → finishTrace
+      // falls back to `Date.now()`, which is correct for those modes.
+      const completedTrace = finishTrace(autoFinishTimestampRef.current ?? undefined);
       const currentSessionId = sessionIdRef.current;
 
       if (!completedTrace || !geo) {

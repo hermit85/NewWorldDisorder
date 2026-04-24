@@ -23,13 +23,26 @@ export interface RunTrace {
 
 let _activeTrace: RunTrace | null = null;
 
-export function beginTrace(trailId: string, trailName: string, mode: RunMode): RunTrace {
+/**
+ * Begin capturing a run trace. `startedAt` defaults to `Date.now()` for
+ * practice / manual-start paths. Ranked auto-started runs pass the
+ * gate crossing timestamp so that `finishedAt - startedAt` reflects
+ * the real on-course interval, not wall-clock from phase transition.
+ * This is what the server `submit_run` RPC uses to cross-check
+ * `duration_ms` within its 2000ms tolerance.
+ */
+export function beginTrace(
+  trailId: string,
+  trailName: string,
+  mode: RunMode,
+  startedAt: number = Date.now(),
+): RunTrace {
   _activeTrace = {
     id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     trailId,
     trailName,
     mode,
-    startedAt: Date.now(),
+    startedAt,
     finishedAt: null,
     durationMs: 0,
     points: [],
@@ -45,9 +58,15 @@ export function addPoint(point: GpsPoint): void {
   }
 }
 
-export function finishTrace(): RunTrace | null {
+/**
+ * Seal the active trace. `finishedAt` defaults to `Date.now()`. Pass
+ * the gate finish `crossingTimestamp` for auto-finished ranked runs
+ * so `durationMs` is the true gate-to-gate interval — the only value
+ * the server RPC will accept against its wall-clock tolerance check.
+ */
+export function finishTrace(finishedAt: number = Date.now()): RunTrace | null {
   if (!_activeTrace) return null;
-  _activeTrace.finishedAt = Date.now();
+  _activeTrace.finishedAt = finishedAt;
   _activeTrace.durationMs = _activeTrace.finishedAt - _activeTrace.startedAt;
   const trace = { ..._activeTrace };
   return trace;
