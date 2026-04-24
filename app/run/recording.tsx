@@ -226,7 +226,7 @@ export default function RecordingScreen() {
     const second = Math.ceil(state.remainingMs / 1000);
     if (lastCountdownSecondRef.current !== second) {
       lastCountdownSecondRef.current = second;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
       countdownScale.setValue(1.2);
       Animated.timing(countdownScale, {
         toValue: 1,
@@ -241,7 +241,7 @@ export default function RecordingScreen() {
 
   useEffect(() => {
     if (prevPhaseRef.current === 'countdown' && state.phase === 'recording') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
     }
     prevPhaseRef.current = state.phase;
   }, [state.phase]);
@@ -251,7 +251,7 @@ export default function RecordingScreen() {
   useEffect(() => {
     if (state.phase !== 'recording') return;
     if (state.weakSignal && !lastWeakSignalRef.current) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     }
     lastWeakSignalRef.current = state.weakSignal;
   }, [state]);
@@ -261,7 +261,7 @@ export default function RecordingScreen() {
   useEffect(() => {
     if (state.phase === 'timeout_grace' && !enteredGraceRef.current) {
       enteredGraceRef.current = true;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
     } else if (state.phase !== 'timeout_grace') {
       enteredGraceRef.current = false;
     }
@@ -343,7 +343,7 @@ export default function RecordingScreen() {
   // ── Handlers ─────────────────────────────────────────────
 
   const handleCancelPress = useCallback(() => {
-    Haptics.selectionAsync();
+    Haptics.selectionAsync().catch(() => undefined);
     Alert.alert(
       'Odrzucić nagranie?',
       'Trasa zostanie, ale ten zjazd nie zostanie zapisany.',
@@ -353,7 +353,7 @@ export default function RecordingScreen() {
           text: 'Odrzuć',
           style: 'destructive',
           onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
             cancelRecording();
           },
         },
@@ -362,12 +362,12 @@ export default function RecordingScreen() {
   }, [cancelRecording]);
 
   const handleStopPress = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     stopRecording();
   }, [stopRecording]);
 
   const handleExtend = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
     extendTimeout();
   }, [extendTimeout]);
 
@@ -378,7 +378,7 @@ export default function RecordingScreen() {
   // its own subscription after the 3s pre-roll; brief overlap is
   // intentional and accepted.
   const beginRecording = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     setHasStarted(true);
     void startCountdown();
   }, [startCountdown]);
@@ -388,7 +388,7 @@ export default function RecordingScreen() {
   // an explainer), surface the explainer modal first so the iOS
   // prompt arrives with context. Otherwise begin immediately.
   const handleStart = useCallback(() => {
-    Haptics.selectionAsync();
+    Haptics.selectionAsync().catch(() => undefined);
     if (permission.backgroundStatus === 'granted') {
       beginRecording();
       return;
@@ -450,7 +450,7 @@ export default function RecordingScreen() {
             </View>
             <Pressable
               onPress={() => {
-                Haptics.selectionAsync();
+                Haptics.selectionAsync().catch(() => undefined);
                 void Linking.openSettings();
               }}
               style={({ pressed }) => [
@@ -479,7 +479,7 @@ export default function RecordingScreen() {
               </Text>
               <Pressable
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
                   void resumeSession();
                 }}
                 style={({ pressed }) => [
@@ -492,7 +492,7 @@ export default function RecordingScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  Haptics.selectionAsync();
+                  Haptics.selectionAsync().catch(() => undefined);
                   void discardResumable();
                 }}
                 style={styles.resumableCancel}
@@ -516,7 +516,7 @@ export default function RecordingScreen() {
               </Text>
               <Pressable
                 onPress={() => {
-                  Haptics.selectionAsync();
+                  Haptics.selectionAsync().catch(() => undefined);
                   void discardResumable();
                 }}
                 style={({ pressed }) => [
@@ -698,7 +698,7 @@ export default function RecordingScreen() {
               <Text style={styles.storageErrorBody}>{state.message}</Text>
               <Pressable
                 onPress={() => {
-                  Haptics.selectionAsync();
+                  Haptics.selectionAsync().catch(() => undefined);
                   void startCountdown();
                 }}
                 style={({ pressed }) => [
