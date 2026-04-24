@@ -26,6 +26,7 @@ export default function ActiveRunScreen() {
   const navigation = useNavigation();
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
+  const debugTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { profile, isAuthenticated } = useAuthContext();
 
@@ -129,8 +130,15 @@ export default function ActiveRunScreen() {
       setShowDebug((s) => !s);
       setDebugTaps(0);
     }
-    setTimeout(() => setDebugTaps(0), 800);
+    if (debugTapTimerRef.current) clearTimeout(debugTapTimerRef.current);
+    debugTapTimerRef.current = setTimeout(() => setDebugTaps(0), 800);
   }, [debugTaps]);
+
+  useEffect(() => {
+    return () => {
+      if (debugTapTimerRef.current) clearTimeout(debugTapTimerRef.current);
+    };
+  }, []);
 
   const handleTap = () => {
     switch (state.phase) {
