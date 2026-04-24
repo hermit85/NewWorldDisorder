@@ -1,7 +1,7 @@
 # NWD Audit Report — 2026-04-24
 
 ## Executive Summary
-- 🟢 Naprawione do tej pory: 0.
+- 🟢 Naprawione do tej pory: 5.
 - 🟡 Do zatwierdzenia: 3.
 - 🔴 Do dyskusji strategicznej: 0 na tym etapie audytu.
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
@@ -77,9 +77,13 @@
 
 ## 🟢 Co już naprawiłem
 
-| Plik | Zmiana | Commit hash | Kategoria |
+| Plik | Zmiana | Commit | Kategoria |
 |---|---|---|---|
-| — | — | — | — |
+| `app/_layout.tsx` | `initSpotSubmissionQueue()` wołane przy starcie — kolejka offline zgłoszeń bike parków nie była hydratowana, więc zapisane lokalnie spoty nigdy nie szły do backendu. | `c05d069` | offline/resilience |
+| `src/services/spotSubmission.ts` | Przy drenażu kolejki zgłoszeń spotów transient errors (sieć, 5xx) nie kasują już lokalnego recordu — tylko trwałe 4xx zdejmują go z kolejki. | `24b09a6` | offline/resilience |
+| `app/run/active.tsx` | Debug-tap `setTimeout` czyszczony przy re-tapie i unmount — przestaje wyciekać i próbować setState po unmount. | `4dbefbe` | memory leak / crash guard |
+| `app/_layout.tsx` | Cleanup timera globalnego debug triggera przy unmount roota. | `ac3429d` | memory leak |
+| `app/(tabs)/_layout.tsx` | Haptic feedback opakowany w `.catch(() => undefined)` — odrzucone promise nie propaguje się jako unhandled rejection na Androidzie bez OS-level haptics. | `d9d69da` | stability |
 
 ## 🟡 Rekomendacje do zatwierdzenia
 
