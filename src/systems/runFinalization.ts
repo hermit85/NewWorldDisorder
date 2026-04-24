@@ -200,10 +200,18 @@ export function finalizeRun(input: FinalizationInput): FinalizationResult {
   return { verification, qualityAssessment, finalPhase, finalEligible };
 }
 
+// Defense-in-depth: the live path (useRealRun.processSample) already rejects
+// out-of-order samples via lastProcessedTsRef, so trace.points SHOULD be
+// monotonic by timestamp. We re-sort here anyway because a single out-of-order
+// sample leaking through (future code path, deserialized trace, test fixture)
+// would inflate distanceRatio and hand a rider a false corridor_rescue pass.
+// Cost is O(n log n) on a few hundred points, runs once per finalization.
 function totalTraceDistanceM(points: GpsPoint[]): number {
+  if (points.length < 2) return 0;
+  const ordered = [...points].sort((a, b) => a.timestamp - b.timestamp);
   let total = 0;
-  for (let i = 1; i < points.length; i++) {
-    total += distanceBetween(points[i - 1], points[i]);
+  for (let i = 1; i < ordered.length; i++) {
+    total += distanceBetween(ordered[i - 1], ordered[i]);
   }
   return total;
 }
