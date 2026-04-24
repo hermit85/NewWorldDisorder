@@ -1,8 +1,8 @@
 # NWD Audit Report — 2026-04-24
 
 ## Executive Summary
-- 🟢 Naprawione do tej pory: 5.
-- 🟡 Do zatwierdzenia: 3.
+- 🟢 Naprawione do tej pory: 6.
+- 🟡 Do zatwierdzenia: 8.
 - 🔴 Do dyskusji strategicznej: 0 na tym etapie audytu.
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
@@ -11,6 +11,7 @@
 - Nie ma Mapboxa; mapy są na `react-native-maps`, SVG/custom mapach i web fallbackach.
 - Offline jest częściowo zaadresowany: kolejka zapisów runów, kolejka zgłoszeń bike parków, lokalny run store, background location dla runów i Pioneer recording.
 - Największy obszar ryzyka do dalszego sprawdzenia: ranking/timing i gate/corridor rescue, bo każde zachowanie tam wpływa na zaufanie do ligi.
+- Krok 2: nie znalazłem aktywnych `supabase.channel()` realtime subskrypcji do posprzątania; realtime ryzyko jest dziś bardziej produktem przyszłym niż obecnym bugiem.
 
 ## Krok 1 — Inwentaryzacja
 
@@ -84,6 +85,21 @@
 | `app/run/active.tsx` | Debug-tap `setTimeout` czyszczony przy re-tapie i unmount — przestaje wyciekać i próbować setState po unmount. | `4dbefbe` | memory leak / crash guard |
 | `app/_layout.tsx` | Cleanup timera globalnego debug triggera przy unmount roota. | `ac3429d` | memory leak |
 | `app/(tabs)/_layout.tsx` | Haptic feedback opakowany w `.catch(() => undefined)` — odrzucone promise nie propaguje się jako unhandled rejection na Androidzie bez OS-level haptics. | `d9d69da` | stability |
+| `app/run/recording.tsx` | Haptic feedback w Pioneer recording opakowany w `.catch(() => undefined)`, żeby nie przerywał flow nagrywania ani nie generował unhandled rejection. | `62634d2` | stability |
+
+## Krok 2 — Sweep Bugowy
+
+### Wyniki
+
+| Obszar | Status | Wniosek |
+|---|---|---|
+| Nieobsłużone promise | 🟢/🟡 | Naprawiłem haptics w tab barze i recording. W większych hookach backendowych zostaje temat stale async updates — patrz rekomendacje. |
+| Race conditions w timerach/listenerach | 🟢/🟡 | Naprawiłem dwa dev timery bez cleanupu. Core run ma zabezpieczenia (`finalizingRef`, `trackingActiveRef`, background buffer floor), ale wymaga testu terenowego. |
+| Memory leaki | 🟢 | Dwa oczywiste timeout leak fixy zrobione. AppState/Auth/Linking listener cleanup wygląda poprawnie. |
+| Offline | 🟢/🟡 | Naprawiłem queue init i odporność spot queue drain. Run queue istnieje i hydratuje `saving/pending` do `queued`, ale retry jest app-state based, nie network based. |
+| Gate detection / `corridor_rescue` | 🟡 | Tylko raport: nie ruszałem core rankingu. Widzę ryzyka w źródle geometrii i sposobie liczenia korytarza. |
+| Uprawnienia location/motion | 🟡 | Location permissiony są obsłużone, motion permissions nie są używane. Ryzyko: ranked/practice flow nie komunikuje jasno braku background location tak dobrze jak Pioneer recording. |
+| Realtime Supabase | Info | Brak aktywnych realtime kanałów poza auth listenerem, więc nie ma dziś subskrypcji `postgres_changes` do odpinania. |
 
 ## 🟡 Rekomendacje do zatwierdzenia
 
@@ -92,21 +108,26 @@
 | Pusty `src/data/venues` kontra logika nadal pytająca `getVenueForTrail()` może powodować rozjazd komunikatów trening/ranking i fallbacków gate config. | 5 | M | Jednoznacznie wybrać źródło prawdy: albo DB-only i usunąć/odłączyć zależności od static venue w core flow, albo dynamicznie hydratować registry z DB przed użyciem. | Zmiany w `src/data/venues`, `app/run/active.tsx`, `app/trail/[id].tsx`, `app/(tabs)/leaderboard.tsx`; bez zgody nie ruszam, bo dotyka rankingu. |
 | Dokumentacja `docs/CURRENT_STATE.md` opisuje nieistniejący tab `history` i starszą strukturę mock/venue. | 2 | S | Zaktualizować snapshot albo oznaczyć jako historyczny, żeby founder/dev nie podejmował decyzji na starym obrazie systemu. | Docs-only patch w `docs/CURRENT_STATE.md`. |
 | Główny trail picker nie jest bottom sheetem mapowym, mimo że taki komponent istnieje (`TrailDrawer`). | 3 | M | Zdecydować, czy core flow ma być list-first czy map/bottom-sheet-first; potem dopiero projektować UX pod rękawiczki i słońce. | Prawdopodobnie layout flow w `spot/[id]`/map components; czeka na decyzję produktową. |
+| Run/spot retry odpala się przy starcie i powrocie appki na foreground, ale nie nasłuchuje realnego powrotu sieci. | 4 | M | Dodać network listener i retry po `isConnected=true`; dependency typu NetInfo wymaga zgody. | `package.json` + `src/systems/saveQueue.ts` + `src/services/spotSubmission.ts`; dependency change = 🟡. |
+| `useBackend.ts` ma wiele hooków bez `cancelled/mounted` guardu; szybkie przełączanie ekranu/parametru może pokazać stary wynik po nowym wyborze. | 3 | M | Wydzielić mały helper dla cancellable fetch albo dodać lokalne guardy do najbardziej używanych hooków (`useLeaderboard`, `useTrail`, `useSpot`, `useActiveSpots`). | Refactor >100 linii w shared data layer, więc czeka na OK. |
+| Ranked/practice run potrafi działać foreground-only, gdy brak background location; user może schować telefon i stracić sample bez tak mocnego ostrzeżenia jak w Pioneer recording. | 5 | M | Przed armed ranked sprawdzić background permission i pokazać jasny wybór: włącz „Zawsze” albo jedź trening/foreground-only. | `app/run/active.tsx`, `src/systems/gps.ts`, prawdopodobnie nowy state w `useRealRun`; dotyka core flow = 🟡. |
+| `evaluateCorridor()` mierzy dystans do najbliższego punktu polyline, nie do segmentu linii; przy rzadszej Pioneer geometrii może fałszywie zaniżać corridor coverage. | 4 | M | Liczyć dystans punkt-segment dla każdego odcinka albo uprościć geometrię z kontrolą maksymalnego odstępu punktów. | `src/systems/realVerification.ts` + testy; gate/corridor = 🟡. |
+| `corridor_rescue` jest mocne produktowo, ale akceptacja/odrzucenie zależy od kilku progów bez UI-audit trail dla ridera. | 5 | M | Dodać jasne explanation/telemetrię w result/debug: które warunki rescue przeszły, które nie. | `src/systems/runFinalization.ts`, result/debug UI; ranking trust = 🟡. |
 
 ## 🔴 Do dyskusji strategicznej
 
-Do uzupełnienia po Krokach 4-5.
+Do uzupełnienia po Krokach 4-5. Na etapie Kroku 2 nie wprowadzałem żadnych zmian 🔴.
 
 ## TOP 10 do zrobienia teraz
 
 | Priorytet | Temat | Impact | Effort | Status |
 |---:|---|---:|---|---|
-| 1 | Audyt ranking/timing/gate bez zmian w kodzie | 5 | M | W toku |
-| 2 | Uporządkować źródło prawdy dla venue/trail geometry | 5 | M | 🟡 |
-| 3 | Sprawdzić offline run save end-to-end | 5 | M | W toku |
-| 4 | Sprawdzić permission denied / weak GPS / background states | 5 | M | W toku |
+| 1 | Uporządkować źródło prawdy dla venue/trail geometry | 5 | M | 🟡 |
+| 2 | Ranked background-permission preflight | 5 | M | 🟡 |
+| 3 | Corridor distance point-to-segment zamiast point-to-point | 4 | M | 🟡 |
+| 4 | Network-based retry dla offline queues | 4 | M | 🟡 |
 | 5 | UI sweep pre-ride i live timer pod rękawiczki/słońce | 5 | M | W toku |
-| 6 | Zweryfikować realtime/subscription cleanup | 4 | S | W toku |
+| 6 | Cancellable fetch guardy w `useBackend.ts` | 3 | M | 🟡 |
 | 7 | Zaktualizować `docs/CURRENT_STATE.md` | 2 | S | 🟡 |
 | 8 | Sprawdzić leaderboard puste/error/loading states | 4 | S | W toku |
 | 9 | Oszacować reads/writes per ride | 3 | S | W toku |
