@@ -37,12 +37,18 @@ export function beginTrace(
   mode: RunMode,
   startedAt: number = Date.now(),
 ): RunTrace {
+  // B28: round to integer ms. iOS gate `crossing.crossingTimestamp` can
+  // carry sub-ms fractions from the underlying CLLocation timestamp,
+  // which propagate through `finishedAt - startedAt` into a float
+  // `durationMs`. The api.ts RPC boundary also rounds, but we round
+  // here too so FinalizedRun snapshots, retry payloads, and any local
+  // math all agree on the same integer value.
   _activeTrace = {
     id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     trailId,
     trailName,
     mode,
-    startedAt,
+    startedAt: Math.round(startedAt),
     finishedAt: null,
     durationMs: 0,
     points: [],
@@ -66,8 +72,13 @@ export function addPoint(point: GpsPoint): void {
  */
 export function finishTrace(finishedAt: number = Date.now()): RunTrace | null {
   if (!_activeTrace) return null;
-  _activeTrace.finishedAt = finishedAt;
-  _activeTrace.durationMs = _activeTrace.finishedAt - _activeTrace.startedAt;
+  // B28: round finishedAt symmetrically with beginTrace. Subtracting two
+  // integers yields an integer durationMs — the BIGINT column on
+  // Supabase accepts it without the RPC-boundary coercion having to
+  // paper over upstream math.
+  const roundedFinishedAt = Math.round(finishedAt);
+  _activeTrace.finishedAt = roundedFinishedAt;
+  _activeTrace.durationMs = roundedFinishedAt - _activeTrace.startedAt;
   const trace = { ..._activeTrace };
   return trace;
 }

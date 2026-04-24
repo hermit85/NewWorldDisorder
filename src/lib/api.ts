@@ -511,17 +511,27 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   // tampered payload still lands as a history row (mode=practice path)
   // but cannot land on the leaderboard.
   const verificationPayload = { ...verification, qualityTier: qualityTier ?? null };
+  // B28 — Walk-test B27 surfaced `invalid input syntax for type integer:
+  // "131996.16381835938"` on submit_run. The `p_duration_ms` Supabase
+  // column is BIGINT; our upstream pipeline can leak a float here because
+  // iOS GPS timestamps (used for `crossing.crossingTimestamp` → trace
+  // `startedAt` / `finishedAt`) carry sub-millisecond fractions, and
+  // `finishedAt - startedAt` preserves them. Integer-typed PG columns
+  // reject floats outright — even though the magnitude is fine. Round at
+  // the RPC boundary so no upstream code path can leak a non-integer,
+  // regardless of how durationMs was computed. Same belt-and-suspenders
+  // on `p_xp_awarded`; always an integer today but defensive is cheap.
   const { data, error } = await db().rpc('submit_run', {
     p_spot_id: spotId,
     p_trail_id: trailId,
     p_mode: mode,
     p_started_at: new Date(startedAt).toISOString(),
     p_finished_at: new Date(finishedAt).toISOString(),
-    p_duration_ms: durationMs,
+    p_duration_ms: Math.round(durationMs),
     p_verification_status: verification.status,
     p_verification_summary: verificationPayload as any,
     p_gps_trace: traceForStorage as any,
-    p_xp_awarded: xpAwarded,
+    p_xp_awarded: Math.round(xpAwarded),
   });
 
   if (error || !data) {
