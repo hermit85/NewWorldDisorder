@@ -2,7 +2,7 @@
 
 ## Executive Summary
 - 🟢 Naprawione do tej pory: 6.
-- 🟡 Do zatwierdzenia: 11.
+- 🟡 Do zatwierdzenia: 14.
 - 🔴 Do dyskusji strategicznej: 1 (zaufanie do wyniku ligi bez server-side re-weryfikacji).
 - Aplikacja mobilna faktycznie działa na Expo Router + React Native + Supabase; osobny `website/` to Next.js landing/legal, nie core produktu.
 - Core flow ridera jest obecny: wybór bike parku/trasy → pre-ride → auto-start ranked/practice → wynik → retry/offline save.
@@ -115,6 +115,31 @@ Dodatkowy przegląd gate engine + finalizacji + RPC `finalize_seed_run` + `delet
 | Cheating: forged `gps_trace` | 🔴 strategiczne | RPC ufa klientowi — `gps_trace jsonb` wstawiany wprost. Nie ma commitmentu/signature, który wiąże trace z urządzeniem ridera w sesji. Replay ataku cudzym tracem jest architektonicznie możliwy. Decyzja do KROK 5 (czy warto dziś rozwiązywać). |
 | Anti-cheat (non-forged) | 🟢 | `antiCheat.ts`: too_few_points, time-travel, 300m teleport, >120km/h, min 100m movement — wszystkie są i klient-side, i duplikowane w RPC check'ach. |
 
+## Krok 3 — State coverage (loading / empty / error / offline)
+
+Pass przez 8 kluczowych ekranów. Szukałem cliffów: białych ekranów, stuck spinnerów, useless errorów.
+
+| Ekran | Loading | Empty | Error | Offline |
+|---|---|---|---|---|
+| `(tabs)/index` | 🟢 cold skeleton | 🟡 anon card pokazany, reszta ukryta bez CTA | 🟢 tryb awaryjny + retry | 🟢 PTR, degraduje miękko |
+| `(tabs)/leaderboard` | 🟢 spinner | 🟢 trzy odrębne puste stany | 🟢 PONÓW card | 🟡 brak offline-specific UI |
+| `(tabs)/spots` | 🟡 brak skeletonu, flicker empty→list | 🟢 motywujący pusty | 🟢 tryb awaryjny | 🟢 PTR |
+| `(tabs)/profile` | 🟡 stats "—" nieodróżnialne od zera | 🟢 sign-in card dla anon | 🟡 `ok` z brakiem user obiektu | 🟢 PTR + orphan purge |
+| `spot/[id]` | 🟢 pełny spinner | 🟡 "MISSJA OTWARTA" redundant przy all_calibrating | 🟢 retry | 🟢 PTR |
+| `trail/[id]` | 🟡 draft pokazany ale leaderboard nadal ładuje | 🟢 "Tablica pusta" | 🟡 brak explicit error state dla board | 🟡 brak offline check |
+| `run/active` | 🟢 Readiness fallback | 🟡 "UNKNOWN TRAIL" dla deep linku do skasowanej trasy | 🟡 alert zamiast screen | 🟡 GPS state nie powiązany z network |
+| `run/result` | 🟢 czeka na runStore | 🔴 "Brak danych zjazdu" bez recovery CTA | 🟡 save fails silent przy offline toggle | 🟡 brak network vs server distinction |
+
+**Cross-cutting:**
+- `__DEV_MOCK_HERO_BEAT__` flag w `useBackend.ts:36-54` — dev-only, ale mechanizm w kodzie. Nie używany na prodzie, ale warto oznaczyć jako dev-only explicit guard.
+- Pull-to-refresh brakuje na `trail/[id]` board section.
+- Orphan states (trasa/spot skasowane server-side) pokazują "Unknown Trail" w [app/run/result.tsx:308](app/run/result.tsx:308) bez nav z dna. To pokrywa się z memory notką `bug_orphan_run_lock`.
+
+**TOP 3 state gaps do fixowania:**
+1. 🔴 `run/result` orphan recovery — brak CTA gdy trasa/spot skasowane podczas runu. Impact 4, Effort M.
+2. 🟡 `trail/[id]` cichy fail leaderboardu — lbLoading blokuje sekcję board bez error fallback. Impact 4, Effort S.
+3. 🟡 `(tabs)/spots` brak skeletonu przed fetch — flicker "brak" → lista. Impact 3, Effort S.
+
 ## 🟡 Rekomendacje do zatwierdzenia
 
 | Problem | Impact (1-5) | Effort | Proponowany fix | Diff preview |
@@ -131,6 +156,9 @@ Dodatkowy przegląd gate engine + finalizacji + RPC `finalize_seed_run` + `delet
 | RPC `finalize_seed_run` hardcoduje `counted_in_leaderboard = true` — żadna server-side re-weryfikacja kryteriów eligibility. | 4 | M | Przenieść decyzję eligibility do SQL funkcji validateRunEligibility(duration, distance, avgAccuracy, pointCount, geometry) i wywołać ją w RPC przed insertem. | Migracja + mirror logiki z `quality.ts`. Dotyka rankingu → 🟡. |
 | `delete_run` promocja bez filtra `trail_version_id` — przy rekalibracji traila może promować run z innej wersji. | 3 | S | Dodać `and trail_version_id = v_run.trail_version_id` do selecta next-best (linia ~137 migracji 20260424). | Nowa migracja (patch do delete_run). Bezpieczna. |
 | Brak zadania/joba do globalnego rerank po usunięciu runu. Inni riderzy widzą starą pozycję aż organicznie ktoś ich przeszacuje. | 4 | M | Albo inkrementalny rerank w samym RPC po promocji (prosty UPDATE z window function), albo edge-function cron po delete. | Migracja lub nowy edge function. Produktowo ważne, bo PB/ranking to core. |
+| `run/result` dla orphan runu (trasa/spot skasowane) nie ma drogi powrotu — "Unknown Trail" i brak CTA. Pokrywa się z `bug_orphan_run_lock`. | 4 | M | Fallback screen z "Trasa została usunięta — zjazd zachowany w historii" + WRÓĆ do profile/home. | `app/run/result.tsx`, może mały nowy komponent `OrphanRunCard`. |
+| `trail/[id]` cicho fail-uje gdy leaderboard się nie załaduje — lbLoading blokuje board bez error fallback. | 4 | S | Dodać error/retry CTA wewnątrz sekcji "Tablica" analogicznie jak w `(tabs)/leaderboard`. | `app/trail/[id].tsx` ~linie board render. |
+| `(tabs)/spots` brak skeletonu → flicker "Brak bike parków" przed listą. | 3 | S | Dodać małe skeleton rows dopóki `useActiveSpots` nie zwróci. | `app/(tabs)/spots.tsx`. |
 
 ## 🔴 Do dyskusji strategicznej
 
@@ -149,6 +177,6 @@ Dodatkowy przegląd gate engine + finalizacji + RPC `finalize_seed_run` + `delet
 | 5 | UI sweep pre-ride i live timer pod rękawiczki/słońce | 5 | M | W toku |
 | 6 | Cancellable fetch guardy w `useBackend.ts` | 3 | M | 🟡 |
 | 7 | Zaktualizować `docs/CURRENT_STATE.md` | 2 | S | 🟡 |
-| 8 | Sprawdzić leaderboard puste/error/loading states | 4 | S | W toku |
+| 8 | Orphan run recovery na `run/result` | 4 | M | 🟡 |
 | 9 | Oszacować reads/writes per ride | 3 | S | W toku |
 | 10 | Produkt/GTM: retention, viral, monetization, moat | 4 | M | Przed nami |
