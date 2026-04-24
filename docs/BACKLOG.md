@@ -5,6 +5,49 @@ buildzie. Priorytet rośnie od dołu — najwyższy na górze.
 
 ---
 
+## FAZA 3 · Wywal venueConfig, DB single source of truth
+
+**Dlaczego:** F1#10 postawił adapter `resolveVenue` z precedensem
+"static wygrywa, DB fallback", ale rejestr statyczny (`_venues` w
+`src/data/venueConfig.ts`) jest permanentnie pusty — `registerVenue`
+nie jest nigdy wołany w produkcji. Cała gałąź `source: 'static'` to
+martwy kod który i tak renderuje się ~18 razy w call siteach (maps,
+leaderboard, trail detail, build truth map, venue detection itd.)
+jako `venueMatch ? X : Y`.
+
+**Zakres FAZA 3 (równoczesny z globalnym rolloutem — patrz
+`world_app_vs_voivodeship.md`):**
+
+1. Usuń `src/data/venueConfig.ts` (VenueConfig interfejs, registry,
+   `registerVenue`, `getVenueForTrail`, `getVenue*`).
+2. Usuń `src/data/venues/index.ts` barrel.
+3. `resolveVenue` spłaszcz do DB-only: wywal gałąź static, zostaw
+   tylko `db`/`none`.
+4. Wszystkie 16 pozostałych call siteów (`Grep` na
+   `getVenueForTrail|venueMatch`) migruj do `resolveVenue` albo
+   bezpośrednio na `useTrail` + `useTrailGeometry`.
+5. Schema DB musi dostarczyć pola które dziś daje static: czy
+   `spots.ranking_enabled` (bool, default true) jest potrzebne?
+   Jeśli tak — migracja + UI w `/spot/new` / curator flow.
+6. Słotwiny legacy seed — jeśli istnieje w DB, zweryfikuj parity
+   przed usunięciem static backupu. Jeśli nie, migracja seed'owa.
+
+**Blokery przed startem:**
+- Decyzja produktowa czy `rankingEnabled` to przyszły feature dla
+  DB spotów (np. bike park który wyłącza ranking sezonowo) czy nie.
+- Potwierdzenie że `_venues` Map jest faktycznie pusta na prod
+  (brak `registerVenue(...)` w żadnym test-mode ani storybook).
+
+**Korzyść:** jeden model trailów, krótszy codebase, nie ma już
+"static wygrywa" zagadki w code review; odblokowuje refaktor
+`voivodeship → Country/Region` z osobnego memo.
+
+**Uwaga:** tego NIE robimy w FAZA 2 — performance/offline. Ten
+refactor dotyka trust-critical paths (ranked arm, gate config) i
+powinien iść razem z rolloutem globalnym, nie samodzielnie.
+
+---
+
 ## B21 — ⚠ P0 · Arm-then-cross flow (field test B20)
 
 **Dlaczego:** największa skarga z walk-in testu B20. Mini-mapka
