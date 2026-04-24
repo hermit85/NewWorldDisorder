@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Linking, AppState } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
@@ -84,6 +84,22 @@ export default function ActiveRunScreen() {
   // at arm time so the rider is either opted-in or consciously chooses
   // practice. No silent foreground-only ranked runs.
   const permission = useLocationPermission();
+
+  // Codex P1.1: when the Alert deep-links the rider to Settings and
+  // they flip Always → on, nothing re-reads the status on return.
+  // Without this listener the UI stays stuck in the denied branch
+  // until remount, and a second arm tap triggers a pointless prompt.
+  // Refresh on every foreground transition — it's a cheap
+  // Location.getBackgroundPermissionsAsync call.
+  const refreshPermission = permission.refresh;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        void refreshPermission();
+      }
+    });
+    return () => sub.remove();
+  }, [refreshPermission]);
 
   const armRankedWithPreflight = useCallback(async () => {
     if (permission.backgroundStatus === 'granted') {
