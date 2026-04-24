@@ -52,8 +52,16 @@ export const GATE_LINE_LENGTH_M = 4;
  *  show a compass arrow; within, we show a mini-map. */
 export const GATE_APPROACH_NEAR_M = 30;
 
-/** Distance boundary separating NEAR from ON_LINE_READY / WRONG_SIDE. */
-export const GATE_APPROACH_READY_M = 3;
+/** Distance boundary separating NEAR from ON_LINE_READY / WRONG_SIDE.
+ *  Field test B20 raised this from 3m to 15m. Reasoning: Apple GPS in
+ *  bike-park terrain sits at ±7-12m even with clear sky. At 3m the
+ *  rider stood visually IN the start circle on the mini-map but the
+ *  state machine ping-ponged between `near` and `on_line_ready` with
+ *  every jitter — timer never armed. The Chunk 8 gate engine still
+ *  does its own precise perpendicular-distance crossing detection
+ *  against the actual line geometry, so the only thing this radius
+ *  controls is "when does the UI stop saying 'podejdź bliżej'". */
+export const GATE_APPROACH_READY_M = 15;
 
 /** Max acceptable GPS horizontal accuracy for arming. Above this we
  *  force GPS_UNSURE so users get an honest "GPS weak" rather than a
@@ -63,14 +71,24 @@ export const GATE_ACCURACY_REQUIRED_M = 5;
 /** Navigator UI block threshold. Separate from GATE_ACCURACY_REQUIRED_M
  *  because Apple's foreground GPS in dense urban terrain routinely sits
  *  at ±7-12m even with a clean sky view — blocking the rider at 6m meant
- *  B20 field testers saw "GPS SŁABY" at GOTOWY on map. Gate engine still
- *  uses GATE_ACCURACY_REQUIRED_M for crossing-quality reporting; this
+ *  B20 field testers saw "GPS SŁABY" at GOTOWY on map. B21 walk-in test
+ *  pushed this further to 30m: urban forest sections (tree canopy) drop
+ *  to ±15-25m and riders couldn't arm at all. Gate engine still uses
+ *  GATE_ACCURACY_REQUIRED_M (5m) for crossing-quality reporting; this
  *  constant only decides when the approach UI gives up on guidance. */
-export const APPROACH_UNSURE_ACCURACY_M = 20;
+export const APPROACH_UNSURE_ACCURACY_M = 30;
 
-/** Max heading deviation from trail bearing tolerated when inside the
- *  ready radius. Matches the Chunk 8 start gate headingToleranceDeg. */
-export const GATE_HEADING_TOLERANCE_DEG = 60;
+/** Max heading deviation from trail bearing tolerated before the UI
+ *  shows "Podejdź z kierunku trasy". B21 raised from 60° to 90° —
+ *  at 60° even a rider rolling up parallel to the trail triggered
+ *  the wrong_side prompt, and 30-45° side-approach is a perfectly
+ *  legitimate rolling start. Only flip to wrong_side when the rider
+ *  is actually facing away (>90° means facing the rear hemisphere).
+ *  The gate engine's start gate uses its own headingToleranceDeg
+ *  (still 60°) for the actual crossing check, which is correct —
+ *  you can approach from wide angles but must be pointed downhill
+ *  when you cross. */
+export const GATE_HEADING_TOLERANCE_DEG = 90;
 
 /** Minimum perpendicular velocity (m/s) across the gate line for the
  *  Chunk 8 crossing detector to accept a cross. Filters out a stationary

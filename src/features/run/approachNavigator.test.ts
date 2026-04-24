@@ -67,24 +67,24 @@ function userSouthOfGate(meters: number) {
 // ── GPS quality gate (highest precedence) ──
 
 describe('computeApproachState — gps_unsure overrides everything', () => {
-  it('returns gps_unsure only when accuracy exceeds APPROACH_UNSURE_ACCURACY_M (20m)', () => {
+  it('returns gps_unsure only when accuracy exceeds APPROACH_UNSURE_ACCURACY_M (30m)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1), // on the line
       userHeading: 180,
-      userAccuracyM: 25,
+      userAccuracyM: 35,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
 
     expect(state.kind).toBe('gps_unsure');
-    if (state.kind === 'gps_unsure') expect(state.accuracyM).toBe(25);
+    if (state.kind === 'gps_unsure') expect(state.accuracyM).toBe(35);
   });
 
   it('returns gps_unsure even when user is far (beats FAR state)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(100),
       userHeading: 180,
-      userAccuracyM: 40,
+      userAccuracyM: 50,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
@@ -92,37 +92,37 @@ describe('computeApproachState — gps_unsure overrides everything', () => {
     expect(state.kind).toBe('gps_unsure');
   });
 
-  it('urban-GPS accuracy (7m) no longer blocks the navigator UI', () => {
-    // Field test B20: riders at GOTOWY with ±7-10m accuracy kept falling
-    // through to gps_unsure, which hid the start guidance entirely.
-    // Navigator threshold is now 20m; gate engine still uses 5m for its
-    // own crossing-quality assessment.
+  it('tree-canopy GPS accuracy (25m) no longer blocks the navigator UI', () => {
+    // B21 walk-in: under forest canopy accuracy routinely sits at ±15-25m.
+    // Previous 20m threshold trapped these riders in gps_unsure with no
+    // way forward. Navigator threshold is now 30m; gate engine still uses
+    // 5m for its own crossing-quality assessment.
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: 180,
-      userAccuracyM: 7,
+      userAccuracyM: 25,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
     expect(state.kind).toBe('on_line_ready');
   });
 
-  it('boundary: accuracy 20m exactly does NOT trigger gps_unsure', () => {
+  it('boundary: accuracy 30m exactly does NOT trigger gps_unsure', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: 180,
-      userAccuracyM: 20,
+      userAccuracyM: 30,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
     expect(state.kind).toBe('on_line_ready');
   });
 
-  it('boundary: accuracy 20.1m triggers gps_unsure', () => {
+  it('boundary: accuracy 30.1m triggers gps_unsure', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: 180,
-      userAccuracyM: 20.1,
+      userAccuracyM: 30.1,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
@@ -220,7 +220,7 @@ describe('computeApproachState — near', () => {
 
   it('returns near when compass is null (heading delta defaults to 0)', () => {
     const state = computeApproachState({
-      userPosition: userNorthOfGate(10),
+      userPosition: userNorthOfGate(20),
       userHeading: null,
       userAccuracyM: 3,
       userVelocityMps: 0,
@@ -233,7 +233,7 @@ describe('computeApproachState — near', () => {
 
   it('reports large headingDelta when user faces against the trail', () => {
     const state = computeApproachState({
-      userPosition: userNorthOfGate(10),
+      userPosition: userNorthOfGate(20),
       userHeading: 0, // opposite of 180 trailBearing → delta 180
       userAccuracyM: 3,
       userVelocityMps: 0,
@@ -244,11 +244,12 @@ describe('computeApproachState — near', () => {
     if (state.kind === 'near') expect(state.headingDeltaDeg).toBeCloseTo(180, 0);
   });
 
-  it('transitions to on_line_ready just inside the 3m boundary (2.5m lat offset)', () => {
-    // Same sub-meter great-circle drift rationale as the 30m boundary
-    // test — 2.5m gives us a reliable "just inside" probe.
+  it('transitions to on_line_ready just inside the 15m boundary (14.5m lat offset)', () => {
+    // B21 raised READY radius from 3m → 15m (Apple GPS jitter ±7-12m in
+    // bike-park terrain). Same sub-meter great-circle drift rationale —
+    // 14.5m gives us a reliable "just inside" probe.
     const state = computeApproachState({
-      userPosition: userNorthOfGate(2.5),
+      userPosition: userNorthOfGate(14.5),
       userHeading: 180,
       userAccuracyM: 3,
       userVelocityMps: 0,
@@ -262,9 +263,9 @@ describe('computeApproachState — near', () => {
 // ── ON_LINE_READY state ──
 
 describe('computeApproachState — on_line_ready', () => {
-  it('arms when inside 3m with heading aligned and good accuracy', () => {
+  it('arms when inside 15m with heading aligned and good accuracy', () => {
     const state = computeApproachState({
-      userPosition: userNorthOfGate(2),
+      userPosition: userNorthOfGate(10),
       userHeading: 180,
       userAccuracyM: 4,
       userVelocityMps: 0,
@@ -275,7 +276,7 @@ describe('computeApproachState — on_line_ready', () => {
     if (state.kind === 'on_line_ready') expect(state.accuracyM).toBe(4);
   });
 
-  it('arms when heading is unknown (optimistic at <3m)', () => {
+  it('arms when heading is unknown (optimistic at <15m)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
       userHeading: null,
@@ -287,16 +288,16 @@ describe('computeApproachState — on_line_ready', () => {
     expect(state.kind).toBe('on_line_ready');
   });
 
-  it('arms at boundary heading delta of exactly 60° (tolerance inclusive)', () => {
+  it('arms at boundary heading delta of exactly 90° (tolerance inclusive)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
-      userHeading: 120, // 120 vs 180 = delta 60
+      userHeading: 90, // 90 vs 180 = delta 90
       userAccuracyM: 3,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
 
-    // 60 > 60 is false → not wrong_side → on_line_ready
+    // 90 > 90 is false → not wrong_side → on_line_ready
     expect(state.kind).toBe('on_line_ready');
   });
 
@@ -332,10 +333,10 @@ describe('computeApproachState — wrong_side', () => {
     }
   });
 
-  it('detects wrong side at exactly 61° delta (just past tolerance)', () => {
+  it('detects wrong side at exactly 91° delta (just past tolerance)', () => {
     const state = computeApproachState({
       userPosition: userNorthOfGate(1),
-      userHeading: 119, // 119 vs 180 = delta 61
+      userHeading: 89, // 89 vs 180 = delta 91
       userAccuracyM: 3,
       userVelocityMps: 0,
       trailGate: buildGate(),
@@ -344,16 +345,16 @@ describe('computeApproachState — wrong_side', () => {
     expect(state.kind).toBe('wrong_side');
   });
 
-  it('wrong side arming requires being inside the 3m radius (fails at 4m)', () => {
+  it('wrong side arming requires being inside the 15m radius (fails at 16m)', () => {
     const state = computeApproachState({
-      userPosition: userNorthOfGate(4),
+      userPosition: userNorthOfGate(16),
       userHeading: 0, // definitely wrong way
       userAccuracyM: 3,
       userVelocityMps: 0,
       trailGate: buildGate(),
     });
 
-    // At 4m we're in NEAR, not inside the wrong_side check
+    // At 16m we're in NEAR, not inside the wrong_side check
     expect(state.kind).toBe('near');
   });
 });

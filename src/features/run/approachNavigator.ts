@@ -77,7 +77,7 @@ export function computeApproachState(input: ApproachNavigatorInput): ApproachSta
   const { userPosition, userHeading, userAccuracyM, trailGate } = input;
 
   // 1. GPS quality gate — only block the approach UI at APPROACH_UNSURE_
-  //    ACCURACY_M (20m). Tighter accuracy is still surfaced via the
+  //    ACCURACY_M (30m). Tighter accuracy is still surfaced via the
   //    ±Nm readout on GOTOWY so the rider can judge signal quality,
   //    but the navigator doesn't refuse to guide them. Gate engine's
   //    crossing-quality assessment still uses GATE_ACCURACY_REQUIRED_M.
@@ -118,7 +118,7 @@ export function computeApproachState(input: ApproachNavigatorInput): ApproachSta
 
   // 6. WRONG_SIDE — on the line radius but facing the wrong way. Only
   //    trigger when we actually have a heading reading; unknown heading
-  //    at <3m falls through to on_line_ready (optimistic).
+  //    at <15m falls through to on_line_ready (optimistic).
   if (userHeading != null && headingDeltaDeg > GATE_HEADING_TOLERANCE_DEG) {
     return {
       kind: 'wrong_side',
