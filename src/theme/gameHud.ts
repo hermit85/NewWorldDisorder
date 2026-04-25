@@ -1,60 +1,77 @@
 // ═══════════════════════════════════════════════════════════
 // Game HUD design tokens — recording + trail-create polish layer.
-// Sprint 3 Chunk 4 design pass. Sprint 3.5 full design system
-// will promote a larger share of these tokens upstream.
+//
+// Originally Sprint 3 introduced this as a parallel namespace with
+// slightly green-tinted variants of the canonical Acid palette so
+// the immersive recording HUD felt like a separate "game mode".
+// Sprint 4 design-system pass (per user lock-in: Acid + Rajdhani +
+// Compact) flagged that as a § 02 violation — third theme reads as
+// visual seam between recording and the rest of the app.
+//
+// This file now ALIASES the canonical tokens from `@/theme/colors`
+// and `@/theme/typography`. The hud* API stays so existing consumers
+// (review.tsx, recording.tsx, result.tsx, TrustBadge, PioneerBadge)
+// keep compiling — but every value collapses onto the canonical
+// palette. Drop sites incrementally migrate their imports to the
+// canonical namespace.
 // ═══════════════════════════════════════════════════════════
 
 import { StyleSheet, type TextStyle } from 'react-native';
+import { colors } from './colors';
 
 export const hudColors = {
-  // Ambient gradients (dark-terrain base)
-  terrainDark: '#0A0F0A',
-  terrainMid:  '#0F1A12',
-  terrainHigh: '#14231A',
+  // Ambient surfaces — collapse to the canonical layered scheme.
+  // bg (e0) sits behind everything; chrome (e1) for floating frames;
+  // panel (e2) for cards. The "terrain*" tokens used to tint each
+  // toward green; canonical is neutral dark for visual coherence.
+  terrainDark: colors.bg,        // was '#0A0F0A'
+  terrainMid:  colors.chrome,    // was '#0F1A12'
+  terrainHigh: colors.panel,     // was '#14231A'
 
-  // Timer / displays
-  timerPrimary: '#E8FFF0',
-  timerGlow:    'rgba(0, 255, 140, 0.4)',
+  // Timer / displays — canonical text, accent halo applied via
+  // shadow rather than tinting the foreground green.
+  timerPrimary: colors.textPrimary,         // was '#E8FFF0'
+  timerGlow:    'rgba(0, 255, 135, 0.40)',  // tracks accent
 
-  // Status indicators (GPS strength)
-  gpsStrong: '#00FF8C',
-  gpsMedium: '#FFD93D',
-  gpsWeak:   '#FF4365',
+  // Status indicators (GPS strength). Map directly onto the race
+  // state semantics: strong=verified (accent), medium=pending
+  // (warn), weak=invalid (danger). gpsMuted stays as a faint white.
+  gpsStrong: colors.accent,                  // was '#00FF8C'
+  gpsMedium: colors.warn,                    // was '#FFD93D'
+  gpsWeak:   colors.danger,                  // was '#FF4365'
   gpsMuted:  'rgba(255, 255, 255, 0.18)',
 
-  // Difficulty semantic
-  diffEasy:   '#00FF8C',
-  diffMedium: '#FFD93D',
-  diffHard:   '#FF8C2B',
-  diffExpert: '#FF4365',
+  // Difficulty semantic — canonical 4-tone (green/blue/red/black)
+  // per § 09 Track lines. The legacy hudColors had only 4 GPS-style
+  // amber/orange/red so we map difficulty pretty literally.
+  diffEasy:   colors.diffGreen,    // was '#00FF8C'
+  diffMedium: colors.diffBlue,     // was '#FFD93D' (amber → blue per § 09)
+  diffHard:   colors.diffRed,      // was '#FF8C2B'
+  diffExpert: colors.diffBlack,    // was '#FF4365'
 
-  // Action
-  actionPrimary:   '#00FF8C',
-  actionPressed:   '#00CC70',
-  actionDanger:    '#FF4365',
-  actionDangerBg:  'rgba(255, 67, 101, 0.15)',
+  // Action — accent fill / pressed accent / danger.
+  actionPrimary:   colors.accent,                       // was '#00FF8C'
+  actionPressed:   '#00CC70',                            // tighter accent on press
+  actionDanger:    colors.danger,                        // was '#FF4365'
+  actionDangerBg:  'rgba(255, 71, 87, 0.15)',
 
-  // Text
-  textMuted: 'rgba(232, 255, 240, 0.55)',
+  // Text muted — alpha-on-text canonical.
+  textMuted: colors.textSecondary,             // was 'rgba(232,255,240,0.55)'
 
-  // Sprint 4 — Trust badges (ADR-012)
-  // Semantic aliases so TrustBadge doesn't piggy-back on GPS colors.
-  // If the palette shifts later only these tokens move.
-  trustVerified:           '#00FF8C',   // any seed + verified
-  trustCuratorProvisional: '#FFD93D',   // curator seed, not yet confirmed
-  trustRiderProvisional:   '#4AA5FF',   // rider seed, not yet confirmed
-  trustDisputed:           '#FF4365',   // disputed — leaderboard frozen
+  // Sprint 4 — Trust badges (ADR-012). Canonical aliases.
+  trustVerified:           colors.accent,
+  trustCuratorProvisional: colors.warn,
+  trustRiderProvisional:   colors.diffBlue,
+  trustDisputed:           colors.danger,
 
-  // Pioneer mark (lightning bolt identity, independent of trust tier)
-  pioneerMark: '#00FF8C',
+  // Pioneer mark — accent (lightning bolt identity).
+  pioneerMark: colors.accent,
 } as const;
 
-// ADR-011: display font is Rajdhani (was Orbitron). Orbitron's
-// Google Fonts build was missing every Polish diacritic except ó/Ó,
-// so labels like "ZAKOŃCZ" / "KALIBRACJĘ" / "PIERWSZĄ" / "ODRZUĆ"
-// rendered with iOS fallback glyphs ("¬" on some devices). Rajdhani
-// has full Latin Extended-A coverage and a similar sci-fi/tech feel.
-// All four weights (400/500/600/700) are loaded in app/_layout.tsx.
+// ADR-011: display font is Rajdhani (was Orbitron). Polish coverage
+// requirements drove the swap. Inter for body, JetBrains-style mono
+// reserved for canonical typography but absent here on purpose —
+// hudTypography is display+input only.
 const FONT_DISPLAY = 'Rajdhani_700Bold';
 const FONT_BODY = 'Inter_500Medium';
 
@@ -100,7 +117,6 @@ export const hudTypography = {
     textTransform: 'uppercase' as const,
   } satisfies TextStyle,
 
-  // Form input style inside HUD screens — Inter, guaranteed Polish.
   input: {
     fontFamily: FONT_BODY,
     fontSize: 16,

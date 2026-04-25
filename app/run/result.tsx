@@ -10,14 +10,13 @@
 
 import { useState, useEffect, useReducer, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Easing } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { Btn } from '@/components/nwd';
 import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
@@ -888,18 +887,19 @@ function StandardResultScreen() {
 
 // ═══════════════════════════════════════════════════════════
 // PIONEER RESULT SCREEN
-// Distinct celebration for the first-ever run on a trail.
-// DB is the source of truth (no runStore); we fetch run + trail + spot
+// Distinct celebration for the first-ever run on a trail. DB is
+// the source of truth (no runStore); we fetch run + trail + spot
 // and render a Crown hero + stats + "WRÓĆ DO TRASY" CTA.
+//
+// Migrated from gameHud namespace to canonical Acid palette so the
+// Pioneer celebration matches the rest of the app's design system
+// (was BLOCKER §02 — third theme namespace caused visual seam).
+// Crown SVG path retained — it's the only Pioneer-specific glyph,
+// not yet in icons.md, so kept inline rather than added under the
+// canon (per icons.md "don't add without auditing").
 // ═══════════════════════════════════════════════════════════
 
-const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
-];
-
-/** Simple crown path — five peaks, flat base. Drawn in a 40×28 viewBox. */
+/** Crown — five peaks, flat base. 40×28 viewBox. */
 const CROWN_PATH = 'M2 22 L8 8 L14 18 L20 4 L26 18 L32 8 L38 22 L38 26 L2 26 Z';
 
 function PioneerResultScreen({ runId }: { runId: string }) {
@@ -929,15 +929,12 @@ function PioneerResultScreen({ runId }: { runId: string }) {
 
   if (!run) {
     return (
-      <View style={pioneerStyles.root}>
-        <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={pioneerStyles.safe}>
-          <View style={pioneerStyles.centered}>
-            <ActivityIndicator color={hudColors.gpsStrong} />
-            <Text style={pioneerStyles.loadingLabel}>WCZYTUJĘ ZJAZD…</Text>
-          </View>
-        </SafeAreaView>
-      </View>
+      <SafeAreaView style={pioneerStyles.root}>
+        <View style={pioneerStyles.centered}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={pioneerStyles.loadingLabel}>WCZYTUJĘ ZJAZD…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -946,71 +943,71 @@ function PioneerResultScreen({ runId }: { runId: string }) {
   const spotName = spot?.name;
 
   return (
-    <View style={pioneerStyles.root}>
-      <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={pioneerStyles.safe} edges={['top', 'bottom']}>
-        <View style={pioneerStyles.hero}>
-          <Animated.View style={[pioneerStyles.crownWrap, { opacity: pulseAnim }, hudShadows.glowGreen]}>
-            <Svg width={72} height={50} viewBox="0 0 40 28">
-              <Path d={CROWN_PATH} fill={hudColors.gpsStrong} />
-            </Svg>
-          </Animated.View>
+    <SafeAreaView style={pioneerStyles.root} edges={['top', 'bottom']}>
+      <View style={pioneerStyles.hero}>
+        <Animated.View style={[pioneerStyles.crownWrap, { opacity: pulseAnim }]}>
+          <Svg width={72} height={50} viewBox="0 0 40 28">
+            <Path d={CROWN_PATH} fill={colors.accent} />
+          </Svg>
+        </Animated.View>
 
-          {/* Sprint 4 / ADR-012: copy adapts to seed_source.
-              Curator seeds get softer "welcome to the league" framing;
-              rider seeds get the community-confirmation prompt.
-              Both preserve permanent Pioneer messaging. */}
-          {trail?.seedSource === 'curator' ? (
-            <>
-              <Text style={pioneerStyles.heroTitle}>TRASA{'\n'}ZAPISANA</Text>
-              <Text style={pioneerStyles.heroSubtitle}>
-                Geometria bazowa jest gotowa. Zjedź jeszcze raz, żeby otworzyć leaderboard.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
-              <Text style={pioneerStyles.heroSubtitle}>
-                Trasa zapisana. Drugi spójny zjazd otworzy leaderboard.
-                Twoje imię zostanie zapisane jako Pioneer.
-              </Text>
-            </>
-          )}
+        {/* Sprint 4 / ADR-012: copy adapts to seed_source.
+            Curator seeds get softer "welcome to the league" framing;
+            rider seeds get the community-confirmation prompt.
+            Both preserve permanent Pioneer messaging. */}
+        {trail?.seedSource === 'curator' ? (
+          <>
+            <Text style={pioneerStyles.heroTitle}>TRASA{'\n'}ZAPISANA</Text>
+            <Text style={pioneerStyles.heroSubtitle}>
+              Geometria bazowa jest gotowa. Zjedź jeszcze raz, żeby otworzyć leaderboard.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
+            <Text style={pioneerStyles.heroSubtitle}>
+              Trasa zapisana. Drugi spójny zjazd otworzy leaderboard.
+              Twoje imię zostanie zapisane jako Pioneer.
+            </Text>
+          </>
+        )}
 
-          <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
-          <Text style={pioneerStyles.rankLabel}>POTRZEBNY DRUGI ZJAZD</Text>
-        </View>
+        <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
+        <Text style={pioneerStyles.rankLabel}>POTRZEBNY DRUGI ZJAZD</Text>
+      </View>
 
-        <View style={pioneerStyles.statsBlock}>
-          <Text style={pioneerStyles.trailName}>{trailName}</Text>
-          {spotName && <Text style={pioneerStyles.spotName}>{spotName.toUpperCase()}</Text>}
-        </View>
+      <View style={pioneerStyles.statsBlock}>
+        <Text style={pioneerStyles.trailName}>{trailName}</Text>
+        {spotName && <Text style={pioneerStyles.spotName}>{spotName.toUpperCase()}</Text>}
+      </View>
 
-        <View style={pioneerStyles.footer}>
-          <Pressable
-            onPress={goToTrail}
-            style={({ pressed }) => [
-              pioneerStyles.cta,
-              hudShadows.glowGreen,
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-          >
-            <Text style={pioneerStyles.ctaLabel}>WRÓĆ DO TRASY</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    </View>
+      <View style={pioneerStyles.footer}>
+        <Btn variant="primary" size="lg" onPress={goToTrail}>
+          Wróć do trasy
+        </Btn>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const pioneerStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
-  safe: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+  },
   loadingLabel: {
-    ...hudTypography.label,
-    color: hudColors.gpsStrong,
-    letterSpacing: 4,
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
+    color: colors.accent,
+    fontWeight: '800',
   },
   hero: {
     paddingTop: spacing.xxl,
@@ -1024,47 +1021,61 @@ const pioneerStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: colors.borderHot,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.40,
+    shadowRadius: 24,
+    elevation: 12,
   },
   heroTitle: {
-    ...hudTypography.displayLarge,
+    ...typography.title,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 36,
-    color: hudColors.gpsStrong,
-    letterSpacing: 4,
+    lineHeight: 38,
+    color: colors.accent,
+    fontWeight: '800',
+    letterSpacing: -0.36, // -0.01em @ 36
     textAlign: 'center',
-    textShadowColor: hudColors.gpsStrong,
+    textShadowColor: colors.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 30,
     marginBottom: spacing.sm,
+    textTransform: 'uppercase',
   },
   heroSubtitle: {
-    ...hudTypography.label,
-    color: hudColors.textMuted,
-    fontSize: 11,
-    letterSpacing: 2,
+    ...typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.xl,
     maxWidth: 320,
   },
+  // Telemetry hero — celebration numeric in textPrimary.
   heroTime: {
     fontFamily: 'Rajdhani_700Bold',
-    fontSize: 48,
-    color: hudColors.timerPrimary,
-    letterSpacing: 3,
-    fontVariant: ['tabular-nums'] as any,
-    textShadowColor: hudColors.gpsStrong,
+    fontSize: 56,
+    lineHeight: 56,
+    color: colors.textPrimary,
+    letterSpacing: -0.56, // -0.01em @ 56
+    fontVariant: ['tabular-nums'],
+    textShadowColor: colors.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 18,
     marginBottom: spacing.xs,
   },
-  // Intensity ladder: emerald heroTitle (primary signal) ->
-  // cream heroTime (celebration numeric) -> cream rankLabel (supporting).
-  // Previously rankLabel used emerald too; stacking two emerald signals
-  // flattened the visual hierarchy.
+  // Intensity ladder: accent heroTitle (primary signal) → textPrimary
+  // heroTime (celebration numeric) → accent rankLabel (mono CAPS support).
   rankLabel: {
-    ...hudTypography.label,
-    fontSize: 12,
-    color: hudColors.timerPrimary,
-    letterSpacing: 4,
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
+    color: colors.accent,
+    fontWeight: '800',
   },
   statsBlock: {
     marginTop: spacing.xxl,
@@ -1074,35 +1085,30 @@ const pioneerStyles = StyleSheet.create({
   trailName: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
-    color: hudColors.timerPrimary,
-    letterSpacing: 2,
+    lineHeight: 26,
+    color: colors.textPrimary,
+    fontWeight: '700',
+    letterSpacing: -0.11,
     marginBottom: spacing.xs,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   spotName: {
-    ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
-    letterSpacing: 4,
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 2.88, // 0.32em @ 9
+    color: colors.textTertiary,
+    fontWeight: '700',
   },
   footer: {
     flex: 1,
     justifyContent: 'flex-end',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.pad,
     paddingBottom: spacing.md,
   },
-  cta: {
-    backgroundColor: hudColors.actionPrimary,
-    borderRadius: radii.lg,
-    height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaLabel: {
-    ...hudTypography.action,
-    fontSize: 16,
-    color: hudColors.terrainDark,
-    letterSpacing: 3,
-  },
+  // Legacy CTA styles dropped — Pioneer screen now renders Btn primary.
+  // Legacy CTA styles dropped — Pioneer screen now renders Btn primary.
 });
 
 // ═══════════════════════════════════════════════════════════

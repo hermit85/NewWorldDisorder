@@ -4,26 +4,25 @@
 // defines the canonical line for everyone else; noisy GPS would
 // bake in a distorted track. Rider retries in better signal; the
 // trail stays draft so no one else can claim it in the meantime.
+//
+// Visual: per design-system § Pattern 6 + § 01 race-state-owns-color
+// invalid runs use `colors.danger` (NOT a separate gameHud palette).
+// "Errors are facts, not apologies" per voice.md.
 // ═══════════════════════════════════════════════════════════
 
 import { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography } from '@/theme/gameHud';
+import { Btn, IconGlyph, Pill } from '@/components/nwd';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing } from '@/theme/spacing';
 import * as recordingStore from '@/features/recording/recordingStore';
-import { tapMedium, tapLight } from '@/systems/haptics';
 
-const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
-];
-
-const REASON_COPY: Record<string, { title: string; body: string }> = {
+const REASON_COPY: Record<string, { pill: string; title: string; body: string }> = {
   weak_signal: {
+    pill: 'GPS · SŁABY',
     title: 'ZJAZD NIEZATWIERDZONY',
     body:
       'Pierwszy zjazd wyznacza linię dla wszystkich riderów. ' +
@@ -49,12 +48,10 @@ export default function RejectedScreen() {
 
   const handleRetry = useCallback(() => {
     if (!trailId || !spotId) return;
-    tapMedium();
     router.replace(`/run/recording?trailId=${trailId}&spotId=${spotId}`);
   }, [router, trailId, spotId]);
 
   const handleBack = useCallback(() => {
-    tapLight();
     if (trailId) router.replace(`/trail/${trailId}`);
     else router.back();
   }, [router, trailId]);
@@ -62,100 +59,89 @@ export default function RejectedScreen() {
   const canRetry = Boolean(trailId && spotId);
 
   return (
-    <View style={styles.root}>
-      <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.centered}>
-          <Text style={styles.glyph}>⚠</Text>
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.body}>{copy.body}</Text>
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <View style={styles.centered}>
+        <View style={styles.iconWrap}>
+          <IconGlyph name="x" size={56} color={colors.danger} />
         </View>
+        <Pill state="invalid" dot size="md">{copy.pill}</Pill>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.body}>{copy.body}</Text>
+      </View>
 
-        <View style={styles.footer}>
-          <Pressable
-            onPress={handleRetry}
-            disabled={!canRetry}
-            style={({ pressed }) => [
-              styles.primaryCta,
-              !canRetry && { opacity: 0.3 },
-              pressed && canRetry && { transform: [{ scale: 0.98 }] },
-            ]}
-          >
-            <Text style={styles.primaryCtaLabel}>SPRÓBUJ PONOWNIE</Text>
-          </Pressable>
-
-          <Pressable onPress={handleBack} hitSlop={8} style={styles.secondaryCta}>
-            <Text style={styles.secondaryCtaLabel}>WRÓĆ DO TRASY</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    </View>
+      <View style={styles.footer}>
+        <Btn
+          variant="primary"
+          size="lg"
+          onPress={handleRetry}
+          disabled={!canRetry}
+        >
+          Spróbuj ponownie
+        </Btn>
+        <Btn
+          variant="ghost"
+          size="md"
+          onPress={handleBack}
+          haptic="light"
+        >
+          Wróć do trasy
+        </Btn>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
-  safe: { flex: 1 },
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
+    gap: spacing.md,
   },
-  glyph: {
-    fontSize: 96,
-    color: hudColors.gpsWeak,
-    marginBottom: spacing.xl,
-    textShadowColor: hudColors.gpsWeak,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+  iconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 71, 87, 0.40)',
+    backgroundColor: 'rgba(255, 71, 87, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    shadowColor: colors.danger,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.30,
+    shadowRadius: 24,
+    elevation: 8,
   },
   title: {
-    ...hudTypography.displayLarge,
+    ...typography.title,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 28,
-    color: hudColors.gpsWeak,
-    letterSpacing: 3,
+    lineHeight: 30,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    letterSpacing: -0.28,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    textTransform: 'uppercase',
+    marginTop: spacing.xs,
   },
   body: {
-    color: hudColors.textMuted,
+    ...typography.body,
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: 20,
+    color: colors.textSecondary,
     textAlign: 'center',
     maxWidth: 320,
   },
   footer: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.pad,
     paddingBottom: spacing.md,
-  },
-  primaryCta: {
-    backgroundColor: hudColors.actionPrimary,
-    borderRadius: radii.lg,
-    height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: hudColors.gpsStrong,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  primaryCtaLabel: {
-    ...hudTypography.action,
-    fontSize: 16,
-    color: hudColors.terrainDark,
-    letterSpacing: 3,
-  },
-  secondaryCta: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  secondaryCtaLabel: {
-    ...hudTypography.label,
-    color: hudColors.textMuted,
-    fontSize: 11,
-    letterSpacing: 2,
+    gap: spacing.sm,
   },
 });
