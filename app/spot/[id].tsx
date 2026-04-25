@@ -330,17 +330,6 @@ export default function SpotScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Layer 2 — FAB START RUN (bottom-right, above sheet). */}
-      <View
-        style={[styles.fabLayer, { bottom: insets.bottom + 360 }]}
-        pointerEvents="box-none"
-      >
-        <FabStartRun
-          onStart={handleStartRun}
-          enabled={filteredTrails.length > 0}
-        />
-      </View>
-
       {/* Layer 3 — bottom sheet (fixed mid-height).
           On phones the sheet is ~520-580 px from the bottom which leaves
           enough map visible at top. The interior scrolls. */}
@@ -463,6 +452,18 @@ export default function SpotScreen() {
           ) : null}
         </ScrollView>
       </View>
+
+      {/* FAB START RUN — rendered AFTER the sheet so RN paint order
+          puts it on top regardless of zIndex. Sheet is `height: '62%'`
+          → its top edge is at 62% from screen bottom. We park the FAB
+          at 64% so it floats over the map with a small gap above the
+          sheet handle. zIndex 36 outranks the sheet's 35 as a defense
+          if render order ever changes. */}
+      <FabStartRun
+        onStart={handleStartRun}
+        enabled={filteredTrails.length > 0}
+        style={{ bottom: '64%' as any, zIndex: 36 }}
+      />
     </View>
   );
 }
@@ -624,14 +625,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  // FAB layer ----------------------------------------------------------------
-  fabLayer: {
-    position: 'absolute',
-    right: 0,
-    left: 0,
-    zIndex: 33,
-    pointerEvents: 'box-none',
-  },
+  // FAB positioning lives inline at the call site (above the bottom
+  // sheet's top edge). The fabLayer wrapper used to sit here but is
+  // now redundant — FabStartRun is itself absolutely positioned.
 
   // Bottom sheet -------------------------------------------------------------
   sheet: {

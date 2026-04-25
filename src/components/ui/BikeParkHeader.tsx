@@ -57,7 +57,10 @@ export function BikeParkHeader({ spot, fallbackActiveRiders = 0, style }: BikePa
           <View style={styles.locRow}>
             <View style={styles.locDot} />
             <Text style={styles.locText} numberOfLines={1}>
-              {spot.region}
+              {/* § voice.label: regions/locations CAPS in mono caption.
+                 Pre-fix shipped raw "mazowieckie" lowercase which broke the
+                 mono-CAPS rule for label-class meta. */}
+              {spot.region.toUpperCase()}
               {spot.trailCount > 0 ? ` · ${spot.trailCount} ${trailWord(spot.trailCount)}` : ''}
             </Text>
           </View>
