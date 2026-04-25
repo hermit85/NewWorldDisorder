@@ -41,11 +41,18 @@ const SCOPES: { key: PeriodType; label: string }[] = [
 ];
 
 // Medal colors — gold, silver, bronze
+// § 13.5: no emoji in UI. The `label` field on each medal entry was
+// never actually rendered (podium just shows `{pos}` as a number),
+// but kept the emoji string in source. Removed entirely.
+//
+// Silver/bronze hex values now point at canonical tokens — silver
+// (#C9D1D6) and bronze (#E08A5C) match design-system/tokens.ts
+// instead of the prior browser-default #C0C0C0 / #CD7F32.
 const MEDAL = {
-  1: { color: colors.gold, bg: 'rgba(255, 215, 0, 0.08)', border: 'rgba(255, 215, 0, 0.25)', label: '🥇' },
-  2: { color: '#C0C0C0', bg: 'rgba(192, 192, 192, 0.06)', border: 'rgba(192, 192, 192, 0.20)', label: '🥈' },
-  3: { color: '#CD7F32', bg: 'rgba(205, 127, 50, 0.06)', border: 'rgba(205, 127, 50, 0.20)', label: '🥉' },
-} as Record<number, { color: string; bg: string; border: string; label: string }>;
+  1: { color: colors.gold,   bg: 'rgba(255, 210, 63, 0.08)', border: 'rgba(255, 210, 63, 0.25)' },
+  2: { color: colors.silver, bg: 'rgba(201, 209, 214, 0.06)', border: 'rgba(201, 209, 214, 0.20)' },
+  3: { color: colors.bronze, bg: 'rgba(224, 138, 92, 0.06)',  border: 'rgba(224, 138, 92, 0.20)' },
+} as Record<number, { color: string; bg: string; border: string }>;
 
 export default function LeaderboardScreen() {
   const params = useLocalSearchParams<{ trailId?: string; scope?: string }>();

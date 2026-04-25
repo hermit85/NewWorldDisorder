@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import { IconGlyph } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { LEGAL } from '@/constants/legal';
 import { validateUsername } from '@/services/moderation';
@@ -205,7 +206,7 @@ export default function AuthScreen() {
               disabled={loading || sendCooldown > 0}
             >
               {loading ? (
-                <ActivityIndicator color={colors.bg} />
+                <ActivityIndicator color={colors.accentInk} />
               ) : sendCooldown > 0 ? (
                 <Text style={styles.ctaText}>WYŚLIJ PONOWNIE ({sendCooldown}s)</Text>
               ) : (
@@ -230,7 +231,9 @@ export default function AuthScreen() {
         {step === 'verify_code' && (
           <View style={styles.form}>
             <View style={styles.inboxCard}>
-              <Text style={styles.inboxIcon}>📧</Text>
+              <View style={styles.inboxIconWrap}>
+                <IconGlyph name="verified" size={28} color={colors.accent} />
+              </View>
               <Text style={styles.inboxTitle}>SPRAWDŹ SKRZYNKĘ</Text>
               <Text style={styles.inboxDesc}>
                 Wysłaliśmy kod logowania na{'\n'}{email}
@@ -259,7 +262,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={colors.bg} />
+                <ActivityIndicator color={colors.accentInk} />
               ) : (
                 <Text style={styles.ctaText}>POTWIERDŹ</Text>
               )}
@@ -310,7 +313,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={colors.bg} />
+                <ActivityIndicator color={colors.accentInk} />
               ) : (
                 <Text style={styles.ctaText}>DOŁĄCZ DO LIGI</Text>
               )}
@@ -363,16 +366,53 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'] as any,
   },
   error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
-  cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
-  ctaDisabled: { opacity: 0.5 },
-  ctaText: { ...typography.cta, color: colors.bg, letterSpacing: 4, fontSize: 15 },
+  // § 06 Btn primary canonical: pill 999 radius, accent fill,
+  // accentInk text, Rajdhani 800 +0.24em CAPS label, glowSoft
+  // shadow. Pre-fix used radii.md (10px rounded-rect) which read
+  // as a generic OK button rather than a race CTA.
+  cta: {
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.30,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  ctaDisabled: { opacity: 0.4, shadowOpacity: 0 },
+  ctaText: {
+    fontFamily: 'Rajdhani_700Bold',
+    color: colors.accentInk,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 2.88, // 0.24em @ 12px
+    textTransform: 'uppercase',
+  },
   skipBtn: { alignItems: 'center', paddingVertical: spacing.md },
   skipBtnDisabled: { opacity: 0.35 },
   skipText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
   skipTextDisabled: { color: colors.textTertiary },
   resendRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg },
-  inboxCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.accent },
-  inboxIcon: { fontSize: 40, marginBottom: spacing.md },
+  // § 01 race state owns color: inboxCard is NOT a race-state element,
+  // so border drops back to neutral hairline. Accent reserved for the
+  // CTA pill below. Pre-fix this card had a full accent border which
+  // visually screamed "armed".
+  inboxCard: { backgroundColor: colors.panel, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  inboxIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: colors.borderHot,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
   inboxTitle: { ...typography.h3, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
   inboxDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   inboxHint: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },

@@ -105,6 +105,18 @@ export const colors = {
   diffExpert: '#F2F4F3',
   diffPro: '#FFD23F',
 
+  // ── Race state semantic tokens (canonical tokens.ts) ──────
+  // These are the SOURCE OF TRUTH for any state UI per
+  // design-system/tokens.ts § palette.acid.state*. Components
+  // should consume `colors.stateArmed` etc., not raw `colors.accent`,
+  // when expressing race state. Pioneer screens still read accent
+  // for decoration of fresh-trail celebration — that's allowed.
+  stateTraining: 'rgba(242, 244, 243, 0.45)',
+  stateArmed:    '#00FF87',
+  stateVerified: '#00FF87',
+  statePending:  '#FFB020',
+  stateInvalid:  '#FF4757',
+
   // ── Chunk 9 redesign aliases (gradually deprecating) ──────
   chunk9BgBase: '#000000',
   chunk9BgSurface: '#0B0B0C',
