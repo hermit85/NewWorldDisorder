@@ -1,0 +1,154 @@
+/* NWD Design System — global theme.
+   Drop this into your app entry. Provides CSS vars for the active palette
+   plus all keyframes used by named motion tokens. */
+
+:root {
+  /* === ACID PALETTE (default) === */
+  --nwd-bg: #07090A;
+  --nwd-chrome: #0E1112;
+  --nwd-panel: #13181A;
+  --nwd-row: #1A2124;
+  --nwd-row-hot: #1A2124;
+
+  --nwd-border: rgba(255,255,255,0.06);
+  --nwd-border-mid: rgba(255,255,255,0.10);
+  --nwd-border-hot: rgba(0,255,135,0.35);
+
+  --nwd-text: #F2F4F3;
+  --nwd-text-muted: rgba(242,244,243,0.55);
+  --nwd-text-dim: rgba(242,244,243,0.32);
+
+  --nwd-accent: #00FF87;
+  --nwd-accent-dim: rgba(0,255,135,0.14);
+  --nwd-accent-ink: #04150B;
+  --nwd-warn: #FFB020;
+  --nwd-danger: #FF4757;
+
+  /* Race states */
+  --nwd-state-training: rgba(242,244,243,0.45);
+  --nwd-state-armed: #00FF87;
+  --nwd-state-verified: #00FF87;
+  --nwd-state-pending: #FFB020;
+  --nwd-state-invalid: #FF4757;
+
+  /* Podium */
+  --nwd-gold: #FFD23F;
+  --nwd-silver: #C9D1D6;
+  --nwd-bronze: #E08A5C;
+
+  /* Glows */
+  --nwd-glow-hot: 0 0 24px rgba(0,255,135,0.30);
+  --nwd-glow-soft: 0 0 16px rgba(0,255,135,0.12);
+
+  /* Fonts */
+  --nwd-font-display: "Rajdhani", "Inter", system-ui, sans-serif;
+  --nwd-font-body: "Inter", system-ui, sans-serif;
+  --nwd-font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* Spacing */
+  --nwd-space-xs: 6px;
+  --nwd-space-sm: 10px;
+  --nwd-space-md: 16px;
+  --nwd-space-lg: 24px;
+  --nwd-space-xl: 36px;
+  --nwd-space-xxl: 56px;
+
+  /* Radius */
+  --nwd-radius-sm: 4px;
+  --nwd-radius-md: 8px;
+  --nwd-radius-lg: 14px;
+  --nwd-radius-pill: 999px;
+}
+
+[data-palette="forge"] {
+  --nwd-bg: #0A0807; --nwd-chrome: #11100E; --nwd-panel: #1A1815;
+  --nwd-row: #22201C; --nwd-row-hot: #22201C;
+  --nwd-border-hot: rgba(255,138,46,0.40);
+  --nwd-text: #F4F1EE; --nwd-text-muted: rgba(244,241,238,0.55); --nwd-text-dim: rgba(244,241,238,0.32);
+  --nwd-accent: #FF8A2E; --nwd-accent-dim: rgba(255,138,46,0.14); --nwd-accent-ink: #1A0B02;
+  --nwd-state-training: rgba(244,241,238,0.45);
+  --nwd-state-armed: #FF8A2E; --nwd-state-verified: #FF8A2E;
+  --nwd-glow-hot: 0 0 24px rgba(255,138,46,0.30);
+  --nwd-glow-soft: 0 0 16px rgba(255,138,46,0.12);
+}
+
+[data-palette="arctic"] {
+  --nwd-bg: #06090C; --nwd-chrome: #0D1117; --nwd-panel: #131922;
+  --nwd-row: #1B2330; --nwd-row-hot: #1B2330;
+  --nwd-border-hot: rgba(80,180,255,0.40);
+  --nwd-text: #EEF3F8; --nwd-text-muted: rgba(238,243,248,0.55); --nwd-text-dim: rgba(238,243,248,0.32);
+  --nwd-accent: #50B4FF; --nwd-accent-dim: rgba(80,180,255,0.14); --nwd-accent-ink: #021018;
+  --nwd-state-training: rgba(238,243,248,0.45);
+  --nwd-state-armed: #50B4FF; --nwd-state-verified: #50B4FF;
+  --nwd-glow-hot: 0 0 24px rgba(80,180,255,0.30);
+  --nwd-glow-soft: 0 0 16px rgba(80,180,255,0.12);
+}
+
+/* === BASELINE === */
+html, body {
+  margin: 0; padding: 0;
+  background: var(--nwd-bg);
+  color: var(--nwd-text);
+  font-family: var(--nwd-font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* All numeric readouts must be tabular */
+.nwd-num, [data-tabular] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* === TYPE SCALE UTILITIES === */
+.nwd-hero    { font: 800 56px/0.95 var(--nwd-font-display); letter-spacing: -0.02em; }
+.nwd-title   { font: 700 32px/1.05 var(--nwd-font-display); letter-spacing: -0.01em; }
+.nwd-lead    { font: 600 22px/1.20 var(--nwd-font-display); letter-spacing: -0.005em; }
+.nwd-body    { font: 400 15px/1.50 var(--nwd-font-body); }
+.nwd-caption { font: 500 13px/1.40 var(--nwd-font-body); }
+.nwd-label   { font: 800 11px/1.00 var(--nwd-font-mono); letter-spacing: 0.24em; text-transform: uppercase; }
+.nwd-micro   { font: 700  9px/1.00 var(--nwd-font-mono); letter-spacing: 0.32em; text-transform: uppercase; }
+
+/* === KEYFRAMES — named per motion token === */
+@keyframes nwdPulseArmed {
+  0%, 100% { transform: scale(1);    opacity: 1;    }
+  50%      { transform: scale(1.18); opacity: 0.65; }
+}
+@keyframes nwdPulseVerified {
+  0%, 100% { transform: scale(1);    opacity: 1;    }
+  50%      { transform: scale(1.06); opacity: 0.85; }
+}
+@keyframes nwdPulsePending {
+  0%, 49%   { opacity: 1;    }
+  50%, 100% { opacity: 0.35; }
+}
+@keyframes nwdScanAmbient {
+  0%   { transform: translateY(0);     opacity: 0;   }
+  5%   { opacity: 0.6; }
+  55%  { transform: translateY(380px); opacity: 0.6; }
+  60%, 100% { opacity: 0; }
+}
+@keyframes nwdSparkParticle {
+  0%   { opacity: 0; transform: translateY(0) scale(0.5); }
+  40%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-22px) scale(1.2); }
+}
+@keyframes nwdGlitchEvent {
+  0%, 92%, 100% { transform: translate(0); filter: hue-rotate(0); }
+  93% { transform: translate(2px, 0);  filter: hue-rotate(45deg);  }
+  94% { transform: translate(-2px, 1px); filter: hue-rotate(-45deg); }
+  95% { transform: translate(0); filter: hue-rotate(0); }
+}
+
+/* Convenience animation utility classes */
+.nwd-anim-armed     { animation: nwdPulseArmed    1.2s ease-in-out infinite; }
+.nwd-anim-verified  { animation: nwdPulseVerified 2.4s ease-in-out infinite; }
+.nwd-anim-pending   { animation: nwdPulsePending  0.6s linear      infinite; }
+.nwd-anim-scan      { animation: nwdScanAmbient   4.2s ease-in-out infinite; }
+.nwd-anim-spark     { animation: nwdSparkParticle 2.8s ease-out    infinite; }
+.nwd-anim-glitch    { animation: nwdGlitchEvent   5.0s linear      infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nwd-anim-armed, .nwd-anim-verified, .nwd-anim-pending,
+  .nwd-anim-scan, .nwd-anim-spark, .nwd-anim-glitch {
+    animation: none;
+  }
+}
