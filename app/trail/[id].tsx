@@ -1,32 +1,78 @@
-// ═══════════════════════════════════════════════════════════
-// Trail — pole bitwy, nie opis trasy
-// Board-first: pokaż pozycję, rywala, cel
-// ═══════════════════════════════════════════════════════════
-
-import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+// ─────────────────────────────────────────────────────────────
+// Trail detail — canonical screens-spot-trail.jsx ScreenTrailDetail
+//
+// Layout per the canonical reference:
+//   TopBar           back + title "Trasa" + S01 pill
+//   Spot crumb       optional tappable parent link
+//   Hero             "Trasa" pill kicker + h1 trail name + tags
+//   Trust + Pioneer  TrustBadge + PioneerBadge identity row
+//   Stats grid       3-col StatBox: Długość / Spadek / KOM
+//   Status card      HudPanel — myPos + rival + ambition (if authed)
+//                    OR sign-in CTA card (if anon)
+//   SectionHead      "Tablica" + scope tabs (Dziś/Weekend/Sezon)
+//   LeaderboardRow   top-5 + dots + my row pinned (if outside top-5)
+//   Action bar       JEDŹ RANKINGOWO primary + TRENING ghost
+//
+// Draft state (no geometry yet) has its own simpler render path —
+// large "Rozpocznij nagrywanie" CTA, no leaderboard.
+// ─────────────────────────────────────────────────────────────
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
-import { useTrail, useSpot, useDeleteTrail } from '@/hooks/useBackend';
+import {
+  Btn,
+  Card,
+  HudPanel,
+  IconGlyph,
+  LeaderboardRow,
+  PageTitle,
+  Pill,
+  SectionHead,
+  StatBox,
+  TopBar,
+} from '@/components/nwd';
+import { DifficultyPill, resolveDifficultyTone } from '@/components/ui/DifficultyPill';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
-import { SectionHeader } from '@/components/ui/SectionHeader';
+import { useAuthContext } from '@/hooks/AuthContext';
+import {
+  useDeleteTrail,
+  useLeaderboard,
+  useSpot,
+  useTrail,
+  useUserTrailStats,
+} from '@/hooks/useBackend';
 import { getVenueForTrail } from '@/data/venues';
 import { formatTime, formatTimeShort } from '@/content/copy';
-import { Difficulty, PeriodType } from '@/data/types';
-import { useAuthContext } from '@/hooks/AuthContext';
-import { useLeaderboard, useUserTrailStats } from '@/hooks/useBackend';
-import { tapMedium, tapLight } from '@/systems/haptics';
+import { tapLight, tapMedium } from '@/systems/haptics';
 import { reportRider } from '@/services/moderation';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing } from '@/theme/spacing';
+import type { PeriodType } from '@/data/types';
 
-/** Polish trust-disclosure copy shown above the leaderboard.
- *  GPT Rule 2: the user must always see why we trust (or don't trust)
- *  a result before they see the ranking. Curator-seeded provisional
- *  parks get softer language than rider-seeded ones because curator
- *  status commands more initial confidence (ADR-012 Final §Philosophy). */
+const SCOPE_TABS: Array<[PeriodType, string]> = [
+  ['day', 'Dziś'],
+  ['weekend', 'Weekend'],
+  ['all_time', 'Sezon'],
+];
+
+function formatPioneerDate(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const months = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 function getTrustDisclosure(
   source: 'curator' | 'rider',
   tier: 'provisional' | 'verified' | 'disputed',
@@ -39,23 +85,6 @@ function getTrustDisclosure(
   return 'Trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi';
 }
 
-/** Polish relative date for Pioneer identity row. Keeps it short —
- *  "28 kwi 2026" — so it doesn't wrap the row on narrow devices. */
-function formatPioneerDate(iso: string): string {
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return '';
-  const months = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-const difficultyColors: Record<Difficulty, string> = {
-  easy: colors.diffEasy,
-  medium: colors.diffMedium,
-  hard: colors.diffHard,
-  expert: colors.diffExpert,
-  pro: colors.diffPro,
-};
-
 export default function TrailDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -67,12 +96,6 @@ export default function TrailDetailScreen() {
   const isTrainingOnly = venueMatch ? !venueMatch.venue.rankingEnabled : false;
   const spotName = spot?.name ?? venueMatch?.venue.name;
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
-  // Pioneer self-delete eligibility mirrors the server-side gate in
-  // migration 20260424120000: rider must be the trail's pioneer AND
-  // the trail must still be in an in-flight state. The server also
-  // checks runs_contributed <= 1; that field isn't exposed to the
-  // client, so on rare boundary cases the UI offers the action but
-  // the RPC returns 'unauthorized' and the alert surfaces it.
   const isPioneerSelf =
     !!profile?.id &&
     !!trail?.pioneerUserId &&
@@ -117,14 +140,12 @@ export default function TrailDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             const result = await deleteTrail(trail.id);
-            if (result.ok) {
-              goBack();
-            } else {
+            if (result.ok) goBack();
+            else
               Alert.alert(
                 `Nie udało się: ${result.code}`,
                 result.message ?? 'Spróbuj ponownie',
               );
-            }
           },
         },
       ],
@@ -134,14 +155,17 @@ export default function TrailDetailScreen() {
   if (!trail) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={{ color: colors.textPrimary, padding: spacing.lg }}>Trasa nie znaleziona</Text>
+        <View style={styles.centered}>
+          <Text style={styles.errorTitle}>TRASA NIE ZNALEZIONA</Text>
+          <Btn variant="ghost" size="md" fullWidth={false} onPress={goBack}>
+            ← Wróć
+          </Btn>
+        </View>
       </SafeAreaView>
     );
   }
 
-  // Draft trail — the only valid action is to start the pioneer
-  // recording. Leaderboard is empty by definition, race CTAs are
-  // meaningless until someone carves the geometry.
+  // ── Draft trail — Pioneer hasn't carved geometry yet ───────
   if (trail.calibrationStatus === 'draft' && trail.geometryMissing) {
     const startRecording = () => {
       if (!isAuthenticated) {
@@ -153,78 +177,73 @@ export default function TrailDetailScreen() {
       router.push(`/run/recording?trailId=${trail.id}&spotId=${trail.spotId}`);
     };
     return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Pressable onPress={goBack} style={styles.backBtn}>
-            <Text style={styles.backText}>← WRÓĆ</Text>
-          </Pressable>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <TopBar
+            onBack={goBack}
+            title="Trasa"
+            trailing={<Pill state="neutral" size="md">S01</Pill>}
+          />
 
-          {spotName && (
-            <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
-              <Text style={styles.breadcrumbLabel}>BIKE PARK:</Text>
-              <Text style={styles.breadcrumbName}>{spotName}</Text>
-              <Text style={styles.breadcrumbArrow}>→</Text>
+          {spotName ? (
+            <Pressable onPress={goToSpot} style={styles.crumb} hitSlop={8}>
+              <Text style={styles.crumbLabel}>BIKE PARK</Text>
+              <View style={styles.crumbDot} />
+              <Text style={styles.crumbName}>{spotName.toUpperCase()}</Text>
             </Pressable>
-          )}
+          ) : null}
 
           <View style={styles.hero}>
-            <Text style={styles.trailKicker}>⟣ TRASA</Text>
-            <Text style={[styles.trailName, { marginTop: spacing.xs }]}>{trail.name}</Text>
-            <Text style={draftStyles.eyebrow}>● DRAFT · CZEKA NA PIONIERA</Text>
+            <View style={styles.heroPillRow}>
+              <Pill state="accent">Trasa</Pill>
+            </View>
+            <PageTitle title={trail.name} hero />
+            <Pill state="pending" dot>Draft · czeka na pioniera</Pill>
           </View>
 
-          <Pressable
-            onPress={startRecording}
-            style={({ pressed }) => [
-              draftStyles.cta,
-              pressed && { transform: [{ scale: 0.98 }] },
-            ]}
-          >
-            <Text style={draftStyles.ctaDot}>●</Text>
-            <Text style={draftStyles.ctaLabel}>ROZPOCZNIJ NAGRYWANIE</Text>
-            <Text style={draftStyles.ctaSub}>
-              Twój pierwszy zjazd wyznaczy linię dla wszystkich
+          <Card hi glow padding={20} style={{ gap: 14 }}>
+            <View style={styles.draftCtaIcon}>
+              <IconGlyph name="rec" size={32} variant="accent" />
+            </View>
+            <Text style={styles.draftCtaTitle}>ROZPOCZNIJ NAGRYWANIE</Text>
+            <Text style={styles.draftCtaBody}>
+              Twój pierwszy zjazd wyznaczy linię dla wszystkich.
             </Text>
-          </Pressable>
+            <Btn variant="primary" size="lg" onPress={startRecording}>
+              Rozpocznij nagrywanie
+            </Btn>
+          </Card>
 
-          {canDeleteTrail && (
-            <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.curatorDelete}>
-              <Text style={styles.curatorDeleteLabel}>Usuń tę trasę</Text>
+          {canDeleteTrail ? (
+            <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.deleteLink}>
+              <Text style={styles.deleteLinkText}>Usuń tę trasę</Text>
             </Pressable>
-          )}
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // ── Active trail — full board view ─────────────────────────
   const myStats = trailStats.get(trail.id);
   const top5 = leaderboard.slice(0, 5);
   const myEntry = leaderboard.find((e) => e.isCurrentUser);
   const nearestRival = myEntry
     ? leaderboard.find((e) => e.currentPosition === myEntry.currentPosition - 1)
     : null;
-  const diffColor = difficultyColors[trail.difficulty];
   const myPos = myEntry?.currentPosition ?? 0;
-  const tierLabel = myPos > 0 && myPos <= 3 ? 'PODIUM'
+  const tierLabel = myPos > 0 && myPos <= 3
+    ? 'PODIUM'
     : myPos > 0 && myPos <= 10 ? 'TOP 10'
-    : null;
+      : null;
   const placesToNextTier = myPos === 0 ? 0
     : myPos <= 3 ? 0
-    : myPos <= 10 ? myPos - 3
-    : myPos - 10;
+      : myPos <= 10 ? myPos - 3
+        : myPos - 10;
+  const tone = resolveDifficultyTone(trail.difficulty, trail.trailType);
 
-  // B29: intent is the pre-declared mode, carried as a route param.
-  // `/run/active` is the only screen that mounts `useRealRun`, and the
-  // hook binds its `mode` to this intent immutably — there's no in-run
-  // path that can flip it. Training-only venues are gated here so the
-  // ranked CTA never reaches route at all; the route guard at
-  // `/run/active` still rejects a `intent=ranked` deep-link on such a
-  // venue as defense-in-depth.
   const handleStartRanked = () => {
-    if (isTrainingOnly) {
-      tapLight();
-      return;
-    }
+    if (isTrainingOnly) return;
     if (!isAuthenticated) {
       tapLight();
       router.push('/auth');
@@ -246,200 +265,210 @@ export default function TrailDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={goBack} style={styles.backBtn}>
-          <Text style={styles.backText}>← WRÓĆ</Text>
-        </Pressable>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 }]}
+      >
+        <TopBar
+          onBack={goBack}
+          title="Trasa"
+          trailing={<Pill state="neutral" size="md">S01</Pill>}
+        />
 
-        {/* ═══ BREADCRUMB ═══ */}
-        {spotName && (
-          <Pressable onPress={goToSpot} hitSlop={8} style={styles.breadcrumbRow}>
-            <Text style={styles.breadcrumbLabel}>BIKE PARK:</Text>
-            <Text style={styles.breadcrumbName}>{spotName}</Text>
-            <Text style={styles.breadcrumbArrow}>→</Text>
+        {spotName ? (
+          <Pressable onPress={goToSpot} style={styles.crumb} hitSlop={8}>
+            <Text style={styles.crumbLabel}>BIKE PARK</Text>
+            <View style={styles.crumbDot} />
+            <Text style={styles.crumbName}>{spotName.toUpperCase()}</Text>
+            <IconGlyph name="chevron-right" size={12} color={colors.accent} />
           </Pressable>
-        )}
+        ) : null}
 
-        {/* ═══ TRAIL HERO ═══ */}
+        {/* ═════ HERO ═════ */}
         <View style={styles.hero}>
-          <Text style={styles.trailKicker}>⟣ TRASA</Text>
-          <Text style={[styles.trailName, { marginTop: spacing.xs }]}>{trail.name}</Text>
+          <View style={styles.heroPillRow}>
+            <Pill state="accent">Trasa</Pill>
+          </View>
+          <PageTitle title={trail.name} hero />
 
-          {/* Trust disclosure (Sprint 4 / ADR-012). Null on drafts — component renders nothing. */}
-          <View style={styles.trustRow}>
-            <TrustBadge seedSource={trail.seedSource} trustTier={trail.trustTier} />
+          <View style={styles.tagRow}>
+            <DifficultyPill tone={tone} />
+            <Pill state="neutral" size="xs">{trail.trailType}</Pill>
+            {trail.seedSource && trail.trustTier
+              ? <TrustBadge seedSource={trail.seedSource} trustTier={trail.trustTier} />
+              : null}
           </View>
 
-          {/* Pioneer identity row — visible only when trail has a Pioneer assigned */}
-          {trail.pioneerUsername && (
+          {trail.pioneerUsername ? (
             <View style={styles.pioneerRow}>
               <PioneerBadge size="sm" />
-              <Text style={styles.pioneerLabel}>Pioneer:</Text>
+              <Text style={styles.pioneerLabel}>PIONEER:</Text>
               <Text style={styles.pioneerName}>@{trail.pioneerUsername}</Text>
-              {trail.pioneeredAt && (
+              {trail.pioneeredAt ? (
                 <Text style={styles.pioneerDate}>· {formatPioneerDate(trail.pioneeredAt)}</Text>
-              )}
+              ) : null}
             </View>
-          )}
+          ) : null}
 
-          {trail.confidenceLabel && (
-            <Text style={styles.confidenceText}>
-              {trail.confidenceLabel === 'stable'
-                ? 'Ustabilizowana'
-                : trail.confidenceLabel === 'community_checked'
-                  ? 'Sprawdzona przez innych'
-                  : trail.confidenceLabel === 'confirmed'
-                    ? 'Potwierdzona trasa'
-                    : trail.calibrationStatus === 'fresh_pending_second_run'
-                      ? 'Potrzebny drugi zjazd'
-                      : 'Świeża trasa'}
-            </Text>
-          )}
-
-          <View style={[styles.badges, { marginTop: spacing.md }]}>
-            <View style={[styles.badge, { borderColor: diffColor }]}>
-              <Text style={[styles.badgeText, { color: diffColor }]}>{trail.difficulty.toUpperCase()}</Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{trail.trailType.toUpperCase()}</Text>
-            </View>
-          </View>
-          {isTrainingOnly && <Text style={styles.trainingTag}>WALIDACJA TRENINGOWA</Text>}
-          <View style={styles.trailMeta}>
-            <Text style={styles.metaText}>{trail.distanceM}m</Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>↓{trail.elevationDropM}m</Text>
-          </View>
+          {isTrainingOnly ? (
+            <Pill state="pending" size="sm">Walidacja treningowa</Pill>
+          ) : null}
         </View>
 
-        {/* ═══ BOARD STATUS — where you stand ═══ */}
-        {isAuthenticated ? (
-          <View style={[styles.statusCard, myEntry && { borderColor: colors.accent }]}>
-            {myEntry ? (
-              <>
-                <View style={styles.statusMain}>
-                  <View>
-                    <Text style={styles.statusPos}>#{myPos}</Text>
-                    <Text style={[styles.statusTier, { color: colors.textTertiary }]}>
-                      {boardScope === 'day' ? 'POZYCJA · DZIŚ' : boardScope === 'weekend' ? 'POZYCJA · WEEKEND' : 'POZYCJA · WSZECHCZASÓW'}
-                    </Text>
-                    {tierLabel && (
-                      <Text style={[styles.statusTier,
-                        tierLabel === 'PODIUM' && { color: colors.gold },
-                        tierLabel === 'TOP 10' && { color: colors.accent },
-                      ]}>{tierLabel}</Text>
-                    )}
-                  </View>
-                  <View style={styles.statusRight}>
-                    <Text style={styles.statusPbLabel}>TWÓJ REKORD</Text>
-                    <Text style={styles.statusPb}>{myStats?.pbMs ? formatTime(myStats.pbMs) : '—'}</Text>
-                    <Text style={styles.statusPbScope}>WSZECHCZASÓW</Text>
-                  </View>
-                </View>
-                {nearestRival && (
-                  <View style={styles.rivalRow}>
-                    <Text style={styles.rivalLabel}>CEL: #{nearestRival.currentPosition} {nearestRival.username}</Text>
-                    <Text style={styles.rivalGap}>
-                      {((myEntry.bestDurationMs - nearestRival.bestDurationMs) / 1000).toFixed(1)}s
-                    </Text>
-                  </View>
-                )}
-                {placesToNextTier > 0 && placesToNextTier <= 7 && (
-                  <Text style={styles.ambition}>
-                    {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do {myPos > 10 ? 'TOP 10' : 'podium'}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <View style={styles.noResultState}>
-                <Text style={styles.noResultText}>Bez wyniku na tej trasie</Text>
-                <Text style={styles.noResultHint}>Ukończ zjazd aby pojawić się na tablicy</Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
-            <Text style={styles.signInText}>Zaloguj się aby jechać rankingowo</Text>
-          </Pressable>
-        )}
+        {/* ═════ STATS GRID ═════ */}
+        <View style={styles.statsGrid}>
+          <StatBox label="Długość" value={`${trail.distanceM}`} unit="m" style={{ flex: 1 }} />
+          <StatBox label="Spadek" value={`${trail.elevationDropM}`} unit="m ↓" style={{ flex: 1 }} />
+          <StatBox
+            label="Twój PB"
+            value={myStats?.pbMs ? formatTime(myStats.pbMs) : '—'}
+            accent={!!myStats?.pbMs}
+            style={{ flex: 1 }}
+          />
+        </View>
 
-        {/* ═══ TRUST DISCLOSURE BANNER (GPT Rule 2) ═══ */}
-        {trail.seedSource && trail.trustTier && (
-          <View style={styles.disclosureBanner}>
-            <TrustBadge
-              seedSource={trail.seedSource}
-              trustTier={trail.trustTier}
-              size="sm"
-            />
-            <Text style={styles.disclosureText}>
+        {/* ═════ TRUST DISCLOSURE BANNER (GPT Rule 2) ═════ */}
+        {trail.seedSource && trail.trustTier ? (
+          <View style={styles.trustBanner}>
+            <IconGlyph name="verified" size={14} color={colors.accent} />
+            <Text style={styles.trustText}>
               {getTrustDisclosure(trail.seedSource, trail.trustTier)}
             </Text>
           </View>
+        ) : null}
+
+        {/* ═════ STATUS CARD ═════ */}
+        {isAuthenticated ? (
+          myEntry ? (
+            <HudPanel
+              title="Twoja pozycja"
+              status={
+                tierLabel ? (
+                  <Pill state={tierLabel === 'PODIUM' ? 'accent' : 'verified'} size="sm">
+                    {tierLabel}
+                  </Pill>
+                ) : null
+              }
+              accent
+            >
+              <View style={styles.statusRow}>
+                <View>
+                  <Text style={styles.statusPos}>#{String(myPos).padStart(2, '0')}</Text>
+                  <Text style={styles.statusPosLabel}>
+                    {boardScope === 'day'
+                      ? 'POZYCJA · DZIŚ'
+                      : boardScope === 'weekend'
+                        ? 'POZYCJA · WEEKEND'
+                        : 'POZYCJA · WSZECHCZASÓW'}
+                  </Text>
+                </View>
+                <View style={styles.statusRight}>
+                  <Text style={styles.statusPbLabel}>TWÓJ REKORD</Text>
+                  <Text style={styles.statusPb}>
+                    {myStats?.pbMs ? formatTime(myStats.pbMs) : '—'}
+                  </Text>
+                </View>
+              </View>
+              {nearestRival ? (
+                <View style={styles.rivalRow}>
+                  <Text style={styles.rivalLabel}>
+                    CEL: #{nearestRival.currentPosition} {nearestRival.username}
+                  </Text>
+                  <Text style={styles.rivalGap}>
+                    {((myEntry.bestDurationMs - nearestRival.bestDurationMs) / 1000).toFixed(1)}s
+                  </Text>
+                </View>
+              ) : null}
+              {placesToNextTier > 0 && placesToNextTier <= 7 ? (
+                <Text style={styles.ambition}>
+                  {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do {myPos > 10 ? 'TOP 10' : 'podium'}
+                </Text>
+              ) : null}
+            </HudPanel>
+          ) : (
+            <Card>
+              <View style={styles.noResultRow}>
+                <IconGlyph name="timer" size={16} color={colors.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noResultTitle}>BEZ WYNIKU NA TEJ TRASIE</Text>
+                  <Text style={styles.noResultHint}>
+                    Ukończ zjazd aby pojawić się na tablicy.
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          )
+        ) : (
+          <Card glow onPress={() => router.push('/auth')}>
+            <Text style={styles.signInText}>ZALOGUJ SIĘ ABY JECHAĆ RANKINGOWO</Text>
+          </Card>
         )}
 
-        {/* ═══ BOARD — top riders ═══ */}
-        <View style={styles.boardSection}>
-          <SectionHeader
+        {/* ═════ BOARD SECTION ═════ */}
+        <View style={styles.section}>
+          <SectionHead
+            icon="podium"
             label="Tablica"
-            glyph="▲"
-            glyphColor={colors.accent}
+            count={leaderboard.length || null}
             action={
-              leaderboard.length > 5
-                ? {
-                    label: 'Pełna tablica',
-                    onPress: () =>
-                      router.push({
-                        pathname: '/(tabs)/leaderboard',
-                        params: { trailId: trail.id, scope: boardScope },
-                      }),
+              leaderboard.length > 5 ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(tabs)/leaderboard',
+                      params: { trailId: trail.id, scope: boardScope },
+                    })
                   }
-                : undefined
+                >
+                  <Text style={styles.boardMore}>PEŁNA ↗</Text>
+                </Pressable>
+              ) : undefined
             }
-            spacingTop="none"
           />
+
           <View style={styles.scopeTabs}>
-            {([['day', 'DZIŚ'], ['weekend', 'WEEKEND'], ['all_time', 'SEZON']] as [PeriodType, string][]).map(([key, label]) => (
-              <Pressable
-                key={key}
-                style={[styles.scopeTab, boardScope === key && styles.scopeTabActive]}
-                onPress={() => setBoardScope(key)}
-              >
-                <Text style={[styles.scopeTabText, boardScope === key && styles.scopeTabTextActive]}>{label}</Text>
-              </Pressable>
-            ))}
+            {SCOPE_TABS.map(([key, label]) => {
+              const active = boardScope === key;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => {
+                    tapLight();
+                    setBoardScope(key);
+                  }}
+                  style={[styles.scopeTab, active && styles.scopeTabActive]}
+                >
+                  <Text style={[styles.scopeTabText, active && styles.scopeTabTextActive]}>
+                    {label.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          {lbLoading && <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />}
+          {lbLoading ? (
+            <ActivityIndicator color={colors.accent} style={{ paddingVertical: spacing.lg }} />
+          ) : null}
 
-          {!lbLoading && lbStatus === 'error' && (
-            <View style={styles.errorLb}>
-              <Text style={styles.emptyText}>Nie udało się załadować tablicy</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ponów ładowanie tablicy"
-                onPress={() => lbRefresh()}
-                style={({ pressed }) => [
-                  styles.errorLbBtn,
-                  pressed && { opacity: 0.6 },
-                ]}
-              >
-                <Text style={styles.errorLbBtnText}>PONÓW</Text>
-              </Pressable>
+          {!lbLoading && lbStatus === 'error' ? (
+            <View style={styles.boardEmpty}>
+              <Text style={styles.emptyText}>NIE UDAŁO SIĘ ZAŁADOWAĆ TABLICY</Text>
+              <Btn variant="ghost" size="sm" fullWidth={false} onPress={() => lbRefresh()}>
+                Ponów
+              </Btn>
             </View>
-          )}
+          ) : null}
 
-          {!lbLoading && lbStatus !== 'error' && top5.length === 0 && (
-            <View style={styles.emptyLb}>
-              <Text style={styles.emptyText}>Tablica pusta</Text>
-              <Text style={styles.emptyHint}>Postaw pierwszy czas</Text>
+          {!lbLoading && lbStatus !== 'error' && top5.length === 0 ? (
+            <View style={styles.boardEmpty}>
+              <Text style={styles.emptyText}>TABLICA PUSTA</Text>
+              <Text style={styles.emptyHint}>Postaw pierwszy czas.</Text>
             </View>
-          )}
+          ) : null}
 
           {top5.map((entry) => (
             <Pressable
               key={entry.userId}
-              style={[styles.lbRow, entry.isCurrentUser && styles.lbRowHighlight]}
               onLongPress={() => {
                 if (entry.isCurrentUser) return;
                 reportRider({
@@ -450,302 +479,397 @@ export default function TrailDetailScreen() {
               }}
               delayLongPress={450}
             >
-              <Text style={[styles.lbPos,
-                entry.currentPosition <= 3 && { color: colors.gold },
-                entry.isCurrentUser && { color: colors.accent },
-              ]}>
-                {entry.currentPosition}
-              </Text>
-              <Text style={[styles.lbName, entry.isCurrentUser && { color: colors.accent }]} numberOfLines={1}>
-                {entry.username}
-              </Text>
-              {/* Pioneer mark stays on Pioneer's row regardless of rank position —
-                  identity, not ranking. */}
-              {entry.userId === trail.pioneerUserId && <PioneerBadge size="sm" />}
-              <Text style={styles.lbTime}>{formatTimeShort(entry.bestDurationMs)}</Text>
+              <LeaderboardRow
+                position={entry.currentPosition}
+                rider={entry.username}
+                time={formatTimeShort(entry.bestDurationMs)}
+                self={entry.isCurrentUser}
+                leading={entry.userId === trail.pioneerUserId ? <PioneerBadge size="sm" /> : undefined}
+              />
             </Pressable>
           ))}
 
-          {myEntry && myEntry.currentPosition > 5 && (
+          {myEntry && myEntry.currentPosition > 5 ? (
             <>
-              <Text style={styles.lbDots}>···</Text>
-              <View style={[styles.lbRow, styles.lbRowHighlight]}>
-                <Text style={[styles.lbPos, { color: colors.accent }]}>
-                  {myEntry.currentPosition}
-                </Text>
-                <Text style={[styles.lbName, { color: colors.accent }]}>{myEntry.username}</Text>
-                <Text style={styles.lbTime}>{formatTimeShort(myEntry.bestDurationMs)}</Text>
-              </View>
+              <Text style={styles.dotsBetween}>···</Text>
+              <LeaderboardRow
+                position={myEntry.currentPosition}
+                rider={myEntry.username}
+                time={formatTimeShort(myEntry.bestDurationMs)}
+                self
+              />
             </>
-          )}
-
+          ) : null}
         </View>
 
-        {canDeleteTrail && (
-          <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.curatorDelete}>
-            <Text style={styles.curatorDeleteLabel}>Usuń tę trasę</Text>
+        {canDeleteTrail ? (
+          <Pressable onPress={handleDeleteTrail} hitSlop={12} style={styles.deleteLink}>
+            <Text style={styles.deleteLinkText}>Usuń tę trasę</Text>
           </Pressable>
-        )}
-
-        <View style={{ height: 120 }} />
+        ) : null}
       </ScrollView>
 
-      {/* ═══ RIDE CTAs ═══
-          B29: ranked button is visually disabled on training-only venues
-          (TRASA nie ma jeszcze kalibracji rankingowej). Tapping it is a
-          no-op so the rider can't accidentally route to ranked and hit
-          the Alert-redirect guard on /run/active. */}
-      <View style={styles.ctaContainer}>
-        <Pressable
-          style={[styles.rankedBtn, isTrainingOnly && styles.rankedBtnDisabled]}
+      {/* ═════ ACTION BAR ═════ */}
+      <View style={styles.actionBar}>
+        <Btn
+          variant="primary"
+          size="lg"
           onPress={handleStartRanked}
           disabled={isTrainingOnly}
-          accessibilityState={{ disabled: isTrainingOnly }}
+          icon={<IconGlyph name="lock" size={16} color={colors.accentInk} />}
+          style={{ flex: 1 }}
         >
-          <Text style={[styles.rankedBtnText, isTrainingOnly && styles.rankedBtnTextDisabled]}>
-            {isTrainingOnly
-              ? 'RANKING NIEDOSTĘPNY'
-              : isAuthenticated
-                ? 'JEDŹ RANKINGOWO'
-                : 'ZALOGUJ — JEDŹ RANKINGOWO'}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.practiceBtn} onPress={handleStartPractice}>
-          <Text style={styles.practiceBtnText}>TRENING</Text>
-        </Pressable>
+          {isTrainingOnly
+            ? 'Ranking niedostępny'
+            : isAuthenticated
+              ? 'Jedź ranking'
+              : 'Zaloguj — jedź ranking'}
+        </Btn>
+        <Btn
+          variant="ghost"
+          size="lg"
+          fullWidth={false}
+          onPress={handleStartPractice}
+          style={{ minWidth: 120 }}
+        >
+          Trening
+        </Btn>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.lg },
-  backBtn: { marginBottom: spacing.lg },
-  backText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.pad,
+    gap: spacing.lg,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.pad,
+  },
+  errorTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
 
-  // Breadcrumb (B2 — tappable parent link)
-  breadcrumbRow: {
+  // Crumb to spot
+  crumb: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: spacing.md,
+    gap: 8,
     alignSelf: 'flex-start',
-    paddingVertical: 2,
   },
-  breadcrumbLabel: {
-    fontFamily: 'Rajdhani_700Bold',
+  crumbLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
     fontSize: 10,
-    letterSpacing: 2,
-    color: 'rgba(232, 255, 240, 0.45)',
+    letterSpacing: 2.0,
+    color: colors.textTertiary,
+    fontWeight: '700',
   },
-  breadcrumbName: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    color: colors.accent,
-    letterSpacing: 0.5,
+  crumbDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.accent,
   },
-  breadcrumbArrow: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 12,
+  crumbName: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.65,
     color: colors.accent,
+    fontWeight: '700',
   },
 
   // Hero
-  hero: { marginBottom: spacing.xl },
-  trailKicker: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 3,
-    color: colors.accent,
+  hero: {
+    gap: 14,
+    paddingTop: 4,
   },
-
-  // Sprint 4 — trust + pioneer rows under the trail name
-  trustRow: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
+  heroPillRow: {
+    flexDirection: 'row',
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   pioneerRow: {
-    marginTop: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 6,
     flexWrap: 'wrap',
   },
   pioneerLabel: {
-    ...typography.labelSmall,
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.4,
     color: colors.textTertiary,
-    letterSpacing: 1,
-    marginLeft: 2,
+    fontWeight: '700',
   },
   pioneerName: {
-    fontFamily: 'Rajdhani_600SemiBold',
-    color: colors.accent,
+    ...typography.body,
+    fontFamily: 'Inter_700Bold',
     fontSize: 13,
-    letterSpacing: 1,
+    color: colors.accent,
+    fontWeight: '700',
   },
   pioneerDate: {
-    ...typography.labelSmall,
+    ...typography.body,
+    fontSize: 12,
     color: colors.textTertiary,
-    fontSize: 10,
   },
-  confidenceText: {
-    ...typography.label,
-    color: colors.accent,
-    letterSpacing: 1.2,
-    marginTop: spacing.sm,
+
+  // Stats grid
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  disclosureBanner: {
+
+  // Trust banner
+  trustBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
+    gap: 10,
+    backgroundColor: 'rgba(0, 255, 135, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.18)',
+    borderRadius: 14,
+    padding: 12,
+  },
+  trustText: {
+    ...typography.body,
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+
+  // Status (HudPanel interior)
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  statusPos: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 56,
+    lineHeight: 56,
+    color: colors.accent,
+    letterSpacing: -1.12, // -0.02em @ 56
+    fontVariant: ['tabular-nums'],
+    fontWeight: '800',
+  },
+  statusPosLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 2.16, // 0.24em @ 9
+    color: colors.textTertiary,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  statusRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  statusPbLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 2.16,
+    color: colors.textTertiary,
+    fontWeight: '700',
+  },
+  statusPb: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 24,
+    lineHeight: 24,
+    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
+    letterSpacing: -0.24,
+  },
+  rivalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  rivalLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: colors.textPrimary,
+    letterSpacing: 1.32, // 0.12em @ 11
+    fontWeight: '700',
+  },
+  rivalGap: {
+    ...typography.delta,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    color: colors.warn,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '800',
+  },
+  ambition: {
+    ...typography.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+
+  // Sign-in / no-result cards
+  signInText: {
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
+    color: colors.accent,
+    textAlign: 'center',
+    fontWeight: '800',
+  },
+  noResultRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  noResultTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
+  noResultHint: {
+    ...typography.body,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+
+  // Board section
+  section: {
+    gap: 10,
+  },
+  boardMore: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 2.16,
+    color: colors.accent,
+    fontWeight: '800',
+  },
+  scopeTabs: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  scopeTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  disclosureText: {
-    ...typography.labelSmall,
+  scopeTabActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.borderHot,
+  },
+  scopeTabText: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: colors.textTertiary,
+    fontWeight: '700',
+  },
+  scopeTabTextActive: {
+    color: colors.accent,
+  },
+
+  boardEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
     color: colors.textSecondary,
-    flex: 1,
-    flexShrink: 1,
-    letterSpacing: 0,
-    fontSize: 11,
-    lineHeight: 15,
   },
-  venueLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginBottom: spacing.md, fontSize: 9 },
-  badges: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  badge: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
-  badgeText: { ...typography.labelSmall, color: colors.textSecondary },
-  trailName: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 2 },
-  venueSub: { ...typography.bodySmall, color: colors.textTertiary, marginTop: 2 },
-  trainingTag: { ...typography.labelSmall, color: colors.orange, letterSpacing: 2, fontSize: 9, marginTop: spacing.sm },
-  trailMeta: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, alignItems: 'center' },
-  metaText: { ...typography.body, color: colors.textSecondary },
-  metaDot: { color: colors.textTertiary },
-
-  // Board status
-  statusCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
-  statusMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  statusPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 36, color: colors.accent },
-  statusTier: { ...typography.labelSmall, letterSpacing: 3, marginTop: spacing.xxs, fontSize: 10 },
-  statusRight: { alignItems: 'flex-end' },
-  statusPbLabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
-  statusPb: { fontFamily: 'Rajdhani_700Bold', fontSize: 20, color: colors.textPrimary, marginTop: spacing.xxs },
-  statusPbScope: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginTop: 2 },
-  rivalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
-  rivalLabel: { ...typography.bodySmall, color: colors.orange, fontFamily: 'Inter_600SemiBold' },
-  rivalGap: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.orange },
-  ambition: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
-  noResultState: { alignItems: 'center', paddingVertical: spacing.sm },
-  noResultText: { ...typography.body, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
-  noResultHint: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xs },
-  signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
-  signInText: { ...typography.body, color: colors.accent, fontFamily: 'Inter_600SemiBold' },
-
-  // Board
-  boardSection: { marginTop: spacing.sm },
-  scopeTabs: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md },
-  scopeTab: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border },
-  scopeTabActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
-  scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 1 },
-  scopeTabTextActive: { color: colors.accent },
-  emptyLb: { alignItems: 'center', paddingVertical: spacing.xl },
-  emptyText: { ...typography.body, color: colors.textSecondary },
-  emptyHint: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
-  errorLb: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.md },
-  errorLbBtn: {
-    minHeight: 44,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorLbBtnText: { ...typography.label, color: colors.accent, letterSpacing: 3 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  lbRowHighlight: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 0, marginVertical: spacing.xxs },
-  lbPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textTertiary, width: 36 },
-  lbName: { ...typography.body, color: colors.textPrimary, flex: 1, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
-  lbTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.textSecondary, letterSpacing: 1 },
-  lbDots: { ...typography.body, color: colors.textTertiary, textAlign: 'center', paddingVertical: spacing.xs },
-
-  // CTAs
-  ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.sm },
-  rankedBtn: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
-  rankedBtnText: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
-  // B29: disabled affordance for training-only venues — muted surface
-  // + ghost text so the rider reads it as "not available" rather than
-  // "broken button I can mash".
-  rankedBtnDisabled: { backgroundColor: colors.bgCard, opacity: 0.55 },
-  rankedBtnTextDisabled: { color: colors.textTertiary },
-  practiceBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
-  practiceBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
-
-  // Curator delete link (draft trails only)
-  curatorDelete: {
-    marginTop: spacing.xxl,
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-  },
-  curatorDeleteLabel: {
-    fontFamily: 'Inter_500Medium',
+  emptyHint: {
+    ...typography.body,
     fontSize: 12,
-    color: 'rgba(255, 67, 101, 0.70)',
-    textDecorationLine: 'underline',
-    letterSpacing: 0.5,
+    color: colors.textTertiary,
   },
-});
-
-// ── Draft-trail pioneer CTA styles ──
-
-const draftStyles = StyleSheet.create({
-  eyebrow: {
+  dotsBetween: {
     fontFamily: 'Rajdhani_700Bold',
-    fontSize: 11,
-    letterSpacing: 3,
-    color: colors.accent,
-    marginTop: spacing.md,
-  },
-  cta: {
-    marginTop: spacing.xxl,
-    marginHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radii.xl,
-    backgroundColor: 'rgba(20, 35, 26, 0.95)',
-    borderWidth: 2,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  ctaDot: {
-    color: '#FF4365',
     fontSize: 18,
-    marginBottom: spacing.sm,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    paddingVertical: 4,
   },
-  ctaLabel: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 20,
-    letterSpacing: 4,
+
+  // Action bar
+  actionBar: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: spacing.pad,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+
+  // Draft state
+  draftCtaIcon: {
+    alignSelf: 'flex-start',
+  },
+  draftCtaTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
     color: colors.accent,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
+    fontWeight: '800',
   },
-  ctaSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    color: 'rgba(232, 255, 240, 0.55)',
-    textAlign: 'center',
-    letterSpacing: 0.5,
+  draftCtaBody: {
+    ...typography.body,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  deleteLink: {
+    alignSelf: 'center',
+    paddingTop: 12,
+  },
+  deleteLinkText: {
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textTertiary,
   },
 });
