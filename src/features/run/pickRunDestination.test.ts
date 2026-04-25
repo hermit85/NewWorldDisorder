@@ -40,11 +40,23 @@ describe('pickRunDestination', () => {
     expect(href).toMatchObject({ pathname: '/run/recording' });
   });
 
-  it('routes calibrating trails to /run/active (gate engine has geometry)', () => {
+  it('routes calibrating trails to /run/active with default practice intent', () => {
+    // B29: default intent is practice when caller didn't pre-declare.
+    // The /run/active guard turns a missing intent into a redirect to
+    // trail detail, so supplying a safe default keeps drive-by CTAs
+    // (spot card) flowing without silently arming ranked.
     const href = pickRunDestination({ ...BASE, calibrationStatus: 'calibrating' });
     expect(href).toEqual({
       pathname: '/run/active',
-      params: { trailId: 'trail-uuid', trailName: 'Parkowa' },
+      params: { trailId: 'trail-uuid', trailName: 'Parkowa', intent: 'practice' },
+    });
+  });
+
+  it('routes fresh pending second run trails to /run/active', () => {
+    const href = pickRunDestination({ ...BASE, calibrationStatus: 'fresh_pending_second_run' });
+    expect(href).toEqual({
+      pathname: '/run/active',
+      params: { trailId: 'trail-uuid', trailName: 'Parkowa', intent: 'practice' },
     });
   });
 
@@ -56,6 +68,30 @@ describe('pickRunDestination', () => {
   it('routes locked trails to /run/active (read-only ranking but the ride still works)', () => {
     const href = pickRunDestination({ ...BASE, calibrationStatus: 'locked' });
     expect(href).toMatchObject({ pathname: '/run/active' });
+  });
+
+  it('B29: forwards explicit ranked intent to /run/active', () => {
+    const href = pickRunDestination({
+      ...BASE,
+      calibrationStatus: 'verified',
+      intent: 'ranked',
+    });
+    expect(href).toEqual({
+      pathname: '/run/active',
+      params: { trailId: 'trail-uuid', trailName: 'Parkowa', intent: 'ranked' },
+    });
+  });
+
+  it('B29: draft path ignores intent (recording has its own seed semantics)', () => {
+    const href = pickRunDestination({
+      ...BASE,
+      calibrationStatus: 'draft',
+      intent: 'ranked',
+    });
+    expect(href).toEqual({
+      pathname: '/run/recording',
+      params: { trailId: 'trail-uuid', spotId: 'spot-uuid' },
+    });
   });
 
   it('never emits pioneer=1 or trailName on the recording path', () => {
@@ -142,8 +178,17 @@ describe('pickRunDestination', () => {
       );
     });
 
-    it('does not trip the guard on known statuses (draft/calibrating/verified/locked)', () => {
-      for (const status of ['draft', 'calibrating', 'verified', 'locked']) {
+    it('does not trip the guard on known statuses', () => {
+      for (const status of [
+        'draft',
+        'fresh_pending_second_run',
+        'live_fresh',
+        'live_confirmed',
+        'stable',
+        'calibrating',
+        'verified',
+        'locked',
+      ]) {
         pickRunDestination({ ...BASE, calibrationStatus: status });
       }
       expect(spy).not.toHaveBeenCalled();

@@ -11,7 +11,12 @@ env:
 ---
 - launchApp:
     clearState: false
-- openLink: nwd://run/active?trailId=${TRAIL_ID}&trailName=${TRAIL_NAME}
+# B29: deep-link must carry intent=ranked|practice. Without it the
+# screen's route guard alerts and redirects to trail detail — that
+# would fail this flow's "cancel from active" assertion. Pick practice
+# as the test default so a headless runner doesn't need background
+# location permission to reach the armed state.
+- openLink: nwd://run/active?trailId=${TRAIL_ID}&trailName=${TRAIL_NAME}&intent=practice
 - extendedWaitUntil:
     timeout: 20000
     visible:

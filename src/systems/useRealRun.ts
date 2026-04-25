@@ -115,19 +115,26 @@ export function useRealRun(
   trailId: string,
   trailName: string,
   spotId: string,
+  intent: RunMode,
   geo: TrailGeoSeed | null,
   gateConfig: TrailGateConfig | null,
   userId?: string,
 ) {
-  // Single source of truth for initial / post-cancel state. Before
-  // this factory `cancel()` cherry-picked fields (phase, timer, etc)
-  // and left others — including `mode` — leaking forward. A second
-  // attempt inherited `mode='ranked'` from the cancelled one, which
-  // in turn masked the P0.1 arm-routing bug (Codex review P2.1).
+  // B29: `intent` is the rider's pre-declared choice (Ranking vs Trening),
+  // passed immutably from the /run/active route params. It is captured in
+  // this hook closure and never mutates for the lifetime of the mount —
+  // `armRun()` is now parameterless and reads intent from this closure.
+  // Rationale: previous design let `armRun(mode)` silently downgrade a
+  // rider's ranked intent to practice when `state.readiness.rankedEligible`
+  // flickered false at tap time (B28 walk-test report: "zjechałem rankingowo,
+  // zapisało się jako trening"). Making intent immutable at hook construction
+  // kills that entire class of bugs — you can't downgrade what you don't
+  // have a setter for. Rider must cancel + exit to trail detail to change
+  // intent; see Codex review (B28→B29 round).
   const makeInitialState = useCallback((): RealRunState => ({
     runSessionId: '',
     phase: 'idle',
-    mode: 'practice',
+    mode: intent,
     trailId,
     trailName,
     startedAt: null,
@@ -164,7 +171,7 @@ export function useRealRun(
     gateLastStartAttempt: null,
     gateLastFinishAttempt: null,
     gateVelocityMinMps: 1.0,
-  }), [trailId, trailName, geo]);
+  }), [trailId, trailName, geo, intent]);
 
   const [state, setState] = useState<RealRunState>(makeInitialState);
 
@@ -479,9 +486,10 @@ export function useRealRun(
     // Codex FAZA2 P0: phase guard reads `livePhaseRef` (synchronous mirror)
     // rather than `stateRef.current.phase`, because React's committed state
     // lags the ref by one render. If a crossing arrives in that gap we'd
-    // otherwise drop the auto-start. `startRunInternal` still reads
-    // `stateRef.current.mode` to pick the running phase — that one is
-    // stable within a batch, so no sync mirror needed.
+    // otherwise drop the auto-start. B29 note: `startRunInternal` now reads
+    // the immutable `intent` closure to pick the running phase, so there's
+    // no mode-lag concern here either — intent can't change between arm
+    // and gate crossing.
     const livePhase = livePhaseRef.current;
     if (livePhase !== 'armed_ranked' && livePhase !== 'armed_practice') return;
     if (finalizingRef.current) return;
@@ -555,14 +563,31 @@ export function useRealRun(
   // RUN LIFECYCLE: arm / start / finish / cancel
   // ══════════════════════════════════════════
 
-  const armRun = useCallback((mode: RunMode) => {
-    logDebugEvent('run', 'armed', 'info', { trailId, payload: { mode } });
+  const armRun = useCallback(() => {
+    // B29: diagnostic event capturing full context at every arm. Lives for
+    // one release (B29 → B30) so walk-test logs can prove no unexpected
+    // path is reaching arm with stale/unexpected state. Drop in B30 once
+    // telemetry confirms the flow is clean.
+    const s = stateRef.current;
+    logDebugEvent('run', 'armed', 'info', {
+      trailId,
+      payload: {
+        intent,
+        phaseBefore: s.phase,
+        rankedEligible: s.readiness.rankedEligible,
+        inStartGate: s.readiness.inStartGate,
+        gpsAccuracy: s.lastPoint?.accuracy ?? null,
+        distanceToStartM: s.readiness.distanceToStartM,
+      },
+    });
     gpsHealthRef.current.markArmed();
     const nextPhase: RunPhaseV2 =
-      mode === 'ranked' ? 'armed_ranked' : 'armed_practice';
+      intent === 'ranked' ? 'armed_ranked' : 'armed_practice';
     livePhaseRef.current = nextPhase;
-    safeSetState((s) => ({ ...s, mode, phase: nextPhase }));
-  }, [safeSetState]);
+    // B29: `mode` is NOT written here — it was set to `intent` by
+    // makeInitialState and must stay pinned for the lifetime of the hook.
+    safeSetState((s) => ({ ...s, phase: nextPhase }));
+  }, [safeSetState, trailId, intent]);
 
   const startRunInternal = useCallback((
     autoStarted: boolean = false,
@@ -571,7 +596,12 @@ export function useRealRun(
     finalizingRef.current = false;
     autoFinishTimestampRef.current = null;
     const sessionId = createRunSessionId();
-    const currentMode = stateRef.current.mode;
+    // B29: read intent from the hook closure (immutable since mount),
+    // not from state.mode. Same value as state.mode — which is pinned
+    // to intent by makeInitialState — but sourcing it from the closure
+    // makes the invariant self-documenting: there is no code path that
+    // could have mutated it between arm and start.
+    const currentMode = intent;
     // Codex P0.2: for gate auto-start, use the crossing timestamp so
     // trace + state + server RPC all agree on the same `startedAt`.
     // Manual-start and practice fall back to wall-clock.
@@ -642,9 +672,12 @@ export function useRealRun(
   }, [gateConfig, trailId, trailName, geo, safeSetState, gateEngine]);
 
   const startRun = useCallback(() => {
-    if (stateRef.current.mode !== 'practice' || stateRef.current.phase !== 'armed_practice') return;
+    // B29: guard against accidentally starting a ranked run via the
+    // practice-only manual-start tap path. Intent is the immutable
+    // oracle; phase check doubles as a lifecycle guard.
+    if (intent !== 'practice' || stateRef.current.phase !== 'armed_practice') return;
     startRunInternal(false);
-  }, [startRunInternal]);
+  }, [startRunInternal, intent]);
 
   /**
    * D3 manual-start fallback. Fires when auto-detection gets stuck in

@@ -17,10 +17,21 @@ import { useTrail, useTrailGeometry, useUserTrailStats, useLeaderboard } from '@
 import { resolveVenue } from '@/features/run/resolveVenue';
 import { MotivationStack, type RivalAbove } from '@/components/run/MotivationStack';
 import { useLocationPermission } from '@/features/permissions/useLocationPermission';
+import {
+  parseRunIntent,
+  decideIntentGuard,
+  getIntentGuardMessage,
+  resolveHookIntent,
+} from '@/features/run/runIntent';
 
 export default function ActiveRunScreen() {
-  const { trailId = '', trailName = 'Unknown Trail' } =
-    useLocalSearchParams<{ trailId: string; trailName: string }>();
+  const params = useLocalSearchParams<{
+    trailId: string;
+    trailName: string;
+    intent: string;
+  }>();
+  const trailId = params.trailId ?? '';
+  const trailName = params.trailName ?? 'Unknown Trail';
   const router = useRouter();
   const navigation = useNavigation();
   const [showDebug, setShowDebug] = useState(false);
@@ -45,6 +56,34 @@ export default function ActiveRunScreen() {
   const geo = venue.trailGeo;
   const gateConfig = venue.gateConfig;
 
+  // B29: intent is the rider's pre-declared choice (Ranking vs Trening),
+  // validated from route params. Missing/invalid intent → redirect to
+  // trail detail so rider picks deliberately. On training-only trails,
+  // `intent=ranked` is also rejected (they should land on Trening).
+  // This removes the entire silent-downgrade class of bugs — there's no
+  // code path left that can turn a ranked intent into a practice run
+  // without rider consent. Parsing + guard decision live in
+  // src/features/run/runIntent.ts so the rules are unit-testable.
+  const intent = parseRunIntent(params.intent);
+  const intentInvalidRef = useRef(false);
+  useEffect(() => {
+    if (intentInvalidRef.current) return;
+    if (!trailId) return; // handled by the deep-link guard below
+    const decision = decideIntentGuard({ intent, isTrainingOnly });
+    if (decision.action === 'redirect') {
+      intentInvalidRef.current = true;
+      const { title, body } = getIntentGuardMessage(decision.reason);
+      Alert.alert(title, body, [
+        {
+          text: 'OK',
+          onPress: () => {
+            router.replace({ pathname: '/trail/[id]', params: { id: trailId } });
+          },
+        },
+      ]);
+    }
+  }, [intent, trailId, isTrainingOnly, router]);
+
   // Guard: deep-linked trailId points at a trail that doesn't exist in
   // DB (deleted, bad link, legacy id). Without this, the screen happily
   // mounts as "UNKNOWN TRAIL" with a live 00.00 timer and no way to tell
@@ -67,6 +106,13 @@ export default function ActiveRunScreen() {
     }
   }, [trailId, trailStatus, venue.source, router]);
 
+  // B29: pass intent into useRealRun. Default to 'practice' when the
+  // redirect effect is about to fire (intent === null) so the hook can
+  // still mount cleanly for the one render cycle before replace() runs —
+  // no ranked side-effects fire in that window because the redirect is
+  // synchronous-enough and ApproachView's onArm path is the only thing
+  // that could transition out of idle.
+  const resolvedIntent = resolveHookIntent(intent);
   const {
     state,
     beginReadinessCheck,
@@ -75,7 +121,7 @@ export default function ActiveRunScreen() {
     manualStart,
     finishRun,
     cancel,
-  } = useRealRun(trailId, trailName, spotId, geo, gateConfig, profile?.id);
+  } = useRealRun(trailId, trailName, spotId, resolvedIntent, geo, gateConfig, profile?.id);
 
   // Ranked background-permission preflight (F1#6). iOS silently kills
   // foreground-only GPS when the phone screen locks or the app is
@@ -103,36 +149,41 @@ export default function ActiveRunScreen() {
 
   const armRankedWithPreflight = useCallback(async () => {
     if (permission.backgroundStatus === 'granted') {
-      armRun('ranked');
+      armRun();
       return;
     }
     const result = permission.backgroundStatus === 'undetermined'
       ? await permission.requestBackground()
       : permission.backgroundStatus;
     if (result === 'granted') {
-      armRun('ranked');
+      armRun();
       return;
     }
-    // Denied (or denied-after-prompt). Offer two honest paths:
-    // open iOS Settings to flip the grant, or accept a practice run.
-    // Never silently downgrade without telling the rider.
+    // B29: denied (or denied-after-prompt). No silent practice fallback
+    // here — the rider chose Ranking at the trail detail, we must honor
+    // that. Two honest paths only: flip the permission in iOS Settings,
+    // or cancel and go back to the trail detail to switch to Trening
+    // explicitly. Product-owner direction post-B28: "nothing can flip.
+    // Training should be a separate flow."
     Alert.alert(
       'Potrzebna zgoda „Zawsze"',
-      'Ranking wymaga nagrywania GPS gdy telefon jest w kieszeni. Bez zgody „Zawsze" zjazd przejdzie w tryb treningu (bez miejsca w tablicy).',
+      'Ranking wymaga nagrywania GPS gdy telefon jest w kieszeni. Wróć do trasy i wybierz Trening, albo włącz „Zawsze" w Ustawieniach.',
       [
         {
           text: 'Ustawienia',
           onPress: () => { void Linking.openSettings(); },
         },
         {
-          text: 'Jedź jako trening',
-          style: 'default',
-          onPress: () => { armRun('practice'); },
+          text: 'Wróć do trasy',
+          onPress: () => {
+            cancel();
+            router.replace({ pathname: '/trail/[id]', params: { id: trailId } });
+          },
         },
         { text: 'Anuluj', style: 'cancel' },
       ],
     );
-  }, [permission, armRun]);
+  }, [permission, armRun, cancel, router, trailId]);
 
   // ── Gaming context: user PB + rival above (Chunk 5) ─────────
   //
@@ -198,20 +249,32 @@ export default function ActiveRunScreen() {
         if (showApproachPreRun) {
           break;
         }
-        if (isTrainingOnly) {
-          // Training-only venue: always practice, never ranked
-          tapLight();
-          armRun('practice');
-        } else if (state.readiness.rankedEligible && isAuthenticated) {
-          tapMedium();
-          void armRankedWithPreflight();
-        } else if (state.readiness.rankedEligible && !isAuthenticated) {
+        // B29: intent is immutable — branch on intent, not on readiness
+        // flags. The readiness flags can flicker mid-tap (B28 bug), so
+        // using them to pick mode silently demoted ranked → practice.
+        // Now the rider's intent is the pin; readiness only gates
+        // whether we arm now or wait.
+        if (intent === 'practice') {
+          if (state.readiness.ctaEnabled) {
+            tapLight();
+            armRun();
+          }
+          break;
+        }
+        // intent === 'ranked' from here
+        if (!isAuthenticated) {
           tapLight();
           router.push('/auth');
-        } else if (state.readiness.ctaEnabled) {
-          tapLight();
-          armRun('practice');
+          break;
         }
+        if (state.readiness.rankedEligible) {
+          tapMedium();
+          void armRankedWithPreflight();
+        }
+        // Ranked intent but not rankedEligible → no-op. Rider sees the
+        // readiness copy ("za daleko od linii", "GPS słaby") and waits
+        // or taps WRÓĆ. No silent fallback to practice — that's the
+        // whole B29 contract.
         break;
       case 'armed_ranked':
         break;
@@ -268,8 +331,14 @@ export default function ActiveRunScreen() {
   };
 
   const handleStartPractice = () => {
+    // B29: armRun() is parameterless and reads intent from the hook
+    // closure. This handler is only wired up when intent === 'practice'
+    // (see ReadinessPanel render below), so calling armRun() here is
+    // always a practice arm. If intent were somehow 'ranked' at this
+    // point it would be a bug, not a silent demotion — the gating lives
+    // in the prop wiring, not inside armRun.
     tapLight();
-    armRun('practice');
+    armRun();
   };
 
   const handleBack = () => {
@@ -377,7 +446,10 @@ export default function ActiveRunScreen() {
     ],
   );
 
-  const modeBadge = state.mode === 'ranked'
+  // B29: badge reads intent, not state.mode — same value (makeInitialState
+  // pins mode to intent) but sourcing from intent makes the invariant
+  // self-documenting.
+  const modeBadge = intent === 'ranked'
     ? { label: 'RANKING', color: colors.accent, bg: colors.accentDim }
     : { label: 'TRENING', color: colors.blue, bg: 'rgba(0, 122, 255, 0.15)' };
 
@@ -410,7 +482,12 @@ export default function ActiveRunScreen() {
           <View style={styles.readinessContainer}>
             <ReadinessPanel
               readiness={state.readiness}
-              onStartPractice={!state.readiness.rankedEligible ? handleStartPractice : undefined}
+              // B29: only show "Jedź jako trening" when rider's intent
+              // was already practice. If intent === 'ranked' we never
+              // surface a practice button here — silent demotion is
+              // off the table. The rider's options in that case are:
+              // wait for GPS/gate, or tap WRÓĆ (handleBack).
+              onStartPractice={intent === 'practice' ? handleStartPractice : undefined}
               onBack={handleBack}
             />
           </View>
@@ -424,7 +501,7 @@ export default function ActiveRunScreen() {
           <View style={styles.approachContainer}>
             <ApproachView
               trailName={trailName}
-              mode={isTrainingOnly ? 'training' : (state.mode === 'practice' ? 'training' : 'ranked')}
+              mode={intent === 'ranked' ? 'ranked' : 'training'}
               state={approachState}
               userAccuracyM={state.lastPoint?.accuracy ?? 99}
               userVelocityMps={
@@ -437,20 +514,33 @@ export default function ActiveRunScreen() {
               userPosition={userPosition}
               onManualStart={manualStart}
               onArm={() => {
-                // Ranked-vs-practice is decided from venue / auth /
-                // readiness, never from `state.mode` — `mode` defaults
-                // to 'practice' on a fresh useRealRun, so reading it
-                // here silently demoted every fresh ranked attempt into
-                // practice (Codex review P0.1, pre-B21).
-                const canRank =
-                  !isTrainingOnly &&
-                  isAuthenticated &&
-                  state.readiness.rankedEligible;
-                if (canRank) {
-                  void armRankedWithPreflight();
-                } else {
-                  armRun('practice');
+                // B29: intent is the immutable oracle — readiness only
+                // gates whether we can arm *now*. Practice intent arms
+                // immediately (it's a practice run, by definition).
+                // Ranked intent honours the pre-existing auth +
+                // rankedEligible checks but NEVER silently demotes to
+                // practice on failure — the rider committed to ranked
+                // at trail detail, and silent demotion is the exact
+                // B28 bug this refactor kills.
+                if (intent === 'practice') {
+                  armRun();
+                  return;
                 }
+                if (!isAuthenticated) {
+                  router.push('/auth');
+                  return;
+                }
+                if (state.readiness.rankedEligible) {
+                  void armRankedWithPreflight();
+                  return;
+                }
+                // Ranked intent but gate / GPS says not yet. Be honest
+                // about why — no silent practice armament.
+                Alert.alert(
+                  'Jeszcze nie teraz',
+                  'Podejdź bliżej linii startu i odczekaj, aż GPS wyostrzy pozycję. Ranking wymaga dokładności na linii.',
+                  [{ text: 'OK' }],
+                );
               }}
               armed={
                 state.phase === 'armed_ranked' || state.phase === 'armed_practice'

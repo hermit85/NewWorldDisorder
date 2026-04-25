@@ -38,6 +38,15 @@ export interface RunDestinationInput {
    *  trail card summary only carries calibrationStatus; the
    *  full Trail row carries geometryMissing too. */
   geometryMissing?: boolean;
+  /**
+   * B29: pre-declared run mode. Only applied when the destination
+   * resolves to `/run/active` — the draft path (`/run/recording`)
+   * has its own seed-run semantics and ignores intent. Callers
+   * that can't infer a sensible choice should pass `'practice'`;
+   * the rider can always escalate via trail detail's explicit
+   * JEDŹ RANKINGOWO CTA.
+   */
+  intent?: 'ranked' | 'practice';
 }
 
 /**
@@ -48,6 +57,10 @@ export interface RunDestinationInput {
  */
 const KNOWN_CALIBRATION_STATUSES = [
   'draft',
+  'fresh_pending_second_run',
+  'live_fresh',
+  'live_confirmed',
+  'stable',
   'calibrating',
   'verified',
   'locked',
@@ -101,8 +114,14 @@ export function pickRunDestination(input: RunDestinationInput): Href {
     };
   }
 
+  // B29: default to practice when caller didn't pre-declare intent.
+  // The /run/active guard alerts on missing intent and redirects to
+  // trail detail, so a default keeps drive-by CTAs (spot card, map
+  // pins) flowing while never silently upgrading a tap to ranked.
+  // Ranked must be an explicit rider decision.
+  const intent: 'ranked' | 'practice' = input.intent ?? 'practice';
   return {
     pathname: '/run/active',
-    params: { trailId: input.trailId, trailName: input.trailName },
+    params: { trailId: input.trailId, trailName: input.trailName, intent },
   };
 }

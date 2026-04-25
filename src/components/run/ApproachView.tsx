@@ -14,7 +14,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -263,6 +262,7 @@ function StartPointMap({
   startPoint: LatLng;
   userPosition: LatLng | null;
 }) {
+  const { default: MapView, Marker, PROVIDER_DEFAULT } = require('react-native-maps');
   const region = useMemo(() => {
     if (!userPosition) {
       return {

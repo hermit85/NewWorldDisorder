@@ -263,11 +263,16 @@ export default function HomeScreen() {
               beaterTimeMs={heroBeat!.beaterTimeMs}
               userTimeMs={heroBeat!.userTimeMs}
               onPrimary={() =>
+                // B29: "odgryź się" is a revenge-ride CTA — the rider
+                // wants to beat the rival's time. Intent is unambiguously
+                // ranked. If the trail is training-only the /run/active
+                // guard redirects to trail detail with an honest message.
                 router.push({
                   pathname: '/run/active',
                   params: {
                     trailId: heroBeat!.trailId,
                     trailName: heroBeat!.trailName,
+                    intent: 'ranked',
                   },
                 })
               }

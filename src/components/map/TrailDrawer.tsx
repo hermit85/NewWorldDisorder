@@ -67,9 +67,21 @@ export function TrailDrawer({ trail, stats, challenges = [], readiness, rankingE
 
   const handleStartRun = () => {
     tapMedium();
+    // B29: infer intent from context. Ranked is only offered when the
+    // venue supports it AND the rider is physically at the gate with
+    // GPS good enough for the live CTA to read "START" / "ROZPOCZNIJ
+    // ZJAZD". Every other state routes as practice — the drawer's own
+    // copy ("JEDŹ BEZ WERYFIKACJI") already tells the rider that's a
+    // non-ranked attempt. This matches ctaConfig semantics above. No
+    // silent-downgrade risk because intent pins `useRealRun.mode` at
+    // mount.
+    const canRank =
+      rankingEnabled &&
+      (readiness?.level === 'ready' || readiness?.level === 'at_start');
+    const intent: 'ranked' | 'practice' = canRank ? 'ranked' : 'practice';
     router.push({
       pathname: '/run/active',
-      params: { trailId: trail.id, trailName: trail.name },
+      params: { trailId: trail.id, trailName: trail.name, intent },
     });
   };
 
