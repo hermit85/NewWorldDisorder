@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────
+// StreakIndicator — daily-streak summary card
+//
+// Migrated to canonical: chunk9 → @/theme tokens, 🔥 emoji →
+// IconGlyph "rec" (filled accent dot per icons.md "rec" glyph
+// which maps semantically to "active/burning streak").
+// ─────────────────────────────────────────────────────────────
 import { memo, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -7,7 +14,10 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { IconGlyph } from '@/components/nwd';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing, radii } from '@/theme/spacing';
 
 type StreakIndicatorProps = {
   days: number;
@@ -46,7 +56,9 @@ export const StreakIndicator = memo(function StreakIndicator({
 
   return (
     <Animated.View style={[styles.container, animatedStyle]}>
-      <Text style={styles.icon}>🔥</Text>
+      <View style={styles.iconWrap}>
+        <IconGlyph name="rec" size={20} variant="default" color={colors.accent} />
+      </View>
       <View style={styles.copyBlock}>
         <Text style={styles.title}>{days} dni z rzędu</Text>
         <Text style={[styles.subtitle, mode === 'warn' && styles.subtitleWarn]}>
@@ -61,29 +73,38 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: chunk9Spacing.cardChildGap,
-    borderRadius: chunk9Radii.card,
-    padding: chunk9Spacing.cardPaddingTight,
-    backgroundColor: chunk9Colors.bg.surface,
+    gap: spacing.md,
+    borderRadius: radii.card,
+    padding: spacing.md,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
   },
-  icon: {
-    fontSize: 20,
+  iconWrap: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   copyBlock: {
     flex: 1,
     gap: 2,
   },
   title: {
-    ...chunk9Typography.stat19,
-    color: chunk9Colors.text.primary,
+    ...typography.lead,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 18,
+    lineHeight: 18,
+    color: colors.textPrimary,
+    fontWeight: '700',
+    letterSpacing: -0.09,
   },
   subtitle: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   subtitleWarn: {
-    color: chunk9Colors.accent.emerald,
+    color: colors.warn,
   },
 });

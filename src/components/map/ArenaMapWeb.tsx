@@ -122,8 +122,10 @@ export function ArenaMapWeb({
                 >
                   {official?.shortName ?? trail.name}
                 </Text>
-                {isHot && <Text style={styles.badge}>🔥</Text>}
-                {hasChallenge && !isHot && <Text style={styles.badge}>⚡</Text>}
+                {/* § 13.5 no-emoji: 🔥 / ⚡ replaced with mono CAPS badges
+                    that read on both native + web. */}
+                {isHot && <Text style={[styles.badge, { color: colors.accent }]}>HOT</Text>}
+                {hasChallenge && !isHot && <Text style={[styles.badge, { color: colors.warn }]}>+XP</Text>}
               </View>
 
               {/* Difficulty tag */}

@@ -119,7 +119,11 @@ function TopoBackground({ slideIndex }: { slideIndex: number }) {
 
 const topoStyles = StyleSheet.create({
   container: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
-  contourLine: { position: 'absolute', height: 1, backgroundColor: colors.accent, opacity: 0.5, borderRadius: 100 },
+  // § 01 race-state-owns-color: topo background is decoration, not state.
+  // Pre-fix used `colors.accent` at 50% opacity — visually screamed
+  // "armed" while the rider was just reading copy. Neutral textTertiary
+  // at the same opacity gives texture without the race-state signal.
+  contourLine: { position: 'absolute', height: 1, backgroundColor: colors.textTertiary, opacity: 0.5, borderRadius: 100 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.textTertiary, opacity: 0.15 },
   gridLineV: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: colors.textTertiary, opacity: 0.1 },
   cornerMark: { position: 'absolute' },
@@ -405,7 +409,10 @@ const styles = StyleSheet.create({
   indicatorRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, height: 16 },
   segmentWrapper: { height: 4, justifyContent: 'center', alignItems: 'center' },
   segment: { height: 3, borderRadius: 2, backgroundColor: colors.bgElevated },
-  segmentActive: { backgroundColor: colors.accent, height: 4, borderRadius: 2 },
+  // Page indicator current dot: decoration affordance, not race state.
+  // Pre-fix used colors.accent (§ 01 violation). textPrimary stands
+  // out clearly on dark bg without claiming the armed/race signal.
+  segmentActive: { backgroundColor: colors.textPrimary, height: 4, borderRadius: 2 },
   segmentDone: { backgroundColor: colors.textTertiary },
   ctaBtn: { borderRadius: radii.lg, paddingVertical: spacing.lg + 2, alignItems: 'center' },
   ctaBtnText: { ...typography.cta, letterSpacing: 3, fontFamily: fonts.bodySemiBold },
