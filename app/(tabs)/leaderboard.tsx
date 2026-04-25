@@ -610,10 +610,26 @@ const styles = StyleSheet.create({
 
   // Scope tabs
   scopeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.lg },
-  scopeTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, borderRadius: radii.sm, backgroundColor: 'transparent' },
-  scopeTabActive: { backgroundColor: colors.accent },
+  // § 01 race-state-owns-color fix: scope tab is a filter affordance,
+  // not a race state. Pre-fix the active tab fully filled with accent
+  // (`backgroundColor: colors.accent`) which read as "ARMED", not
+  // "this period selected". Canonical screens-spot-trail.jsx uses
+  // accentDim bg + accent text + borderHot border for active filter
+  // tabs — same pattern shipped here.
+  scopeTab: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  scopeTabActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.borderHot,
+  },
   scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
-  scopeTabTextActive: { color: colors.bg, fontFamily: 'Inter_700Bold' },
+  scopeTabTextActive: { color: colors.accent, fontFamily: 'Inter_700Bold' },
 
   // Trail selector
   trailSelector: { marginBottom: spacing.xl, marginHorizontal: -spacing.lg },
