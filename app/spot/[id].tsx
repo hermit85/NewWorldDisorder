@@ -1,31 +1,35 @@
 // ─────────────────────────────────────────────────────────────
-// Spot (Bike Park Hub) screen
+// Spot (Bike Park Hub) screen — STATE A · MID SHEET
 //
-// Visual language: design-system/Bike Park Hub.html · STATE B
-// (full-sheet variant). The map canvas from STATE A isn't shipped
-// yet — that needs a real Mapbox / MapLibre layer + trail SVG
-// overlays — but the chrome below the map (header, conditions
-// strip, hot-lap banner, trail rows, filters, leaderboard peek)
-// fully matches the design.
+// Visual language: design-system/Bike Park Hub.html STATE A.
+// Map canvas as the hero background, floating top HUD with
+// check-in pill + park header, FAB START RUN at bottom-right,
+// bottom sheet pinned to the lower 60% with hot lap + trail list.
 //
-// Architecture:
-//   - BikeParkHeader   logo + name + region + WARUNKI/TRAS/AKTYWNI
-//   - HotLapStrip      gold banner — fastest run of the day
-//   - filter chips     EASY / FLOW / HARD / PRO + "MOJE PB"
-//   - TrailRow list    flat rows w/ diff stripe + status pulse + PB
-//   - empty / pioneer  unchanged from prior iteration (still works)
+// What's here vs design:
+//   ✓ Map canvas (stylized SVG: topo + grid + watermark + gondola
+//     + difficulty-colored trail paths + active rider blinks +
+//     start gate pulse)
+//   ✓ Floating "JESTEŚ W PARKU" check-in pill (top hud)
+//   ✓ BikeParkHeader — logo + name + region + WARUNKI/TRAS/AKTYWNI
+//   ✓ FAB START RUN with locate button + glow
+//   ✓ Bottom sheet (fixed mid-height for now) with hot lap strip
+//     + filter chips + TrailRow list
 //
-// Old chunk9 tokens kept ONLY where the inner components require
-// them (FilterPill, GlowButton, SegmentLine still import chunk9
-// internally). Direct screen styles use the new design-system
-// tokens from `@/theme/colors` + `@/theme/typography`.
+// What's deferred to later commits:
+//   ✗ Real map (Mapbox / MapLibre) wired to GPS — placeholder
+//     SVG canvas stands in until Sprint 3 wires geometry.
+//   ✗ Sheet drag-to-expand (snap to mid/full) — sheet is fixed
+//     at mid until @gorhom/bottom-sheet is added or we build a
+//     Reanimated-based sheet.
+//   ✗ Tabs (Trasy / Lifty / Wydarzenia) — only Trasy ships now
+//     since lifts and events have no data source yet.
 // ─────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,12 +39,14 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Brackets } from '@/components/ui/Brackets';
-import { FilterPill } from '@/components/ui/FilterPill';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { SegmentLine } from '@/components/ui/SegmentLine';
 import { BikeParkHeader } from '@/components/ui/BikeParkHeader';
 import { TrailRow } from '@/components/ui/TrailRow';
 import { HotLapStrip } from '@/components/ui/HotLapStrip';
+import { BikeParkMap } from '@/components/ui/BikeParkMap';
+import { CheckInPill } from '@/components/ui/CheckInPill';
+import { FabStartRun } from '@/components/ui/FabStartRun';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
@@ -48,16 +54,9 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
 
-type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
+type DiffFilter = 'all' | 'easy' | 'flow' | 'hard' | 'pro';
 type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verified';
 
-/**
- * Chunk 10 §4.2 spot display state matrix.
- *
- * Three render branches: pioneer empty when truly zero trails,
- * list + subtle banner when all trails are still in validation,
- * normal list in every other case.
- */
 function computeSpotState(
   trails: { calibrationStatus?: string }[],
 ): SpotDisplayState {
@@ -73,19 +72,48 @@ function computeSpotState(
   return 'mixed';
 }
 
-const BOTTOM_CTA_CLEARANCE = 24;
+function applyDiffFilter(
+  trails: ReturnType<typeof useBikeParkTrails>['trails'],
+  filter: DiffFilter,
+) {
+  if (filter === 'all') return trails;
+  return trails.filter((t) => {
+    const d = (t.trail.difficulty ?? '').toLowerCase();
+    const tp = (t.trail.type ?? '').toLowerCase();
+    if (filter === 'flow') return tp === 'flow';
+    if (filter === 'easy') return d === 'easy';
+    if (filter === 'hard') return d === 'hard' || d === 'medium' || d === 'tech';
+    if (filter === 'pro') return d === 'expert' || d === 'pro';
+    return true;
+  });
+}
+
+const FILTER_CHIPS: Array<{ id: DiffFilter; label: string; tone: 'all' | 'green' | 'blue' | 'red' | 'black' }> = [
+  { id: 'all', label: 'WSZYSTKIE', tone: 'all' },
+  { id: 'easy', label: 'EASY', tone: 'green' },
+  { id: 'flow', label: 'FLOW', tone: 'blue' },
+  { id: 'hard', label: 'HARD', tone: 'red' },
+  { id: 'pro', label: 'PRO', tone: 'black' },
+];
+
+const TONE_CHIP: Record<'all' | 'green' | 'blue' | 'red' | 'black', { color: string; border: string }> = {
+  all: { color: colors.textSecondary, border: colors.border },
+  green: { color: colors.diffGreen, border: 'rgba(60, 203, 127, 0.40)' },
+  blue: { color: colors.diffBlue, border: 'rgba(59, 156, 255, 0.40)' },
+  red: { color: colors.diffRed, border: 'rgba(255, 71, 87, 0.40)' },
+  black: { color: colors.textPrimary, border: 'rgba(255, 255, 255, 0.20)' },
+};
 
 export default function SpotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { profile } = useAuthContext();
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<TrailFilter>('all');
+  const [filter, setFilter] = useState<DiffFilter>('all');
   const insets = useSafeAreaInsets();
 
   const { spot, status: spotStatus, refresh: refreshSpot } = useSpot(id ?? null);
-  const { trails, refresh: refreshTrails } = useBikeParkTrails(id ?? null, profile?.id);
+  const { trails } = useBikeParkTrails(id ?? null, profile?.id);
   const { submit: deleteSpot } = useDeleteSpot();
 
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
@@ -98,34 +126,54 @@ export default function SpotScreen() {
     0,
   );
 
-  const filteredTrails = trails.filter((trail) => {
-    if (filter === 'all') return true;
-    if (filter === 'easy') return trail.trail.difficulty === 'easy';
-    if (filter === 'flow') return trail.trail.type === 'flow';
-    if (filter === 'tech') return trail.trail.type === 'tech';
-    return true;
-  });
+  const filteredTrails = useMemo(
+    () => applyDiffFilter(trails, filter),
+    [trails, filter],
+  );
 
-  // Hot lap = the trail with the lowest user PB on this spot. Only
-  // shows when at least one trail has a PB so the strip isn't a
-  // ghost banner on virgin parks.
-  const hotLapCandidate = trails
-    .filter((t) => t.userData.pbMs)
-    .sort((a, b) => (a.userData.pbMs ?? 0) - (b.userData.pbMs ?? 0))[0];
+  // Hot lap = trail with the lowest user PB on this spot.
+  const hotLapCandidate = useMemo(
+    () =>
+      trails
+        .filter((t) => t.userData.pbMs)
+        .sort((a, b) => (a.userData.pbMs ?? 0) - (b.userData.pbMs ?? 0))[0],
+    [trails],
+  );
 
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await Promise.all([refreshSpot(), refreshTrails()]);
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  // Map needs a slim trail list shape — id, name, difficulty, type only.
+  const mapTrails = useMemo(
+    () =>
+      trails.map((t) => ({
+        id: t.trail.id,
+        name: t.trail.name,
+        difficulty: t.trail.difficulty,
+        type: t.trail.type,
+      })),
+    [trails],
+  );
 
   function handleGoBack() {
     Haptics.selectionAsync().catch(() => undefined);
     if (navigation.canGoBack()) router.back();
     else router.replace('/');
+  }
+
+  function handleStartRun() {
+    if (!spot) return;
+    // Pick the first non-locked trail as the default start. The user
+    // can also tap any trail row to start that specific one.
+    const target = filteredTrails.find(
+      (t) => t.calibrationStatus !== 'locked',
+    ) ?? filteredTrails[0];
+    if (!target) return;
+    router.push(
+      pickRunDestination({
+        trailId: target.trail.id,
+        spotId: spot.id,
+        trailName: target.trail.name,
+        calibrationStatus: target.calibrationStatus,
+      }),
+    );
   }
 
   function handleDeleteSpot() {
@@ -185,22 +233,10 @@ export default function SpotScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + BOTTOM_CTA_CLEARANCE },
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.accent}
-          />
-        }
-      >
-        {/* ═════ HEADER BAR — back + breadcrumb crumb ═════ */}
+  // Empty state — pioneer pitch. Render full-screen, no map background.
+  if (spotDisplayState === 'no_trails') {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.headerRow}>
           <Pressable
             accessibilityRole="button"
@@ -210,7 +246,6 @@ export default function SpotScreen() {
           >
             <Text style={styles.backLabel}>←</Text>
           </Pressable>
-
           <View style={styles.crumb}>
             <Text style={styles.crumbText}>NWD</Text>
             <View style={styles.crumbDot} />
@@ -220,92 +255,8 @@ export default function SpotScreen() {
           </View>
         </View>
 
-        {/* ═════ PARK IDENTITY + CONDITIONS ═════ */}
-        <BikeParkHeader spot={spot} fallbackActiveRiders={aggregateActiveRiders} />
-
-        {/* ═════ HOT LAP — only when there's a real PB ═════ */}
-        {hotLapCandidate && hotLapCandidate.userData.pbMs ? (
-          <HotLapStrip
-            trailName={hotLapCandidate.trail.name}
-            riderName="Ty"
-            durationMs={hotLapCandidate.userData.pbMs}
-            recencyLabel={
-              hotLapCandidate.userData.lastRanAt ? 'twój PB' : null
-            }
-          />
-        ) : null}
-
-        {/* ═════ FILTER CHIPS — only when worth filtering ═════ */}
-        {trails.length >= 3 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersRow}
-          >
-            <FilterPill label="Wszystkie" active={filter === 'all'} onPress={() => setFilter('all')} />
-            <FilterPill label="Easy" active={filter === 'easy'} onPress={() => setFilter('easy')} />
-            <FilterPill label="Flow" active={filter === 'flow'} onPress={() => setFilter('flow')} />
-            <FilterPill label="Tech" active={filter === 'tech'} onPress={() => setFilter('tech')} />
-          </ScrollView>
-        ) : null}
-
-        {spotDisplayState !== 'no_trails' ? (
-          <>
-            {/* Section head — count + "WET" / "OPEN" summary in BPH style */}
-            <View style={styles.sheetHead}>
-              <Text style={styles.sheetTitle}>Trasy w parku</Text>
-              <Text style={styles.sheetCount}>
-                <Text style={styles.sheetCountAccent}>
-                  {filteredTrails.length === trails.length
-                    ? trails.length
-                    : `${filteredTrails.length} / ${trails.length}`}
-                </Text>
-              </Text>
-            </View>
-
-            {/* Calibration banner — every trail still pending second run */}
-            {spotDisplayState === 'all_calibrating' ? (
-              <View style={styles.validationBanner}>
-                <Text style={styles.validationBannerText}>
-                  Trasy czekają na drugi spójny zjazd Pioniera.
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Flat list of TrailRows */}
-            <View style={styles.trailList}>
-              {filteredTrails.map((trail) => (
-                <TrailRow
-                  key={trail.trail.id}
-                  {...trail}
-                  onPress={() =>
-                    router.push(
-                      pickRunDestination({
-                        trailId: trail.trail.id,
-                        spotId: spot.id,
-                        trailName: trail.trail.name,
-                        calibrationStatus: trail.calibrationStatus,
-                        intent:
-                          trail.state === 'pioneer'
-                          && trail.calibrationStatus === 'fresh_pending_second_run'
-                            ? 'ranked'
-                            : undefined,
-                      }),
-                    )
-                  }
-                />
-              ))}
-            </View>
-
-            <View style={styles.addTrailRow}>
-              <GlowButton
-                label="+ Dodaj trasę"
-                onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-                variant="secondary"
-              />
-            </View>
-          </>
-        ) : (
+        <ScrollView contentContainerStyle={styles.emptyScroll}>
+          <BikeParkHeader spot={spot} fallbackActiveRiders={aggregateActiveRiders} />
           <View style={styles.emptyState}>
             <Brackets color="dim" />
             <Text style={styles.emptyEyebrow}>MISSJA OTWARTA · PIONEER SLOT WOLNY</Text>
@@ -327,40 +278,239 @@ export default function SpotScreen() {
                 <Text style={styles.howItWorksItem}>RANKING GOTOWY</Text>
               </View>
             </View>
-
             <SegmentLine />
-
             <GlowButton
               label="+ Zostań Pionierem"
               onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
               variant="primary"
             />
           </View>
-        )}
 
-        {isCurator ? (
-          <Pressable onPress={handleDeleteSpot} style={styles.deleteLink}>
-            <Text style={styles.deleteLinkText}>Usuń ten bike park</Text>
-          </Pressable>
+          {isCurator ? (
+            <Pressable onPress={handleDeleteSpot} style={styles.deleteLink}>
+              <Text style={styles.deleteLinkText}>Usuń ten bike park</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Active state: layered Bike Park Hub ──────────────────
+  return (
+    <View style={styles.container}>
+      {/* Layer 0 — map canvas (full-screen behind everything). */}
+      <BikeParkMap
+        trails={mapTrails}
+        parkName={spot.name}
+        activeRiders={Math.max(2, Math.min(6, aggregateActiveRiders))}
+      />
+
+      {/* Layer 1 — top HUD (back button + check-in pill).
+          Sits above the map, below the sheet. */}
+      <SafeAreaView edges={['top']} pointerEvents="box-none" style={styles.topHudWrap}>
+        <View style={styles.topHud} pointerEvents="box-none">
+          <View style={styles.topRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wróć"
+              onPress={handleGoBack}
+              style={styles.backButtonFloat}
+            >
+              <Text style={styles.backLabel}>←</Text>
+            </Pressable>
+
+            <CheckInPill
+              variant="armed"
+              label="JESTEŚ W PARKU"
+              sub={spot.activeRidersToday > 0 ? 'TY + EKIPA' : null}
+              style={{ flex: 1 }}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
+
+      {/* Layer 2 — FAB START RUN (bottom-right, above sheet). */}
+      <View
+        style={[styles.fabLayer, { bottom: insets.bottom + 360 }]}
+        pointerEvents="box-none"
+      >
+        <FabStartRun
+          onStart={handleStartRun}
+          enabled={filteredTrails.length > 0}
+        />
+      </View>
+
+      {/* Layer 3 — bottom sheet (fixed mid-height).
+          On phones the sheet is ~520-580 px from the bottom which leaves
+          enough map visible at top. The interior scrolls. */}
+      <View
+        style={[styles.sheet, { paddingBottom: insets.bottom }]}
+      >
+        <View style={styles.sheetHandle} />
+
+        <View style={styles.sheetHeadRow}>
+          <BikeParkHeader spot={spot} fallbackActiveRiders={aggregateActiveRiders} />
+        </View>
+
+        <View style={styles.sheetTitleRow}>
+          <Text style={styles.sheetTitle}>Trasy w parku</Text>
+          <Text style={styles.sheetCount}>
+            <Text style={styles.sheetCountAccent}>
+              {filteredTrails.length === trails.length
+                ? trails.length
+                : `${filteredTrails.length} / ${trails.length}`}
+            </Text>
+          </Text>
+        </View>
+
+        {trails.length >= 3 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersRow}
+          >
+            {FILTER_CHIPS.map((chip) => {
+              const isActive = filter === chip.id;
+              const tone = TONE_CHIP[chip.tone];
+              return (
+                <Pressable
+                  key={chip.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => undefined);
+                    setFilter(chip.id);
+                  }}
+                  style={[
+                    styles.filter,
+                    {
+                      borderColor: isActive ? colors.accent : tone.border,
+                      backgroundColor: isActive ? colors.accent : 'transparent',
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? colors.accentInk : tone.color },
+                    ]}
+                  >
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         ) : null}
-      </ScrollView>
-    </SafeAreaView>
+
+        {hotLapCandidate && hotLapCandidate.userData.pbMs ? (
+          <HotLapStrip
+            trailName={hotLapCandidate.trail.name}
+            riderName="Ty"
+            durationMs={hotLapCandidate.userData.pbMs}
+            recencyLabel={hotLapCandidate.userData.lastRanAt ? 'twój PB' : null}
+          />
+        ) : null}
+
+        {spotDisplayState === 'all_calibrating' ? (
+          <View style={styles.validationBanner}>
+            <Text style={styles.validationBannerText}>
+              Trasy czekają na drugi spójny zjazd Pioniera.
+            </Text>
+          </View>
+        ) : null}
+
+        <ScrollView
+          style={styles.trailScroll}
+          contentContainerStyle={styles.trailScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredTrails.map((trail) => (
+            <TrailRow
+              key={trail.trail.id}
+              {...trail}
+              onPress={() =>
+                router.push(
+                  pickRunDestination({
+                    trailId: trail.trail.id,
+                    spotId: spot.id,
+                    trailName: trail.trail.name,
+                    calibrationStatus: trail.calibrationStatus,
+                    intent:
+                      trail.state === 'pioneer'
+                      && trail.calibrationStatus === 'fresh_pending_second_run'
+                        ? 'ranked'
+                        : undefined,
+                  }),
+                )
+              }
+            />
+          ))}
+
+          <View style={styles.addTrailRow}>
+            <GlowButton
+              label="+ Dodaj trasę"
+              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+              variant="secondary"
+            />
+          </View>
+
+          {isCurator ? (
+            <Pressable onPress={handleDeleteSpot} style={styles.deleteLink}>
+              <Text style={styles.deleteLinkText}>Usuń ten bike park</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: '#000',
   },
-  scrollContent: {
+
+  // Loading / error / 404 ----------------------------------------------------
+  centeredState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.md,
   },
+  errorTitle: {
+    ...typography.title,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  errorBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  notFound: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: 24,
+    gap: 12,
+  },
+  notFoundText: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  notFoundBack: {
+    ...typography.label,
+    color: colors.textPrimary,
+  },
+
+  // Empty state shell --------------------------------------------------------
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
   },
   backButton: {
@@ -400,58 +550,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.accent,
   },
-  filtersRow: {
-    gap: 10,
-  },
-  sheetHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 12,
-  },
-  sheetTitle: {
-    ...typography.lead,
-    fontSize: 16,
-    lineHeight: 16,
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.32,
-    fontWeight: '700',
-  },
-  sheetCount: {
-    ...typography.micro,
-    color: colors.textSecondary,
-    fontWeight: '800',
-  },
-  sheetCountAccent: {
-    color: colors.accent,
-    fontWeight: '800',
-  },
-  validationBanner: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: colors.borderMid,
-    backgroundColor: colors.row,
-  },
-  validationBannerText: {
-    ...typography.micro,
-    fontSize: 10,
-    letterSpacing: 1.6,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '700',
-  },
-  trailList: {
-    // No vertical gap — TrailRow has its own bottom hairline border.
-    backgroundColor: colors.panel,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  addTrailRow: {
-    paddingTop: 4,
+
+  emptyScroll: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: 64,
+    gap: spacing.lg,
   },
   emptyState: {
     position: 'relative',
@@ -490,43 +594,156 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '700',
   },
+
+  // Top HUD layer ------------------------------------------------------------
+  topHudWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+  },
+  topHud: {
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    gap: 8,
+  },
+  topRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  backButtonFloat: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(7, 9, 10, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // FAB layer ----------------------------------------------------------------
+  fabLayer: {
+    position: 'absolute',
+    right: 0,
+    left: 0,
+    zIndex: 33,
+    pointerEvents: 'box-none',
+  },
+
+  // Bottom sheet -------------------------------------------------------------
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '62%',
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderHot,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 60,
+    elevation: 24,
+    zIndex: 35,
+    overflow: 'hidden',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderMid,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  sheetHeadRow: {
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+  },
+  sheetTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sheetTitle: {
+    ...typography.lead,
+    fontSize: 16,
+    lineHeight: 16,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.32,
+    fontWeight: '700',
+  },
+  sheetCount: {
+    ...typography.micro,
+    color: colors.textSecondary,
+    fontWeight: '800',
+  },
+  sheetCountAccent: {
+    color: colors.accent,
+    fontWeight: '800',
+  },
+  filtersRow: {
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filter: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderWidth: 1,
+  },
+  filterLabel: {
+    ...typography.micro,
+    fontSize: 9,
+    letterSpacing: 1.98, // 0.22em @ 9px
+    fontWeight: '800',
+  },
+  validationBanner: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderMid,
+    backgroundColor: colors.row,
+  },
+  validationBannerText: {
+    ...typography.micro,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  trailScroll: {
+    flex: 1,
+  },
+  trailScrollContent: {
+    paddingBottom: 24,
+  },
+  addTrailRow: {
+    paddingTop: 14,
+    paddingHorizontal: 14,
+  },
   deleteLink: {
     alignSelf: 'center',
-    paddingTop: 4,
+    paddingTop: 12,
   },
   deleteLinkText: {
     ...typography.body,
     fontSize: 13,
     color: colors.textTertiary,
-  },
-  notFound: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 24,
-    gap: 12,
-  },
-  notFoundText: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  notFoundBack: {
-    ...typography.label,
-    color: colors.textPrimary,
-  },
-  centeredState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
-  errorTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
-  errorBody: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
   },
 });
