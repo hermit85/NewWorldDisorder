@@ -1,3 +1,25 @@
+// ─────────────────────────────────────────────────────────────
+// Spot (Bike Park Hub) screen
+//
+// Visual language: design-system/Bike Park Hub.html · STATE B
+// (full-sheet variant). The map canvas from STATE A isn't shipped
+// yet — that needs a real Mapbox / MapLibre layer + trail SVG
+// overlays — but the chrome below the map (header, conditions
+// strip, hot-lap banner, trail rows, filters, leaderboard peek)
+// fully matches the design.
+//
+// Architecture:
+//   - BikeParkHeader   logo + name + region + WARUNKI/TRAS/AKTYWNI
+//   - HotLapStrip      gold banner — fastest run of the day
+//   - filter chips     EASY / FLOW / HARD / PRO + "MOJE PB"
+//   - TrailRow list    flat rows w/ diff stripe + status pulse + PB
+//   - empty / pioneer  unchanged from prior iteration (still works)
+//
+// Old chunk9 tokens kept ONLY where the inner components require
+// them (FilterPill, GlowButton, SegmentLine still import chunk9
+// internally). Direct screen styles use the new design-system
+// tokens from `@/theme/colors` + `@/theme/typography`.
+// ─────────────────────────────────────────────────────────────
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,14 +37,16 @@ import * as Haptics from 'expo-haptics';
 import { Brackets } from '@/components/ui/Brackets';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { GlowButton } from '@/components/ui/GlowButton';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SegmentLine } from '@/components/ui/SegmentLine';
-import { TrailCard } from '@/components/ui/TrailCard';
-import { formatTimeShort } from '@/content/copy';
+import { BikeParkHeader } from '@/components/ui/BikeParkHeader';
+import { TrailRow } from '@/components/ui/TrailRow';
+import { HotLapStrip } from '@/components/ui/HotLapStrip';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing } from '@/theme/spacing';
 
 type TrailFilter = 'all' | 'easy' | 'flow' | 'tech';
 type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verified';
@@ -30,16 +54,8 @@ type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verifie
 /**
  * Chunk 10 §4.2 spot display state matrix.
  *
- * Prior to this release the screen treated trails.length === 0 as the
- * only "empty" case and rendered the Pioneer empty card. Walk-test v4
- * caught the corollary bug: a spot with three calibrating trails
- * (Pioneer ran but second rider has not confirmed yet) was NOT empty —
- * the Chunk 9 rewrite showed the list, but the legacy EmptyMapPlaceholder
- * still surfaced "Mapa trasy pojawi się po pierwszym zjeździe Pioniera"
- * which is a lie when geometry already exists.
- *
- * The matrix drives three render branches: pioneer empty when truly
- * zero trails, list + subtle banner when all trails are in validation,
+ * Three render branches: pioneer empty when truly zero trails,
+ * list + subtle banner when all trails are still in validation,
  * normal list in every other case.
  */
 function computeSpotState(
@@ -57,8 +73,6 @@ function computeSpotState(
   return 'mixed';
 }
 
-// Bike park is a detail route (no tab bar), but the bottom CTA "+ Dodaj trasę"
-// and destructive curator link must clear the home-indicator area.
 const BOTTOM_CTA_CLEARANCE = 24;
 
 export default function SpotScreen() {
@@ -75,14 +89,14 @@ export default function SpotScreen() {
   const { submit: deleteSpot } = useDeleteSpot();
 
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
-  const bestPbMs = trails.reduce<number | null>((best, trail) => {
-    const pb = trail.userData.pbMs;
-    if (!pb) return best;
-    if (best === null || pb < best) return pb;
-    return best;
-  }, null);
-
   const spotDisplayState = computeSpotState(trails);
+
+  // Sum active riders across trails so BikeParkHeader's AKTYWNI cell
+  // has a number even when spot.activeRidersToday hasn't been backfilled.
+  const aggregateActiveRiders = trails.reduce(
+    (sum, t) => sum + (t.trail.activeRidersCount ?? 0),
+    0,
+  );
 
   const filteredTrails = trails.filter((trail) => {
     if (filter === 'all') return true;
@@ -91,6 +105,13 @@ export default function SpotScreen() {
     if (filter === 'tech') return trail.trail.type === 'tech';
     return true;
   });
+
+  // Hot lap = the trail with the lowest user PB on this spot. Only
+  // shows when at least one trail has a PB so the strip isn't a
+  // ghost banner on virgin parks.
+  const hotLapCandidate = trails
+    .filter((t) => t.userData.pbMs)
+    .sort((a, b) => (a.userData.pbMs ?? 0) - (b.userData.pbMs ?? 0))[0];
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -102,7 +123,6 @@ export default function SpotScreen() {
   }
 
   function handleGoBack() {
-    // Spec v2 1.5: nav tap fires haptic.tap
     Haptics.selectionAsync().catch(() => undefined);
     if (navigation.canGoBack()) router.back();
     else router.replace('/');
@@ -132,7 +152,7 @@ export default function SpotScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -176,10 +196,11 @@ export default function SpotScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={chunk9Colors.accent.emerald}
+            tintColor={colors.accent}
           />
         }
       >
+        {/* ═════ HEADER BAR — back + breadcrumb crumb ═════ */}
         <View style={styles.headerRow}>
           <Pressable
             accessibilityRole="button"
@@ -190,44 +211,37 @@ export default function SpotScreen() {
             <Text style={styles.backLabel}>←</Text>
           </Pressable>
 
-          <View style={styles.seasonBadge}>
-            <Text style={styles.seasonBadgeText}>S01</Text>
+          <View style={styles.crumb}>
+            <Text style={styles.crumbText}>NWD</Text>
+            <View style={styles.crumbDot} />
+            <Text style={styles.crumbText}>BIKE PARK</Text>
+            <View style={styles.crumbDot} />
+            <Text style={styles.crumbAccent}>HUB</Text>
           </View>
         </View>
 
-        <View style={styles.identityBlock}>
-          <Text style={styles.identityKicker}>✦ BIKE PARK</Text>
-          <Text style={styles.identityTitle}>{spot.name}</Text>
-          <Text style={styles.identitySub}>
-            {trails.length} {trails.length === 1 ? 'trasa' : trails.length < 5 ? 'trasy' : 'tras'}
-            {bestPbMs ? ` · Rekord ${formatTimeShort(bestPbMs)}` : ''}
-          </Text>
-        </View>
+        {/* ═════ PARK IDENTITY + CONDITIONS ═════ */}
+        <BikeParkHeader spot={spot} fallbackActiveRiders={aggregateActiveRiders} />
 
-        {/* B3: actions row reduced to one decision: Leaderboard.
-            Map access moves to the trail card tap; INFO folds into
-            the identity block (future: tappable to open modal). */}
-        <View style={styles.actionsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Otwórz ranking"
-            style={styles.actionButton}
-            onPress={() => {
-              if (filteredTrails[0]) router.push(`/trail/${filteredTrails[0].trail.id}`);
-            }}
-          >
-            <Text style={styles.actionLabel}>LEADERBOARD</Text>
-          </Pressable>
-        </View>
+        {/* ═════ HOT LAP — only when there's a real PB ═════ */}
+        {hotLapCandidate && hotLapCandidate.userData.pbMs ? (
+          <HotLapStrip
+            trailName={hotLapCandidate.trail.name}
+            riderName="Ty"
+            durationMs={hotLapCandidate.userData.pbMs}
+            recencyLabel={
+              hotLapCandidate.userData.lastRanAt ? 'twój PB' : null
+            }
+          />
+        ) : null}
 
+        {/* ═════ FILTER CHIPS — only when worth filtering ═════ */}
         {trails.length >= 3 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filtersRow}
           >
-            {/* B3: counts dropped from filter pills. The number
-                reveals itself when the filter is applied. */}
             <FilterPill label="Wszystkie" active={filter === 'all'} onPress={() => setFilter('all')} />
             <FilterPill label="Easy" active={filter === 'easy'} onPress={() => setFilter('easy')} />
             <FilterPill label="Flow" active={filter === 'flow'} onPress={() => setFilter('flow')} />
@@ -237,10 +251,19 @@ export default function SpotScreen() {
 
         {spotDisplayState !== 'no_trails' ? (
           <>
-            {/* Chunk 10 §4.2: subtle banner when every trail is calibrating.
-                Trails exist but the leaderboard is frozen until a second
-                rider confirms each Pioneer geometry. Previously the screen
-                implied "no trails yet" which was a trust-breaking lie. */}
+            {/* Section head — count + "WET" / "OPEN" summary in BPH style */}
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>Trasy w parku</Text>
+              <Text style={styles.sheetCount}>
+                <Text style={styles.sheetCountAccent}>
+                  {filteredTrails.length === trails.length
+                    ? trails.length
+                    : `${filteredTrails.length} / ${trails.length}`}
+                </Text>
+              </Text>
+            </View>
+
+            {/* Calibration banner — every trail still pending second run */}
             {spotDisplayState === 'all_calibrating' ? (
               <View style={styles.validationBanner}>
                 <Text style={styles.validationBannerText}>
@@ -249,52 +272,38 @@ export default function SpotScreen() {
               </View>
             ) : null}
 
-            <View>
-              <SectionHeader
-                label="Trasy"
-                glyph="▼"
-                glyphColor={chunk9Colors.text.secondary}
-                meta={
-                  filteredTrails.length === trails.length
-                    ? String(trails.length)
-                    : `${filteredTrails.length} z ${trails.length}`
-                }
-                spacingTop="none"
-              />
-              <View style={styles.listBlock}>
-                {filteredTrails.map((trail) => (
-                  <TrailCard
-                    key={trail.trail.id}
-                    {...trail}
-                    onPress={() => router.push(`/trail/${trail.trail.id}`)}
-                    onCtaPress={() =>
-                      router.push(
-                        pickRunDestination({
-                          trailId: trail.trail.id,
-                          spotId: spot.id,
-                          trailName: trail.trail.name,
-                          calibrationStatus: trail.calibrationStatus,
-                          intent:
-                            trail.state === 'pioneer'
-                            && trail.calibrationStatus === 'fresh_pending_second_run'
-                              ? 'ranked'
-                              : undefined,
-                        }),
-                      )
-                    }
-                  />
-                ))}
-              </View>
+            {/* Flat list of TrailRows */}
+            <View style={styles.trailList}>
+              {filteredTrails.map((trail) => (
+                <TrailRow
+                  key={trail.trail.id}
+                  {...trail}
+                  onPress={() =>
+                    router.push(
+                      pickRunDestination({
+                        trailId: trail.trail.id,
+                        spotId: spot.id,
+                        trailName: trail.trail.name,
+                        calibrationStatus: trail.calibrationStatus,
+                        intent:
+                          trail.state === 'pioneer'
+                          && trail.calibrationStatus === 'fresh_pending_second_run'
+                            ? 'ranked'
+                            : undefined,
+                      }),
+                    )
+                  }
+                />
+              ))}
             </View>
 
-            {/* Secondary "+ Dodaj trasę" only shows when trails already exist.
-                Pioneer empty state uses its own primary CTA inside the empty card
-                — rendering two add-trail CTAs was confusing in review. */}
-            <GlowButton
-              label="+ Dodaj trasę"
-              onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
-              variant="secondary"
-            />
+            <View style={styles.addTrailRow}>
+              <GlowButton
+                label="+ Dodaj trasę"
+                onPress={() => router.push(`/trail/new?spotId=${spot.id}`)}
+                variant="secondary"
+              />
+            </View>
           </>
         ) : (
           <View style={styles.emptyState}>
@@ -342,116 +351,125 @@ export default function SpotScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: chunk9Colors.bg.base,
+    backgroundColor: colors.bg,
   },
   scrollContent: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
-    gap: chunk9Spacing.sectionVertical,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.lg,
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
   },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 36,
+    height: 36,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(7, 9, 10, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: chunk9Colors.bg.surface,
   },
   backLabel: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    fontSize: 18,
+    lineHeight: 18,
+    color: colors.textPrimary,
     marginTop: -2,
   },
-  seasonBadge: {
-    borderRadius: chunk9Radii.pill,
-    borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: chunk9Colors.bg.surface,
-  },
-  seasonBadgeText: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.primary,
-  },
-  identityBlock: {
-    gap: 6,
-  },
-  identityKicker: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.accent.emerald,
-  },
-  identityTitle: {
-    ...chunk9Typography.display56,
-    color: chunk9Colors.text.primary,
-  },
-  identitySub: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
-  },
-  actionsRow: {
+  crumb: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: chunk9Radii.pill,
-    borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+  crumbText: {
+    ...typography.micro,
+    color: colors.textSecondary,
+    fontWeight: '800',
   },
-  actionLabel: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.secondary,
-    textAlign: 'center',
+  crumbAccent: {
+    ...typography.micro,
+    color: colors.accent,
+    fontWeight: '800',
+  },
+  crumbDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.accent,
   },
   filtersRow: {
     gap: 10,
   },
+  sheetHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 12,
+  },
+  sheetTitle: {
+    ...typography.lead,
+    fontSize: 16,
+    lineHeight: 16,
+    color: colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.32,
+    fontWeight: '700',
+  },
+  sheetCount: {
+    ...typography.micro,
+    color: colors.textSecondary,
+    fontWeight: '800',
+  },
+  sheetCountAccent: {
+    color: colors.accent,
+    fontWeight: '800',
+  },
   validationBanner: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: chunk9Radii.pill,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
+    borderColor: colors.borderMid,
+    backgroundColor: colors.row,
   },
   validationBannerText: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...typography.micro,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    color: colors.textSecondary,
     textAlign: 'center',
+    fontWeight: '700',
   },
-  listBlock: {
-    gap: 12,
+  trailList: {
+    // No vertical gap — TrailRow has its own bottom hairline border.
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addTrailRow: {
+    paddingTop: 4,
   },
   emptyState: {
     position: 'relative',
-    gap: chunk9Spacing.cardChildGap,
-    borderRadius: chunk9Radii.card,
+    gap: spacing.md,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
-    padding: chunk9Spacing.cardPadding,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
+    padding: spacing.lg,
     overflow: 'hidden',
   },
   emptyEyebrow: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...typography.label,
+    color: colors.textSecondary,
     paddingRight: 18,
   },
   emptyTitle: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    color: colors.textPrimary,
   },
   howItWorksRow: {
     flexDirection: 'row',
@@ -463,49 +481,52 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   howItWorksIndex: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
+    ...typography.micro,
+    color: colors.accent,
+    fontWeight: '800',
   },
   howItWorksItem: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...typography.micro,
+    color: colors.textSecondary,
+    fontWeight: '700',
   },
   deleteLink: {
     alignSelf: 'center',
     paddingTop: 4,
   },
   deleteLinkText: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.tertiary,
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textTertiary,
   },
   notFound: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingHorizontal: spacing.lg,
     paddingTop: 24,
     gap: 12,
   },
   notFoundText: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
   },
   notFoundBack: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
+    ...typography.label,
+    color: colors.textPrimary,
   },
   centeredState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
-    gap: chunk9Spacing.cardChildGap,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
   },
   errorTitle: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   errorBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 });

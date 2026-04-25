@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NWD · Bike Park Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090A; --chrome:#0E1112; --panel:#13181A; --row:#1A2124;
+  --border:rgba(255,255,255,0.06); --borderMid:rgba(255,255,255,0.10); --borderHot:rgba(0,255,135,0.35);
+  --text:#F2F4F3; --textMuted:rgba(242,244,243,0.55); --textDim:rgba(242,244,243,0.32);
+  --accent:#00FF87; --accentDim:rgba(0,255,135,0.14); --accentInk:#04150B;
+  --warn:#FFB020; --danger:#FF4757;
+  --gold:#FFD23F;
+  --diffGreen:#3CCB7F; --diffBlue:#3B9CFF; --diffRed:#FF4757; --diffBlack:#0A0A0A;
+  --glowSoft:0 0 16px rgba(0,255,135,0.12); --glowHot:0 0 24px rgba(0,255,135,0.30);
+  --fDisplay:"Rajdhani","Inter",system-ui,sans-serif;
+  --fBody:"Inter",system-ui,sans-serif;
+  --fMono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#000;color:var(--text);font-family:var(--fBody);-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+
+/* page shell */
+.pageShell{min-height:100vh;background:radial-gradient(ellipse at 50% 0%, rgba(0,255,135,0.04), transparent 50%), #000;padding:48px 24px 96px;display:flex;justify-content:center}
+.pageInner{max-width:1320px;width:100%}
+.pageHead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:48px;flex-wrap:wrap;gap:24px}
+.pageTitleBlock{}
+.crumb{font:800 10px/1 var(--fMono);letter-spacing:0.32em;color:var(--textMuted);text-transform:uppercase;margin-bottom:14px}
+.crumb span.dot{display:inline-block;width:4px;height:4px;background:var(--accent);border-radius:50%;margin:0 10px;vertical-align:middle}
+.crumb b{color:var(--accent);font-weight:800}
+.pageTitle{font:700 44px/1.0 var(--fDisplay);letter-spacing:-0.01em;text-transform:uppercase;margin:0}
+.pageSub{font:400 15px/1.5 var(--fBody);color:var(--textMuted);margin:14px 0 0;max-width:600px}
+.pageMeta{font:700 11px/1.4 var(--fMono);letter-spacing:0.24em;color:var(--textDim);text-transform:uppercase;text-align:right}
+.pageMeta b{color:var(--accent);font-weight:800}
+
+/* variant grid */
+.variants{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;justify-items:center}
+@media(max-width:1100px){.variants{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:740px){.variants{grid-template-columns:1fr}}
+
+.vCol{display:flex;flex-direction:column;align-items:center;gap:18px}
+.vLabel{display:flex;align-items:center;gap:10px}
+.vNum{font:800 32px/0.9 var(--fDisplay);color:var(--accent);letter-spacing:-0.02em}
+.vTitle{font:700 14px/1.1 var(--fDisplay);text-transform:uppercase;letter-spacing:0.04em}
+.vSub{font:500 11px/1.4 var(--fMono);letter-spacing:0.16em;color:var(--textMuted);text-transform:uppercase;text-align:center;max-width:340px}
+
+/* iPhone frame */
+.phone{width:390px;height:844px;background:#000;border-radius:54px;border:10px solid #0a0a0a;box-shadow:0 30px 80px rgba(0,0,0,0.6),inset 0 0 0 1px rgba(255,255,255,0.04);position:relative;overflow:hidden}
+.phoneScreen{position:absolute;inset:0;border-radius:44px;overflow:hidden;background:#000}
+.notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:124px;height:34px;background:#000;border-radius:20px;z-index:50}
+.notch::after{content:"";position:absolute;right:14px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%;background:#0a0a0a;box-shadow:inset 0 0 0 2px #1a1a1a}
+.statusBar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:18px 32px 0;font:700 14px/1 var(--fBody);color:var(--text);z-index:40}
+.statusBar .right{display:flex;gap:5px;align-items:center}
+.homeBar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;background:var(--text);border-radius:3px;z-index:50;opacity:0.9}
+
+/* ===================== MAP CANVAS ===================== */
+.mapWrap{position:absolute;inset:0;background:#0B1410;overflow:hidden}
+/* topo lines */
+.topo{position:absolute;inset:0;background:
+  radial-gradient(ellipse 80% 60% at 30% 30%, rgba(0,255,135,0.06), transparent 60%),
+  radial-gradient(ellipse 60% 50% at 70% 70%, rgba(0,255,135,0.04), transparent 60%),
+  #0B1410;
+}
+.topo svg{position:absolute;inset:0;width:100%;height:100%;opacity:0.6}
+.gridLines{position:absolute;inset:0;background-image:
+  linear-gradient(rgba(0,255,135,0.04) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(0,255,135,0.04) 1px, transparent 1px);
+  background-size:32px 32px;pointer-events:none}
+
+/* trail lines on map */
+.trailMap{position:absolute;inset:0;width:100%;height:100%}
+.trailLabel{position:absolute;font:800 9px/1 var(--fMono);letter-spacing:0.2em;color:var(--text);text-transform:uppercase;background:rgba(0,0,0,0.7);padding:4px 7px;border:1px solid var(--border);white-space:nowrap;pointer-events:none}
+.trailLabel.green{color:var(--diffGreen);border-color:rgba(60,203,127,0.4)}
+.trailLabel.blue{color:var(--diffBlue);border-color:rgba(59,156,255,0.4)}
+.trailLabel.red{color:var(--diffRed);border-color:rgba(255,71,87,0.4)}
+.trailLabel.black{color:var(--text);border-color:rgba(255,255,255,0.2);background:rgba(0,0,0,0.85)}
+
+/* gondola line */
+.gondola{position:absolute;inset:0;pointer-events:none}
+
+/* park name watermark */
+.parkWatermark{position:absolute;left:14px;top:90px;font:900 80px/0.85 var(--fDisplay);color:var(--text);opacity:0.06;letter-spacing:-0.04em;pointer-events:none;text-transform:uppercase}
+
+/* ===================== TOP HUD ===================== */
+.topHud{position:absolute;top:60px;left:14px;right:14px;z-index:30;display:flex;flex-direction:column;gap:8px}
+.hudRow{display:flex;gap:8px;align-items:center}
+.checkin{flex:1;background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);border:1px solid var(--borderHot);padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--glowSoft)}
+.checkin.browse{border-color:var(--border);box-shadow:none;background:rgba(7,9,10,0.7)}
+.ciDot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 rgba(0,255,135,0.5);animation:pulseDot 1.6s ease-in-out infinite}
+.checkin.browse .ciDot{background:var(--textMuted);animation:none}
+@keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(0,255,135,0.5)}50%{box-shadow:0 0 0 8px rgba(0,255,135,0)}}
+.ciLabel{font:800 10px/1 var(--fMono);letter-spacing:0.24em;color:var(--accent);text-transform:uppercase}
+.checkin.browse .ciLabel{color:var(--textMuted)}
+.ciSub{font:600 11px/1.2 var(--fBody);color:var(--text);margin-left:auto}
+.iconBtn{width:36px;height:36px;background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.iconBtn svg{width:16px;height:16px;stroke:var(--text);fill:none;stroke-width:1.6}
+
+/* park header card (under check-in) */
+.parkHead{background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);border:1px solid var(--border);padding:14px 16px;display:flex;align-items:flex-start;gap:14px}
+.parkLogo{width:44px;height:44px;background:linear-gradient(135deg, rgba(0,255,135,0.15), rgba(0,255,135,0.04));border:1px solid var(--borderHot);display:flex;align-items:center;justify-content:center;flex-shrink:0;font:800 14px/1 var(--fDisplay);color:var(--accent);letter-spacing:-0.02em}
+.parkInfo{flex:1;min-width:0}
+.parkName{font:700 18px/1 var(--fDisplay);text-transform:uppercase;letter-spacing:-0.01em;margin:0}
+.parkLoc{font:500 11px/1 var(--fBody);color:var(--textMuted);margin-top:5px;display:flex;align-items:center;gap:6px}
+.parkLoc::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--textMuted)}
+
+/* live conditions strip */
+.cond{display:flex;gap:0;margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+.condCell{flex:1;display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--border);padding:0 8px}
+.condCell:first-child{padding-left:0}
+.condCell:last-child{border-right:0;padding-right:0}
+.condLabel{font:800 8px/1 var(--fMono);letter-spacing:0.24em;color:var(--textMuted);text-transform:uppercase}
+.condVal{font:700 13px/1.1 var(--fDisplay);color:var(--text)}
+.condVal.good{color:var(--accent)}
+.condVal.warn{color:var(--warn)}
+
+/* ===================== TRAIL PINS ON MAP ===================== */
+.pin{position:absolute;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);z-index:20;pointer-events:none}
+.pinDot{width:14px;height:14px;border-radius:50%;border:2px solid #000;box-shadow:0 2px 8px rgba(0,0,0,0.6)}
+.pinDot.green{background:var(--diffGreen)}
+.pinDot.blue{background:var(--diffBlue)}
+.pinDot.red{background:var(--diffRed)}
+.pinDot.black{background:#222;border-color:#fff}
+.pin.gate::after{content:"";position:absolute;inset:-4px;border:1.5px solid var(--accent);border-radius:50%;animation:pulseRing 2s ease-out infinite}
+@keyframes pulseRing{0%{transform:scale(1);opacity:0.8}100%{transform:scale(1.8);opacity:0}}
+
+/* riders heatmap dots */
+.rider{position:absolute;width:6px;height:6px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(0,255,135,0.8);animation:riderBlink 3s ease-in-out infinite;z-index:15}
+@keyframes riderBlink{0%,100%{opacity:0.4}50%{opacity:1}}
+
+/* ===================== BOTTOM SHEET ===================== */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#0E1112 0%, #07090A 100%);border-top:1px solid var(--borderHot);box-shadow:0 -20px 60px rgba(0,0,0,0.8);z-index:35;border-radius:24px 24px 0 0;display:flex;flex-direction:column}
+.sheet.collapsed{height:280px}
+.sheet.mid{height:560px}
+.sheet.full{height:calc(100% - 60px);border-radius:24px 24px 0 0}
+.sheetHandle{display:flex;justify-content:center;padding:8px 0 6px;flex-shrink:0}
+.sheetHandle::after{content:"";width:36px;height:4px;background:var(--borderMid);border-radius:2px}
+
+.sheetHead{padding:6px 18px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sheetTitle{font:700 16px/1 var(--fDisplay);text-transform:uppercase;letter-spacing:0.02em;flex:1}
+.sheetCount{font:800 10px/1 var(--fMono);letter-spacing:0.24em;color:var(--textMuted);text-transform:uppercase}
+.sheetCount b{color:var(--accent)}
+
+/* tabs in sheet */
+.tabs{display:flex;gap:0;padding:10px 18px 0;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{font:800 10px/1 var(--fMono);letter-spacing:0.24em;color:var(--textMuted);text-transform:uppercase;padding:10px 0;margin-right:18px;border-bottom:2px solid transparent;background:transparent;cursor:pointer}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .badge{background:var(--accentDim);color:var(--accent);padding:2px 6px;margin-left:6px;font-size:9px;font-weight:800}
+
+/* trail list */
+.trailList{flex:1;overflow:auto;padding:8px 0 24px}
+.trailRow{display:grid;grid-template-columns:4px 1fr 86px;gap:10px;padding:13px 14px;align-items:center;border-bottom:1px solid var(--border);position:relative;cursor:pointer;transition:background .15s}
+.trailRow:hover{background:rgba(255,255,255,0.02)}
+.trailRow.self{background:linear-gradient(90deg, rgba(0,255,135,0.06), transparent 60%)}
+.trailRow.self::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);box-shadow:var(--glowSoft)}
+.trailDiff{width:4px;align-self:stretch;border-radius:0}
+.trailDiff.green{background:var(--diffGreen)}
+.trailDiff.blue{background:var(--diffBlue)}
+.trailDiff.red{background:var(--diffRed)}
+.trailDiff.black{background:#fff}
+.trailMain{display:flex;flex-direction:column;gap:6px;min-width:0;overflow:hidden}
+.trailNameRow{display:flex;align-items:center;gap:6px;min-width:0}
+.trailName{font:700 15px/1.05 var(--fDisplay);text-transform:uppercase;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.trailDiffPill{font:800 8px/1 var(--fMono);letter-spacing:0.16em;text-transform:uppercase;padding:3px 5px;border:1px solid;border-radius:0;flex-shrink:0}
+.trailDiffPill.green{color:var(--diffGreen);border-color:rgba(60,203,127,0.4);background:rgba(60,203,127,0.08)}
+.trailDiffPill.blue{color:var(--diffBlue);border-color:rgba(59,156,255,0.4);background:rgba(59,156,255,0.08)}
+.trailDiffPill.red{color:var(--diffRed);border-color:rgba(255,71,87,0.4);background:rgba(255,71,87,0.08)}
+.trailDiffPill.black{color:var(--text);border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.04)}
+.trailMeta{display:flex;gap:10px;font:600 10px/1 var(--fMono);color:var(--textMuted);letter-spacing:0.04em;flex-wrap:nowrap;overflow:hidden}
+.trailMeta b{color:var(--text);font-weight:700}
+.trailStatus{font:800 8px/1 var(--fMono);letter-spacing:0.16em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.trailStatus::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);animation:pulseDot 1.6s ease-in-out infinite}
+.trailStatus.wet{color:var(--warn)}
+.trailStatus.wet::before{background:var(--warn)}
+.trailStatus.closed{color:var(--danger)}
+.trailStatus.closed::before{background:var(--danger);animation:none}
+.trailRight{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;min-width:0}
+.trailPb{font:700 16px/1 var(--fDisplay);font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap}
+.trailPbLabel{font:800 8px/1 var(--fMono);letter-spacing:0.16em;color:var(--textMuted);text-transform:uppercase;white-space:nowrap}
+.trailRank{font:700 10px/1 var(--fMono);color:var(--accent);font-variant-numeric:tabular-nums;margin-top:1px;white-space:nowrap}
+.trailRank.none{color:var(--textDim)}
+
+/* hot lap strip */
+.hotLap{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:linear-gradient(90deg, rgba(255,210,63,0.05), transparent 60%);flex-shrink:0}
+.hotLapIcon{width:24px;height:24px;border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;color:var(--gold);font:800 12px/1 var(--fDisplay);flex-shrink:0}
+.hotLapMain{flex:1;min-width:0}
+.hotLapL{font:800 8px/1 var(--fMono);letter-spacing:0.24em;color:var(--gold);text-transform:uppercase;margin-bottom:3px}
+.hotLapTxt{font:600 12px/1.2 var(--fBody);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hotLapTxt b{font:700 13px var(--fDisplay);font-variant-numeric:tabular-nums}
+.hotLapTime{font:700 16px/1 var(--fDisplay);font-variant-numeric:tabular-nums;color:var(--gold)}
+
+/* peek mode (collapsed) */
+.peekStats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;padding:0;border-bottom:1px solid var(--border);flex-shrink:0}
+.peekCell{padding:12px 16px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.peekCell:last-child{border-right:0}
+.peekCell .lab{font:800 8px/1 var(--fMono);letter-spacing:0.24em;color:var(--textMuted);text-transform:uppercase}
+.peekCell .val{font:700 22px/1 var(--fDisplay);font-variant-numeric:tabular-nums}
+.peekCell .val small{font:700 11px var(--fMono);color:var(--textMuted);margin-left:3px}
+.peekCell .val.acc{color:var(--accent)}
+
+/* ===================== STATE 3: FULL SHEET (filter bar + leaderboard peek) ===================== */
+.filterBar{display:flex;gap:8px;padding:12px 18px;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+.filterBar::-webkit-scrollbar{display:none}
+.filter{font:800 9px/1 var(--fMono);letter-spacing:0.22em;color:var(--textMuted);text-transform:uppercase;padding:7px 11px;border:1px solid var(--border);background:transparent;white-space:nowrap;flex-shrink:0;cursor:pointer}
+.filter.active{color:var(--accentInk);background:var(--accent);border-color:var(--accent)}
+.filter.diffG{color:var(--diffGreen);border-color:rgba(60,203,127,0.4)}
+.filter.diffB{color:var(--diffBlue);border-color:rgba(59,156,255,0.4)}
+.filter.diffR{color:var(--diffRed);border-color:rgba(255,71,87,0.4)}
+.filter.diffBk{color:var(--text);border-color:rgba(255,255,255,0.2)}
+
+/* leaderboard peek inside sheet */
+.lbPeek{padding:14px 18px 24px;border-top:1px solid var(--border);background:#0A0D0E;flex-shrink:0}
+.lbHead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.lbHeadL{font:700 12px/1 var(--fDisplay);text-transform:uppercase;letter-spacing:0.04em;flex:1}
+.lbHeadLink{font:800 9px/1 var(--fMono);letter-spacing:0.24em;color:var(--accent);text-transform:uppercase}
+.lbRow2{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.lbRow2:last-child{border-bottom:0}
+.lbRow2.self{background:linear-gradient(90deg, rgba(0,255,135,0.06), transparent);margin:0 -18px;padding:7px 18px}
+.lbPos2{font:700 16px/1 var(--fDisplay);color:var(--textMuted);text-align:center;font-variant-numeric:tabular-nums}
+.lbPos2.podium{color:var(--gold)}
+.lbName2{font:600 13px/1 var(--fDisplay);text-transform:uppercase}
+.lbName2.self{color:var(--accent)}
+.lbTime2{font:700 13px/1 var(--fDisplay);font-variant-numeric:tabular-nums}
+
+/* park bottom nav (for AT THE PARK + browse) */
+.bottomNav{position:absolute;bottom:0;left:0;right:0;height:60px;background:#000;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;z-index:32;padding-bottom:6px}
+.navBtn{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;color:var(--textMuted)}
+.navBtn.active{color:var(--accent)}
+.navBtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6}
+.navL{font:800 8px/1 var(--fMono);letter-spacing:0.24em;text-transform:uppercase}
+
+/* fab — go button */
+.fabZone{position:absolute;right:14px;bottom:80px;z-index:33;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab{width:48px;height:48px;border-radius:50%;background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text)}
+.fab svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6}
+.fab.primary{background:var(--accent);color:var(--accentInk);border-color:var(--accent);box-shadow:var(--glowHot);width:60px;height:60px}
+.fab.primary svg{width:22px;height:22px;stroke-width:2.2}
+.fabL{font:800 8px/1 var(--fMono);letter-spacing:0.24em;color:var(--text);text-transform:uppercase;background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);padding:5px 9px;border:1px solid var(--border)}
+
+/* ===================== VARIANT 3: BROWSE MODE (FROM HOME) ===================== */
+.browseHero{position:absolute;top:54px;left:0;right:0;height:280px;background:
+  linear-gradient(180deg, transparent 0%, rgba(7,9,10,0.4) 60%, var(--bg) 100%),
+  radial-gradient(ellipse 60% 50% at 50% 30%, rgba(0,255,135,0.10), transparent 60%),
+  #0B1410;
+  z-index:5;overflow:hidden}
+.browseHero .topo{opacity:0.7}
+.browseHero .gridLines{opacity:0.5}
+.browseBack{position:absolute;top:62px;left:14px;z-index:30;width:36px;height:36px;background:rgba(7,9,10,0.85);backdrop-filter:blur(12px);border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.browseBack svg{width:14px;height:14px;stroke:var(--text);fill:none;stroke-width:1.8}
+.browseHeroContent{position:absolute;left:18px;right:18px;bottom:24px;z-index:10}
+.browseTag{font:800 10px/1 var(--fMono);letter-spacing:0.32em;color:var(--accent);text-transform:uppercase;margin-bottom:10px}
+.browseName{font:700 32px/0.95 var(--fDisplay);text-transform:uppercase;letter-spacing:-0.01em;margin:0}
+.browseLoc{font:500 12px/1 var(--fBody);color:var(--textMuted);margin-top:8px;display:flex;align-items:center;gap:6px}
+.browseLoc::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--accent)}
+
+.browseBody{position:absolute;top:330px;left:0;right:0;bottom:60px;background:var(--bg);overflow:auto;z-index:10}
+
+.browseStats{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-bottom:1px solid var(--border);padding:0}
+.browseStat{padding:14px 18px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.browseStat:nth-child(2n){border-right:0}
+.browseStat:nth-last-child(-n+2){border-bottom:0}
+.bsLab{font:800 8px/1 var(--fMono);letter-spacing:0.24em;color:var(--textMuted);text-transform:uppercase;margin-bottom:6px}
+.bsVal{font:700 22px/1 var(--fDisplay);font-variant-numeric:tabular-nums}
+.bsVal.acc{color:var(--accent)}
+.bsVal small{font:600 12px/1 var(--fMono);color:var(--textMuted);margin-left:4px}
+
+.browseSec{padding:18px}
+.browseSecHead{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.browseSecTit{font:700 14px/1 var(--fDisplay);text-transform:uppercase;letter-spacing:0.04em;flex:1}
+.browseSecMore{font:800 9px/1 var(--fMono);letter-spacing:0.24em;color:var(--accent);text-transform:uppercase}
+
+/* mini map preview in browse */
+.miniMap{position:relative;height:140px;background:linear-gradient(180deg, #0B1410, #0A0D0E);border:1px solid var(--border);overflow:hidden}
+.miniMap .topo{opacity:0.7}
+.miniMap .gridLines{background-size:20px 20px;opacity:0.5}
+.miniOverlay{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:10px}
+.miniBtn{font:800 9px/1 var(--fMono);letter-spacing:0.24em;color:var(--accent);text-transform:uppercase;background:rgba(0,0,0,0.7);padding:7px 11px;border:1px solid var(--borderHot);box-shadow:var(--glowSoft)}
+
+/* annotation labels for canvas */
+.note{margin-top:12px;font:500 12px/1.5 var(--fBody);color:var(--textMuted);max-width:340px;text-align:center}
+.note b{color:var(--accent);font-weight:700;font-family:var(--fMono);letter-spacing:0.16em;text-transform:uppercase;font-size:10px}
+</style>
+</head>
+<body>
+
+<div class="pageShell">
+  <div class="pageInner">
+
+    <!-- PAGE HEAD -->
+    <div class="pageHead">
+      <div class="pageTitleBlock">
+        <div class="crumb">NWD <span class="dot"></span> SECTION 10 <span class="dot"></span> <b>BIKE PARK HUB</b></div>
+        <h1 class="pageTitle">Bike park hub</h1>
+        <p class="pageSub">
+          Map-first widok parku. Trasy jako linie na mapie, lista w pull-up sheet z difficulty, status warunków, PB i pozycją w rankingu. 3 stany: <b style="color:var(--accent)">AT THE PARK</b> (jesteś, GPS armed) → <b style="color:var(--accent)">BROWSING IN PARK</b> (eksplorujesz mapę) → <b style="color:var(--accent)">REMOTE</b> (planujesz z domu).
+        </p>
+      </div>
+      <div class="pageMeta">
+        BIKE PARK HUB <br>
+        <b>SŁOTWINY ARENA</b> <br>
+        6 TRAILS · MAP-FIRST · MOBILE 390×844
+      </div>
+    </div>
+
+    <!-- VARIANTS -->
+    <div class="variants">
+
+      <!-- ============ STATE 1: AT THE PARK · MID SHEET ============ -->
+      <div class="vCol">
+        <div class="vLabel">
+          <span class="vNum">01</span>
+          <div>
+            <div class="vTitle">AT THE PARK</div>
+            <div class="vSub" style="margin-top:3px">GPS armed · sheet at mid · ride mode</div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phoneScreen">
+            <div class="notch"></div>
+            <div class="statusBar">
+              <span>9:41</span>
+              <span class="right">
+                <svg width="18" height="11" viewBox="0 0 18 11" fill="none"><rect x="1" y="3" width="3" height="5" fill="#fff" rx="0.5"/><rect x="6" y="2" width="3" height="6" fill="#fff" rx="0.5"/><rect x="11" y="1" width="3" height="7" fill="#fff" rx="0.5"/><rect x="16" y="0" width="2" height="8" fill="#fff" rx="0.5" opacity="0.4"/></svg>
+                <svg width="22" height="11" viewBox="0 0 22 11" fill="none" style="margin-left:4px"><rect x="0.5" y="0.5" width="18" height="10" rx="2.5" stroke="#fff" stroke-opacity="0.4"/><rect x="2" y="2" width="13" height="7" rx="1" fill="#fff"/><rect x="20" y="3" width="1.5" height="5" rx="0.5" fill="#fff" opacity="0.4"/></svg>
+              </span>
+            </div>
+
+            <!-- MAP -->
+            <div class="mapWrap">
+              <div class="topo">
+                <svg viewBox="0 0 390 844" preserveAspectRatio="none">
+                  <!-- topo contour lines -->
+                  <g stroke="#00FF87" stroke-width="0.6" fill="none" opacity="0.4">
+                    <path d="M -20 200 Q 100 180 200 230 T 410 200" />
+                    <path d="M -20 280 Q 90 240 200 290 T 410 270" />
+                    <path d="M -20 360 Q 80 320 200 370 T 410 350" />
+                    <path d="M -20 440 Q 100 400 200 450 T 410 430" />
+                    <path d="M -20 520 Q 100 490 200 540 T 410 520" />
+                    <path d="M -20 600 Q 110 570 200 620 T 410 600" />
+                    <path d="M -20 680 Q 120 650 200 700 T 410 690" />
+                  </g>
+                  <!-- summit elevation labels -->
+                  <text x="80" y="220" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#00FF87" opacity="0.5" letter-spacing="2">1130 M</text>
+                  <text x="220" y="380" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#00FF87" opacity="0.4" letter-spacing="2">980 M</text>
+                  <text x="60" y="540" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#00FF87" opacity="0.4" letter-spacing="2">820 M</text>
+                  <text x="240" y="700" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#00FF87" opacity="0.4" letter-spacing="2">680 M</text>
+                </svg>
+              </div>
+              <div class="gridLines"></div>
+              <div class="parkWatermark">SŁO<br>TWI<br>NY</div>
+
+              <!-- gondola line -->
+              <svg class="gondola" viewBox="0 0 390 844" preserveAspectRatio="none">
+                <line x1="60" y1="780" x2="160" y2="180" stroke="#F2F4F3" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+                <circle cx="100" cy="540" r="3" fill="#F2F4F3" opacity="0.7"/>
+                <circle cx="130" cy="360" r="3" fill="#F2F4F3" opacity="0.7"/>
+                <text x="170" y="190" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#F2F4F3" opacity="0.6" letter-spacing="2">▲ TOP</text>
+                <text x="60" y="800" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#F2F4F3" opacity="0.6" letter-spacing="2">BASE</text>
+              </svg>
+
+              <!-- TRAIL LINES -->
+              <svg class="trailMap" viewBox="0 0 390 844" preserveAspectRatio="none">
+                <defs>
+                  <filter id="glow1"><feGaussianBlur stdDeviation="1.5" /></filter>
+                </defs>
+                <!-- Maja Lina (green) -->
+                <path d="M 160 180 Q 200 280 220 360 T 280 540 Q 290 620 220 720 L 60 780" stroke="#3CCB7F" stroke-width="2.4" fill="none" opacity="0.85"/>
+                <path d="M 160 180 Q 200 280 220 360 T 280 540 Q 290 620 220 720 L 60 780" stroke="#3CCB7F" stroke-width="6" fill="none" opacity="0.15"/>
+                <!-- Flow Boss (blue) -->
+                <path d="M 160 180 Q 130 300 160 400 T 200 540 Q 240 640 180 740 L 70 780" stroke="#3B9CFF" stroke-width="2.4" fill="none" opacity="0.85"/>
+                <!-- Red Bull line (red) -->
+                <path d="M 160 180 Q 250 240 270 340 T 320 500 Q 340 600 280 700 L 100 780" stroke="#FF4757" stroke-width="2.4" fill="none" opacity="0.85"/>
+                <!-- Gravity Hammer (red) -->
+                <path d="M 160 180 Q 100 240 80 340 T 60 500 Q 50 600 100 700 L 100 780" stroke="#FF4757" stroke-width="2.4" fill="none" opacity="0.6" stroke-dasharray="6 3"/>
+                <!-- Black Line (black) -->
+                <path d="M 160 180 Q 220 230 250 320 T 240 480 Q 220 580 200 670 L 100 780" stroke="#FFFFFF" stroke-width="2" fill="none" opacity="0.9"/>
+                <!-- Easy A (green dashed) -->
+                <path d="M 160 180 L 130 300 Q 110 420 130 540 Q 140 660 80 780" stroke="#3CCB7F" stroke-width="2" fill="none" opacity="0.5" stroke-dasharray="4 4"/>
+              </svg>
+
+              <!-- trail labels -->
+              <div class="trailLabel green" style="top:430px;left:240px">MAJA LINA</div>
+              <div class="trailLabel blue" style="top:520px;left:140px">FLOW BOSS</div>
+              <div class="trailLabel red" style="top:340px;left:280px">RED BULL</div>
+              <div class="trailLabel black" style="top:600px;left:200px">BLACK LINE</div>
+
+              <!-- start gate pin (top) -->
+              <div class="pin gate" style="top:180px;left:160px"><div class="pinDot" style="background:var(--accent);border-color:#000"></div></div>
+
+              <!-- riders -->
+              <div class="rider" style="top:340px;left:140px;animation-delay:0s"></div>
+              <div class="rider" style="top:480px;left:230px;animation-delay:0.5s"></div>
+              <div class="rider" style="top:560px;left:170px;animation-delay:1s"></div>
+              <div class="rider" style="top:660px;left:240px;animation-delay:1.5s"></div>
+              <div class="rider" style="top:280px;left:280px;animation-delay:2s"></div>
+            </div>
+
+            <!-- TOP HUD -->
+            <div class="topHud">
+              <div class="hudRow">
+                <div class="checkin">
+                  <span class="ciDot"></span>
+                  <span class="ciLabel">JESTEŚ W PARKU</span>
+                  <span class="ciSub">12 MIN TEMU</span>
+                </div>
+                <button class="iconBtn" aria-label="Search">
+                  <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5"/><path d="m11 11 3 3"/></svg>
+                </button>
+              </div>
+
+              <div class="parkHead">
+                <div class="parkLogo">SŁ</div>
+                <div class="parkInfo">
+                  <h2 class="parkName">Słotwiny Arena</h2>
+                  <div class="parkLoc">Krynica-Zdrój · 6 tras · 460m drop</div>
+                  <div class="cond">
+                    <div class="condCell">
+                      <span class="condLabel">WARUNKI</span>
+                      <span class="condVal good">SUCHO</span>
+                    </div>
+                    <div class="condCell">
+                      <span class="condLabel">ZAMYKA</span>
+                      <span class="condVal warn">17:00</span>
+                    </div>
+                    <div class="condCell">
+                      <span class="condLabel">JEDZIE</span>
+                      <span class="condVal">42</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAB -->
+            <div class="fabZone">
+              <button class="fab" aria-label="Locate me">
+                <svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="2.5"/><circle cx="9" cy="9" r="6.5"/><line x1="9" y1="0.5" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17.5"/><line x1="0.5" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17.5" y2="9"/></svg>
+              </button>
+              <span class="fabL">START RUN</span>
+              <button class="fab primary" aria-label="Start run">
+                <svg viewBox="0 0 22 22"><polygon points="6,4 18,11 6,18" fill="currentColor" stroke="none"/></svg>
+              </button>
+            </div>
+
+            <!-- BOTTOM SHEET (mid state) -->
+            <div class="sheet mid">
+              <div class="sheetHandle"></div>
+
+              <div class="sheetHead">
+                <div class="sheetTitle">Trasy w parku</div>
+                <div class="sheetCount"><b>6</b> · 5 OPEN · 1 WET</div>
+              </div>
+
+              <div class="hotLap">
+                <div class="hotLapIcon">★</div>
+                <div class="hotLapMain">
+                  <div class="hotLapL">HOT LAP DZIŚ · MAJA LINA</div>
+                  <div class="hotLapTxt">M. KOWALCZYK · <b>02:08.41</b> · 32 min temu</div>
+                </div>
+              </div>
+
+              <div class="trailList">
+                <div class="trailRow self">
+                  <div class="trailDiff green"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Maja Lina</span>
+                      <span class="trailDiffPill green">EASY</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.4</b> KM</span>
+                      <span><b>320</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB</div>
+                    <div class="trailPb">02:14.83</div>
+                    <div class="trailRank">#23 / 412</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff blue"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Flow Boss</span>
+                      <span class="trailDiffPill blue">FLOW</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>3.1</b> KM</span>
+                      <span><b>410</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB</div>
+                    <div class="trailPb">03:42.16</div>
+                    <div class="trailRank">#84 / 287</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff red"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Red Bull</span>
+                      <span class="trailDiffPill red">HARD</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.8</b> KM</span>
+                      <span><b>440</b> M ↓</span>
+                      <span class="trailStatus wet">WET</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB</div>
+                    <div class="trailPb" style="color:var(--textDim)">—:—.—</div>
+                    <div class="trailRank none">BRAK PB</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <p class="note">
+          <b>STATE A</b><br>
+          Mapa-first, gondola + topo + linie tras. Sheet w połowie pokazuje hot lap dnia + trasy z difficulty/PB/rank. Self trail (ostatnio jechana) glow-line z lewej.
+        </p>
+      </div>
+
+      <!-- ============ STATE 2: AT THE PARK · FULL SHEET ============ -->
+      <div class="vCol">
+        <div class="vLabel">
+          <span class="vNum">02</span>
+          <div>
+            <div class="vTitle">FULL SHEET</div>
+            <div class="vSub" style="margin-top:3px">All trails · filters · park leaderboard peek</div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phoneScreen">
+            <div class="notch"></div>
+            <div class="statusBar">
+              <span>9:41</span>
+              <span class="right">
+                <svg width="18" height="11" viewBox="0 0 18 11" fill="none"><rect x="1" y="3" width="3" height="5" fill="#fff" rx="0.5"/><rect x="6" y="2" width="3" height="6" fill="#fff" rx="0.5"/><rect x="11" y="1" width="3" height="7" fill="#fff" rx="0.5"/><rect x="16" y="0" width="2" height="8" fill="#fff" rx="0.5" opacity="0.4"/></svg>
+                <svg width="22" height="11" viewBox="0 0 22 11" fill="none" style="margin-left:4px"><rect x="0.5" y="0.5" width="18" height="10" rx="2.5" stroke="#fff" stroke-opacity="0.4"/><rect x="2" y="2" width="13" height="7" rx="1" fill="#fff"/><rect x="20" y="3" width="1.5" height="5" rx="0.5" fill="#fff" opacity="0.4"/></svg>
+              </span>
+            </div>
+
+            <!-- backdrop map (shows behind full sheet at top) -->
+            <div class="mapWrap" style="bottom:auto;height:60px;border-bottom:1px solid var(--borderHot)">
+              <div class="topo"></div>
+              <div class="gridLines"></div>
+            </div>
+
+            <div class="topHud" style="top:50px">
+              <div class="checkin">
+                <span class="ciDot"></span>
+                <span class="ciLabel">SŁOTWINY ARENA</span>
+                <span class="ciSub">JESTEŚ TU</span>
+              </div>
+            </div>
+
+            <!-- FULL SHEET -->
+            <div class="sheet full" style="top:104px;height:auto;bottom:60px">
+              <div class="sheetHandle"></div>
+
+              <div class="sheetHead">
+                <div class="sheetTitle">Trasy w parku</div>
+                <div class="sheetCount"><b>6 / 6</b></div>
+              </div>
+
+              <div class="tabs">
+                <button class="tab active">Trasy<span class="badge">6</span></button>
+                <button class="tab">Lifty<span class="badge">2</span></button>
+                <button class="tab">Wydarzenia</button>
+              </div>
+
+              <div class="filterBar">
+                <button class="filter active">WSZYSTKIE</button>
+                <button class="filter diffG">EASY</button>
+                <button class="filter diffB">FLOW</button>
+                <button class="filter diffR">HARD</button>
+                <button class="filter diffBk">PRO</button>
+                <button class="filter">MOJE PB</button>
+              </div>
+
+              <div class="trailList" style="overflow:auto">
+                <div class="trailRow self">
+                  <div class="trailDiff green"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Maja Lina</span>
+                      <span class="trailDiffPill green">EASY</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.4</b> KM</span>
+                      <span><b>320</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB · #23</div>
+                    <div class="trailPb">02:14.83</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff green"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Easy A</span>
+                      <span class="trailDiffPill green">EASY</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>1.8</b> KM</span>
+                      <span><b>240</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB · #112</div>
+                    <div class="trailPb">02:48.22</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff blue"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Flow Boss</span>
+                      <span class="trailDiffPill blue">FLOW</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>3.1</b> KM</span>
+                      <span><b>410</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">PB · #84</div>
+                    <div class="trailPb">03:42.16</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff red"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Red Bull</span>
+                      <span class="trailDiffPill red">HARD</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.8</b> KM</span>
+                      <span><b>440</b> M ↓</span>
+                      <span class="trailStatus wet">WET</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">BRAK PB</div>
+                    <div class="trailPb" style="color:var(--textDim)">—:—.—</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff red"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Gravity Hammer</span>
+                      <span class="trailDiffPill red">HARD</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.2</b> KM</span>
+                      <span><b>380</b> M ↓</span>
+                      <span class="trailStatus closed">CLOSED</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">SERWIS</div>
+                    <div class="trailPb" style="color:var(--textDim)">—:—.—</div>
+                  </div>
+                </div>
+
+                <div class="trailRow">
+                  <div class="trailDiff black"></div>
+                  <div class="trailMain">
+                    <div class="trailNameRow">
+                      <span class="trailName">Black Line</span>
+                      <span class="trailDiffPill black">PRO</span>
+                    </div>
+                    <div class="trailMeta">
+                      <span><b>2.0</b> KM</span>
+                      <span><b>460</b> M ↓</span>
+                      <span class="trailStatus">OPEN</span>
+                    </div>
+                  </div>
+                  <div class="trailRight">
+                    <div class="trailPbLabel">BRAK PB</div>
+                    <div class="trailPb" style="color:var(--textDim)">—:—.—</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- park leaderboard peek -->
+              <div class="lbPeek">
+                <div class="lbHead">
+                  <span class="lbHeadL">Park leaderboard · dziś</span>
+                  <a class="lbHeadLink">PEŁNY ↗</a>
+                </div>
+                <div class="lbRow2">
+                  <span class="lbPos2 podium">01</span>
+                  <span class="lbName2">M. KOWALCZYK</span>
+                  <span class="lbTime2">12:48.22</span>
+                </div>
+                <div class="lbRow2">
+                  <span class="lbPos2">02</span>
+                  <span class="lbName2">P. NOWAK</span>
+                  <span class="lbTime2">13:02.41</span>
+                </div>
+                <div class="lbRow2 self">
+                  <span class="lbPos2">23</span>
+                  <span class="lbName2 self">TY</span>
+                  <span class="lbTime2">14:31.07</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- BOTTOM NAV -->
+            <div class="bottomNav">
+              <button class="navBtn active">
+                <svg viewBox="0 0 18 18"><path d="M3 6 L9 3 L15 6 L15 14 L9 17 L3 14 Z"/><path d="M9 3 L9 17"/></svg>
+                <span class="navL">PARK</span>
+              </button>
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><polygon points="2 8 9 4 16 8 9 12"/><polyline points="2 12 9 16 16 12"/></svg>
+                <span class="navL">RUNS</span>
+              </button>
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="6"/><path d="m6 9 2 2 4-4"/></svg>
+                <span class="navL">RANKING</span>
+              </button>
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><circle cx="9" cy="6" r="3"/><path d="M3 16c0-3 3-5 6-5s6 2 6 5"/></svg>
+                <span class="navL">RIDER</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">
+          <b>STATE B</b><br>
+          Sheet rozszerzony do pełna. Tabs (Trasy/Lifty/Wydarzenia), filtry difficulty, lista 6 tras + park leaderboard peek na dole. Bottom nav: PARK / RUNS / RANKING / RIDER.
+        </p>
+      </div>
+
+      <!-- ============ STATE 3: REMOTE BROWSE ============ -->
+      <div class="vCol">
+        <div class="vLabel">
+          <span class="vNum">03</span>
+          <div>
+            <div class="vTitle">REMOTE BROWSE</div>
+            <div class="vSub" style="margin-top:3px">Planning from home · trailforks-style</div>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phoneScreen">
+            <div class="notch"></div>
+            <div class="statusBar">
+              <span>21:14</span>
+              <span class="right">
+                <svg width="18" height="11" viewBox="0 0 18 11" fill="none"><rect x="1" y="3" width="3" height="5" fill="#fff" rx="0.5"/><rect x="6" y="2" width="3" height="6" fill="#fff" rx="0.5"/><rect x="11" y="1" width="3" height="7" fill="#fff" rx="0.5"/><rect x="16" y="0" width="2" height="8" fill="#fff" rx="0.5"/></svg>
+                <svg width="22" height="11" viewBox="0 0 22 11" fill="none" style="margin-left:4px"><rect x="0.5" y="0.5" width="18" height="10" rx="2.5" stroke="#fff" stroke-opacity="0.4"/><rect x="2" y="2" width="13" height="7" rx="1" fill="#fff"/><rect x="20" y="3" width="1.5" height="5" rx="0.5" fill="#fff" opacity="0.4"/></svg>
+              </span>
+            </div>
+
+            <!-- back btn -->
+            <button class="browseBack">
+              <svg viewBox="0 0 14 14"><polyline points="9 2 4 7 9 12"/></svg>
+            </button>
+
+            <!-- HERO -->
+            <div class="browseHero">
+              <div class="topo">
+                <svg viewBox="0 0 390 280" preserveAspectRatio="none">
+                  <g stroke="#00FF87" stroke-width="0.6" fill="none" opacity="0.5">
+                    <path d="M -20 60 Q 100 40 200 80 T 410 50" />
+                    <path d="M -20 110 Q 100 80 200 130 T 410 110" />
+                    <path d="M -20 160 Q 100 130 200 180 T 410 160" />
+                    <path d="M -20 220 Q 100 190 200 240 T 410 220" />
+                  </g>
+                </svg>
+              </div>
+              <div class="gridLines"></div>
+              <div class="browseHeroContent">
+                <div class="browseTag">▲ BIKE PARK · KRYNICA-ZDRÓJ</div>
+                <h1 class="browseName">Słotwiny<br>Arena</h1>
+                <div class="browseLoc">Beskid Sądecki · 460m drop · 6 tras</div>
+              </div>
+            </div>
+
+            <!-- BODY -->
+            <div class="browseBody">
+              <div class="browseStats">
+                <div class="browseStat">
+                  <div class="bsLab">DROP</div>
+                  <div class="bsVal">460<small>M</small></div>
+                </div>
+                <div class="browseStat">
+                  <div class="bsLab">TRAS</div>
+                  <div class="bsVal acc">6</div>
+                </div>
+                <div class="browseStat">
+                  <div class="bsLab">DZIŚ JEDZIE</div>
+                  <div class="bsVal acc">42<small>RIDERS</small></div>
+                </div>
+                <div class="browseStat">
+                  <div class="bsLab">JUTRO</div>
+                  <div class="bsVal">9–17</div>
+                </div>
+              </div>
+
+              <div class="browseSec">
+                <div class="browseSecHead">
+                  <span class="browseSecTit">Trasy</span>
+                  <a class="browseSecMore">FILTRY ↗</a>
+                </div>
+
+                <div style="border:1px solid var(--border);background:var(--panel)">
+                  <div class="trailRow" style="border-bottom:1px solid var(--border)">
+                    <div class="trailDiff green"></div>
+                    <div class="trailMain">
+                      <div class="trailNameRow">
+                        <span class="trailName">Maja Lina</span>
+                        <span class="trailDiffPill green">EASY</span>
+                      </div>
+                      <div class="trailMeta">
+                        <span><b>2.4</b> KM</span>
+                        <span><b>320</b> M ↓</span>
+                      </div>
+                    </div>
+                    <div class="trailRight">
+                      <div class="trailPb" style="font-size:14px;color:var(--textMuted)">412 PRZEJ.</div>
+                    </div>
+                  </div>
+                  <div class="trailRow" style="border-bottom:1px solid var(--border)">
+                    <div class="trailDiff blue"></div>
+                    <div class="trailMain">
+                      <div class="trailNameRow">
+                        <span class="trailName">Flow Boss</span>
+                        <span class="trailDiffPill blue">FLOW</span>
+                      </div>
+                      <div class="trailMeta">
+                        <span><b>3.1</b> KM</span>
+                        <span><b>410</b> M ↓</span>
+                      </div>
+                    </div>
+                    <div class="trailRight">
+                      <div class="trailPb" style="font-size:14px;color:var(--textMuted)">287 PRZEJ.</div>
+                    </div>
+                  </div>
+                  <div class="trailRow">
+                    <div class="trailDiff red"></div>
+                    <div class="trailMain">
+                      <div class="trailNameRow">
+                        <span class="trailName">Red Bull</span>
+                        <span class="trailDiffPill red">HARD</span>
+                      </div>
+                      <div class="trailMeta">
+                        <span><b>2.8</b> KM</span>
+                        <span><b>440</b> M ↓</span>
+                      </div>
+                    </div>
+                    <div class="trailRight">
+                      <div class="trailPb" style="font-size:14px;color:var(--textMuted)">98 PRZEJ.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="browseSec" style="padding-top:0">
+                <div class="browseSecHead">
+                  <span class="browseSecTit">Mapa parku</span>
+                  <a class="browseSecMore">PEŁNA ↗</a>
+                </div>
+                <div class="miniMap">
+                  <div class="topo">
+                    <svg viewBox="0 0 350 140" preserveAspectRatio="none">
+                      <g stroke="#00FF87" stroke-width="0.5" fill="none" opacity="0.4">
+                        <path d="M -10 30 Q 80 20 170 40 T 360 30" />
+                        <path d="M -10 60 Q 80 40 170 70 T 360 55" />
+                        <path d="M -10 90 Q 80 70 170 100 T 360 85" />
+                        <path d="M -10 120 Q 80 100 170 130 T 360 115" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="gridLines"></div>
+                  <svg viewBox="0 0 350 140" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                    <path d="M 60 20 Q 100 50 130 80 T 200 130" stroke="#3CCB7F" stroke-width="2" fill="none"/>
+                    <path d="M 60 20 Q 130 30 170 60 T 250 130" stroke="#3B9CFF" stroke-width="2" fill="none"/>
+                    <path d="M 60 20 Q 80 50 100 80 T 80 130" stroke="#FF4757" stroke-width="2" fill="none"/>
+                    <circle cx="60" cy="20" r="3" fill="#00FF87" stroke="#000" stroke-width="1"/>
+                  </svg>
+                  <div class="miniOverlay">
+                    <span class="miniBtn">OTWÓRZ MAPĘ →</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="browseSec" style="padding-top:0">
+                <div class="browseSecHead">
+                  <span class="browseSecTit">Park leaderboard · all-time</span>
+                  <a class="browseSecMore">PEŁNY ↗</a>
+                </div>
+                <div style="border:1px solid var(--border);background:var(--panel);padding:0 16px">
+                  <div class="lbRow2"><span class="lbPos2 podium">01</span><span class="lbName2">M. KOWALCZYK</span><span class="lbTime2">12:48.22</span></div>
+                  <div class="lbRow2"><span class="lbPos2 podium" style="color:var(--accent);opacity:0.7">02</span><span class="lbName2">P. NOWAK</span><span class="lbTime2">13:02.41</span></div>
+                  <div class="lbRow2"><span class="lbPos2 podium" style="color:var(--accent);opacity:0.4">03</span><span class="lbName2">A. WIŚNIEWSKI</span><span class="lbTime2">13:14.88</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- BOTTOM NAV -->
+            <div class="bottomNav">
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><path d="M3 7 L9 3 L15 7 L15 15 L3 15 Z"/></svg>
+                <span class="navL">HOME</span>
+              </button>
+              <button class="navBtn active">
+                <svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="6"/><circle cx="9" cy="9" r="2"/></svg>
+                <span class="navL">PARKI</span>
+              </button>
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><polygon points="2 8 9 4 16 8 9 12"/><polyline points="2 12 9 16 16 12"/></svg>
+                <span class="navL">RUNS</span>
+              </button>
+              <button class="navBtn">
+                <svg viewBox="0 0 18 18"><circle cx="9" cy="6" r="3"/><path d="M3 16c0-3 3-5 6-5s6 2 6 5"/></svg>
+                <span class="navL">RIDER</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">
+          <b>STATE C</b><br>
+          Browse mode (jesteś w domu, planujesz). Hero z parkiem, stats grid, pełna lista tras (bez PB), mini-mapa, leaderboard all-time. Brak GPS check-in pill.
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

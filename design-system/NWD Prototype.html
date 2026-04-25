@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>NWD · New World Disorder</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Geist+Mono:wght@400;600;700&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    html, body, #root { margin: 0; padding: 0; height: 100%; background: #0a0d0e; overflow: hidden; }
+    body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 0.6; }
+      80%, 100% { transform: scale(2.6); opacity: 0; }
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.04); }
+    }
+    @keyframes dash {
+      to { stroke-dashoffset: -20; }
+    }
+    @keyframes trackRider {
+      0%   { transform: translate(30px, -255px); opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { transform: translate(0, 0); opacity: 0; }
+    }
+    @keyframes dashScroll {
+      0%   { opacity: 0.2; transform: translateY(-6px); }
+      50%  { opacity: 0.9; }
+      100% { opacity: 0.2; transform: translateY(6px); }
+    }
+    @keyframes dustKick {
+      0%   { opacity: 0.7; transform: translate(0, 0) scale(0.6); }
+      100% { opacity: 0; transform: translate(-10px, 4px) scale(1.4); }
+    }
+    @keyframes speedFlick {
+      0%   { opacity: 0; transform: translateX(-4px); }
+      40%  { opacity: 0.7; }
+      100% { opacity: 0; transform: translateX(8px); }
+    }
+    @keyframes liftRide {
+      0%   { transform: translate(0, 0); opacity: 0; }
+      10%  { opacity: 0.8; }
+      90%  { opacity: 0.8; }
+      100% { transform: translate(75px, -170px); opacity: 0; }
+    }
+    @keyframes fall {
+      0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      100% { transform: translateY(900px) rotate(360deg); opacity: 0; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes gateLight {
+      0%, 100% { opacity: 0.25; }
+      50% { opacity: 1; }
+    }
+    @keyframes spark {
+      0% { opacity: 0; transform: translateY(0) scale(0.4); }
+      30% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+    }
+    @keyframes glitchScan {
+      0% { transform: translateY(0); opacity: 0; }
+      5% { opacity: 0.6; }
+      55% { transform: translateY(380px); opacity: 0.6; }
+      60%, 100% { opacity: 0; }
+    }
+    @keyframes spinSlow {
+      to { transform: rotate(360deg); }
+    }
+    .screen-fade { /* fade disabled - was preventing render */ }
+
+    /* Hide scrollbar in mobile container */
+    ::-webkit-scrollbar { width: 0; height: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- App modules -->
+  <script type="text/babel" src="tokens.jsx"></script>
+  <script type="text/babel" src="ui.jsx"></script>
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="screens-onboarding.jsx"></script>
+  <script type="text/babel" src="screens-home.jsx"></script>
+  <script type="text/babel" src="screens-spot-trail.jsx"></script>
+  <script type="text/babel" src="screens-run.jsx"></script>
+  <script type="text/babel" src="screens-misc.jsx"></script>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "palette": "acid",
+      "typography": "rajdhani",
+      "density": "compact",
+      "motion": true,
+      "frame": true,
+      "scenario": "logged"
+    }/*EDITMODE-END*/;
+
+    // Router. State carries the navigation params + auth flag.
+    function App() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [route, setRoute] = React.useState(() => {
+        return tweaks.scenario === 'logged' ? 'home' : 'onboarding-1';
+      });
+      const [params, setParams] = React.useState({ authed: tweaks.scenario === 'logged' });
+      const [routeKey, setRouteKey] = React.useState(0);
+
+      const nav = React.useCallback((to, p = {}) => {
+        setParams(prev => ({ ...prev, ...p }));
+        setRoute(to);
+        setRouteKey(k => k + 1);
+      }, []);
+
+      // Update auth + start screen when scenario tweak changes
+      React.useEffect(() => {
+        if (tweaks.scenario === 'logged') {
+          setParams(prev => ({ ...prev, authed: true }));
+          if (route.startsWith('onboarding') || route === 'auth') setRoute('home');
+        } else if (tweaks.scenario === 'guest') {
+          setParams(prev => ({ ...prev, authed: false }));
+        } else if (tweaks.scenario === 'onboarding') {
+          setRoute('onboarding-1');
+          setParams(prev => ({ ...prev, authed: false }));
+        }
+      }, [tweaks.scenario]);
+
+      // Map route → screen
+      const ScreenMap = {
+        'onboarding-1': ScreenOnboarding,
+        'onboarding': ScreenOnboarding,
+        'auth': ScreenAuth,
+        'home': ScreenHome,
+        'spots': ScreenSpots,
+        'spot': ScreenSpotDetail,
+        'trail': ScreenTrailDetail,
+        'board': ScreenBoard,
+        'rider': ScreenRider,
+        'help': ScreenHelp,
+        'add-spot': ScreenAddSpot,
+        'run-approach': ScreenRunApproach,
+        'run-recording': ScreenRunRecording,
+        'run-review': ScreenRunReview,
+        'run-result': ScreenRunResult,
+        'run-rejected': ScreenRunRejected,
+        'h2h': ScreenH2H,
+        '404': ScreenNotFound,
+      };
+      const Screen = ScreenMap[route] || ScreenNotFound;
+
+      const { c } = getTokens(tweaks);
+
+      // Render device frame or full-bleed
+      const screenContent = (
+        <div key={routeKey} className="screen-fade" style={{ height: '100%', width: '100%' }}>
+          <Screen tweaks={tweaks} nav={nav} state={params} />
+        </div>
+      );
+
+      const wrapped = tweaks.frame ? (
+        <IOSDevice dark={true}>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: 54, flexShrink: 0 }} />
+            <div style={{ flex: 1, minHeight: 0 }}>{screenContent}</div>
+          </div>
+        </IOSDevice>
+      ) : (
+        <div style={{ position: 'absolute', inset: 0, maxWidth: 440, margin: '0 auto',
+          background: c.bg, display: 'flex', flexDirection: 'column' }}>
+          {screenContent}
+        </div>
+      );
+
+      return (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: `radial-gradient(ellipse at 50% 30%, #16191c 0%, #07090A 60%, #000 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'auto', padding: tweaks.frame ? 24 : 0,
+        }}>
+          {wrapped}
+
+          <TweaksPanel title="Tweaks · NWD">
+            <TweakSection label="Scenariusz" />
+            <TweakRadio label="Stan" value={tweaks.scenario}
+              options={[
+                { value: 'guest', label: 'Gość' },
+                { value: 'logged', label: 'Zalogowany' },
+                { value: 'onboarding', label: 'Onboarding' },
+              ]}
+              onChange={(v) => setTweak('scenario', v)} />
+
+            <TweakSection label="Kolory" />
+            <TweakRadio label="Paleta" value={tweaks.palette}
+              options={[
+                { value: 'acid', label: 'Acid' },
+                { value: 'forge', label: 'Forge' },
+                { value: 'arctic', label: 'Arctic' },
+              ]}
+              onChange={(v) => setTweak('palette', v)} />
+
+            <TweakSection label="Typografia" />
+            <TweakRadio label="Krój" value={tweaks.typography}
+              options={[
+                { value: 'rajdhani', label: 'Rajdhani' },
+                { value: 'grotesk', label: 'Grotesk' },
+                { value: 'geist', label: 'Geist' },
+              ]}
+              onChange={(v) => setTweak('typography', v)} />
+
+            <TweakSection label="Layout" />
+            <TweakRadio label="Gęstość" value={tweaks.density}
+              options={[
+                { value: 'compact', label: 'Compact' },
+                { value: 'regular', label: 'Regular' },
+                { value: 'spacious', label: 'Spacious' },
+              ]}
+              onChange={(v) => setTweak('density', v)} />
+            <TweakToggle label="Animacje" value={tweaks.motion}
+              onChange={(v) => setTweak('motion', v)} />
+            <TweakToggle label="Ramka iPhone" value={tweaks.frame}
+              onChange={(v) => setTweak('frame', v)} />
+
+            <TweakSection label="Skocz do ekranu" />
+            <TweakSelect label="Ekran" value={route}
+              options={[
+                { value: 'onboarding-1', label: 'Onboarding' },
+                { value: 'auth', label: 'Login' },
+                { value: 'home', label: 'Home' },
+                { value: 'spots', label: 'Spoty' },
+                { value: 'spot', label: 'Spot detail' },
+                { value: 'trail', label: 'Trasa' },
+                { value: 'board', label: 'Tablica' },
+                { value: 'rider', label: 'Rider' },
+                { value: 'help', label: 'Pomoc' },
+                { value: 'add-spot', label: 'Dodaj spot' },
+                { value: 'run-approach', label: 'Run · Podejście' },
+                { value: 'run-recording', label: 'Run · Zapis' },
+                { value: 'run-review', label: 'Run · Review' },
+                { value: 'run-result', label: 'Run · Wynik' },
+                { value: 'run-rejected', label: 'Run · Odrzucony' },
+                { value: 'h2h', label: 'Head to Head' },
+                { value: '404', label: '404' },
+              ]}
+              onChange={(v) => nav(v, { id: 'prez' })} />
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
