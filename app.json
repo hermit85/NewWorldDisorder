@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "28",
+      "buildNumber": "29",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -59,7 +59,8 @@
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "extra": {
       "router": {},

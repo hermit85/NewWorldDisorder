@@ -1,7 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { isRunningInExpoGo } from 'expo';
+import { Stack, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import {
   useFonts,
   Rajdhani_400Regular,
@@ -20,6 +22,30 @@ import { AuthProvider } from '@/hooks/AuthContext';
 import { hydrateRunStore } from '@/systems/runStore';
 import { initSaveQueue } from '@/systems/saveQueue';
 import { initSubmissionQueue } from '@/services/spotSubmission';
+
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: !isRunningInExpoGo(),
+});
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: Boolean(process.env.EXPO_PUBLIC_SENTRY_DSN),
+  environment: __DEV__ ? 'development' : 'production',
+  sendDefaultPii: true,
+  tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+  profilesSampleRate: 1.0,
+  replaysOnErrorSampleRate: 1.0,
+  replaysSessionSampleRate: __DEV__ ? 1.0 : 0.05,
+  enableLogs: true,
+  integrations: [
+    navigationIntegration,
+    Sentry.mobileReplayIntegration({
+      maskAllText: true,
+      maskAllImages: true,
+    }),
+  ],
+  enableNativeFramesTracking: !isRunningInExpoGo(),
+});
 
 // Side-effect import — registers the background location task with
 // expo-task-manager at app init. MUST happen on every launch,
@@ -51,6 +77,13 @@ class AppErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[NWD] Uncaught error:', error, info.componentStack);
+    Sentry.captureException(error, {
+      contexts: {
+        react: {
+          componentStack: info.componentStack,
+        },
+      },
+    });
   }
 
   render() {
@@ -76,7 +109,8 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-export default function RootLayout() {
+function RootLayout() {
+  const navigationRef = useNavigationContainerRef();
   const [fontsLoaded] = useFonts({
     Rajdhani_400Regular,
     Rajdhani_500Medium,
@@ -95,6 +129,10 @@ export default function RootLayout() {
       initSubmissionQueue();
     });
   }, []);
+
+  useEffect(() => {
+    navigationIntegration.registerNavigationContainer(navigationRef);
+  }, [navigationRef]);
 
   // ── Debug drawer toggle (5-tap) ──
   const [debugOpen, setDebugOpen] = useState(false);
@@ -230,3 +268,5 @@ const debugStyles = StyleSheet.create({
     right: 4,
   },
 });
+
+export default Sentry.wrap(RootLayout);
