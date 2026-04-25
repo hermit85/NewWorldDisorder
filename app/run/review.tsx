@@ -25,6 +25,7 @@ import {
 import {
   validatePioneerRun,
   type ValidationResult,
+  type SeedRole,
 } from '@/features/recording/validators';
 import * as recordingStore from '@/features/recording/recordingStore';
 import * as api from '@/lib/api';
@@ -226,7 +227,10 @@ export default function ReviewScreen() {
         accuracyStart: first.accuracy ?? Infinity,
         accuracyEnd: last.accuracy ?? Infinity,
       },
-      profile?.role,
+      // Profile.role is `string` in the regenerated Supabase types; the
+      // validator already accepts unknown role strings (treats them as
+      // 'rider'), but we narrow the cast to keep the contract explicit.
+      profile?.role as SeedRole | null | undefined,
     );
   }, [geometry, points, profile?.role]);
 

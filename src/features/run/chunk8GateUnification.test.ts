@@ -262,6 +262,10 @@ function makeDbRun(
     updated_at: new Date(0).toISOString(),
     xp_awarded: 0,
     is_pb: false,
+    // Added when leaderboard_entries got version-pinned
+    // (mig 20260428000000). Tests don't exercise the version path here,
+    // but the field is non-null in the new Row type so we keep parity.
+    trail_version_id: null,
   } as DbRun;
 }
 

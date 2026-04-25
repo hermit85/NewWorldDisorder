@@ -1141,9 +1141,31 @@ async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Prom
 
   const { data, error } = await query;
   if (error) throw new Error(`fetchRecentBeatEntries failed: ${error.message}`);
-  return (data ?? []).filter((entry: any) => {
+
+  const candidates = (data ?? []).filter((entry: any) => {
     const previous = entry.previous_position;
     return typeof previous === 'number' && entry.rank_position > previous;
+  });
+  if (candidates.length === 0) return [];
+
+  // AUDIT FIX: hide ghosts from superseded versions. After a Pioneer
+  // promotes a new baseline (`promote_run_as_baseline`), `trails.current_version_id`
+  // advances and entries pinned to the prior version stop being comparable
+  // — their `rank_position`/`previous_position` were against a different
+  // geometry. Without this filter, the hero-beat tile would surface a
+  // "you got passed" event whose positions no longer mean anything.
+  const candidateTrailIds = Array.from(new Set(candidates.map((e: any) => e.trail_id)));
+  const { data: trailRows, error: trailErr } = await db()
+    .from('trails')
+    .select('id, current_version_id')
+    .in('id', candidateTrailIds);
+  if (trailErr) throw new Error(`fetchRecentBeatEntries trail lookup failed: ${trailErr.message}`);
+  const currentByTrail = new Map(
+    (trailRows ?? []).map((t: any) => [t.id, t.current_version_id]),
+  );
+
+  return candidates.filter((entry: any) => {
+    return entry.trail_version_id === currentByTrail.get(entry.trail_id);
   }) as LeaderboardBeatRow[];
 }
 
@@ -1524,7 +1546,7 @@ export async function unlockAchievement(userId: string, achievementId: string): 
 // SPOTS & TRAILS (backed by DB, app-type shape)
 // ═══════════════════════════════════════════════════════════
 
-import { Spot, Trail, Difficulty, TrailType } from '@/data/types';
+import { Spot, Trail, Difficulty, TrailType, CalibrationStatus, ConfidenceLabel } from '@/data/types';
 import { DbSpot, DbTrail } from './database.types';
 
 function mapSpot(row: DbSpot): Spot {
@@ -1539,7 +1561,9 @@ function mapSpot(row: DbSpot): Spot {
     // App-side `Spot.status` only models public visibility; DB's
     // 'pending' | 'rejected' collapse to 'closed' for the consumer.
     status: row.status === 'active' ? 'active' : 'closed',
-    submissionStatus: row.status,
+    // Regenerated types loosen DB enum columns to plain `string`; the
+    // app domain still expects the narrow union, so cast at the boundary.
+    submissionStatus: row.status as 'active' | 'rejected' | 'pending',
     activeRidersToday: 0,
     trailCount: 0,
   };
@@ -1559,12 +1583,14 @@ function mapTrail(row: DbTrail, pioneerUsername: string | null = null): Trail {
     isOfficial: true,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    calibrationStatus: row.calibration_status,
+    // DB column is plain `string` post-regen; the app domain narrows it
+    // to the lifecycle union (calibrating | live_fresh | …) so cast here.
+    calibrationStatus: row.calibration_status as CalibrationStatus,
     geometryMissing: row.geometry === null,
     // Sprint 4 (mig 011) — trust + pioneer
     seedSource:       row.seed_source,
     trustTier:        row.trust_tier,
-    confidenceLabel:  row.confidence_label ?? null,
+    confidenceLabel:  (row.confidence_label as ConfidenceLabel | null) ?? null,
     consistentPioneerRunsCount: row.consistent_pioneer_runs_count ?? 0,
     uniqueConfirmingRidersCount: row.unique_confirming_riders_count ?? 0,
     currentVersionId: row.current_version_id,

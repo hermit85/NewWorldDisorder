@@ -290,6 +290,20 @@ function StandardResultScreen() {
     }
   }, [run?.saveStatus, hapticFired]);
 
+  // ── Auto-refresh on trail open (audit fix) ──
+  // When the second consistent run flips the trail to live_fresh, the
+  // backend already updated DB state, but the trail detail screen still
+  // reads from an unstale-checked cache. Without this invalidation the
+  // rider sees "TRASA LIVE" here, navigates to the trail screen, and
+  // gets stale `fresh_pending_second_run` chrome until they manually
+  // pull-to-refresh. promoteRunAsBaseline already fires triggerRefresh()
+  // — this covers the natural-open path.
+  useEffect(() => {
+    if (run?.backendResult?.trailOpened === true) {
+      triggerRefresh();
+    }
+  }, [run?.backendResult?.trailOpened]);
+
   // ── Retry save — uses canonical path (same as saveQueue) ──
   const handleRetrySave = async () => {
     // B23.2: flip the counter FIRST, before any guard. This is the only
