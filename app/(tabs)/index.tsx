@@ -1,15 +1,41 @@
+// ─────────────────────────────────────────────────────────────
+// Home tab — canonical shell over existing widgets
+//
+// Reshapes the screen chrome to match design-system/screens-home.jsx
+// ScreenHome: NWD brand header, "Sezon 01" pill, anonymous hero
+// Card with Pill kicker + Btn primary, section heads via canonical
+// SectionHead, empty/error states using canonical Btn.
+//
+// Inner widgets (HeroCard, PrimarySpotCard, ChallengeItem,
+// StreakIndicator, XPBar) keep their existing implementations —
+// they'll be migrated screen-by-screen as a follow-up. They already
+// render with correct color values via the chunk9 alias layer.
+// ─────────────────────────────────────────────────────────────
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChallengeItem } from '@/components/ui/ChallengeItem';
-import { GlowButton } from '@/components/ui/GlowButton';
 import { HeroCard } from '@/components/ui/HeroCard';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
+import {
+  Btn,
+  Card,
+  Pill,
+  SectionHead,
+} from '@/components/nwd';
 import { getRankForXp } from '@/systems/ranks';
 import { getLevelProgress } from '@/systems/xp';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -20,7 +46,9 @@ import {
   useProfile,
   useStreakState,
 } from '@/hooks/useBackend';
-import { chunk9Colors, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing } from '@/theme/spacing';
 
 function formatChallengeCountdown(now: Date = new Date()): string {
   const midnight = new Date(now);
@@ -46,9 +74,6 @@ function buildStreakSubtitle(params: {
   return 'Zjedź dziś żeby utrzymać';
 }
 
-// Spec v2 section 1.3: tabBarHeight 64. Combined with safe-area bottom so
-// the last scroll item (StreakIndicator / spot shortcut) clears the tab bar
-// on home-indicator devices.
 const TAB_BAR_CLEARANCE = 64;
 
 export default function HomeScreen() {
@@ -64,30 +89,17 @@ export default function HomeScreen() {
   const { data: primarySpotSummary, status: primarySpotStatus, refresh: refreshPrimarySpot } =
     usePrimarySpot(authProfile?.id ?? null);
 
-  // Cold-start loading gate: first render, authed user, no data yet.
-  // Spec v2 3.4 — never render blank. Proper Skeleton primitive comes in Chunk 9.1.
   const isColdLoading =
     isAuthenticated &&
     (profileStatus === 'loading' || heroBeatStatus === 'loading') &&
     !profile &&
     !heroBeat;
-
-  // Spec v2 3.5: on fetch failure show honest error + retry.
-  // Only escalate to full-screen error when the core signal (profile) fails —
-  // secondary widgets (feed, challenges) degrade inline via their own hooks.
   const isColdError = isAuthenticated && profileStatus === 'error' && !profile;
 
   async function handleRetry() {
     await Promise.all([refreshProfile(), refreshHeroBeat()]);
   }
 
-  // Home uses the same 100-XP-per-level progression as the RIDER
-  // tab (src/systems/xp.ts). Before Codex round 2 P2.3 the Home
-  // XPBar computed `level` from the rank tier index (Rookie=1,
-  // Rider=2, …), which let Home say LVL 1 while the profile card
-  // one tab over said LVL 5 for the same rider. `currentRank` stays
-  // separate because the rank *label* (Rookie/Rider/Legend/…) is
-  // its own progression that runs alongside the level counter.
   const currentXp = profile?.xp ?? 0;
   const currentRank = getRankForXp(currentXp);
   const levelProgress = getLevelProgress(currentXp);
@@ -97,7 +109,7 @@ export default function HomeScreen() {
 
   const challengeCompletionRatio =
     challenges.length > 0
-      ? challenges.filter((challenge) => challenge.completed).length / challenges.length
+      ? challenges.filter((c) => c.completed).length / challenges.length
       : 0;
 
   const streakSubtitle = buildStreakSubtitle({
@@ -134,7 +146,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <ActivityIndicator size="large" color={chunk9Colors.accent.emerald} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -144,21 +156,19 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <Text style={styles.errorTitle}>Tryb awaryjny</Text>
+          <Text style={styles.errorTitle}>TRYB AWARYJNY</Text>
           <Text style={styles.errorBody}>
             Ranking nie dojechał. Sprawdź sieć i spróbuj jeszcze raz.
           </Text>
-          <GlowButton label="Spróbuj ponownie" variant="secondary" onPress={handleRetry} />
+          <Btn variant="ghost" size="md" fullWidth={false} onPress={handleRetry}>
+            Spróbuj ponownie
+          </Btn>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Anonymous users get a focused "join the league" prompt instead of
-  // fake-zero stats (ROOKIE · LVL 1 · 0/500 XP, 0-day streak). The
-  // public widgets that happen to work without a session (PrimarySpot,
-  // challenges, hero beat) are all driven by authProfile?.id and return
-  // empty/signed_out here, so rendering them would just be noise.
+  // ── Anonymous flow — canonical Card + Pill + Btn ─────────────
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -173,28 +183,29 @@ export default function HomeScreen() {
               <Text style={styles.brand}>NWD</Text>
               <Text style={styles.brandSub}>LIGA GRAVITY</Text>
             </View>
+            <Pill state="neutral" size="md">Sezon 01</Pill>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Dołącz do ligi"
-            style={styles.anonCard}
-            onPress={() => router.push('/auth')}
-          >
-            <Text style={styles.anonTag}>SEZON 01 · SŁOTWINY ARENA</Text>
+          <Card hi glow padding={20} style={styles.anonCard}>
+            <Pill state="accent">Sezon 01 · Słotwiny</Pill>
             <Text style={styles.anonTitle}>Dołącz do ligi</Text>
             <Text style={styles.anonBody}>
-              Stwórz rider tag, zapisuj zjazdy i walcz o miejsce na tablicy.
+              Stwórz rider tag, zapisuj zjazdy, walcz o miejsce na tablicy.
             </Text>
-            <View style={styles.anonBtn}>
-              <Text style={styles.anonBtnText}>ZALOGUJ SIĘ</Text>
-            </View>
-          </Pressable>
+            <Btn
+              variant="primary"
+              size="lg"
+              onPress={() => router.push('/auth')}
+            >
+              Zaloguj się
+            </Btn>
+          </Card>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // ── Authed flow — keep existing widgets, canonical shell ─────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -206,7 +217,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={chunk9Colors.accent.emerald}
+            tintColor={colors.accent}
           />
         }
       >
@@ -218,12 +229,8 @@ export default function HomeScreen() {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={
-              isAuthenticated
-                ? `Profil: ${currentRank.name}, poziom ${level}`
-                : 'Zaloguj się'
-            }
-            onPress={() => router.push(isAuthenticated ? '/(tabs)/profile' : '/auth')}
+            accessibilityLabel={`Profil: ${currentRank.name}, poziom ${level}`}
+            onPress={() => router.push('/(tabs)/profile')}
             style={styles.xpWrap}
           >
             <XPBar
@@ -236,15 +243,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/*
-         * Fresh-rider priority: a user with no runs AND no primary spot
-         * has one job — add a bike park and carve their first trail.
-         * Showing "Dziś bez zmian · Zaproś rywala" above that CTA inverts
-         * the priority (social feature they can't use yet). So for zero-
-         * state we promote PrimarySpotCard(empty) to hero position and
-         * skip the empty HeroCard entirely. Once they have a run, the
-         * normal hero beat / stable-day copy resumes on top.
-         */}
         {(() => {
           const hasHeroBeat = !!heroBeat;
           const hasPrimarySpot = !!primarySpotSummary;
@@ -263,10 +261,6 @@ export default function HomeScreen() {
               beaterTimeMs={heroBeat!.beaterTimeMs}
               userTimeMs={heroBeat!.userTimeMs}
               onPrimary={() =>
-                // B29: "odgryź się" is a revenge-ride CTA — the rider
-                // wants to beat the rival's time. Intent is unambiguously
-                // ranked. If the trail is training-only the /run/active
-                // guard redirects to trail detail with an honest message.
                 router.push({
                   pathname: '/run/active',
                   params: {
@@ -299,7 +293,6 @@ export default function HomeScreen() {
                 : null
             : null;
 
-          // Fresh rider → spot card is THE hero. Everyone else → normal order.
           return isFreshRider ? (
             <>{spotCard}{heroCard}</>
           ) : (
@@ -307,20 +300,11 @@ export default function HomeScreen() {
           );
         })()}
 
-        {/*
-         * B1 density reduction: shortened header from
-         * 'DZIENNE WYZWANIA · WYGASAJĄ ZA Xh Ym' to
-         * 'WYZWANIA · Xh Ym'. Subtitle per challenge loses the
-         * 'RESET 00:00' eyebrow — the section header already
-         * conveys the countdown.
-         */}
         <View style={styles.section}>
-          <SectionHeader
+          <SectionHead
             label="Wyzwania"
-            glyph="✦"
-            glyphColor={chunk9Colors.accent.emerald}
-            meta={formatChallengeCountdown()}
-            spacingTop="none"
+            icon="bike"
+            count={formatChallengeCountdown()}
           />
 
           <View style={styles.challengeProgressTrack}>
@@ -348,20 +332,10 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* B1: RUCH W LIDZE removed from home. Feed belongs on the
-            RIDER tab (handoff B1) — keeps home focused on "what should
-            I do right now" instead of "what are others doing". */}
-
         <View>
-          <SectionHeader
+          <SectionHead
             label="Passa"
-            glyph="●"
-            glyphColor={
-              (streak?.days ?? 0) > 0
-                ? chunk9Colors.accent.emerald
-                : chunk9Colors.text.secondary
-            }
-            spacingTop="none"
+            icon={(streak?.days ?? 0) > 0 ? 'verified' : 'timer'}
           />
           <StreakIndicator
             days={streak?.days ?? 0}
@@ -377,26 +351,36 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: chunk9Colors.bg.base,
+    backgroundColor: colors.bg,
   },
   scrollContent: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
-    gap: chunk9Spacing.sectionVertical,
+    paddingHorizontal: spacing.pad,
+    gap: spacing.lg,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: chunk9Spacing.cardChildGap,
+    gap: spacing.md,
+    paddingTop: spacing.xs,
   },
   brand: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 28,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    letterSpacing: 1.68, // 0.06em @ 28
   },
   brandSub: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
-    marginTop: 2,
+    ...typography.micro,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2, // 0.22em @ 10
+    fontWeight: '700',
   },
   xpWrap: {
     width: 132,
@@ -408,12 +392,12 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: chunk9Colors.bg.hairline,
+    backgroundColor: colors.border,
   },
   challengeProgressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: chunk9Colors.accent.emerald,
+    backgroundColor: colors.accent,
   },
   sectionBody: {
     gap: 4,
@@ -422,52 +406,46 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
-    gap: chunk9Spacing.cardChildGap,
+    paddingHorizontal: spacing.pad,
+    gap: spacing.md,
   },
   errorTitle: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.label,
+    color: colors.textPrimary,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.64,
     textAlign: 'center',
   },
   errorBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 14,
     textAlign: 'center',
+    maxWidth: 280,
   },
+  // Canonical anon hero card. Card component supplies the surface
+  // (panel/borderHot/glow); these styles handle interior typography
+  // only — replaces the prior bespoke `anonCard` with accent border
+  // (decoration §01 violation) and chunk9 tokens.
   anonCard: {
-    borderWidth: 1,
-    borderColor: chunk9Colors.accent.emerald,
-    borderRadius: 14,
-    padding: 22,
     gap: 12,
-    marginTop: 8,
-  },
-  anonTag: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
-    letterSpacing: 2,
+    marginTop: spacing.sm,
   },
   anonTitle: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 28,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    letterSpacing: -0.28, // -0.01em @ 28
+    textTransform: 'uppercase',
   },
   anonBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    fontSize: 14,
     lineHeight: 20,
-  },
-  anonBtn: {
-    marginTop: 8,
-    backgroundColor: chunk9Colors.accent.emerald,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  anonBtnText: {
-    ...chunk9Typography.captionMono10,
-    color: '#000',
-    letterSpacing: 3,
-    fontSize: 13,
+    color: colors.textSecondary,
   },
 });
