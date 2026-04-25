@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, Pressable,
+  View, Text, StyleSheet, FlatList,
   TextInput, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
+import { Btn, PageTitle, TopBar } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { usePendingSpots } from '@/hooks/useBackend';
 import { approveSpot, rejectSpot, PendingSpot } from '@/lib/api';
@@ -39,13 +40,12 @@ export default function PendingSpotsScreen() {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back} hitSlop={16}>
-          <Text style={styles.backLabel}>← Wróć</Text>
-        </Pressable>
-        <Text style={styles.title}>KOLEJKA BIKE PARKÓW</Text>
-        {status === 'ok' && (
-          <Text style={styles.subtitle}>{spots.length} do zatwierdzenia</Text>
-        )}
+        <TopBar onBack={() => router.back()} title="Kuratorzy" />
+        <PageTitle
+          kicker="Kolejka"
+          title="Bike parki do zatwierdzenia"
+          subtitle={status === 'ok' ? `${spots.length} do zatwierdzenia` : null}
+        />
       </View>
 
       {status === 'loading' && (
@@ -63,10 +63,10 @@ export default function PendingSpotsScreen() {
 
       {status === 'error' && (
         <View style={styles.center}>
-          <Text style={styles.emptyTitle}>Nie udało się załadować</Text>
-          <Pressable onPress={() => refresh()} style={styles.retryCta}>
-            <Text style={styles.retryLabel}>Ponów</Text>
-          </Pressable>
+          <Text style={styles.emptyTitle}>NIE UDAŁO SIĘ ZAŁADOWAĆ</Text>
+          <Btn variant="ghost" size="md" fullWidth={false} onPress={() => refresh()}>
+            Ponów
+          </Btn>
         </View>
       )}
 
@@ -149,20 +149,22 @@ function PendingCard({ spot, onDone }: { spot: PendingSpot; onDone: () => void }
 
       {mode === 'idle' && (
         <View style={styles.row}>
-          <Pressable onPress={doApprove} style={[styles.cta, styles.ctaApprove]}>
-            <Text style={styles.ctaApproveLabel}>ZATWIERDŹ</Text>
-          </Pressable>
-          <Pressable
+          <Btn variant="primary" size="md" onPress={doApprove} style={{ flex: 1 }}>
+            Zatwierdź
+          </Btn>
+          <Btn
+            variant="danger"
+            size="md"
             onPress={() => { setMode('rejecting'); setErrorMsg(null); }}
-            style={[styles.cta, styles.ctaReject]}
+            style={{ flex: 1 }}
           >
-            <Text style={styles.ctaRejectLabel}>ODRZUĆ</Text>
-          </Pressable>
+            Odrzuć
+          </Btn>
         </View>
       )}
 
       {mode === 'rejecting' && (
-        <View style={{ marginTop: spacing.md }}>
+        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
           <TextInput
             style={styles.reasonInput}
             value={reason}
@@ -173,15 +175,22 @@ function PendingCard({ spot, onDone }: { spot: PendingSpot; onDone: () => void }
             multiline
           />
           <View style={styles.row}>
-            <Pressable
+            <Btn
+              variant="ghost"
+              size="md"
               onPress={() => { setMode('idle'); setReason(''); setErrorMsg(null); }}
-              style={[styles.cta, styles.ctaGhost]}
+              style={{ flex: 1 }}
             >
-              <Text style={styles.ctaGhostLabel}>Anuluj</Text>
-            </Pressable>
-            <Pressable onPress={doReject} style={[styles.cta, styles.ctaReject]}>
-              <Text style={styles.ctaRejectLabel}>ODRZUĆ</Text>
-            </Pressable>
+              Anuluj
+            </Btn>
+            <Btn
+              variant="danger"
+              size="md"
+              onPress={doReject}
+              style={{ flex: 1 }}
+            >
+              Odrzuć
+            </Btn>
           </View>
         </View>
       )}
@@ -219,32 +228,24 @@ function formatRelative(iso: string): string {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  header: { padding: spacing.xl, paddingBottom: spacing.md },
-  back: { alignSelf: 'flex-start', marginBottom: spacing.md },
-  backLabel: { ...typography.bodySmall, color: colors.textSecondary },
-  title: { ...typography.h1, color: colors.textPrimary, letterSpacing: 4 },
-  subtitle: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.xs },
-  emptyBody: { ...typography.body, color: colors.textSecondary },
-  list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+  header: { paddingHorizontal: spacing.pad, paddingBottom: spacing.md, gap: spacing.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
+  emptyTitle: { ...typography.label, fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 2.64, color: colors.textPrimary },
+  emptyBody: { ...typography.body, fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+  list: { paddingHorizontal: spacing.pad, paddingBottom: spacing.xxl },
   card: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.card,
     padding: spacing.lg,
     marginBottom: spacing.md,
+    gap: spacing.xs,
   },
-  cardName: { ...typography.h3, color: colors.textPrimary },
-  cardMeta: { ...typography.bodySmall, color: colors.textTertiary, marginTop: spacing.xs },
-  cardCoords: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs, fontVariant: ['tabular-nums'] as any },
-  row: { flexDirection: 'row', marginTop: spacing.md },
-  cta: { flex: 1, paddingVertical: spacing.md, alignItems: 'center', borderRadius: radii.md, marginRight: spacing.sm },
-  ctaApprove: { backgroundColor: colors.accent },
-  ctaApproveLabel: { ...typography.cta, color: colors.bg, letterSpacing: 2 },
-  ctaReject: { backgroundColor: colors.redDim, borderWidth: 1, borderColor: colors.red },
-  ctaRejectLabel: { ...typography.cta, color: colors.red, letterSpacing: 2 },
-  ctaGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
-  ctaGhostLabel: { ...typography.cta, color: colors.textSecondary, letterSpacing: 2 },
+  cardName: { ...typography.lead, fontFamily: 'Rajdhani_700Bold', fontSize: 18, color: colors.textPrimary, fontWeight: '700', textTransform: 'uppercase' },
+  cardMeta: { ...typography.body, fontSize: 12, color: colors.textTertiary },
+  cardCoords: { ...typography.body, fontSize: 12, color: colors.textSecondary, fontVariant: ['tabular-nums'] as any },
+  row: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   reasonInput: {
     backgroundColor: colors.bg,
     borderRadius: radii.md,
@@ -253,9 +254,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     color: colors.textPrimary,
     minHeight: 80,
-    ...typography.input,
+    ...typography.body,
   },
-  error: { ...typography.bodySmall, color: colors.red, marginTop: spacing.sm },
-  retryCta: { marginTop: spacing.lg, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, backgroundColor: colors.bgElevated, borderRadius: radii.md },
-  retryLabel: { ...typography.cta, color: colors.textPrimary, letterSpacing: 2 },
+  error: { ...typography.body, fontSize: 12, color: colors.danger, marginTop: spacing.sm },
 });
