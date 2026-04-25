@@ -50,3 +50,6 @@ export type { LeaderboardRowProps } from './LeaderboardRow';
 
 export { SpotRow } from './SpotRow';
 export type { SpotRowProps } from './SpotRow';
+
+export { TrailCard } from './TrailCard';
+export type { TrailCardProps, TrailStatus } from './TrailCard';
