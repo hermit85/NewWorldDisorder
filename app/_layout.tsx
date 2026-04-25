@@ -89,7 +89,7 @@ class AppErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, backgroundColor: '#0A0A0F', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
           <Text style={{ fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
             CRASH
           </Text>
@@ -172,7 +172,7 @@ function RootLayout() {
             animation: 'fade',
           }}
         >
-          <Stack.Screen name="index" options={{ animation: 'none', contentStyle: { backgroundColor: '#0A0A0F' } }} />
+          <Stack.Screen name="index" options={{ animation: 'none', contentStyle: { backgroundColor: colors.bg } }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" options={{ animation: 'fade' }} />
           <Stack.Screen
@@ -184,7 +184,7 @@ function RootLayout() {
             options={{
               animation: 'none',
               gestureEnabled: false,
-              contentStyle: { backgroundColor: '#0A0A0F' },
+              contentStyle: { backgroundColor: colors.bg },
             }}
           />
           <Stack.Screen

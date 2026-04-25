@@ -214,7 +214,7 @@ function RaceCTA({ label, onPress, variant = 'primary' }: { label: string; onPre
   };
 
   const bgColor = variant === 'secondary' ? 'transparent' : colors.accent;
-  const textColor = variant === 'secondary' ? colors.textSecondary : '#0A0A0F';
+  const textColor = variant === 'secondary' ? colors.textSecondary : colors.bg;
   const borderStyle = variant === 'secondary' ? { borderWidth: 1, borderColor: colors.border } : {};
 
   return (
@@ -390,7 +390,7 @@ export default function OnboardingScreen() {
 // ── Styles ───────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0F' },
+  container: { flex: 1, backgroundColor: colors.bg },
   slideCounter: { position: 'absolute', top: 70, right: spacing.xxl, zIndex: 10 },
   slideCounterText: { fontFamily: fonts.racingLight, fontSize: 12 },
   slideCounterCurrent: { color: colors.accent, fontFamily: fonts.racing, fontSize: 14 },

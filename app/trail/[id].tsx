@@ -542,13 +542,13 @@ const styles = StyleSheet.create({
   breadcrumbName: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
-    color: '#00FF8C',
+    color: colors.accent,
     letterSpacing: 0.5,
   },
   breadcrumbArrow: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 12,
-    color: '#00FF8C',
+    color: colors.accent,
   },
 
   // Hero
@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: '#00FF8C',
+    color: colors.accent,
   },
 
   // Sprint 4 — trust + pioneer rows under the trail name
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   },
   pioneerName: {
     fontFamily: 'Rajdhani_600SemiBold',
-    color: '#00FF8C',
+    color: colors.accent,
     fontSize: 13,
     letterSpacing: 1,
   },
@@ -709,7 +709,7 @@ const draftStyles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: '#00FF8C',
+    color: colors.accent,
     marginTop: spacing.md,
   },
   cta: {
@@ -720,9 +720,9 @@ const draftStyles = StyleSheet.create({
     borderRadius: radii.xl,
     backgroundColor: 'rgba(20, 35, 26, 0.95)',
     borderWidth: 2,
-    borderColor: '#00FF8C',
+    borderColor: colors.accent,
     alignItems: 'center',
-    shadowColor: '#00FF8C',
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 24,
@@ -737,7 +737,7 @@ const draftStyles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 20,
     letterSpacing: 4,
-    color: '#00FF8C',
+    color: colors.accent,
     textAlign: 'center',
     marginBottom: spacing.xs,
   },

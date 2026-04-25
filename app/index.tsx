@@ -55,13 +55,13 @@ export default function BootstrapScreen() {
     );
   }
 
-  return <View style={{ flex: 1, backgroundColor: '#0A0A0F' }} />;
+  return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 }
 
 const blockStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0F',
+    backgroundColor: colors.bg,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.xxl,
