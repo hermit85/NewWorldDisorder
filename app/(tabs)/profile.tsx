@@ -14,8 +14,14 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { ActivityList } from '@/components/profile/ActivityList';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Divider } from '@/components/ui/Divider';
+import {
+  Btn,
+  Card,
+  Pill,
+  SectionHead,
+  StatBox as NwdStatBox,
+} from '@/components/nwd';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
@@ -184,17 +190,22 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
         }
       >
-        {/* Sign in prompt */}
+        {/* Sign in prompt — canonical Card + Pill kicker + Btn primary.
+            Pre-fix used a bespoke `signInCard` with full accent border
+            (§ 01 race-state-owns-color violation) and inline button.
+            Card glow signals importance without abusing the race-state
+            channel; CTA is the canonical primary pill. */}
         {!isAuthenticated ? (
-          <Pressable style={styles.signInCard} onPress={() => router.push('/auth')}>
-            <Text style={styles.signInTitle}>ZALOGUJ SIĘ</Text>
-            <Text style={styles.signInDesc}>
+          <Card hi glow padding={20} style={{ gap: 12, marginTop: spacing.sm }}>
+            <Pill state="accent">Sezon 01 · Słotwiny</Pill>
+            <Text style={styles.anonTitle}>Dołącz do ligi</Text>
+            <Text style={styles.anonBody}>
               Stwórz rider tag, zapisuj zjazdy i dołącz do ligi.
             </Text>
-            <View style={styles.signInBtn}>
-              <Text style={styles.signInBtnText}>DOŁĄCZ DO LIGI</Text>
-            </View>
-          </Pressable>
+            <Btn variant="primary" size="lg" onPress={() => router.push('/auth')}>
+              Zaloguj się
+            </Btn>
+          </Card>
         ) : (
           <>
             {/* Player card */}
@@ -278,36 +289,42 @@ export default function ProfileScreen() {
               })()}
             </View>
 
-            {/* Stats */}
-            <SectionHeader
-              label="Statystyki"
-              glyph="▣"
-              glyphColor={colors.textTertiary}
-              spacingTop="xl"
-            />
+            {/* Stats — canonical 3-col StatBox grid. */}
+            <View style={{ marginTop: spacing.xl }}>
+              <SectionHead icon="podium" label="Statystyki" />
+            </View>
             <View style={styles.statsRow}>
-              <StatBox label={copy.totalRuns} value={profileStatus === 'ok' ? String(user?.totalRuns ?? 0) : '—'} />
-              <StatBox label={copy.personalBests} value={profileStatus === 'ok' ? String(user?.totalPbs ?? 0) : '—'} />
-              <StatBox label={copy.bestPosition} value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'} />
+              <NwdStatBox
+                label={copy.totalRuns}
+                value={profileStatus === 'ok' ? user?.totalRuns ?? 0 : '—'}
+                style={{ flex: 1 }}
+              />
+              <NwdStatBox
+                label={copy.personalBests}
+                value={profileStatus === 'ok' ? user?.totalPbs ?? 0 : '—'}
+                accent={!!user?.totalPbs}
+                style={{ flex: 1 }}
+              />
+              <NwdStatBox
+                label={copy.bestPosition}
+                value={profileStatus === 'ok' && user?.bestPosition ? `#${user.bestPosition}` : '—'}
+                style={{ flex: 1 }}
+              />
             </View>
 
             {/* Aktywność — handoff A6 moved run history here from the old ZJAZDY tab */}
-            <SectionHeader
-              label="Aktywność"
-              glyph="▼"
-              glyphColor={colors.textTertiary}
-              spacingTop="xl"
-            />
+            <View style={{ marginTop: spacing.xl }}>
+              <SectionHead icon="timer" label="Aktywność" />
+            </View>
             <ActivityList />
 
             {/* Achievements — full catalog with locked/unlocked states */}
-            <SectionHeader
-              label="Osiągnięcia"
-              glyph="★"
-              glyphColor={colors.gold}
-              meta={`${achievements.length}/${ACHIEVEMENT_CATALOG.length}`}
-              spacingTop="xl"
-            />
+            <View style={{ marginTop: spacing.xl }}>
+              <SectionHead
+                label="Osiągnięcia"
+                count={`${achievements.length}/${ACHIEVEMENT_CATALOG.length}`}
+              />
+            </View>
             <View style={styles.achievementGrid}>
               {ACHIEVEMENT_CATALOG.map((def) => {
                 const unlocked = achievements.find((a) => a.slug === def.slug);
@@ -359,23 +376,16 @@ export default function ProfileScreen() {
         <Divider variant="strong" />
 
         {/* Konto — nav links */}
-        <SectionHeader
-          label="Konto"
-          glyph="◉"
-          glyphColor={colors.textTertiary}
-          spacingTop="none"
-        />
+        <SectionHead label="Konto" />
         <View style={styles.appActions}>
           <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
             <Text style={styles.actionLinkText}>POMOC</Text>
           </Pressable>
-          {/* B20 review: ZASADY button removed — routed to /help
-              just like POMOC, which made a duplicate nav row and
-              confused testers ("zasady to w sumie co?"). /help
-              already surfaces league rules as its first section. */}
+          {/* B20 review: ZASADY button removed — /help already surfaces
+              league rules as its first section. */}
           {isAuthenticated && (
             <Pressable style={styles.actionLink} onPress={handleSignOut}>
-              <Text style={[styles.actionLinkText, { color: colors.red }]}>WYLOGUJ</Text>
+              <Text style={[styles.actionLinkText, { color: colors.danger }]}>WYLOGUJ</Text>
             </Pressable>
           )}
         </View>
@@ -419,14 +429,10 @@ export default function ProfileScreen() {
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statBox}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
-    </View>
-  );
-}
+// Local StatBox (rest of the file consumed it for the stats row) was
+// replaced inline with the canonical NwdStatBox import — this leaves
+// the styles below to support the player card / achievements grid /
+// nav links that remain on bespoke styling for now.
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -465,10 +471,9 @@ const styles = StyleSheet.create({
   xpText: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.xs },
   rankProgressSection: { width: '100%', marginTop: spacing.md },
   rankProgressText: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.xs, fontSize: 10 },
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xxl },
-  statBox: { flex: 1, backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-  statValue: { ...typography.timeMedium, color: colors.textPrimary },
-  statLabel: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xxs },
+  // statsRow now hosts canonical NwdStatBox children — the legacy
+  // `statBox` / `statValue` / `statLabel` keys were dropped.
+  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xxl, marginTop: spacing.sm },
   achievementGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   achievementItem: { width: '47%', backgroundColor: colors.bgCard, borderRadius: radii.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   achievementBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
@@ -481,11 +486,25 @@ const styles = StyleSheet.create({
   achievementUnlockedTag: { fontFamily: 'Rajdhani_700Bold', fontSize: 9, color: colors.accent, letterSpacing: 1.2, marginTop: 6 },
   achievementProgress: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.textSecondary, marginTop: 6, letterSpacing: 0.5 },
   achievementItemLocked: { opacity: 0.82 },
-  signInCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.accent, alignItems: 'center' },
-  signInTitle: { ...typography.label, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
-  signInDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
-  signInBtn: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl },
-  signInBtnText: { ...typography.cta, color: colors.bg, letterSpacing: 3, fontSize: 13 },
+  // Canonical anon hero — replaces the old `signInCard` (full accent
+  // border = § 01 violation, hand-rolled CTA pill). Card supplies the
+  // surface; these are only the interior typography styles.
+  anonTitle: {
+    ...typography.title,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 28,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    letterSpacing: -0.28,
+    textTransform: 'uppercase',
+  },
+  anonBody: {
+    ...typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
   appInfo: { alignItems: 'center', paddingTop: spacing.xxl, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xxl, gap: spacing.xxs },
   appInfoText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 10, letterSpacing: 1 },
   // flex-wrap so a 4th or 5th action pill falls to a second row
@@ -498,6 +517,6 @@ const styles = StyleSheet.create({
   legalRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, paddingHorizontal: spacing.md },
   legalLinkText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9, textDecorationLine: 'underline' },
   legalSep: { color: colors.textTertiary, fontSize: 9, marginHorizontal: 2 },
-  deleteBtn: { marginTop: spacing.xl, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.red, borderRadius: radii.sm, alignSelf: 'center' },
-  deleteBtnText: { ...typography.labelSmall, color: colors.red, letterSpacing: 2, fontSize: 10 },
+  deleteBtn: { marginTop: spacing.xl, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.danger, borderRadius: radii.sm, alignSelf: 'center' },
+  deleteBtnText: { ...typography.labelSmall, color: colors.danger, letterSpacing: 2, fontSize: 10 },
 });
