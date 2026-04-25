@@ -77,7 +77,11 @@ export default function TrailDetailScreen() {
     !!profile?.id &&
     !!trail?.pioneerUserId &&
     profile.id === trail.pioneerUserId &&
-    (trail.calibrationStatus === 'draft' || trail.calibrationStatus === 'calibrating');
+    (
+      trail.calibrationStatus === 'draft'
+      || trail.calibrationStatus === 'fresh_pending_second_run'
+      || trail.calibrationStatus === 'calibrating'
+    );
   const canDeleteTrail = isCurator || isPioneerSelf;
   const { submit: deleteTrail } = useDeleteTrail();
 
@@ -209,19 +213,36 @@ export default function TrailDetailScreen() {
     : myPos <= 10 ? myPos - 3
     : myPos - 10;
 
+  // B29: intent is the pre-declared mode, carried as a route param.
+  // `/run/active` is the only screen that mounts `useRealRun`, and the
+  // hook binds its `mode` to this intent immutably — there's no in-run
+  // path that can flip it. Training-only venues are gated here so the
+  // ranked CTA never reaches route at all; the route guard at
+  // `/run/active` still rejects a `intent=ranked` deep-link on such a
+  // venue as defense-in-depth.
   const handleStartRanked = () => {
+    if (isTrainingOnly) {
+      tapLight();
+      return;
+    }
     if (!isAuthenticated) {
       tapLight();
       router.push('/auth');
       return;
     }
     tapMedium();
-    router.push({ pathname: '/run/active', params: { trailId: trail.id, trailName: trail.name } });
+    router.push({
+      pathname: '/run/active',
+      params: { trailId: trail.id, trailName: trail.name, intent: 'ranked' },
+    });
   };
 
   const handleStartPractice = () => {
     tapLight();
-    router.push({ pathname: '/run/active', params: { trailId: trail.id, trailName: trail.name } });
+    router.push({
+      pathname: '/run/active',
+      params: { trailId: trail.id, trailName: trail.name, intent: 'practice' },
+    });
   };
 
   return (
@@ -260,6 +281,20 @@ export default function TrailDetailScreen() {
                 <Text style={styles.pioneerDate}>· {formatPioneerDate(trail.pioneeredAt)}</Text>
               )}
             </View>
+          )}
+
+          {trail.confidenceLabel && (
+            <Text style={styles.confidenceText}>
+              {trail.confidenceLabel === 'stable'
+                ? 'Ustabilizowana'
+                : trail.confidenceLabel === 'community_checked'
+                  ? 'Sprawdzona przez innych'
+                  : trail.confidenceLabel === 'confirmed'
+                    ? 'Potwierdzona trasa'
+                    : trail.calibrationStatus === 'fresh_pending_second_run'
+                      ? 'Potrzebny drugi zjazd'
+                      : 'Świeża trasa'}
+            </Text>
           )}
 
           <View style={[styles.badges, { marginTop: spacing.md }]}>
@@ -455,11 +490,24 @@ export default function TrailDetailScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* ═══ RIDE CTAs ═══ */}
+      {/* ═══ RIDE CTAs ═══
+          B29: ranked button is visually disabled on training-only venues
+          (TRASA nie ma jeszcze kalibracji rankingowej). Tapping it is a
+          no-op so the rider can't accidentally route to ranked and hit
+          the Alert-redirect guard on /run/active. */}
       <View style={styles.ctaContainer}>
-        <Pressable style={styles.rankedBtn} onPress={handleStartRanked}>
-          <Text style={styles.rankedBtnText}>
-            {isAuthenticated ? 'JEDŹ RANKINGOWO' : 'ZALOGUJ — JEDŹ RANKINGOWO'}
+        <Pressable
+          style={[styles.rankedBtn, isTrainingOnly && styles.rankedBtnDisabled]}
+          onPress={handleStartRanked}
+          disabled={isTrainingOnly}
+          accessibilityState={{ disabled: isTrainingOnly }}
+        >
+          <Text style={[styles.rankedBtnText, isTrainingOnly && styles.rankedBtnTextDisabled]}>
+            {isTrainingOnly
+              ? 'RANKING NIEDOSTĘPNY'
+              : isAuthenticated
+                ? 'JEDŹ RANKINGOWO'
+                : 'ZALOGUJ — JEDŹ RANKINGOWO'}
           </Text>
         </Pressable>
         <Pressable style={styles.practiceBtn} onPress={handleStartPractice}>
@@ -540,6 +588,12 @@ const styles = StyleSheet.create({
     ...typography.labelSmall,
     color: colors.textTertiary,
     fontSize: 10,
+  },
+  confidenceText: {
+    ...typography.label,
+    color: colors.accent,
+    letterSpacing: 1.2,
+    marginTop: spacing.sm,
   },
   disclosureBanner: {
     flexDirection: 'row',
@@ -625,6 +679,11 @@ const styles = StyleSheet.create({
   ctaContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.sm },
   rankedBtn: { flex: 2, backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
   rankedBtnText: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.bg, letterSpacing: 3 },
+  // B29: disabled affordance for training-only venues — muted surface
+  // + ghost text so the rider reads it as "not available" rather than
+  // "broken button I can mash".
+  rankedBtnDisabled: { backgroundColor: colors.bgCard, opacity: 0.55 },
+  rankedBtnTextDisabled: { color: colors.textTertiary },
   practiceBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: 'center' },
   practiceBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 2 },
 

@@ -46,8 +46,12 @@ function computeSpotState(
   trails: { calibrationStatus?: string }[],
 ): SpotDisplayState {
   if (trails.length === 0) return 'no_trails';
-  const verified = trails.filter((t) => t.calibrationStatus === 'verified').length;
-  const calibrating = trails.filter((t) => t.calibrationStatus === 'calibrating').length;
+  const verified = trails.filter((t) =>
+    ['verified', 'locked', 'live_fresh', 'live_confirmed', 'stable'].includes(t.calibrationStatus ?? ''),
+  ).length;
+  const calibrating = trails.filter((t) =>
+    ['calibrating', 'fresh_pending_second_run'].includes(t.calibrationStatus ?? ''),
+  ).length;
   if (calibrating === trails.length) return 'all_calibrating';
   if (verified === trails.length) return 'all_verified';
   return 'mixed';
@@ -240,7 +244,7 @@ export default function SpotScreen() {
             {spotDisplayState === 'all_calibrating' ? (
               <View style={styles.validationBanner}>
                 <Text style={styles.validationBannerText}>
-                  Trasy w walidacji — drugi rider potwierdzi geometrię.
+                  Trasy czekają na drugi spójny zjazd Pioniera.
                 </Text>
               </View>
             ) : null}
@@ -270,6 +274,11 @@ export default function SpotScreen() {
                           spotId: spot.id,
                           trailName: trail.trail.name,
                           calibrationStatus: trail.calibrationStatus,
+                          intent:
+                            trail.state === 'pioneer'
+                            && trail.calibrationStatus === 'fresh_pending_second_run'
+                              ? 'ranked'
+                              : undefined,
                         }),
                       )
                     }

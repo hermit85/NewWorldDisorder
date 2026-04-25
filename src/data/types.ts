@@ -45,6 +45,16 @@ export interface Spot {
  *  mutable (state). Both null on drafts until finalize_seed_run stamps. */
 export type SeedSource = 'curator' | 'rider';
 export type TrustTier  = 'provisional' | 'verified' | 'disputed';
+export type CalibrationStatus =
+  | 'draft'
+  | 'fresh_pending_second_run'
+  | 'live_fresh'
+  | 'live_confirmed'
+  | 'stable'
+  | 'calibrating'
+  | 'verified'
+  | 'locked';
+export type ConfidenceLabel = 'fresh' | 'confirmed' | 'community_checked' | 'stable';
 
 export interface Trail {
   id: string;
@@ -59,9 +69,8 @@ export interface Trail {
   isOfficial: boolean;
   isActive: boolean;
   sortOrder: number;
-  /** Pioneer flow state: 'draft' = awaiting first run,
-   *  'calibrating' = pioneer locked, 'verified' = leaderboard open. */
-  calibrationStatus: 'draft' | 'calibrating' | 'verified' | 'locked';
+  /** Pioneer flow state. Legacy values are kept during rollout. */
+  calibrationStatus: CalibrationStatus;
   /** True when `trails.geometry` is null (no pioneer run yet). */
   geometryMissing: boolean;
 
@@ -70,6 +79,10 @@ export interface Trail {
   seedSource: SeedSource | null;
   /** Current confidence tier. Null on drafts. */
   trustTier: TrustTier | null;
+  /** Organic confidence label derived from consistent current-version runs. */
+  confidenceLabel: ConfidenceLabel | null;
+  consistentPioneerRunsCount: number;
+  uniqueConfirmingRidersCount: number;
   /** UUID of the currently-authoritative `trail_versions` row. */
   currentVersionId: string | null;
   /** Pioneer identity — IMMUTABLE after first assignment (DB trigger). */

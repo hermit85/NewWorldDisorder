@@ -43,7 +43,7 @@ export const TrailCard = memo(function TrailCard({
   const badgeLabel = pioneerStatusLabel ?? (state === 'virgin' ? 'NEW' : null);
   const isBeaten = state === 'beaten';
   const ctaVariant = isBeaten ? 'primary' : 'inlineLink';
-  const ctaLabel = badgeLabel === 'W WALIDACJI' ? 'Jedź' : ctaLabelByState[state];
+  const ctaLabel = badgeLabel === 'DRUGI ZJAZD' ? 'Jedź' : ctaLabelByState[state];
   const subtitle =
     state === 'pioneer'
       ? pioneerSubtitle ?? 'Dodana przez ciebie'
@@ -95,11 +95,11 @@ export const TrailCard = memo(function TrailCard({
         </View>
 
         {badgeLabel ? (
-          <View style={[styles.badge, badgeLabel === 'W WALIDACJI' && styles.badgeValidation]}>
+          <View style={[styles.badge, badgeLabel === 'DRUGI ZJAZD' && styles.badgeValidation]}>
             <Text
               style={[
                 styles.badgeText,
-                badgeLabel === 'W WALIDACJI' && styles.badgeValidationText,
+                badgeLabel === 'DRUGI ZJAZD' && styles.badgeValidationText,
               ]}
             >
               {badgeLabel}

@@ -24,6 +24,7 @@ import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
 import { getFinalizedRun, subscribeFinalizedRun } from '@/systems/runStore';
 import { retryRunSubmit } from '@/systems/retrySubmit';
+import { promoteRunAsBaseline } from '@/lib/api';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useResultImpact, ScopeImpact, useProfile } from '@/hooks/useBackend';
@@ -214,6 +215,8 @@ function StandardResultScreen() {
   // and we can chase the missing RPC error.
   const [retryAttempts, setRetryAttempts] = useState(0);
   const [lastRetryAt, setLastRetryAt] = useState<number | null>(null);
+  const [promotingBaseline, setPromotingBaseline] = useState(false);
+  const [baselineError, setBaselineError] = useState<string | null>(null);
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
@@ -381,6 +384,13 @@ function StandardResultScreen() {
   const isSaved = run.saveStatus === 'saved';
   const isFailed = run.saveStatus === 'failed';
   const isQueued = run.saveStatus === 'queued';
+  const trailOpened = run.backendResult?.trailOpened === true;
+  const trailOpenFailed = run.backendResult?.trailOpenFailed === true;
+  const canPromoteBaseline = run.backendResult?.canPromoteBaseline === true;
+  const openFailureReason =
+    run.backendResult?.consistencyReason ??
+    run.backendResult?.invalidationReasons?.[0] ??
+    null;
 
   // Level-up detection: compare current profile XP with XP before this run
   const currentXp = currentProfile?.xp ?? 0;
@@ -405,6 +415,27 @@ function StandardResultScreen() {
     (rankPosition <= 3 && rankPosition + rankDelta > 3) ||
     (rankPosition <= 10 && rankPosition + rankDelta > 10)
   );
+
+  const handlePromoteBaseline = async () => {
+    const backendRunId = run.backendResult?.run?.id;
+    if (!backendRunId || promotingBaseline) return;
+
+    setPromotingBaseline(true);
+    setBaselineError(null);
+    try {
+      const result = await promoteRunAsBaseline(backendRunId);
+      if (result.ok) {
+        notifySuccess();
+        triggerRefresh();
+        router.replace(`/trail/${result.data.trailId}`);
+      } else {
+        notifyWarning();
+        setBaselineError(result.message ?? result.code);
+      }
+    } finally {
+      setPromotingBaseline(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -527,7 +558,7 @@ function StandardResultScreen() {
             <View style={styles.savePracticeBadge}>
               <Text style={styles.savePracticeText}>TRENING ZAPISANY</Text>
             </View>
-          ) : isSaved && isVerified ? (
+          ) : isOfficialRankedResult ? (
             <View style={styles.saveOfficialBadge}>
               <Text style={styles.saveOfficialText}>✓ WYNIK W LIDZE</Text>
             </View>
@@ -589,6 +620,39 @@ function StandardResultScreen() {
             )}
 
             <Text style={styles.rankSublabel}>OFICJALNY RANKING</Text>
+          </View>
+        )}
+
+        {trailOpened && (
+          <View style={styles.trailOpenedCard}>
+            <Text style={styles.trailOpenedTitle}>TRASA LIVE</Text>
+            <Text style={styles.trailOpenedBody}>Leaderboard otwarty. Można się ścigać.</Text>
+          </View>
+        )}
+
+        {trailOpenFailed && (
+          <View style={styles.trailOpenFailedCard}>
+            <Text style={styles.trailOpenFailedTitle}>DRUGI ZJAZD INNY NIŻ BAZA</Text>
+            <Text style={styles.trailOpenFailedBody}>
+              Trasa nadal czeka na spójny przejazd. Możesz zjechać jeszcze raz albo ustawić ten zjazd jako nową bazę.
+            </Text>
+            {openFailureReason && (
+              <Text style={styles.trailOpenFailedReason}>Powód: {openFailureReason}</Text>
+            )}
+            {canPromoteBaseline && (
+              <Pressable
+                style={[styles.baselineBtn, promotingBaseline && { opacity: 0.55 }]}
+                onPress={handlePromoteBaseline}
+                disabled={promotingBaseline}
+              >
+                <Text style={styles.baselineBtnText}>
+                  {promotingBaseline ? 'USTAWIAM…' : 'UŻYJ TEGO JAKO NOWEJ BAZY'}
+                </Text>
+              </Pressable>
+            )}
+            {baselineError && (
+              <Text style={styles.trailOpenFailedReason}>Serwer: {baselineError}</Text>
+            )}
           </View>
         )}
 
@@ -738,8 +802,15 @@ function StandardResultScreen() {
                 pressed && styles.runAgainBtnPressed,
               ]}
               onPress={() => {
+                // B29: preserve the just-completed mode as intent. If
+                // this result is ranked, "JEDŹ PONOWNIE" means another
+                // ranked attempt; if practice, another practice. No
+                // silent mode swap between attempts.
                 tapMedium();
-                router.replace({ pathname: '/run/active', params: { trailId: run.trailId, trailName } });
+                router.replace({
+                  pathname: '/run/active',
+                  params: { trailId: run.trailId, trailName, intent: run.mode },
+                });
               }}
             >
               <Text style={styles.runAgainText}>JEDŹ PONOWNIE</Text>
@@ -877,24 +948,23 @@ function PioneerResultScreen({ runId }: { runId: string }) {
               Both preserve permanent Pioneer messaging. */}
           {trail?.seedSource === 'curator' ? (
             <>
-              <Text style={pioneerStyles.heroTitle}>TWOJA TRASA{'\n'}DOŁĄCZA DO LIGI</Text>
+              <Text style={pioneerStyles.heroTitle}>TRASA{'\n'}ZAPISANA</Text>
               <Text style={pioneerStyles.heroSubtitle}>
-                Jako kurator utworzyłeś trasę kuratora. Liga działa od razu.
-                Pioneer należy do ciebie — na zawsze.
+                Geometria bazowa jest gotowa. Zjedź jeszcze raz, żeby otworzyć leaderboard.
               </Text>
             </>
           ) : (
             <>
               <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
               <Text style={pioneerStyles.heroSubtitle}>
-                Trasa w fazie testowej. Potrzeba 5 riderów aby została
-                potwierdzona. Twoje imię zostanie zapisane jako Pioneer.
+                Trasa zapisana. Drugi spójny zjazd otworzy leaderboard.
+                Twoje imię zostanie zapisane jako Pioneer.
               </Text>
             </>
           )}
 
           <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
-          <Text style={pioneerStyles.rankLabel}>#1 WSZECH CZASÓW</Text>
+          <Text style={pioneerStyles.rankLabel}>POTRZEBNY DRUGI ZJAZD</Text>
         </View>
 
         <View style={pioneerStyles.statsBlock}>
@@ -1088,6 +1158,43 @@ const styles = StyleSheet.create({
   rankSublabel: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.md, fontSize: 8 },
   tierLabel: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.textSecondary, letterSpacing: 4, marginTop: spacing.sm },
   ambitionText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm },
+  trailOpenedCard: {
+    alignItems: 'center',
+    backgroundColor: colors.accentDim,
+    borderRadius: radii.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accent + '60',
+    gap: spacing.xs,
+  },
+  trailOpenedTitle: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.accent, letterSpacing: 4 },
+  trailOpenedBody: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
+  trailOpenFailedCard: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,149,0,0.06)',
+    borderRadius: radii.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,149,0,0.18)',
+    gap: spacing.sm,
+  },
+  trailOpenFailedTitle: { fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: colors.orange, letterSpacing: 3, textAlign: 'center' },
+  trailOpenFailedBody: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 18 },
+  trailOpenFailedReason: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 0, textAlign: 'center' },
+  baselineBtn: {
+    marginTop: spacing.xs,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.orange + '66',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: 'rgba(255,149,0,0.08)',
+  },
+  baselineBtnText: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1.4, textAlign: 'center' },
 
   // XP
   xpRow: { alignItems: 'center', marginBottom: spacing.md, gap: spacing.xxs },

@@ -89,7 +89,7 @@ export interface BikeParkTrailCardData {
     beatenBy?: { name: string; deltaMs: number; happenedAt: string };
   };
   calibrationStatus: string;
-  pioneerStatusLabel?: 'PIONIER' | 'W WALIDACJI';
+  pioneerStatusLabel?: 'PIONIER' | 'W WALIDACJI' | 'DRUGI ZJAZD';
   pioneerSubtitle?: string | null;
 }
 
@@ -436,6 +436,15 @@ export interface SubmitRunResult {
   isPb: boolean;
   /** Previous best time in ms — null if first ranked run on this trail */
   previousBestMs: number | null;
+  /** True when the Pioneer second run opened the current trail version. */
+  trailOpened: boolean;
+  trailOpenFailed: boolean;
+  canPromoteBaseline: boolean;
+  consistencyReason: string | null;
+  invalidationReasons: string[];
+  openBonusXp: number;
+  trailStatus: string | null;
+  confidenceLabel: string | null;
 }
 
 export function normalizeVerificationSummary(
@@ -582,7 +591,22 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
     await updateFavoriteTrail(userId, trailId);
   }
 
-  return { run: normalizeRunRow(run), leaderboardResult, isPb, previousBestMs };
+  return {
+    run: normalizeRunRow(run),
+    leaderboardResult,
+    isPb,
+    previousBestMs,
+    trailOpened: result.trail_opened === true,
+    trailOpenFailed: result.trail_open_failed === true,
+    canPromoteBaseline: result.can_promote_baseline === true,
+    consistencyReason: (result.consistency_reason as string | null) ?? null,
+    invalidationReasons: Array.isArray(result.invalidation_reasons)
+      ? result.invalidation_reasons.map(String)
+      : [],
+    openBonusXp: typeof result.open_bonus_xp === 'number' ? result.open_bonus_xp : 0,
+    trailStatus: (result.trail_status as string | null) ?? null,
+    confidenceLabel: (result.confidence_label as string | null) ?? null,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -610,6 +634,9 @@ export async function fetchLeaderboard(
   periodType: string = 'all_time',
   currentUserId?: string,
 ): Promise<LeaderboardRow[]> {
+  const currentVersionId = await fetchCurrentTrailVersionId(trailId);
+  if (!currentVersionId) return [];
+
   const { data: entries, error } = await db()
     .from('leaderboard_entries')
     .select(`
@@ -622,6 +649,7 @@ export async function fetchLeaderboard(
       )
     `)
     .eq('trail_id', trailId)
+    .eq('trail_version_id', currentVersionId)
     .eq('period_type', periodType)
     .order('rank_position', { ascending: true })
     .limit(50);
@@ -646,6 +674,17 @@ export async function fetchLeaderboard(
     isCurrentUser: e.user_id === currentUserId,
     avatarUrl: e.profiles.avatar_url ?? null,
   }));
+}
+
+async function fetchCurrentTrailVersionId(trailId: string): Promise<string | null> {
+  const { data, error } = await db()
+    .from('trails')
+    .select('current_version_id')
+    .eq('id', trailId)
+    .single();
+
+  if (error || !data) return null;
+  return (data as { current_version_id: string | null }).current_version_id;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -915,11 +954,15 @@ export async function fetchUserRuns(userId: string, limit: number = 20): Promise
 }
 
 export async function fetchUserPb(userId: string, trailId: string): Promise<number | null> {
+  const currentVersionId = await fetchCurrentTrailVersionId(trailId);
+  if (!currentVersionId) return null;
+
   const { data } = await db()
     .from('runs')
     .select('duration_ms')
     .eq('user_id', userId)
     .eq('trail_id', trailId)
+    .eq('trail_version_id', currentVersionId)
     .eq('counted_in_leaderboard', true)
     .order('duration_ms', { ascending: true })
     .limit(1)
@@ -934,13 +977,23 @@ export async function fetchUserTrailStats(userId: string): Promise<Map<string, {
   // Get all leaderboard entries for this user
   const { data: entries, error } = await db()
     .from('leaderboard_entries')
-    .select('trail_id, best_duration_ms, rank_position')
+    .select('trail_id, trail_version_id, best_duration_ms, rank_position')
     .eq('user_id', userId)
     .eq('period_type', 'all_time');
 
   if (error) throw new Error(`fetchUserTrailStats failed: ${error.message}`);
-  if (entries) {
+  if (entries && entries.length > 0) {
+    const trailIds = [...new Set(entries.map((e: any) => e.trail_id))];
+    const { data: trails } = await db()
+      .from('trails')
+      .select('id, current_version_id')
+      .in('id', trailIds);
+    const currentByTrail = new Map(
+      (trails ?? []).map((t: any) => [t.id, t.current_version_id]),
+    );
+
     for (const e of entries) {
+      if (e.trail_version_id !== currentByTrail.get(e.trail_id)) continue;
       result.set(e.trail_id, {
         pbMs: e.best_duration_ms,
         position: e.rank_position,
@@ -1057,6 +1110,7 @@ export async function incrementChallengeProgress(
 
 type LeaderboardBeatRow = {
   trail_id: string;
+  trail_version_id: string | null;
   best_duration_ms: number;
   rank_position: number;
   previous_position: number | null;
@@ -1069,6 +1123,7 @@ async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Prom
     .from('leaderboard_entries')
     .select(`
       trail_id,
+      trail_version_id,
       best_duration_ms,
       rank_position,
       previous_position,
@@ -1280,6 +1335,9 @@ export async function fetchBikeParkTrails(
   if (trails.length === 0) return [];
 
   const trailIds = trails.map((trail) => trail.id);
+  const currentVersionByTrail = new Map(
+    trails.map((trail) => [trail.id, trail.currentVersionId]),
+  );
   const activeRidersSince = addDays(new Date(), -CHUNK9_ACTIVE_RIDERS_WINDOW_DAYS).toISOString();
   const recentBeatSince = addDays(new Date(), -CHUNK9_BEAT_WINDOW_DAYS).toISOString();
 
@@ -1298,7 +1356,7 @@ export async function fetchBikeParkTrails(
       .gte('started_at', activeRidersSince),
     db()
       .from('leaderboard_entries')
-      .select('trail_id')
+      .select('trail_id, trail_version_id')
       .eq('period_type', 'all_time')
       .in('trail_id', trailIds),
     userId
@@ -1314,6 +1372,7 @@ export async function fetchBikeParkTrails(
           .from('leaderboard_entries')
           .select(`
             trail_id,
+            trail_version_id,
             best_duration_ms,
             rank_position,
             previous_position,
@@ -1342,7 +1401,8 @@ export async function fetchBikeParkTrails(
   }
 
   const rankedCounts = new Map<string, number>();
-  for (const entry of rankedEntriesRes.data ?? []) {
+  for (const entry of (rankedEntriesRes.data ?? []) as Array<{ trail_id: string; trail_version_id: string | null }>) {
+    if (entry.trail_version_id !== currentVersionByTrail.get(entry.trail_id)) continue;
     rankedCounts.set(entry.trail_id, (rankedCounts.get(entry.trail_id) ?? 0) + 1);
   }
 
@@ -1355,6 +1415,7 @@ export async function fetchBikeParkTrails(
 
   const beatenByMap = new Map<string, { name: string; deltaMs: number; happenedAt: string }>();
   for (const beat of (beatEntries.data ?? []) as LeaderboardBeatRow[]) {
+    if (beat.trail_version_id !== currentVersionByTrail.get(beat.trail_id)) continue;
     if (beatenByMap.has(beat.trail_id) || !(typeof beat.previous_position === 'number' && beat.rank_position > beat.previous_position)) {
       continue;
     }
@@ -1374,7 +1435,9 @@ export async function fetchBikeParkTrails(
     const stats = userTrailStats.get(trail.id);
     const isPioneer = !!userId && trail.pioneerUserId === userId;
     const beatenBy = beatenByMap.get(trail.id);
-    const awaitingValidation = trail.calibrationStatus === 'calibrating';
+    const awaitingValidation =
+      trail.calibrationStatus === 'fresh_pending_second_run'
+      || trail.calibrationStatus === 'calibrating';
 
     let state: BikeParkTrailCardData['state'];
     if (isPioneer) state = 'pioneer';
@@ -1400,9 +1463,9 @@ export async function fetchBikeParkTrails(
         beatenBy,
       },
       calibrationStatus: trail.calibrationStatus,
-      pioneerStatusLabel: awaitingValidation ? 'W WALIDACJI' : isPioneer ? 'PIONIER' : undefined,
+      pioneerStatusLabel: awaitingValidation ? 'DRUGI ZJAZD' : isPioneer ? 'PIONIER' : undefined,
       pioneerSubtitle: awaitingValidation
-        ? 'Czeka na drugiego ridera'
+        ? 'Zjedź jeszcze raz, żeby otworzyć ranking'
         : isPioneer
           ? 'Dodana przez ciebie'
           : null,
@@ -1501,6 +1564,9 @@ function mapTrail(row: DbTrail, pioneerUsername: string | null = null): Trail {
     // Sprint 4 (mig 011) — trust + pioneer
     seedSource:       row.seed_source,
     trustTier:        row.trust_tier,
+    confidenceLabel:  row.confidence_label ?? null,
+    consistentPioneerRunsCount: row.consistent_pioneer_runs_count ?? 0,
+    uniqueConfirmingRidersCount: row.unique_confirming_riders_count ?? 0,
     currentVersionId: row.current_version_id,
     pioneerUserId:    row.pioneer_user_id,
     pioneerUsername,
@@ -1570,7 +1636,11 @@ export async function fetchPrimarySpot(
   let bestDurationMs: number | null = null;
   if (spotTrails.length > 0) {
     const spotTrailIds = spotTrails.map((t) => t.id);
-    const { data: pbRows } = await db()
+    const currentVersionIds = spotTrails
+      .map((t) => t.currentVersionId)
+      .filter((id): id is string => !!id);
+
+    let pbQuery = db()
       .from('leaderboard_entries')
       .select('best_duration_ms')
       .eq('user_id', userId)
@@ -1578,6 +1648,12 @@ export async function fetchPrimarySpot(
       .in('trail_id', spotTrailIds)
       .order('best_duration_ms', { ascending: true })
       .limit(1);
+
+    if (currentVersionIds.length > 0) {
+      pbQuery = pbQuery.in('trail_version_id', currentVersionIds);
+    }
+
+    const { data: pbRows } = await pbQuery;
     bestDurationMs = pbRows?.[0]?.best_duration_ms ?? null;
   }
 
@@ -1814,8 +1890,8 @@ export interface FinalizePioneerRunParams {
 export interface PioneerRunResult {
   runId: string;
   isPioneer: true;
-  trailStatus: 'calibrating';
-  leaderboardPosition: number;
+  trailStatus: 'fresh_pending_second_run';
+  leaderboardPosition: number | null;
 }
 
 // ── Polish error-code → copy maps ──
@@ -2018,6 +2094,48 @@ export async function deleteRun(runId: string): Promise<ApiResult<void>> {
   }
 }
 
+export interface PromoteRunAsBaselineResult {
+  trailId: string;
+  runId: string;
+  newVersionId: string;
+  newVersionNumber: number;
+  trailStatus: 'fresh_pending_second_run';
+}
+
+export async function promoteRunAsBaseline(
+  runId: string,
+): Promise<ApiResult<PromoteRunAsBaselineResult>> {
+  try {
+    const { data, error } = await db().rpc('promote_run_as_baseline', { p_run_id: runId });
+    if (error) {
+      const isMissing = /function .*does not exist/i.test(error.message ?? '')
+        || error.code === '42883';
+      return cleanupError(isMissing ? 'rpc_missing' : 'rpc_failed', {
+        pgCode: error.code,
+        pgMessage: error.message,
+      });
+    }
+
+    const res = data as any;
+    if (res?.ok === true) {
+      return {
+        ok: true,
+        data: {
+          trailId: res.trail_id as string,
+          runId: res.run_id as string,
+          newVersionId: res.new_version_id as string,
+          newVersionNumber: res.new_version_number as number,
+          trailStatus: 'fresh_pending_second_run',
+        },
+      };
+    }
+
+    return cleanupError(res?.code ?? 'rpc_failed', { rpcResponse: res });
+  } catch (e: any) {
+    return cleanupError('rpc_exception', { threw: e?.message ?? String(e) });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 // SPRINT 4 — Trust + Versioning + Pioneer Foundation (ADR-012)
 // ═══════════════════════════════════════════════════════════
@@ -2029,8 +2147,8 @@ export type TrustTier  = 'provisional' | 'verified' | 'disputed';
 //
 // Flat-params variant of the old finalize_pioneer_run. Server stamps
 // seed_source from caller's role, sets trust_tier='provisional',
-// creates trail_versions row (version=1, is_current=true), attaches
-// run + leaderboard entry to that version. Pioneer assignment flows
+// creates trail_versions row (version=1, is_current=true), and stores
+// the seed run without opening the public leaderboard. Pioneer assignment flows
 // through the mig 011 immutability trigger.
 
 export interface SeedRunParams {
@@ -2051,7 +2169,8 @@ export interface SeedRunResult {
   trustTier: TrustTier;
   versionId: string;
   isPioneer: true;
-  leaderboardPosition: number;
+  trailStatus: 'fresh_pending_second_run';
+  leaderboardPosition: number | null;
   /** Migration 20260423190000: true when the pioneer run also flipped
    *  its parent park from pending → active (Opcja B' submitter-self-
    *  active flow). Clients can surface a dedicated "park w lidze"
@@ -2147,7 +2266,8 @@ export async function finalizeSeedRun(
         trustTier:           res.trust_tier as TrustTier,
         versionId:           res.version_id as string,
         isPioneer:           true,
-        leaderboardPosition: res.leaderboard_position as number,
+        trailStatus:         (res.trail_status as 'fresh_pending_second_run') ?? 'fresh_pending_second_run',
+        leaderboardPosition: (res.leaderboard_position as number | null) ?? null,
         spotAutoActivated:   res.spot_auto_activated === true,
       },
     };
@@ -2183,7 +2303,7 @@ export async function finalizePioneerRun(
     data: {
       runId:               result.data.runId,
       isPioneer:           true,
-      trailStatus:         'calibrating',
+      trailStatus:         'fresh_pending_second_run',
       leaderboardPosition: result.data.leaderboardPosition,
     },
   };

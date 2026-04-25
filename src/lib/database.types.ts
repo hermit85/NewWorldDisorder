@@ -115,10 +115,21 @@ export interface Database {
           is_active: boolean;
           sort_order: number;
           pioneer_user_id: string | null;
-          calibration_status: 'draft' | 'calibrating' | 'verified' | 'locked';
+          calibration_status:
+            | 'draft'
+            | 'fresh_pending_second_run'
+            | 'live_fresh'
+            | 'live_confirmed'
+            | 'stable'
+            | 'calibrating'
+            | 'verified'
+            | 'locked';
           geometry: Json | null;
           pioneered_at: string | null;
           runs_contributed: number;
+          confidence_label: 'fresh' | 'confirmed' | 'community_checked' | 'stable' | null;
+          consistent_pioneer_runs_count: number;
+          unique_confirming_riders_count: number;
           created_at: string;
           // Sprint 4 (mig 011) — trust + versioning columns
           seed_source: 'curator' | 'rider' | null;
@@ -303,6 +314,7 @@ export interface Database {
         Args: {
           p_user_id: string;
           p_trail_id: string;
+          p_trail_version_id?: string | null;
           p_period_type: string;
           p_duration_ms: number;
           p_run_id: string;
@@ -358,6 +370,10 @@ export interface Database {
           p_started_at: string;
           p_finished_at: string;
         };
+        Returns: Json;
+      };
+      promote_run_as_baseline: {
+        Args: { p_run_id: string };
         Returns: Json;
       };
       recalibrate_trail: {

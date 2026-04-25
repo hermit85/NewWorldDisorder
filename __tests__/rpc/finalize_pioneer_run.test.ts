@@ -100,7 +100,7 @@ describe('finalize_pioneer_run RPC contract', () => {
     mockRpc.mockReset();
   });
 
-  test('(a) happy path — valid GPS trace returns runId + leaderboardPosition', async () => {
+  test('(a) happy path — valid GPS trace returns runId + pending-second-run status', async () => {
     mockRpc.mockResolvedValueOnce({
       data: {
         ok: true,
@@ -108,7 +108,8 @@ describe('finalize_pioneer_run RPC contract', () => {
         seed_source: 'rider',
         trust_tier: 'provisional',
         version_id: 'version-uuid-1',
-        leaderboard_position: 1,
+        trail_status: 'fresh_pending_second_run',
+        leaderboard_position: null,
       },
       error: null,
     });
@@ -139,8 +140,8 @@ describe('finalize_pioneer_run RPC contract', () => {
       expect(result.data).toEqual({
         runId: 'run-uuid-happy',
         isPioneer: true,
-        trailStatus: 'calibrating',
-        leaderboardPosition: 1,
+        trailStatus: 'fresh_pending_second_run',
+        leaderboardPosition: null,
       });
     }
   });
@@ -222,7 +223,8 @@ describe('finalize_pioneer_run RPC contract', () => {
         seed_source: 'rider',
         trust_tier: 'provisional',
         version_id: 'version-uuid-rescue',
-        leaderboard_position: 1,
+        trail_status: 'fresh_pending_second_run',
+        leaderboard_position: null,
       },
       error: null,
     });
@@ -254,8 +256,8 @@ describe('finalize_pioneer_run RPC contract', () => {
       expect(result.data).toMatchObject({
         runId: 'run-uuid-rescue',
         isPioneer: true,
-        trailStatus: 'calibrating',
-        leaderboardPosition: 1,
+        trailStatus: 'fresh_pending_second_run',
+        leaderboardPosition: null,
       });
     }
   });
@@ -276,7 +278,8 @@ describe('finalize_pioneer_run RPC contract', () => {
         seed_source: 'rider',
         trust_tier: 'provisional',
         version_id: 'version-uuid-2',
-        leaderboard_position: 1,
+        trail_status: 'fresh_pending_second_run',
+        leaderboard_position: null,
         spot_auto_activated: true,
       },
       error: null,
