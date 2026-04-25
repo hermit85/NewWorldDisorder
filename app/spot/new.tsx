@@ -33,7 +33,9 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { submitSpotWithQueue } from '@/services/spotSubmission';
 import { notifySuccess, notifyWarning, tapMedium } from '@/systems/haptics';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing, radii } from '@/theme/spacing';
 
 const NAME_MIN = 3;
 const NAME_MAX = 50;
@@ -124,7 +126,7 @@ export default function NewSpotScreen() {
         >
           {submission.kind === 'submitting' ? (
             <View style={styles.card}>
-              <ActivityIndicator color={chunk9Colors.accent.emerald} />
+              <ActivityIndicator color={colors.accent} />
               <Text style={styles.cardTitle}>Wysyłam…</Text>
             </View>
           ) : submission.kind === 'success' ? (
@@ -229,7 +231,7 @@ function Step1({
         value={name}
         onChangeText={onNameChange}
         placeholder="np. Las Lipowy"
-        placeholderTextColor={chunk9Colors.text.tertiary}
+        placeholderTextColor={colors.textTertiary}
         maxLength={NAME_MAX}
         autoFocus
       />
@@ -260,7 +262,7 @@ function Step2({ description, onChange }: { description: string; onChange: (v: s
         value={description}
         onChangeText={onChange}
         placeholder="Wpisz opis…"
-        placeholderTextColor={chunk9Colors.text.tertiary}
+        placeholderTextColor={colors.textTertiary}
         maxLength={DESCRIPTION_MAX}
         multiline
         numberOfLines={4}
@@ -387,19 +389,19 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: chunk9Colors.bg.base },
+  root: { flex: 1, backgroundColor: colors.bg },
   header: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
-    paddingVertical: chunk9Spacing.sectionVertical,
+    paddingHorizontal: spacing.pad,
+    paddingVertical: spacing.lg,
     gap: 12,
   },
   title: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    color: colors.textPrimary,
   },
   backLabel: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
   },
   dots: {
     flexDirection: 'row',
@@ -409,56 +411,56 @@ const styles = StyleSheet.create({
     width: 18,
     height: 3,
     borderRadius: 2,
-    backgroundColor: chunk9Colors.bg.hairline,
+    backgroundColor: colors.border,
   },
   dotActive: {
-    backgroundColor: chunk9Colors.accent.emerald,
+    backgroundColor: colors.accent,
   },
   scroll: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingHorizontal: spacing.pad,
     paddingBottom: 24,
     gap: 12,
   },
   card: {
-    backgroundColor: chunk9Colors.bg.surface,
-    borderRadius: chunk9Radii.card,
-    padding: chunk9Spacing.cardPadding,
+    backgroundColor: colors.panel,
+    borderRadius: radii.card,
+    padding: spacing.lg,
     gap: 8,
   },
   cardTitle: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    color: colors.textPrimary,
     fontSize: 22,
     lineHeight: 28,
   },
   cardBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
   },
   label: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.secondary,
+    ...typography.label,
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   value: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
+    ...typography.body,
+    color: colors.textPrimary,
     fontSize: 16,
     lineHeight: 22,
   },
   descValue: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
+    ...typography.body,
+    color: colors.textPrimary,
   },
   input: {
-    backgroundColor: chunk9Colors.bg.base,
-    borderRadius: chunk9Radii.button,
+    backgroundColor: colors.bg,
+    borderRadius: radii.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    ...chunk9Typography.body13,
+    borderColor: colors.border,
+    ...typography.body,
     fontSize: 16,
   },
   inputMultiline: {
@@ -466,8 +468,8 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   hint: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    ...typography.label,
+    color: colors.textTertiary,
     alignSelf: 'flex-end',
     marginTop: 4,
   },
@@ -477,16 +479,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   locationLine: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
   },
   footer: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingHorizontal: spacing.pad,
     paddingVertical: 16,
     gap: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.base,
+    borderTopColor: colors.border,
+    backgroundColor: colors.bg,
   },
   footerRow: {
     flexDirection: 'row',
@@ -497,7 +499,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   backStepLabel: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
   },
 });

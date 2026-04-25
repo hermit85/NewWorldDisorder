@@ -23,12 +23,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LEGAL } from '@/constants/legal';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Divider } from '@/components/ui/Divider';
-import {
-  chunk9Colors,
-  chunk9Radii,
-  chunk9Spacing,
-  chunk9Typography,
-} from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing, radii } from '@/theme/spacing';
 
 interface FAQ {
   q: string;
@@ -113,7 +110,7 @@ export default function HelpScreen() {
         <SectionHeader
           label="Zasady"
           glyph="✦"
-          glyphColor={chunk9Colors.accent.emerald}
+          glyphColor={colors.accent}
           spacingTop="lg"
         />
         <View style={styles.rulesBlock}>
@@ -129,7 +126,7 @@ export default function HelpScreen() {
         <SectionHeader
           label="Pytania"
           glyph="?"
-          glyphColor={chunk9Colors.text.secondary}
+          glyphColor={colors.textSecondary}
           meta={String(FAQS.length)}
           spacingTop="xl"
         />
@@ -165,7 +162,7 @@ export default function HelpScreen() {
         <SectionHeader
           label="Kontakt"
           glyph="✉"
-          glyphColor={chunk9Colors.text.secondary}
+          glyphColor={colors.textSecondary}
           spacingTop="xl"
         />
         <View style={styles.supportBlock}>
@@ -219,10 +216,10 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: chunk9Colors.bg.base,
+    backgroundColor: colors.bg,
   },
   scroll: {
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingHorizontal: spacing.pad,
   },
   headerRow: {
     flexDirection: 'row',
@@ -236,22 +233,22 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backGlyph: {
-    ...chunk9Typography.display28,
+    ...typography.title,
     fontSize: 18,
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
     lineHeight: 18,
   },
   seasonBadge: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
+    ...typography.label,
+    color: colors.accent,
     borderWidth: 1,
-    borderColor: chunk9Colors.accent.emerald,
-    borderRadius: chunk9Radii.pill,
+    borderColor: colors.accent,
+    borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -260,17 +257,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   kicker: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
+    ...typography.label,
+    color: colors.accent,
     letterSpacing: 2.4,
   },
   title: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    ...typography.title,
+    color: colors.textPrimary,
   },
   subtitle: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   rulesBlock: {
@@ -282,16 +279,16 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: chunk9Colors.bg.hairline,
+    borderBottomColor: colors.border,
   },
   ruleIndex: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
+    ...typography.label,
+    color: colors.accent,
     width: 28,
   },
   ruleText: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
+    ...typography.body,
+    color: colors.textPrimary,
     fontSize: 15,
     lineHeight: 20,
     flex: 1,
@@ -300,15 +297,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   faqItem: {
-    borderRadius: chunk9Radii.card,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
   faqItemOpen: {
-    borderColor: chunk9Colors.accent.emerald,
+    borderColor: colors.accent,
   },
   faqItemPressed: {
     opacity: 0.8,
@@ -320,49 +317,49 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   faqQ: {
-    ...chunk9Typography.body13,
+    ...typography.body,
     fontFamily: 'Inter_600SemiBold',
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
   },
   faqCaret: {
-    ...chunk9Typography.display28,
+    ...typography.title,
     fontSize: 20,
-    color: chunk9Colors.text.tertiary,
+    color: colors.textTertiary,
     lineHeight: 20,
     width: 20,
     textAlign: 'center',
   },
   faqCaretOpen: {
-    color: chunk9Colors.accent.emerald,
+    color: colors.accent,
   },
   faqA: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
     marginTop: 10,
     lineHeight: 20,
   },
   supportBlock: {
-    borderRadius: chunk9Radii.card,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
     paddingVertical: 18,
     paddingHorizontal: 18,
     gap: 14,
   },
   supportBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...typography.body,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   supportCta: {
     alignSelf: 'flex-start',
-    borderRadius: chunk9Radii.pill,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: chunk9Colors.accent.emerald,
+    borderColor: colors.accent,
     paddingVertical: 10,
     paddingHorizontal: 18,
   },
@@ -370,8 +367,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   supportCtaLabel: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.accent.emerald,
+    ...typography.label,
+    color: colors.accent,
     fontSize: 12,
     letterSpacing: 2,
   },
@@ -388,17 +385,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   legalLinkText: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    ...typography.label,
+    color: colors.textTertiary,
     letterSpacing: 2,
   },
   legalSep: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    ...typography.label,
+    color: colors.textTertiary,
   },
   footerStamp: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    ...typography.label,
+    color: colors.textTertiary,
     textAlign: 'center',
     marginTop: 16,
     letterSpacing: 2.4,
