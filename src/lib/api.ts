@@ -1115,10 +1115,18 @@ type LeaderboardBeatRow = {
   rank_position: number;
   previous_position: number | null;
   updated_at: string;
-  trails?: { official_name?: string | null } | null;
+  trails?: {
+    official_name?: string | null;
+    current_version_id?: string | null;
+  } | null;
 };
 
 async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Promise<LeaderboardBeatRow[]> {
+  // We pull a wider window (100 rather than 25) because the
+  // current-version filter happens in JS — after enough baseline
+  // promotes a single stale version could fill the top of a
+  // narrow window and starve out a real current-version beat.
+  // 100 still hits the (user_id, updated_at desc) index cheaply.
   let query = db()
     .from('leaderboard_entries')
     .select(`
@@ -1128,12 +1136,12 @@ async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Prom
       rank_position,
       previous_position,
       updated_at,
-      trails!inner(official_name)
+      trails!inner(official_name, current_version_id)
     `)
     .eq('user_id', userId)
     .eq('period_type', 'all_time')
     .order('updated_at', { ascending: false })
-    .limit(25);
+    .limit(100);
 
   if (trailIds && trailIds.length > 0) {
     query = query.in('trail_id', trailIds);
@@ -1142,30 +1150,18 @@ async function fetchRecentBeatEntries(userId: string, trailIds?: string[]): Prom
   const { data, error } = await query;
   if (error) throw new Error(`fetchRecentBeatEntries failed: ${error.message}`);
 
-  const candidates = (data ?? []).filter((entry: any) => {
+  // AUDIT R2 #5+#6: pull `current_version_id` via the same `trails!inner`
+  // FK join we already need for `official_name`, so version filtering
+  // is single-roundtrip and inherits the leaderboard query's failure
+  // mode. Hide ghosts from superseded versions — after a Pioneer
+  // promotes a new baseline (`promote_run_as_baseline`), entries
+  // pinned to the prior version are no longer comparable.
+  return (data ?? []).filter((entry: any) => {
     const previous = entry.previous_position;
-    return typeof previous === 'number' && entry.rank_position > previous;
-  });
-  if (candidates.length === 0) return [];
-
-  // AUDIT FIX: hide ghosts from superseded versions. After a Pioneer
-  // promotes a new baseline (`promote_run_as_baseline`), `trails.current_version_id`
-  // advances and entries pinned to the prior version stop being comparable
-  // — their `rank_position`/`previous_position` were against a different
-  // geometry. Without this filter, the hero-beat tile would surface a
-  // "you got passed" event whose positions no longer mean anything.
-  const candidateTrailIds = Array.from(new Set(candidates.map((e: any) => e.trail_id)));
-  const { data: trailRows, error: trailErr } = await db()
-    .from('trails')
-    .select('id, current_version_id')
-    .in('id', candidateTrailIds);
-  if (trailErr) throw new Error(`fetchRecentBeatEntries trail lookup failed: ${trailErr.message}`);
-  const currentByTrail = new Map(
-    (trailRows ?? []).map((t: any) => [t.id, t.current_version_id]),
-  );
-
-  return candidates.filter((entry: any) => {
-    return entry.trail_version_id === currentByTrail.get(entry.trail_id);
+    if (typeof previous !== 'number') return false;
+    if (entry.rank_position <= previous) return false;
+    const currentVersion = entry.trails?.current_version_id ?? null;
+    return entry.trail_version_id === currentVersion;
   }) as LeaderboardBeatRow[];
 }
 
