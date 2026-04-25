@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NWD · Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#07090A; --chrome:#0E1112; --panel:#13181A; --row:#1A2124;
+  --border:rgba(255,255,255,0.06); --borderMid:rgba(255,255,255,0.10); --borderHot:rgba(0,255,135,0.35);
+  --text:#F2F4F3; --textMuted:rgba(242,244,243,0.55); --textDim:rgba(242,244,243,0.32);
+  --accent:#00FF87; --accentDim:rgba(0,255,135,0.14); --accentInk:#04150B;
+  --warn:#FFB020; --danger:#FF4757;
+  --gold:#FFD23F; --silver:#C9D1D6; --bronze:#E08A5C;
+  --glowSoft:0 0 16px rgba(0,255,135,0.12); --glowHot:0 0 24px rgba(0,255,135,0.30);
+  --fDisplay:"Rajdhani","Inter",system-ui,sans-serif;
+  --fBody:"Inter",system-ui,sans-serif;
+  --fMono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--fBody);-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+
+/* type utils */
+.hero{font:800 56px/0.95 var(--fDisplay);letter-spacing:-0.02em}
+.title{font:700 32px/1.05 var(--fDisplay);letter-spacing:-0.01em}
+.lead{font:600 22px/1.20 var(--fDisplay);letter-spacing:-0.005em}
+.body{font:400 15px/1.50 var(--fBody)}
+.caption{font:500 13px/1.40 var(--fBody)}
+.label{font:800 11px/1.0 var(--fMono);letter-spacing:0.24em;text-transform:uppercase}
+.micro{font:700 9px/1.0 var(--fMono);letter-spacing:0.32em;text-transform:uppercase}
+
+@keyframes pArmed{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.18);opacity:.65}}
+@keyframes pVerified{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.85}}
+@keyframes pPending{0%,49%{opacity:1}50%,100%{opacity:.35}}
+@keyframes scanA{0%{top:-2px}50%{top:calc(100% - 2px)}100%{top:-2px}}
+@keyframes spark{0%{opacity:0;transform:translateY(0) scale(.4)}40%{opacity:1}100%{opacity:0;transform:translateY(-30px) scale(1.2)}}
+@keyframes glitch{0%,92%,100%{transform:translate(0)}93%{transform:translate(2px,0)}94%{transform:translate(-2px,1px)}95%{transform:translate(0)}}
+
+.aArmed{animation:pArmed 1.2s ease-in-out infinite;transform-origin:center}
+.aVerified{animation:pVerified 2.4s ease-in-out infinite;transform-origin:center}
+.aPending{animation:pPending .6s linear infinite}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--row);border-radius:8px}
+
+/* layout */
+.shell{max-width:1280px;margin:0 auto;padding:64px 48px 120px}
+header.cover{padding:96px 48px 80px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(0,255,135,0.04),transparent 70%);position:relative;overflow:hidden}
+.cover::before{content:"NWD";position:absolute;right:-40px;top:-40px;font:900 320px/0.8 var(--fDisplay);color:var(--text);opacity:0.025;letter-spacing:-0.06em;pointer-events:none}
+.section{margin-top:96px;padding-top:48px;border-top:1px solid var(--border)}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:8px}
+.sec-num{font:700 56px/0.9 var(--fDisplay);color:var(--accent);letter-spacing:-0.02em}
+.sec-tag{font:800 11px/1 var(--fMono);letter-spacing:0.32em;color:var(--textMuted);text-transform:uppercase}
+.sec-title{margin:0;font:700 36px/1.05 var(--fDisplay);text-transform:uppercase;letter-spacing:-0.01em}
+.sec-sub{margin:12px 0 36px;color:var(--textMuted);max-width:760px;line-height:1.55;font-size:15px}
+
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g5{grid-template-columns:repeat(5,1fr)}
+.g6{grid-template-columns:repeat(6,1fr)}
+
+.card{background:var(--panel);border:1px solid var(--border);padding:18px}
+.tile{background:var(--row);border:1px solid var(--borderMid);padding:14px}
+.tileHot{background:var(--row);border:1px solid var(--borderHot);box-shadow:var(--glowSoft);padding:14px}
+
+/* swatch */
+.swatch{aspect-ratio:1.2;display:flex;flex-direction:column;justify-content:flex-end;padding:14px;position:relative}
+.sw-name{font:800 12px/1 var(--fDisplay);text-transform:uppercase;letter-spacing:0.04em}
+.sw-code{font:700 9px/1 var(--fMono);letter-spacing:0.16em;color:var(--textMuted);margin-top:6px}
+
+/* state demo */
+.stateRow{display:flex;align-items:center;gap:18px;padding:14px 0;border-bottom:1px solid var(--border)}
+.stateRow:last-child{border-bottom:none}
+.dotShell{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid;background:rgba(0,255,135,0.08)}
+.dot{width:14px;height:14px;border-radius:50%}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font:800 10px/1 var(--fMono);letter-spacing:0.2em;text-transform:uppercase;border:1px solid}
+.pillDot{width:6px;height:6px;border-radius:50%}
+
+/* type scale row */
+.typeRow{display:grid;grid-template-columns:80px 1fr;gap:18px;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--border)}
+.typeMeta{display:flex;flex-direction:column;gap:3px}
+
+/* btn */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 24px;border:0;font:800 11px/1 var(--fMono);letter-spacing:0.24em;text-transform:uppercase;cursor:pointer}
+.btnPri{background:var(--accent);color:var(--accentInk);border-radius:999px;box-shadow:var(--glowSoft)}
+.btnGhost{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:14px}
+.btnDanger{background:var(--danger);color:var(--text);border-radius:999px}
+.btnLg{height:56px;padding:0 32px;font-size:12px;width:100%}
+
+/* hud frame demo */
+.hud{position:relative;height:240px;background:var(--panel);border:1px solid var(--border);overflow:hidden;padding:18px}
+.hud::after{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,var(--text) 0 0.5px,transparent 0.5px 3px);opacity:0.05;pointer-events:none}
+.hudCorner{position:absolute;width:14px;height:14px;border:1.5px solid var(--accent)}
+.hudCorner.tl{top:8px;left:8px;border-right:0;border-bottom:0}
+.hudCorner.tr{top:8px;right:8px;border-left:0;border-bottom:0}
+.hudCorner.bl{bottom:8px;left:8px;border-right:0;border-top:0}
+.hudCorner.br{bottom:8px;right:8px;border-left:0;border-top:0}
+.hudWatermark{position:absolute;right:14px;top:14px;font:900 110px/0.8 var(--fDisplay);color:var(--text);opacity:0.04;letter-spacing:-0.06em;pointer-events:none}
+
+/* mini phone preview */
+.phone{width:280px;height:560px;background:var(--bg);border:1px solid var(--borderMid);border-radius:36px;padding:24px 16px 28px;position:relative;overflow:hidden;flex-shrink:0}
+.phoneNotch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:90px;height:24px;background:#000;border-radius:0 0 14px 14px}
+
+/* sample run row */
+.lbRow{display:grid;grid-template-columns:48px 1fr auto auto;gap:12px;align-items:center;padding:12px 14px;background:var(--row);border:1px solid var(--borderMid);margin-bottom:6px}
+.lbRow.self{background:var(--row);border-color:var(--borderHot);box-shadow:var(--glowSoft)}
+.lbPos{font:700 22px/1 var(--fDisplay);text-align:center}
+.lbName{font:600 16px/1.1 var(--fDisplay)}
+.lbSub{font:500 11px/1 var(--fBody);color:var(--textMuted);margin-top:3px}
+.lbTime{font:700 18px/1 var(--fDisplay);font-variant-numeric:tabular-nums}
+.lbDelta{font:800 12px/1 var(--fMono);font-variant-numeric:tabular-nums}
+
+/* icon tile */
+.icoTile{aspect-ratio:1;background:var(--panel);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.icoName{font:700 9px/1 var(--fMono);letter-spacing:0.2em;color:var(--textMuted);text-transform:uppercase}
+
+/* table */
+table.tk{width:100%;border-collapse:collapse;font-size:12px}
+.tk th, .tk td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+.tk th{font:800 9px/1 var(--fMono);letter-spacing:0.24em;text-transform:uppercase;color:var(--accent)}
+.tk td.code{font-family:var(--fMono);color:var(--text);font-weight:700;font-size:11px}
+.tk td.use{color:var(--textMuted)}
+
+/* TOC */
+.toc{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:48px}
+.tocItem{display:block;text-decoration:none;color:var(--text);background:var(--panel);border:1px solid var(--border);padding:14px 16px;transition:border-color .15s,box-shadow .15s}
+.tocItem:hover{border-color:var(--borderHot);box-shadow:var(--glowSoft)}
+.tocNum{font:800 10px/1 var(--fMono);letter-spacing:0.32em;color:var(--accent);margin-bottom:6px;display:block}
+.tocLabel{font:700 14px/1.2 var(--fDisplay);text-transform:uppercase;letter-spacing:0.02em}
+
+/* don't / do */
+.dont{background:rgba(255,71,87,0.04);border-left:3px solid var(--danger);padding:14px 18px}
+.do{background:rgba(0,255,135,0.04);border-left:3px solid var(--accent);padding:14px 18px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+
+/* code block */
+pre.code{background:#000;border:1px solid var(--border);padding:16px 18px;font:600 11px/1.55 var(--fMono);color:var(--text);overflow:auto;margin:0}
+pre.code .com{color:var(--textDim)}
+pre.code .acc{color:var(--accent)}
+pre.code .str{color:var(--warn)}
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="shell" style="padding:0;position:relative">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+      <span class="pill" style="background:var(--accentDim);color:var(--accent);border-color:var(--borderHot)">
+        <span class="pillDot aArmed" style="background:var(--accent)"></span>
+        DESIGN SYSTEM v1.0
+      </span>
+      <span class="micro" style="color:var(--textMuted)">SEZON 01 · 2026</span>
+    </div>
+    <h1 class="hero" style="font-size:96px;line-height:0.92;margin:0 0 24px;max-width:900px">
+      New World<br/>Disorder.
+    </h1>
+    <p class="body" style="max-width:620px;color:var(--textMuted);font-size:18px;line-height:1.5;margin:0">
+      Liczbowy język gry wyścigowej. Realne trasy, zweryfikowana liga.
+      System projektowy, który traktuje stan przejazdu jako rdzeń marki.
+    </p>
+
+    <div class="toc">
+      <a class="tocItem" href="#foundations"><span class="tocNum">01</span><span class="tocLabel">Foundations</span></a>
+      <a class="tocItem" href="#color"><span class="tocNum">02</span><span class="tocLabel">Color</span></a>
+      <a class="tocItem" href="#typo"><span class="tocNum">03</span><span class="tocLabel">Typography</span></a>
+      <a class="tocItem" href="#elevation"><span class="tocNum">04</span><span class="tocLabel">Elevation</span></a>
+      <a class="tocItem" href="#motion"><span class="tocNum">05</span><span class="tocLabel">Motion</span></a>
+      <a class="tocItem" href="#components"><span class="tocNum">06</span><span class="tocLabel">Components</span></a>
+      <a class="tocItem" href="#chrome"><span class="tocNum">07</span><span class="tocLabel">Chrome</span></a>
+      <a class="tocItem" href="#icons"><span class="tocNum">08</span><span class="tocLabel">Icons</span></a>
+      <a class="tocItem" href="#tracks"><span class="tocNum">09</span><span class="tocLabel">Track lines</span></a>
+      <a class="tocItem" href="#voice"><span class="tocNum">10</span><span class="tocLabel">Voice</span></a>
+      <a class="tocItem" href="#patterns"><span class="tocNum">11</span><span class="tocLabel">Patterns</span></a>
+      <a class="tocItem" href="#index"><span class="tocNum">12</span><span class="tocLabel">Tokens index</span></a>
+      <a class="tocItem" href="#handoff"><span class="tocNum">13</span><span class="tocLabel">Handoff</span></a>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- 01 FOUNDATIONS -->
+<section class="section" id="foundations">
+  <div class="sec-head"><span class="sec-num">01</span><span class="sec-tag">FOUNDATIONS · 01/12</span></div>
+  <h2 class="sec-title">Race state to rdzeń</h2>
+  <p class="sec-sub">Każdy ekran, każda kropka, każda wartość koloru wynika z tego, w którym jest stanie przejazdu. To nie jest "akcent kolor" — to język, którym produkt mówi do gracza.</p>
+
+  <div class="grid g5">
+    <div class="card">
+      <div class="dotShell aPending" style="border-color:var(--textMuted);margin-bottom:12px"><div class="dot" style="background:var(--textMuted);opacity:.5"></div></div>
+      <div class="label" style="color:var(--text);margin-bottom:6px">TRENING</div>
+      <div class="caption" style="color:var(--textMuted)">Jadę dla siebie. Nie liczy się.</div>
+    </div>
+    <div class="card">
+      <div class="dotShell aArmed" style="border-color:var(--accent);margin-bottom:12px"><div class="dot" style="background:var(--accent)"></div></div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">ARMED</div>
+      <div class="caption" style="color:var(--textMuted)">Jadę pod ranking. Puls 1.2s.</div>
+    </div>
+    <div class="card">
+      <div class="dotShell aVerified" style="border-color:var(--accent);margin-bottom:12px"><div class="dot" style="background:var(--accent)"></div></div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">VERIFIED</div>
+      <div class="caption" style="color:var(--textMuted)">Zaliczone. Oddech 2.4s.</div>
+    </div>
+    <div class="card">
+      <div class="dotShell aPending" style="border-color:var(--warn);margin-bottom:12px"><div class="dot" style="background:var(--warn)"></div></div>
+      <div class="label" style="color:var(--warn);margin-bottom:6px">PENDING</div>
+      <div class="caption" style="color:var(--textMuted)">Walidujemy. Blink 0.6s.</div>
+    </div>
+    <div class="card">
+      <div class="dotShell" style="border-color:var(--danger);background:rgba(255,71,87,0.08);margin-bottom:12px"><div class="dot" style="background:var(--danger)"></div></div>
+      <div class="label" style="color:var(--danger);margin-bottom:6px">INVALID</div>
+      <div class="caption" style="color:var(--textMuted)">DNF / DSQ. Solid red.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:48px;padding:24px;background:var(--panel);border-left:3px solid var(--accent)">
+    <div class="label" style="color:var(--accent);margin-bottom:10px">ZASADA #1</div>
+    <p class="body" style="margin:0;max-width:680px">
+      Stan przejazdu zawsze ma trzy elementy: <strong>kolor</strong> (z palety state.*),
+      <strong>etykietę</strong> (CAPS, jedno słowo) i <strong>animację</strong> (per state).
+      Wszystkie trzy razem — albo żaden. Nigdy nie maluj armed-zielonego bez pulsa.
+    </p>
+  </div>
+</section>
+
+<!-- 02 COLOR -->
+<section class="section" id="color">
+  <div class="sec-head"><span class="sec-num">02</span><span class="sec-tag">FOUNDATIONS · 02/12</span></div>
+  <h2 class="sec-title">Color · 3 palety</h2>
+  <p class="sec-sub">Acid (kanoniczna), Forge (orange), Arctic (blue). Wszystkie ciemne, identyczna struktura. Palette swap = jedna zmiana atrybutu, cała reszta DS aktualizuje się sama.</p>
+
+  <h3 class="lead" style="margin:32px 0 14px">Acid · canonical</h3>
+  <div class="grid g6">
+    <div class="swatch" style="background:#07090A;border:1px solid var(--border)"><div class="sw-name">bg</div><div class="sw-code">#07090A</div></div>
+    <div class="swatch" style="background:#0E1112;border:1px solid var(--border)"><div class="sw-name">chrome</div><div class="sw-code">#0E1112</div></div>
+    <div class="swatch" style="background:#13181A;border:1px solid var(--border)"><div class="sw-name">panel</div><div class="sw-code">#13181A</div></div>
+    <div class="swatch" style="background:#1A2124;border:1px solid var(--border)"><div class="sw-name">row</div><div class="sw-code">#1A2124</div></div>
+    <div class="swatch" style="background:#00FF87"><div class="sw-name" style="color:#04150B">accent</div><div class="sw-code" style="color:rgba(4,21,11,0.7)">#00FF87</div></div>
+    <div class="swatch" style="background:#F2F4F3"><div class="sw-name" style="color:#07090A">text</div><div class="sw-code" style="color:rgba(7,9,10,0.6)">#F2F4F3</div></div>
+  </div>
+
+  <h3 class="lead" style="margin:32px 0 14px">Forge</h3>
+  <div class="grid g6">
+    <div class="swatch" style="background:#0A0807;border:1px solid var(--border)"><div class="sw-name">bg</div><div class="sw-code">#0A0807</div></div>
+    <div class="swatch" style="background:#11100E;border:1px solid var(--border)"><div class="sw-name">chrome</div><div class="sw-code">#11100E</div></div>
+    <div class="swatch" style="background:#1A1815;border:1px solid var(--border)"><div class="sw-name">panel</div><div class="sw-code">#1A1815</div></div>
+    <div class="swatch" style="background:#22201C;border:1px solid var(--border)"><div class="sw-name">row</div><div class="sw-code">#22201C</div></div>
+    <div class="swatch" style="background:#FF8A2E"><div class="sw-name" style="color:#1A0B02">accent</div><div class="sw-code" style="color:rgba(26,11,2,0.7)">#FF8A2E</div></div>
+    <div class="swatch" style="background:#F4F1EE"><div class="sw-name" style="color:#0A0807">text</div><div class="sw-code" style="color:rgba(10,8,7,0.6)">#F4F1EE</div></div>
+  </div>
+
+  <h3 class="lead" style="margin:32px 0 14px">Arctic</h3>
+  <div class="grid g6">
+    <div class="swatch" style="background:#06090C;border:1px solid var(--border)"><div class="sw-name">bg</div><div class="sw-code">#06090C</div></div>
+    <div class="swatch" style="background:#0D1117;border:1px solid var(--border)"><div class="sw-name">chrome</div><div class="sw-code">#0D1117</div></div>
+    <div class="swatch" style="background:#131922;border:1px solid var(--border)"><div class="sw-name">panel</div><div class="sw-code">#131922</div></div>
+    <div class="swatch" style="background:#1B2330;border:1px solid var(--border)"><div class="sw-name">row</div><div class="sw-code">#1B2330</div></div>
+    <div class="swatch" style="background:#50B4FF"><div class="sw-name" style="color:#021018">accent</div><div class="sw-code" style="color:rgba(2,16,24,0.7)">#50B4FF</div></div>
+    <div class="swatch" style="background:#EEF3F8"><div class="sw-name" style="color:#06090C">text</div><div class="sw-code" style="color:rgba(6,9,12,0.6)">#EEF3F8</div></div>
+  </div>
+
+  <h3 class="lead" style="margin:32px 0 14px">Podium &amp; signals</h3>
+  <div class="grid g6">
+    <div class="swatch" style="background:#FFD23F"><div class="sw-name" style="color:#1A1100">gold</div><div class="sw-code" style="color:rgba(26,17,0,0.6)">#FFD23F</div></div>
+    <div class="swatch" style="background:#C9D1D6"><div class="sw-name" style="color:#0A0F12">silver</div><div class="sw-code" style="color:rgba(10,15,18,0.6)">#C9D1D6</div></div>
+    <div class="swatch" style="background:#E08A5C"><div class="sw-name" style="color:#1A0A04">bronze</div><div class="sw-code" style="color:rgba(26,10,4,0.6)">#E08A5C</div></div>
+    <div class="swatch" style="background:#FFB020"><div class="sw-name" style="color:#1A0F00">warn</div><div class="sw-code" style="color:rgba(26,15,0,0.6)">#FFB020</div></div>
+    <div class="swatch" style="background:#FF4757"><div class="sw-name" style="color:#1A0307">danger</div><div class="sw-code" style="color:rgba(26,3,7,0.6)">#FF4757</div></div>
+    <div class="swatch" style="background:#0E1112;border:1px solid var(--border);box-shadow:var(--glowHot)"><div class="sw-name">glow.hot</div><div class="sw-code">accent · 30%</div></div>
+  </div>
+</section>
+
+<!-- 03 TYPO -->
+<section class="section" id="typo">
+  <div class="sec-head"><span class="sec-num">03</span><span class="sec-tag">FOUNDATIONS · 03/12</span></div>
+  <h2 class="sec-title">Typography</h2>
+  <p class="sec-sub">7 nazwanych poziomów + telemetria. Display = Rajdhani (sport condensed). Body = Inter. Mono = JetBrains Mono. Liczby zawsze tabular-nums — żaden timer nie skacze.</p>
+
+  <div class="grid g2" style="gap:36px">
+    <div>
+      <h3 class="label" style="margin:0 0 16px;color:var(--accent)">7-STEP SCALE</h3>
+
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">HERO</span><span class="micro" style="color:var(--textMuted)">56/800</span></div>
+        <div class="hero">02:14.83</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">TITLE</span><span class="micro" style="color:var(--textMuted)">32/700</span></div>
+        <div class="title">Real trasy.</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">LEAD</span><span class="micro" style="color:var(--textMuted)">22/600</span></div>
+        <div class="lead">Twoja góra. Twój czas.</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">BODY</span><span class="micro" style="color:var(--textMuted)">15/400</span></div>
+        <div class="body">Startuj z bramki, finiszuj na końcu.</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">CAPTION</span><span class="micro" style="color:var(--textMuted)">13/500</span></div>
+        <div class="caption">Słotwiny Arena · 2.4 km</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">LABEL</span><span class="micro" style="color:var(--textMuted)">11/800</span></div>
+        <div class="label">STATUS · BIKE PARK · RIDER</div>
+      </div>
+      <div class="typeRow">
+        <div class="typeMeta"><span class="micro" style="color:var(--accent)">MICRO</span><span class="micro" style="color:var(--textMuted)">9/700</span></div>
+        <div class="micro">GPS · 4G · LIVE</div>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="label" style="margin:0 0 16px;color:var(--accent)">TELEMETRY · NUMBERS ONLY</h3>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="micro" style="color:var(--textMuted);margin-bottom:8px">TIMER · HERO</div>
+        <div class="num" style="font:800 56px/1 var(--fDisplay);letter-spacing:-0.01em">02:14.<span style="color:var(--textMuted)">83</span></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="micro" style="color:var(--textMuted);margin-bottom:8px">TIMER · SPLIT</div>
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <span class="micro" style="color:var(--textMuted)">G2</span>
+          <span class="num" style="font:700 26px/1 var(--fDisplay)">00:31.8</span>
+          <span class="num" style="font:800 13px/1 var(--fMono);color:var(--accent)">−0.5</span>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="micro" style="color:var(--textMuted);margin-bottom:8px">DELTA · PB</div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span class="num" style="font:800 18px/1 var(--fMono);color:var(--accent)">−1.42</span>
+          <span class="micro" style="color:var(--textMuted)">PB</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="micro" style="color:var(--textMuted);margin-bottom:8px">POSITION · RANK</div>
+        <div style="display:flex;align-items:baseline;gap:14px">
+          <span class="num" style="font:900 88px/0.85 var(--fDisplay);letter-spacing:-0.04em">07</span>
+          <span class="micro" style="color:var(--textMuted)">/ 142</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 ELEVATION -->
+<section class="section" id="elevation">
+  <div class="sec-head"><span class="sec-num">04</span><span class="sec-tag">FOUNDATIONS · 04/12</span></div>
+  <h2 class="sec-title">Elevation · 5 layers</h2>
+  <p class="sec-sub">Game UI ma warstwy: ekran → chrome → panel → row → row-hot. Tylko row-hot dostaje glow + accent border. Reszta: czysty step jasności + delikatny border. Nigdy nie nestujemy więcej niż 3 poziomów.</p>
+
+  <div class="grid g5">
+    <div style="background:#07090A;padding:24px;border:1px dashed var(--border);min-height:140px;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="label" style="color:var(--accent)">e0 · BG</div>
+      <div class="caption" style="color:var(--textMuted);margin-top:4px">tło ekranu</div>
+    </div>
+    <div style="background:#0E1112;padding:24px;border:1px solid rgba(255,255,255,0.04);min-height:140px;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="label" style="color:var(--accent)">e1 · CHROME</div>
+      <div class="caption" style="color:var(--textMuted);margin-top:4px">navbar, status, frame</div>
+    </div>
+    <div style="background:#13181A;padding:24px;border:1px solid var(--border);min-height:140px;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="label" style="color:var(--accent)">e2 · PANEL</div>
+      <div class="caption" style="color:var(--textMuted);margin-top:4px">karty, modale</div>
+    </div>
+    <div style="background:#1A2124;padding:24px;border:1px solid var(--borderMid);min-height:140px;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="label" style="color:var(--accent)">e3 · ROW</div>
+      <div class="caption" style="color:var(--textMuted);margin-top:4px">wiersze listy</div>
+    </div>
+    <div style="background:#1A2124;padding:24px;border:1px solid var(--borderHot);box-shadow:var(--glowSoft);min-height:140px;display:flex;flex-direction:column;justify-content:flex-end">
+      <div class="label" style="color:var(--accent)">e4 · ROW-HOT</div>
+      <div class="caption" style="color:var(--textMuted);margin-top:4px">armed / aktywny</div>
+    </div>
+  </div>
+
+  <div style="margin-top:36px;padding:28px;background:var(--chrome);border:1px solid rgba(255,255,255,0.04)">
+    <div class="micro" style="color:var(--textDim);margin-bottom:14px">e1 · CHROME</div>
+    <div style="background:var(--panel);border:1px solid var(--border);padding:18px">
+      <div class="micro" style="color:var(--textDim);margin-bottom:12px">e2 · PANEL</div>
+      <div style="background:var(--row);border:1px solid var(--borderMid);padding:14px;margin-bottom:8px">
+        <div class="caption" style="color:var(--text)">e3 — zwykły wiersz: Kamil Z.</div>
+      </div>
+      <div style="background:var(--row);border:1px solid var(--borderHot);box-shadow:var(--glowSoft);padding:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="dot aArmed" style="background:var(--accent);width:8px;height:8px;border-radius:50%"></div>
+          <div class="caption" style="color:var(--text)">e4 — armed: Ty · ARMED</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 MOTION -->
+<section class="section" id="motion">
+  <div class="sec-head"><span class="sec-num">05</span><span class="sec-tag">FOUNDATIONS · 05/12</span></div>
+  <h2 class="sec-title">Motion · 6 named tokens</h2>
+  <p class="sec-sub">Tempo = stan. Szybsze = bardziej urgent. Wszystkie animacje gated na <code style="color:var(--accent);font-family:var(--fMono);font-size:13px">prefers-reduced-motion</code>.</p>
+
+  <div class="grid g3">
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div class="dotShell aArmed" style="border-color:var(--accent);margin-bottom:18px"><div class="dot" style="background:var(--accent);width:18px;height:18px"></div></div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">PULSE.ARMED</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">1.2S · EASE-IN-OUT</div>
+      <div class="caption" style="color:var(--textMuted)">Jadę pod ranking. Szybki, urgent.</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div class="dotShell aVerified" style="border-color:var(--accent);margin-bottom:18px"><div class="dot" style="background:var(--accent);width:18px;height:18px"></div></div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">PULSE.VERIFIED</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">2.4S · EASE-IN-OUT</div>
+      <div class="caption" style="color:var(--textMuted)">Zaliczone. Spokojny oddech.</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div class="dotShell aPending" style="border-color:var(--warn);background:rgba(255,176,32,0.08);margin-bottom:18px"><div class="dot" style="background:var(--warn);width:18px;height:18px"></div></div>
+      <div class="label" style="color:var(--warn);margin-bottom:6px">PULSE.PENDING</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">0.6S · LINEAR</div>
+      <div class="caption" style="color:var(--textMuted)">Walidujemy. Niespokojny blink.</div>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div style="width:48px;height:48px;border:1px solid var(--borderHot);position:relative;overflow:hidden;margin-bottom:18px">
+        <div style="position:absolute;left:0;right:0;height:2px;background:var(--accent);animation:scanA 4.2s ease-in-out infinite"></div>
+      </div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">SCAN.AMBIENT</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">4.2S · EASE-IN-OUT</div>
+      <div class="caption" style="color:var(--textMuted)">Linia skanu w HUD. Tło.</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div style="width:48px;height:48px;position:relative;margin-bottom:18px">
+        <div style="position:absolute;left:50%;bottom:4px;width:4px;height:4px;background:var(--accent);border-radius:50%;animation:spark 2.8s ease-out 0s infinite"></div>
+        <div style="position:absolute;left:30%;bottom:4px;width:4px;height:4px;background:var(--accent);border-radius:50%;animation:spark 2.8s ease-out .8s infinite"></div>
+        <div style="position:absolute;left:70%;bottom:4px;width:4px;height:4px;background:var(--accent);border-radius:50%;animation:spark 2.8s ease-out 1.6s infinite"></div>
+      </div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">SPARK.PARTICLE</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">2.8S · EASE-OUT</div>
+      <div class="caption" style="color:var(--textMuted)">Iskry, pole cząstek.</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:28px 18px">
+      <div style="width:48px;height:48px;background:var(--panel);border:1px solid var(--border);margin-bottom:18px;animation:glitch 5s linear infinite"></div>
+      <div class="label" style="color:var(--accent);margin-bottom:6px">GLITCH.EVENT</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:12px">5.0S · LINEAR</div>
+      <div class="caption" style="color:var(--textMuted)">Rzadki glitch. 5% cyklu.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 COMPONENTS -->
+<section class="section" id="components">
+  <div class="sec-head"><span class="sec-num">06</span><span class="sec-tag">SYSTEM · 06/12</span></div>
+  <h2 class="sec-title">Components</h2>
+  <p class="sec-sub">Atomowe klocki. Każdy ma jeden wariant fillowy, jeden ghost, jeden state-aware. Nie ma wyjątków.</p>
+
+  <h3 class="lead" style="margin:0 0 14px">Btn</h3>
+  <div class="card" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:32px">
+    <button class="btn btnPri">ARM</button>
+    <button class="btn btnPri btnLg" style="width:auto">WEJDŹ DO LIGI</button>
+    <button class="btn btnGhost">WYBIERZ TRASĘ</button>
+    <button class="btn btnDanger">PORZUĆ</button>
+    <button class="btn btnPri" disabled style="opacity:0.4;cursor:not-allowed">DISABLED</button>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">Pill (state-aware)</h3>
+  <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px">
+    <span class="pill" style="background:transparent;border-color:var(--border);color:var(--textMuted)"><span class="pillDot" style="background:var(--textMuted)"></span>TRENING</span>
+    <span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent)"><span class="pillDot aArmed" style="background:var(--accent)"></span>ARMED</span>
+    <span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent)"><span class="pillDot aVerified" style="background:var(--accent)"></span>VERIFIED</span>
+    <span class="pill" style="background:rgba(255,176,32,0.12);border-color:rgba(255,176,32,0.3);color:var(--warn)"><span class="pillDot aPending" style="background:var(--warn)"></span>PENDING</span>
+    <span class="pill" style="background:rgba(255,71,87,0.12);border-color:rgba(255,71,87,0.3);color:var(--danger)"><span class="pillDot" style="background:var(--danger)"></span>DNF</span>
+    <span class="pill" style="background:transparent;border-color:var(--border);color:var(--textMuted)">SEZON 01</span>
+    <span class="pill" style="background:rgba(255,210,63,0.14);border-color:rgba(255,210,63,0.3);color:var(--gold)">P1 · GOLD</span>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">RaceTime</h3>
+  <div class="grid g3" style="margin-bottom:32px">
+    <div class="card">
+      <div class="micro" style="color:var(--textMuted);margin-bottom:10px">SIZE · HERO</div>
+      <div class="num" style="font:800 56px/1 var(--fDisplay);letter-spacing:-0.01em">02:14.<span style="color:var(--textMuted)">83</span></div>
+      <div class="num" style="font:800 16px/1 var(--fMono);color:var(--accent);margin-top:8px">−1.42 PB</div>
+    </div>
+    <div class="card">
+      <div class="micro" style="color:var(--textMuted);margin-bottom:10px">SIZE · WIDGET</div>
+      <div class="num" style="font:700 28px/1 var(--fDisplay)">02:14.83</div>
+      <div class="num" style="font:800 12px/1 var(--fMono);color:var(--accent);margin-top:6px">−1.42</div>
+    </div>
+    <div class="card">
+      <div class="micro" style="color:var(--textMuted);margin-bottom:10px">SIZE · SPLIT</div>
+      <div style="display:flex;gap:10px;align-items:baseline">
+        <span class="micro" style="color:var(--textMuted)">G2</span>
+        <span class="num" style="font:700 26px/1 var(--fDisplay)">00:31.8</span>
+        <span class="num" style="font:800 13px/1 var(--fMono);color:var(--accent)">−0.5</span>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">LeaderboardRow</h3>
+  <div>
+    <div class="lbRow"><span class="lbPos" style="color:var(--gold)">01</span><div><div class="lbName">Kamil Z.</div><div class="lbSub">Słotwiny · Black</div></div><span class="lbTime">02:13.41</span><span class="lbDelta" style="color:var(--textMuted)">−</span></div>
+    <div class="lbRow"><span class="lbPos" style="color:var(--silver)">02</span><div><div class="lbName">Mateusz P.</div><div class="lbSub">Słotwiny · Black</div></div><span class="lbTime">02:13.95</span><span class="lbDelta" style="color:var(--accent)">−0.54</span></div>
+    <div class="lbRow"><span class="lbPos" style="color:var(--bronze)">03</span><div><div class="lbName">Jan W.</div><div class="lbSub">Słotwiny · Black</div></div><span class="lbTime">02:14.20</span><span class="lbDelta" style="color:var(--accent)">−0.79</span></div>
+    <div class="lbRow self"><span class="lbPos">07</span><div style="display:flex;flex-direction:column"><div style="display:flex;gap:8px;align-items:center"><span class="lbName">Ty</span><span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent);padding:2px 8px"><span class="pillDot aArmed" style="background:var(--accent);width:5px;height:5px"></span>ARMED</span></div><div class="lbSub">Twój ostatni przejazd</div></div><span class="lbTime">02:14.83</span><span class="lbDelta" style="color:var(--accent)">−1.42</span></div>
+  </div>
+</section>
+
+<!-- 07 CHROME -->
+<section class="section" id="chrome">
+  <div class="sec-head"><span class="sec-num">07</span><span class="sec-tag">SYSTEM · 07/12</span></div>
+  <h2 class="sec-title">Chrome primitives</h2>
+  <p class="sec-sub">Game-feel = warstwowanie. Corner brackets, scan lines, race-number watermark, system text. 6 reusable komponentów. Stosujemy selektywnie — za dużo HUD-u = noise.</p>
+
+  <div class="hud" style="margin-bottom:24px">
+    <div class="hudCorner tl"></div><div class="hudCorner tr"></div><div class="hudCorner bl"></div><div class="hudCorner br"></div>
+    <div class="hudWatermark">03</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;position:relative">
+      <span class="micro" style="color:var(--accent)">SLOT 03/07 · SŁOTWINY</span>
+      <span class="micro" style="color:var(--accent);display:flex;align-items:center;gap:6px"><span class="pillDot aArmed" style="background:var(--accent)"></span>LIVE</span>
+    </div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+      <div class="title">HUD FRAME</div>
+    </div>
+    <div style="position:absolute;left:18px;bottom:14px"><span class="micro" style="color:var(--textMuted)">BIKE PARK</span></div>
+    <div style="position:absolute;right:18px;bottom:14px"><span class="micro" style="color:var(--textMuted)">SIGNAL · 4G</span></div>
+  </div>
+
+  <div class="grid g3">
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;HudFrame&gt;</div><div class="caption" style="color:var(--textMuted)">Pełna ramka: corner brackets + scan lines + watermark.</div></div>
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;CornerBrackets&gt;</div><div class="caption" style="color:var(--textMuted)">4 brackets, niezależnie do nakładania.</div></div>
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;ScanLines&gt;</div><div class="caption" style="color:var(--textMuted)">CRT overlay. opacity 0.05.</div></div>
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;RaceNumber&gt;</div><div class="caption" style="color:var(--textMuted)">Watermark cyfra. opacity 0.04.</div></div>
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;SystemText&gt;</div><div class="caption" style="color:var(--textMuted)">Mono caption pinned do rogu.</div></div>
+    <div class="card"><div class="label" style="color:var(--accent);margin-bottom:8px">&lt;HudPanel&gt;</div><div class="caption" style="color:var(--textMuted)">Panel telemetrii z kapsową etykietą.</div></div>
+  </div>
+</section>
+
+<!-- 08 ICONS -->
+<section class="section" id="icons">
+  <div class="sec-head"><span class="sec-num">08</span><span class="sec-tag">SYSTEM · 08/12</span></div>
+  <h2 class="sec-title">Iconography · 12 glyphs</h2>
+  <p class="sec-sub">24×24 grid · stroke 1.6 · square caps · miter joins. Kątowy game-look, nie zaokrąglony Stripe-look. Nie dorzucamy bez audytu.</p>
+
+  <div class="grid g6">
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M5 4 L5 20 M19 4 L19 20"/><path d="M5 8 L19 8 M5 12 L19 12 M5 16 L19 16"/></svg><span class="icoName">gate</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M5 21 L5 4"/><path d="M5 5 L19 5 L17 9 L19 13 L5 13"/></svg><span class="icoName">flag</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M4 12 L20 12 M4 12 L8 8 M4 12 L8 16 M20 12 L16 8 M20 12 L16 16"/></svg><span class="icoName">split</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M3 21 L21 21 M9 21 L9 11 L15 11 L15 21 M3 21 L3 15 L9 15 M21 21 L21 17 L15 17"/></svg><span class="icoName">podium</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="square"><path d="M3 12 L9 18 L21 6"/></svg><span class="icoName">verified</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M6 11 L18 11 L18 21 L6 21 Z M9 11 L9 7 A3 3 0 0 1 15 7 L15 11"/></svg><span class="icoName">lock</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M3 6 L21 14 M5 5 L7 7 M11 8 L13 10 M17 11 L19 13"/></svg><span class="icoName">lift</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M3 18 C8 4, 16 20, 21 6"/></svg><span class="icoName">line</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><circle cx="12" cy="10" r="4"/><path d="M12 14 L12 21 M8 21 L16 21"/></svg><span class="icoName">spot</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><circle cx="6" cy="16" r="4"/><circle cx="18" cy="16" r="4"/><path d="M6 16 L11 8 L18 16 M11 8 L8 8 M11 8 L13 5"/></svg><span class="icoName">bike</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><circle cx="12" cy="13" r="7"/><path d="M12 13 L12 9 M9 4 L15 4"/></svg><span class="icoName">timer</span></div>
+    <div class="icoTile"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4" fill="var(--accent)" stroke="none"/><circle cx="12" cy="12" r="9"/></svg><span class="icoName">rec</span></div>
+  </div>
+</section>
+
+<!-- 09 TRACK LINES -->
+<section class="section" id="tracks">
+  <div class="sec-head"><span class="sec-num">09</span><span class="sec-tag">SYSTEM · 09/13</span></div>
+  <h2 class="sec-title">Track lines</h2>
+  <p class="sec-sub">Linie tras niosą <strong>dwa wymiary jednocześnie</strong>: <em>kolor = trudność</em> (Green / Blue / Red / Black — standard MTB / FIS), <em>animacja + glow = stan przejazdu</em> (training / armed / verified / invalid). Nigdy nie mieszamy tych osi — kolor accent zarezerwowany dla stanu jest nakładany jako overlay (ring, glow, gate marks), nie jako stroke linii.</p>
+
+  <style>
+    .tk-card{background:var(--panel);border:1px solid var(--border);padding:20px;position:relative}
+    .tk-card-hot{background:var(--panel);border:1px solid var(--borderHot);box-shadow:var(--glowSoft);padding:20px;position:relative}
+    .tk-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;min-height:20px}
+    .tk-svg{display:block;width:100%;height:auto}
+    .tk-cap{font:500 12px/1.4 var(--fBody);color:var(--textMuted);margin-top:12px}
+    .diff-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 11px;border-radius:999px;font:800 10px/1 var(--fMono);letter-spacing:0.2em;text-transform:uppercase;border:1px solid}
+    .diff-square{width:10px;height:10px}
+    .diff-circle{width:10px;height:10px;border-radius:50%}
+    .diff-diamond{width:10px;height:10px;transform:rotate(45deg)}
+    .diff-2diamond{display:inline-flex;gap:2px}
+    .diff-2diamond > span{width:8px;height:8px;transform:rotate(45deg)}
+  </style>
+
+  <h3 class="lead" style="margin:0 0 14px">Difficulty taxonomy · MTB standard</h3>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:rgba(46,204,113,0.10);border-color:rgba(46,204,113,0.45);color:#2ECC71"><span class="diff-circle" style="background:#2ECC71"></span>GREEN</span>
+        <span class="micro" style="color:var(--textMuted)">S0 / S1</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,30 C60,30 80,32 120,30 C160,28 180,32 236,30" fill="none" stroke="#2ECC71" stroke-width="2" stroke-linecap="square"/>
+      </svg>
+      <div class="tk-cap">Łatwa. Szutry, bermy. Beginner.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:rgba(80,180,255,0.10);border-color:rgba(80,180,255,0.45);color:#50B4FF"><span class="diff-square" style="background:#50B4FF"></span>BLUE</span>
+        <span class="micro" style="color:var(--textMuted)">S2</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,22 C40,22 60,38 100,34 C140,30 160,42 200,38 C220,36 230,32 236,30" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+      </svg>
+      <div class="tk-cap">Średnia. Roots, bermy, drobne stopnie.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:rgba(255,71,87,0.10);border-color:rgba(255,71,87,0.45);color:#FF4757"><span class="diff-diamond" style="background:#FF4757"></span>RED</span>
+        <span class="micro" style="color:var(--textMuted)">S3</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,18 L34,20 L58,38 L82,28 L110,44 L138,32 L168,46 L196,34 L222,48 L236,40" fill="none" stroke="#FF4757" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      </svg>
+      <div class="tk-cap">Trudna. Steep, drops, kamienie.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:rgba(20,20,20,0.6);border-color:rgba(255,255,255,0.25);color:#F2F4F3"><span class="diff-diamond" style="background:#F2F4F3"></span>BLACK</span>
+        <span class="micro" style="color:var(--textMuted)">S4</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,14 L24,16 L40,34 L58,22 L78,42 L96,28 L116,46 L138,32 L160,50 L182,36 L206,52 L226,42 L236,48" fill="none" stroke="#F2F4F3" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      </svg>
+      <div class="tk-cap">Expert. Big drops, steep tech, gap jumps.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:rgba(20,20,20,0.6);border-color:rgba(255,255,255,0.25);color:#F2F4F3"><span class="diff-2diamond"><span style="background:#F2F4F3"></span><span style="background:#F2F4F3"></span></span>2× BLACK</span>
+        <span class="micro" style="color:var(--textMuted)">S5</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,10 L18,12 L30,38 L46,18 L62,46 L78,22 L94,50 L112,26 L130,52 L150,30 L170,52 L190,34 L210,52 L230,40 L236,46" fill="none" stroke="#F2F4F3" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      </svg>
+      <div class="tk-cap">Pro / Elite. Wyłącznie ranked.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="diff-pill" style="background:transparent;border-color:var(--border);color:var(--textMuted)">UNCAT</span>
+        <span class="micro" style="color:var(--textMuted)">—</span>
+      </div>
+      <svg viewBox="0 0 240 60" class="tk-svg" preserveAspectRatio="none" style="height:60px">
+        <path d="M4,30 C60,30 80,32 120,30 C160,28 180,32 236,30" fill="none" stroke="rgba(242,244,243,0.35)" stroke-width="2" stroke-linecap="square" stroke-dasharray="3 4"/>
+      </svg>
+      <div class="tk-cap">Trasa user-generated, nie zwalidowana.</div>
+    </div>
+  </div>
+
+  <div style="padding:16px 20px;background:rgba(0,255,135,0.04);border-left:3px solid var(--accent);margin-bottom:32px">
+    <div class="label" style="color:var(--accent);margin-bottom:8px">ZASADA #2 · DWIE OSIE</div>
+    <p class="body" style="margin:0;font-size:13px;line-height:1.55">
+      <strong>Stroke = trudność.</strong> Nigdy nie maluj armed-zielonym całej linii — to konflikt z difficulty.
+      Stan przejazdu pokazujemy <em>obok / dookoła</em> linii: glow ring, animowany gate marker, status pill nad SVG.
+      Gradient fill pod elevation profile zawsze dziedziczy kolor difficulty (z opacity 0.15 → 0).
+    </p>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">Elevation profile · hero · BLACK</h3>
+  <div class="tk-card-hot" style="margin-bottom:16px;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <span class="diff-pill" style="background:rgba(20,20,20,0.6);border-color:rgba(255,255,255,0.25);color:#F2F4F3;padding:4px 10px"><span class="diff-diamond" style="background:#F2F4F3;width:8px;height:8px"></span>BLACK</span>
+          <span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent);padding:4px 10px"><span class="pillDot aArmed" style="background:var(--accent);width:5px;height:5px"></span>ARMED</span>
+          <span class="micro" style="color:var(--textMuted)">SŁOTWINY · SLOT 03 / 07</span>
+        </div>
+        <div class="title" style="font-size:24px;line-height:1;margin:0">Korona Eliminator</div>
+      </div>
+      <div style="text-align:right">
+        <div class="num" style="font:800 28px/1 var(--fDisplay)">2.4<span style="color:var(--textMuted);font-size:18px;margin-left:4px">km</span></div>
+        <div class="micro" style="color:var(--textMuted);margin-top:6px">↓ 380 M · 5 GATES</div>
+      </div>
+    </div>
+
+    <svg viewBox="0 0 800 240" width="100%" style="display:block">
+      <defs>
+        <linearGradient id="elevFillBlack" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#F2F4F3" stop-opacity="0.10"/>
+          <stop offset="100%" stop-color="#F2F4F3" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <g stroke="rgba(255,255,255,0.04)" stroke-width="1">
+        <line x1="40" y1="40" x2="780" y2="40"/>
+        <line x1="40" y1="100" x2="780" y2="100"/>
+        <line x1="40" y1="160" x2="780" y2="160"/>
+      </g>
+      <g font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.32)" letter-spacing="1.5">
+        <text x="2" y="44">+380</text>
+        <text x="2" y="104">+190</text>
+        <text x="14" y="164">+0</text>
+      </g>
+      <g stroke="rgba(255,255,255,0.10)" stroke-width="1" stroke-dasharray="2 4">
+        <line x1="40"  y1="32" x2="40"  y2="200"/>
+        <line x1="160" y1="32" x2="160" y2="200"/>
+        <line x1="280" y1="32" x2="280" y2="200"/>
+        <line x1="400" y1="32" x2="400" y2="200"/>
+        <line x1="520" y1="32" x2="520" y2="200"/>
+        <line x1="640" y1="32" x2="640" y2="200"/>
+        <line x1="760" y1="32" x2="760" y2="200"/>
+      </g>
+      <path d="M40,44 C100,52 140,80 200,98 C260,116 300,90 360,118 C420,144 460,138 520,158 C580,176 620,184 720,188 C760,190 780,200 780,200 L780,200 L40,200 Z" fill="url(#elevFillBlack)"/>
+      <path d="M40,44 C100,52 140,80 200,98 C260,116 300,90 360,118 C420,144 460,138 520,158 C580,176 620,184 720,188 C760,190 780,200 780,200" fill="none" stroke="#00FF87" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" opacity="0.32" style="filter:blur(3px)"/>
+      <path d="M40,44 C100,52 140,80 200,98 C260,116 300,90 360,118 C420,144 460,138 520,158 C580,176 620,184 720,188 C760,190 780,200 780,200" fill="none" stroke="#F2F4F3" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      <g>
+        <rect x="36" y="40" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="156" y="76" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="276" y="108" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="396" y="120" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="516" y="156" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="636" y="184" width="8" height="8" fill="#F2F4F3"/>
+        <rect x="756" y="196" width="8" height="8" fill="#F2F4F3"/>
+      </g>
+      <g fill="none" stroke="#00FF87" stroke-width="1">
+        <rect x="32" y="36" width="16" height="16"/>
+        <rect x="152" y="72" width="16" height="16"/>
+        <rect x="272" y="104" width="16" height="16"/>
+        <rect x="392" y="116" width="16" height="16"/>
+        <rect x="512" y="152" width="16" height="16"/>
+        <rect x="632" y="180" width="16" height="16"/>
+        <rect x="752" y="192" width="16" height="16"/>
+      </g>
+      <g font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.55)" letter-spacing="2">
+        <text x="40"  y="24" text-anchor="middle">START</text>
+        <text x="160" y="24" text-anchor="middle">G1</text>
+        <text x="280" y="24" text-anchor="middle">G2</text>
+        <text x="400" y="24" text-anchor="middle">G3</text>
+        <text x="520" y="24" text-anchor="middle">G4</text>
+        <text x="640" y="24" text-anchor="middle">G5</text>
+        <text x="760" y="24" text-anchor="middle">FIN</text>
+      </g>
+      <g font-family="JetBrains Mono" font-size="10" font-weight="700" fill="#00FF87" letter-spacing="1">
+        <text x="160" y="222" text-anchor="middle">00:31.8</text>
+        <text x="280" y="222" text-anchor="middle">01:02.4</text>
+        <text x="400" y="222" text-anchor="middle">01:24.1</text>
+        <text x="520" y="222" text-anchor="middle">01:48.7</text>
+        <text x="640" y="222" text-anchor="middle">02:01.7</text>
+      </g>
+      <g font-family="JetBrains Mono" font-size="9" font-weight="700" letter-spacing="1">
+        <text x="160" y="234" text-anchor="middle" fill="rgba(0,255,135,0.7)">−0.5</text>
+        <text x="280" y="234" text-anchor="middle" fill="rgba(0,255,135,0.7)">−0.3</text>
+        <text x="400" y="234" text-anchor="middle" fill="rgba(255,71,87,0.7)">+0.2</text>
+        <text x="520" y="234" text-anchor="middle" fill="rgba(0,255,135,0.7)">−0.8</text>
+        <text x="640" y="234" text-anchor="middle" fill="rgba(0,255,135,0.7)">−0.4</text>
+      </g>
+    </svg>
+  </div>
+
+  <div style="padding:14px 18px;background:rgba(0,255,135,0.03);border:1px solid var(--border);margin-bottom:32px">
+    <div class="micro" style="color:var(--accent);margin-bottom:8px">CO TU SIĘ DZIEJE · DWIE WARSTWY</div>
+    <div class="caption" style="color:var(--textMuted);font-size:12px;line-height:1.6">
+      <strong style="color:#F2F4F3">Stroke biały (BLACK difficulty)</strong> + <strong style="color:var(--accent)">accent jako overlay armed</strong>: 1) blur-3px aura pod stroke, 2) 1px ring 16×16 dookoła gate squares 8×8, 3) splity i deltas pod osią X. Card border + soft glow w obrębie kontenera — nigdy nie wylewa się poza box.
+    </div>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">3 line types · w kontekście difficulty</h3>
+  <div class="grid g3" style="margin-bottom:32px">
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="label" style="color:var(--text)">FLOW</span>
+        <span class="diff-pill" style="background:rgba(80,180,255,0.10);border-color:rgba(80,180,255,0.45);color:#50B4FF;padding:3px 8px;font-size:9px"><span class="diff-square" style="background:#50B4FF;width:8px;height:8px"></span>BLUE</span>
+      </div>
+      <svg viewBox="0 0 280 100" class="tk-svg" preserveAspectRatio="none" style="height:100px">
+        <path d="M8,28 C56,28 80,76 140,52 C200,28 224,76 272,76" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+      </svg>
+      <div class="tk-cap">Gładkie krzywe — bermy, jumpy. Cubic bezier, łagodne tranzycje.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="label" style="color:var(--text)">TECH</span>
+        <span class="diff-pill" style="background:rgba(255,71,87,0.10);border-color:rgba(255,71,87,0.45);color:#FF4757;padding:3px 8px;font-size:9px"><span class="diff-diamond" style="background:#FF4757;width:8px;height:8px"></span>RED</span>
+      </div>
+      <svg viewBox="0 0 280 100" class="tk-svg" preserveAspectRatio="none" style="height:100px">
+        <path d="M8,30 L36,28 L60,58 L88,40 L116,72 L144,52 L172,80 L200,60 L228,84 L256,68 L272,80" fill="none" stroke="#FF4757" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      </svg>
+      <div class="tk-cap">Kanciaste segmenty — korzenie, kamienie. Linijki, miter joins, brak wygładzania.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="label" style="color:var(--text)">GRAVITY</span>
+        <span class="diff-pill" style="background:rgba(20,20,20,0.6);border-color:rgba(255,255,255,0.25);color:#F2F4F3;padding:3px 8px;font-size:9px"><span class="diff-diamond" style="background:#F2F4F3;width:8px;height:8px"></span>BLACK</span>
+      </div>
+      <svg viewBox="0 0 280 100" class="tk-svg" preserveAspectRatio="none" style="height:100px">
+        <path d="M8,16 L48,18 L72,22 C108,30 124,52 148,58 C176,66 192,84 220,86 L272,90" fill="none" stroke="#F2F4F3" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+      </svg>
+      <div class="tk-cap">Drop heavy — DH, bike park. Mała progresja, ostry zjazd na końcu.</div>
+    </div>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">State coloring · ten sam Blue track w 4 stanach</h3>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="pill" style="background:transparent;border-color:var(--border);color:var(--textMuted);padding:4px 10px"><span class="pillDot" style="background:var(--textMuted);width:5px;height:5px"></span>TRENING</span>
+      </div>
+      <svg viewBox="0 0 240 80" class="tk-svg" preserveAspectRatio="none" style="height:80px">
+        <path d="M8,20 C56,22 80,52 120,54 C160,56 184,68 232,68" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square" stroke-dasharray="4 4" opacity="0.55"/>
+        <rect x="4" y="16" width="8" height="8" fill="#50B4FF" opacity="0.55"/>
+        <rect x="228" y="64" width="8" height="8" fill="#50B4FF" opacity="0.55"/>
+      </svg>
+      <div class="tk-cap" style="font-size:11px">Difficulty stroke @ 55% + dashed. Gates muted.</div>
+    </div>
+    <div class="tk-card-hot">
+      <div class="tk-meta">
+        <span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent);padding:4px 10px"><span class="pillDot aArmed" style="background:var(--accent);width:5px;height:5px"></span>ARMED</span>
+      </div>
+      <svg viewBox="0 0 240 80" class="tk-svg" preserveAspectRatio="none" style="height:80px">
+        <path d="M8,20 C56,22 80,52 120,54 C160,56 184,68 232,68" fill="none" stroke="#00FF87" stroke-width="2" stroke-linecap="square" opacity="0.32" style="filter:blur(3px)"/>
+        <path d="M8,20 C56,22 80,52 120,54 C160,56 184,68 232,68" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+        <rect x="4" y="16" width="8" height="8" fill="#50B4FF"/>
+        <rect x="0" y="12" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <rect x="228" y="64" width="8" height="8" fill="#50B4FF"/>
+        <rect x="224" y="60" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+      </svg>
+      <div class="tk-cap" style="font-size:11px">Stroke = difficulty. Aura blur + accent rings = state.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="pill" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent);padding:4px 10px"><span class="pillDot aVerified" style="background:var(--accent);width:5px;height:5px"></span>VERIFIED</span>
+      </div>
+      <svg viewBox="0 0 240 80" class="tk-svg" preserveAspectRatio="none" style="height:80px">
+        <path d="M8,20 C56,22 80,52 120,54 C160,56 184,68 232,68" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+        <rect x="4" y="16" width="8" height="8" fill="#50B4FF"/>
+        <rect x="76" y="46" width="8" height="8" fill="#50B4FF"/>
+        <rect x="148" y="56" width="8" height="8" fill="#50B4FF"/>
+        <rect x="228" y="64" width="8" height="8" fill="#50B4FF"/>
+        <rect x="0" y="12" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <rect x="72" y="42" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <rect x="144" y="52" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <rect x="224" y="60" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+      </svg>
+      <div class="tk-cap" style="font-size:11px">Wszystkie gate rings persistent — przejazd zaliczony.</div>
+    </div>
+    <div class="tk-card">
+      <div class="tk-meta">
+        <span class="pill" style="background:rgba(255,71,87,0.12);border-color:rgba(255,71,87,0.3);color:var(--danger);padding:4px 10px"><span class="pillDot" style="background:var(--danger);width:5px;height:5px"></span>INVALID</span>
+      </div>
+      <svg viewBox="0 0 240 80" class="tk-svg" preserveAspectRatio="none" style="height:80px">
+        <path d="M8,20 C56,22 80,52 120,54" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+        <path d="M120,54 C160,56 184,68 232,68" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square" opacity="0.25" stroke-dasharray="3 3"/>
+        <rect x="4" y="16" width="8" height="8" fill="#50B4FF"/>
+        <rect x="76" y="46" width="8" height="8" fill="#50B4FF"/>
+        <line x1="112" y1="46" x2="128" y2="62" stroke="#FF4757" stroke-width="2" stroke-linecap="square"/>
+        <line x1="128" y1="46" x2="112" y2="62" stroke="#FF4757" stroke-width="2" stroke-linecap="square"/>
+        <rect x="148" y="56" width="8" height="8" fill="#50B4FF" opacity="0.25"/>
+        <rect x="228" y="64" width="8" height="8" fill="#50B4FF" opacity="0.25"/>
+      </svg>
+      <div class="tk-cap" style="font-size:11px">Brakujący gate · X mark · post-fail line ghosted.</div>
+    </div>
+  </div>
+
+  <div style="padding:14px 18px;background:rgba(255,71,87,0.04);border-left:3px solid var(--danger);margin-bottom:32px">
+    <div class="label" style="color:var(--danger);margin-bottom:8px">✕ ANTI-PATTERN</div>
+    <div class="caption" style="color:var(--textMuted);font-size:12px;line-height:1.55">
+      Nigdy nie zamieniaj stroke difficulty na accent kiedy linia jest armed.
+      To zabija kontekst trasy ("jakie to było — Blue czy Red?") i myli z hierarchią state.
+      <strong style="color:var(--text)">Stroke = trudność na zawsze. State = warstwa overlay.</strong>
+    </div>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">Top-down · GPS map · BLUE difficulty</h3>
+  <div class="grid g2" style="margin-bottom:32px">
+    <div class="tk-card-hot" style="background:#0A0D0E">
+      <div class="tk-meta">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="diff-pill" style="background:rgba(80,180,255,0.10);border-color:rgba(80,180,255,0.45);color:#50B4FF;padding:3px 8px;font-size:9px"><span class="diff-square" style="background:#50B4FF;width:8px;height:8px"></span>BLUE</span>
+          <span class="micro" style="color:var(--textMuted)">TOPVIEW · 1:2000</span>
+        </div>
+        <span class="pill aArmed" style="background:var(--accentDim);border-color:var(--borderHot);color:var(--accent);padding:3px 8px;font-size:9px"><span class="pillDot" style="background:var(--accent);width:5px;height:5px"></span>ARMED</span>
+      </div>
+      <svg viewBox="0 0 400 280" class="tk-svg">
+        <g stroke="rgba(255,255,255,0.04)" stroke-width="1" fill="none">
+          <path d="M40,40 Q140,30 240,60 T380,40"/>
+          <path d="M30,80 Q130,70 220,100 T380,90"/>
+          <path d="M20,140 Q120,130 200,160 T380,150"/>
+          <path d="M30,200 Q140,180 240,210 T380,210"/>
+          <path d="M40,250 Q140,240 240,260 T380,250"/>
+        </g>
+        <path d="M60,40 C90,50 110,70 100,90 C90,115 130,125 145,140 C160,160 130,175 145,195 C160,215 200,205 220,225 C245,250 290,240 320,250" fill="none" stroke="#00FF87" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" opacity="0.32" style="filter:blur(3px)"/>
+        <path d="M60,40 C90,50 110,70 100,90 C90,115 130,125 145,140 C160,160 130,175 145,195 C160,215 200,205 220,225 C245,250 290,240 320,250" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
+        <g>
+          <rect x="56" y="36" width="8" height="8" fill="#50B4FF"/>
+          <rect x="52" y="32" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+          <rect x="141" y="136" width="8" height="8" fill="#50B4FF"/>
+          <rect x="216" y="221" width="8" height="8" fill="#50B4FF"/>
+          <rect x="316" y="246" width="8" height="8" fill="#50B4FF"/>
+          <rect x="312" y="242" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        </g>
+        <g font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.7)" letter-spacing="2">
+          <text x="74" y="38">START</text>
+          <text x="290" y="252">FIN</text>
+          <text x="155" y="142" fill="rgba(242,244,243,0.45)">G2</text>
+          <text x="226" y="227" fill="rgba(242,244,243,0.45)">G4</text>
+        </g>
+        <g transform="translate(360,30)">
+          <line x1="0" y1="-12" x2="0" y2="12" stroke="rgba(242,244,243,0.4)" stroke-width="1"/>
+          <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(242,244,243,0.2)" stroke-width="1"/>
+          <text x="-3" y="-16" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="rgba(242,244,243,0.5)">N</text>
+        </g>
+      </svg>
+    </div>
+    <div class="tk-card" style="background:#0A0D0E">
+      <div class="tk-meta">
+        <span class="micro" style="color:var(--textMuted)">SEGMENT · G2 → G3 · COMPARE</span>
+        <span class="micro" style="color:var(--accent)">YOU −0.42</span>
+      </div>
+      <svg viewBox="0 0 400 280" class="tk-svg">
+        <path d="M40,80 Q120,140 200,150 Q280,160 360,200" fill="none" stroke="rgba(242,244,243,0.18)" stroke-width="1.5" stroke-linecap="square" stroke-dasharray="3 5"/>
+        <path d="M40,90 Q130,150 220,140 Q300,135 360,180" fill="none" stroke="rgba(242,244,243,0.18)" stroke-width="1.5" stroke-linecap="square" stroke-dasharray="3 5"/>
+        <path d="M40,85 Q120,150 210,145 Q290,140 360,190" fill="none" stroke="#00FF87" stroke-width="2" stroke-linecap="square" opacity="0.32" style="filter:blur(3px)"/>
+        <path d="M40,85 Q120,150 210,145 Q290,140 360,190" fill="none" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+        <rect x="36" y="81" width="8" height="8" fill="#50B4FF"/>
+        <rect x="32" y="77" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <rect x="356" y="186" width="8" height="8" fill="#50B4FF"/>
+        <rect x="352" y="182" width="16" height="16" fill="none" stroke="#00FF87" stroke-width="1"/>
+        <g font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.7)" letter-spacing="2">
+          <text x="52" y="76">G2</text>
+          <text x="332" y="208">G3</text>
+        </g>
+        <g transform="translate(20,254)">
+          <line x1="0" y1="0" x2="20" y2="0" stroke="#50B4FF" stroke-width="2" stroke-linecap="square"/>
+          <text x="26" y="3" font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.7)" letter-spacing="2">TY</text>
+          <line x1="80" y1="0" x2="100" y2="0" stroke="rgba(242,244,243,0.3)" stroke-width="1.5" stroke-dasharray="3 5"/>
+          <text x="106" y="3" font-family="JetBrains Mono" font-size="9" font-weight="700" fill="rgba(242,244,243,0.5)" letter-spacing="2">GHOSTS · TOP 2</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <h3 class="lead" style="margin:0 0 14px">Treatment specs · final</h3>
+  <table class="tk">
+    <thead><tr><th>Property</th><th>Wartość</th><th>Powód</th></tr></thead>
+    <tbody>
+      <tr><td class="code">stroke (difficulty)</td><td class="code" style="color:var(--accent)">Green #2ECC71 · Blue #50B4FF · Red #FF4757 · Black #F2F4F3</td><td class="use">MTB / FIS standard, persistent</td></tr>
+      <tr><td class="code">stroke-width</td><td class="code" style="color:var(--accent)">2px wszystko</td><td class="use">jednolita waga, czytelna na 320px</td></tr>
+      <tr><td class="code">stroke-linecap</td><td class="code" style="color:var(--accent)">square</td><td class="use">round = casual; square = pomiarowy</td></tr>
+      <tr><td class="code">stroke-linejoin</td><td class="code" style="color:var(--accent)">miter</td><td class="use">ostre rogi dla tech segments</td></tr>
+      <tr><td class="code">state.armed (overlay)</td><td class="code" style="color:var(--accent)">stroke-duplicate + opacity 0.32 + blur 3px</td><td class="use">aura pod difficulty stroke, NIE zamiast</td></tr>
+      <tr><td class="code">state.training</td><td class="code" style="color:var(--accent)">opacity 0.55 + dasharray 4 4</td><td class="use">stłumiony difficulty, jeszcze nie liczy</td></tr>
+      <tr><td class="code">state.invalid</td><td class="code" style="color:var(--accent)">trail dimmed 0.25 po fail point + X 16×16 #FF4757</td><td class="use">linia obowiązuje ale nie liczy się</td></tr>
+      <tr><td class="code">gate marker</td><td class="code" style="color:var(--accent)">8×8 square, fill = difficulty</td><td class="use">na siatce 8px, kątowy game-look</td></tr>
+      <tr><td class="code">gate ring (armed/verified)</td><td class="code" style="color:var(--accent)">16×16 stroke 1px #00FF87, centered on gate</td><td class="use">+4px offset każdej strony, perfect halo</td></tr>
+      <tr><td class="code">elevation fill</td><td class="code" style="color:var(--accent)">linear gradient difficulty · 0.10 → 0</td><td class="use">delikatny, nie konkuruje z stroke</td></tr>
+      <tr><td class="code">ghost lines</td><td class="code" style="color:var(--accent)">rgba(F2F4F3, 0.18) · 1.5px · dasharray 3 5</td><td class="use">white neutral — nie konkuruje z difficulty</td></tr>
+      <tr><td class="code">grid contours</td><td class="code" style="color:var(--accent)">rgba 0.04, quadratic curves</td><td class="use">organiczne, nie web grid</td></tr>
+      <tr><td class="code">splits / deltas</td><td class="code" style="color:var(--accent)">JetBrains Mono 10/9 · text-anchor middle</td><td class="use">wycentrowane pod gates dokładnie</td></tr>
+    </tbody>
+  </table>
+
+  <div style="padding:16px 20px;background:var(--panel);border-left:3px solid var(--accent);margin-top:24px">
+    <div class="label" style="color:var(--accent);margin-bottom:10px">SAMOOCENA · 8.5/10</div>
+    <div class="caption" style="color:var(--textMuted);font-size:12px;line-height:1.65">
+      <strong style="color:var(--text)">+</strong> Difficulty taxonomy spójna z MTB / FIS. <strong style="color:var(--text)">+</strong> Two-axis system (kolor=trudność, overlay=stan) konsekwentny. <strong style="color:var(--text)">+</strong> Wszystko na siatce 8px. <strong style="color:var(--text)">+</strong> Armed nie wylewa się poza box (border + box-shadow w obrębie kontenera, blur SVG ograniczony do viewBox).<br/><br/>
+      <strong style="color:var(--danger)">−</strong> Brak wariantu dla print / outdoor (high contrast). <strong style="color:var(--danger)">−</strong> Nie pokazuję jak linie wyglądają na light map base (Mapbox / Google). <strong style="color:var(--danger)">−</strong> Brakuje speed/pulse heatmap variant — kolor wzdłuż linii.
+    </div>
+  </div>
+</section>
+
+<!-- 10 VOICE -->
+<section class="section" id="voice">
+  <div class="sec-head"><span class="sec-num">10</span><span class="sec-tag">SYSTEM · 10/13</span></div>
+  <h2 class="sec-title">Voice &amp; tone</h2>
+  <p class="sec-sub">NWD mówi jak race director, nie jak marka. Krótko, imperatyw, bez przeprosin, bez emoji.</p>
+
+  <table class="tk" style="margin-bottom:36px">
+    <thead><tr><th>Token</th><th>Reguła</th><th>Tak</th><th>Nie</th></tr></thead>
+    <tbody>
+      <tr><td class="code">voice.cta</td><td class="use">CAPS · 1-2 słowa · imperatyw</td><td>WEJDŹ · ARM · WYŚLIJ KOD</td><td style="color:var(--textDim)">Click here · Continue?</td></tr>
+      <tr><td class="code">voice.status</td><td class="use">CAPS · 1 słowo · stan</td><td>LIVE · ARMED · DNF</td><td style="color:var(--textDim)">Currently live</td></tr>
+      <tr><td class="code">voice.label</td><td class="use">CAPS · 1-3 słowa · meta</td><td>STATUS · BIKE PARK</td><td style="color:var(--textDim)">Your bike park</td></tr>
+      <tr><td class="code">voice.title</td><td class="use">Sentence · ≤8 słów</td><td>Twoja góra. Twój czas.</td><td style="color:var(--textDim)">Welcome!</td></tr>
+      <tr><td class="code">voice.body</td><td class="use">Sentence · ≤30 słów</td><td>Startuj z bramki, finiszuj na końcu.</td><td style="color:var(--textDim)">Long paragraphs</td></tr>
+      <tr><td class="code">voice.acronym</td><td class="use">CAPS · ≤4 znaki</td><td>PB · DNF · KOM · DH</td><td style="color:var(--textDim)">Personal Best</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="lead" style="margin:0 0 14px">Forbidden phrases</h3>
+  <div class="duo">
+    <div class="dont">
+      <div class="label" style="color:var(--danger);margin-bottom:10px">✕ NIGDY</div>
+      <ul style="margin:0;padding-left:18px;color:var(--textMuted);line-height:1.8;font-size:13px">
+        <li>Czy chciałbyś rozpocząć?</li>
+        <li>Świetnie! / Brawo!</li>
+        <li>Niestety, coś poszło nie tak</li>
+        <li>Ups... / Hej!</li>
+        <li>Click here to continue</li>
+        <li>🎉 / 🏆 / 🔥 w UI</li>
+      </ul>
+    </div>
+    <div class="do">
+      <div class="label" style="color:var(--accent);margin-bottom:10px">✓ ZAMIAST</div>
+      <ul style="margin:0;padding-left:18px;color:var(--text);line-height:1.8;font-size:13px">
+        <li>START</li>
+        <li>(cisza — czas mówi sam)</li>
+        <li>RUN INVALID + powód</li>
+        <li>(brak greetera)</li>
+        <li>DALEJ</li>
+        <li>&lt;IconGlyph&gt; z setu</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 11 PATTERNS -->
+<section class="section" id="patterns">
+  <div class="sec-head"><span class="sec-num">11</span><span class="sec-tag">SYSTEM · 11/13</span></div>
+  <h2 class="sec-title">Run flow narrative</h2>
+  <p class="sec-sub">6 ekranów, jeden wątek koloru. Stan ekranu mówi gdzie jesteś w pipeline — accent kolor jest dosłownie kompasem.</p>
+
+  <div style="display:flex;gap:14px;overflow-x:auto;padding:12px 0">
+    <div class="card" style="min-width:160px;border-left:3px solid var(--warn)"><div class="micro" style="color:var(--warn);margin-bottom:6px">01 · PENDING</div><div class="lead">Ready check</div><div class="caption" style="color:var(--textMuted);margin-top:6px">GPS lock</div></div>
+    <div class="card" style="min-width:160px;border-left:3px solid var(--accent)"><div class="micro" style="color:var(--accent);margin-bottom:6px">02 · ARMED</div><div class="lead">Approach</div><div class="caption" style="color:var(--textMuted);margin-top:6px">Do bramki</div></div>
+    <div class="card" style="min-width:160px;border-left:3px solid var(--accent);box-shadow:var(--glowSoft)"><div class="micro" style="color:var(--accent);margin-bottom:6px">03 · ARMED</div><div class="lead">Recording</div><div class="caption" style="color:var(--textMuted);margin-top:6px">Timer rolling</div></div>
+    <div class="card" style="min-width:160px;border-left:3px solid var(--warn)"><div class="micro" style="color:var(--warn);margin-bottom:6px">04 · PENDING</div><div class="lead">Review</div><div class="caption" style="color:var(--textMuted);margin-top:6px">Validating</div></div>
+    <div class="card" style="min-width:160px;border-left:3px solid var(--accent)"><div class="micro" style="color:var(--accent);margin-bottom:6px">05 · VERIFIED</div><div class="lead">Result</div><div class="caption" style="color:var(--textMuted);margin-top:6px">+ delta · pozycja</div></div>
+    <div class="card" style="min-width:160px;border-left:3px solid var(--danger)"><div class="micro" style="color:var(--danger);margin-bottom:6px">!! INVALID</div><div class="lead">Rejected</div><div class="caption" style="color:var(--textMuted);margin-top:6px">+ powód · retry</div></div>
+  </div>
+
+  <h3 class="lead" style="margin:36px 0 14px">Empty state · zasada</h3>
+  <div class="grid g2">
+    <div class="dont">
+      <div class="label" style="color:var(--danger);margin-bottom:10px">✕ TAK NIE ROBIMY</div>
+      <div class="title" style="font-size:22px;margin-bottom:8px">Brak danych :(</div>
+      <div class="caption" style="color:var(--textMuted)">Wygląda, że jeszcze niczego tu nie ma. Może chcesz zacząć?</div>
+    </div>
+    <div class="do">
+      <div class="label" style="color:var(--accent);margin-bottom:10px">✓ ROBIMY TAK</div>
+      <div class="micro" style="color:var(--textMuted);margin-bottom:6px">BRAK DANYCH</div>
+      <div class="caption" style="color:var(--text);margin-bottom:14px">Nie masz jeszcze przejazdów w tej lidze.</div>
+      <button class="btn btnPri">ARM PIERWSZY PRZEJAZD</button>
+    </div>
+  </div>
+</section>
+
+<!-- 12 INDEX -->
+<section class="section" id="index">
+  <div class="sec-head"><span class="sec-num">12</span><span class="sec-tag">REFERENCE · 12/13</span></div>
+  <h2 class="sec-title">Tokens index</h2>
+  <p class="sec-sub">Flat lista wszystkiego — kopiuj-wklej do Claude Code.</p>
+
+  <table class="tk">
+    <thead><tr><th style="width:30%">Token</th><th style="width:25%">Wartość</th><th>Użycie</th></tr></thead>
+    <tbody>
+      <tr><td class="code">color.bg</td><td class="code" style="color:var(--accent)">#07090A</td><td class="use">tło ekranu (e0)</td></tr>
+      <tr><td class="code">color.chrome</td><td class="code" style="color:var(--accent)">#0E1112</td><td class="use">navbar / status / frame (e1)</td></tr>
+      <tr><td class="code">color.panel</td><td class="code" style="color:var(--accent)">#13181A</td><td class="use">karty, modale (e2)</td></tr>
+      <tr><td class="code">color.row</td><td class="code" style="color:var(--accent)">#1A2124</td><td class="use">wiersze listy (e3 / e4)</td></tr>
+      <tr><td class="code">color.accent</td><td class="code" style="color:var(--accent)">#00FF87</td><td class="use">canonical brand</td></tr>
+      <tr><td class="code">state.training</td><td class="code" style="color:var(--accent)">rgba(F2F4F3, 0.45)</td><td class="use">trening · nie liczy się</td></tr>
+      <tr><td class="code">state.armed</td><td class="code" style="color:var(--accent)">#00FF87 + pulse 1.2s</td><td class="use">jadę pod ranking</td></tr>
+      <tr><td class="code">state.verified</td><td class="code" style="color:var(--accent)">#00FF87 + breathe 2.4s</td><td class="use">zaliczone</td></tr>
+      <tr><td class="code">state.pending</td><td class="code" style="color:var(--accent)">#FFB020 + blink 0.6s</td><td class="use">walidujemy</td></tr>
+      <tr><td class="code">state.invalid</td><td class="code" style="color:var(--accent)">#FF4757</td><td class="use">DNF / DSQ</td></tr>
+      <tr><td class="code">size.hero</td><td class="code" style="color:var(--accent)">56/800/0.95/-0.02em</td><td class="use">race time hero</td></tr>
+      <tr><td class="code">size.title</td><td class="code" style="color:var(--accent)">32/700/1.05/-0.01em</td><td class="use">screen titles</td></tr>
+      <tr><td class="code">size.lead</td><td class="code" style="color:var(--accent)">22/600/1.20</td><td class="use">section heads</td></tr>
+      <tr><td class="code">size.body</td><td class="code" style="color:var(--accent)">15/400/1.50</td><td class="use">paragraphs</td></tr>
+      <tr><td class="code">size.label</td><td class="code" style="color:var(--accent)">11/800/+0.24em CAPS mono</td><td class="use">kicker, pill</td></tr>
+      <tr><td class="code">telemetry.timerHero</td><td class="code" style="color:var(--accent)">56/800 tabular display</td><td class="use">final time</td></tr>
+      <tr><td class="code">telemetry.delta</td><td class="code" style="color:var(--accent)">18/800 tabular mono</td><td class="use">±X.XX PB</td></tr>
+      <tr><td class="code">telemetry.positionRank</td><td class="code" style="color:var(--accent)">88/900/-0.04em display</td><td class="use">leaderboard hero</td></tr>
+      <tr><td class="code">motion.pulseArmed</td><td class="code" style="color:var(--accent)">1.2s ease-in-out infinite</td><td class="use">armed pulse</td></tr>
+      <tr><td class="code">motion.pulseVerified</td><td class="code" style="color:var(--accent)">2.4s ease-in-out infinite</td><td class="use">verified breathe</td></tr>
+      <tr><td class="code">motion.scanAmbient</td><td class="code" style="color:var(--accent)">4.2s ease-in-out infinite</td><td class="use">HUD scan line</td></tr>
+      <tr><td class="code">elevation.e4</td><td class="code" style="color:var(--accent)">row + borderHot + glowSoft</td><td class="use">armed wiersz</td></tr>
+      <tr><td class="code">space.md / lg</td><td class="code" style="color:var(--accent)">16 / 24 px</td><td class="use">domyślne padding</td></tr>
+      <tr><td class="code">radius.pill</td><td class="code" style="color:var(--accent)">999</td><td class="use">CTA primary, pille</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 13 HANDOFF -->
+<section class="section" id="handoff">
+  <div class="sec-head"><span class="sec-num">13</span><span class="sec-tag">REFERENCE · 13/13</span></div>
+  <h2 class="sec-title">Handoff dla Claude Code</h2>
+  <p class="sec-sub">Pakiet markdown + tokens.ts + theme.css w folderze <code style="color:var(--accent);font-family:var(--fMono);font-size:13px">design-system/</code>. Kolejność implementacji:</p>
+
+  <pre class="code">
+<span class="com"># 1. Drop theme.css w global stylesheet (CSS vars + keyframes)</span>
+<span class="acc">import</span> <span class="str">'./design-system/theme.css'</span>;
+
+<span class="com"># 2. Import tokens.ts jako single source. Nigdy nie hardcoduj koloru.</span>
+<span class="acc">import</span> { tokens } <span class="acc">from</span> <span class="str">'./design-system/tokens'</span>;
+<span class="com">// ✓ tokens.palette.acid.accent</span>
+<span class="com">// ✗ '#00FF87'</span>
+
+<span class="com"># 3. Build base components per components.md:</span>
+<span class="com">#    Btn, Pill, HudPanel, RaceTime, LeaderboardRow, IconGlyph</span>
+
+<span class="com"># 4. Apply patterns.md do istniejących ekranów:</span>
+<span class="com">#    - Run flow narrative (6 ekranów × stan kolor)</span>
+<span class="com">#    - Race-state pattern wszędzie gdzie jest run summary</span>
+<span class="com">#    - Empty states: brak ilustracji, krótki copy + CTA</span>
+
+<span class="com"># 5. Audyt copy względem voice.md, podmień ad-hoc icons</span>
+<span class="com">#    na 12-glyph set z icons.md</span>
+</pre>
+
+  <div style="margin-top:24px;padding:24px;background:var(--panel);border-left:3px solid var(--accent)">
+    <div class="label" style="color:var(--accent);margin-bottom:12px">NON-NEGOTIABLES</div>
+    <ul style="margin:0;padding-left:20px;line-height:1.8;color:var(--text)">
+      <li><strong>Numbers are tabular-nums</strong> — zawsze. Race times nie skaczą.</li>
+      <li><strong>Race state owns color</strong> — nie używamy <code style="color:var(--accent);font-family:var(--fMono)">accent</code> do dekoracji.</li>
+      <li><strong>Reduced motion is honored</strong> — wszystkie animacje gated.</li>
+      <li><strong>No light mode</strong> — produkt to night-of-race energy.</li>
+      <li><strong>No emoji in UI</strong> — tylko IconGlyph.</li>
+      <li><strong>CTA = CAPS + imperative</strong> — nigdy "Click here".</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+
+</body>
+</html>
