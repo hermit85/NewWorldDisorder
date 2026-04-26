@@ -11,7 +11,7 @@
 
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { hudColors, hudTypography } from '@/theme/gameHud';
+import { colors } from '@/theme/colors';
 
 export interface PioneerBadgeProps {
   size?: 'xs' | 'sm' | 'md';
@@ -31,7 +31,7 @@ export function PioneerBadge({ size = 'md', label = false }: PioneerBadgeProps) 
   return (
     <View style={styles.container} accessibilityLabel="Pioneer tej trasy">
       <Svg width={dim} height={dim} viewBox="0 0 24 24">
-        <Path d={BOLT_PATH} fill={hudColors.pioneerMark} />
+        <Path d={BOLT_PATH} fill={colors.accent} />
       </Svg>
       {showLabel && <Text style={styles.label}>PIONEER</Text>}
     </View>
@@ -44,10 +44,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  // Pioneer label sticks with Rajdhani (display font) — matches the
+  // run-flow / leaderboard hero kickers; canonical mono would read
+  // too "system-meta" here vs the celebratory Pioneer identity.
   label: {
-    ...hudTypography.label,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
-    color: hudColors.pioneerMark,
+    textTransform: 'uppercase',
+    color: colors.accent,
   },
 });
