@@ -161,13 +161,13 @@ export default function SpotScreen() {
   if (spotStatus === 'error' && !spot) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.centered}>
-          <Text style={styles.errorTitle}>BIKE PARK NIE DOJECHAŁ</Text>
-          <Text style={styles.errorBody}>
+        <View style={styles.notFoundState}>
+          <Text style={styles.notFoundTitle}>BIKE PARK NIE DOJECHAŁ</Text>
+          <Text style={styles.notFoundBody}>
             Sprawdź połączenie i spróbuj jeszcze raz.
           </Text>
-          <Btn variant="ghost" size="md" fullWidth={false} onPress={refreshSpot}>
-            Spróbuj ponownie
+          <Btn variant="primary" size="lg" onPress={refreshSpot}>
+            SPRÓBUJ JESZCZE RAZ
           </Btn>
         </View>
       </SafeAreaView>
@@ -177,10 +177,13 @@ export default function SpotScreen() {
   if (!spot) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.notFound}>
-          <Text style={styles.errorTitle}>BIKE PARK NIE ZNALEZIONY</Text>
-          <Btn variant="ghost" size="md" fullWidth={false} onPress={handleGoBack}>
-            ← Wróć
+        <View style={styles.notFoundState}>
+          <Text style={styles.notFoundTitle}>BIKE PARK NIE ZNALEZIONY</Text>
+          <Text style={styles.notFoundBody}>
+            Ten link nie prowadzi już do żadnego spotu.
+          </Text>
+          <Btn variant="primary" size="lg" onPress={handleGoBack}>
+            WRÓĆ DO LISTY
           </Btn>
         </View>
       </SafeAreaView>
@@ -378,27 +381,34 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.pad,
   },
-  errorTitle: {
-    ...typography.label,
+  // Not-found state — Pattern 5: muted CAPS title + body + primary
+  // CTA, vertically centered, never apologetic. Distinct from
+  // `emptyTitle` below (which is the larger headline used for the
+  // onboarding-style empty bike-park hub).
+  notFoundState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+  },
+  notFoundTitle: {
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 2.64,
-    color: colors.textPrimary,
+    color: colors.textMuted,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
-  errorBody: {
+  notFoundBody: {
     ...typography.body,
     fontSize: 14,
-    color: colors.textSecondary,
+    lineHeight: 20,
+    color: colors.textMuted,
     textAlign: 'center',
-    maxWidth: 280,
-  },
-  notFound: {
-    flex: 1,
-    paddingHorizontal: spacing.pad,
-    paddingTop: 32,
-    gap: spacing.md,
-    alignItems: 'center',
+    maxWidth: 320,
+    marginBottom: spacing.md,
   },
 
   hero: {
