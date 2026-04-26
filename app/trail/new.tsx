@@ -32,11 +32,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Btn, PageTitle, TopBar } from '@/components/nwd';
+import { Btn, PageTitle, Pill, SectionHead, TopBar } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useCreateTrail, useSpot } from '@/hooks/useBackend';
+import { useCreateTrail, useSpot, useSpotTrails } from '@/hooks/useBackend';
+import type { CreateTrailSuggestion, SpotTrailSummary } from '@/lib/api';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
-import { notifySuccess, notifyWarning, tapMedium } from '@/systems/haptics';
+import { notifySuccess, notifyWarning, tapLight, tapMedium } from '@/systems/haptics';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -61,11 +62,16 @@ const TRAIL_TYPE_OPTIONS: { key: TrailType; label: string }[] = [
 const NAME_MIN = 3;
 const NAME_MAX = 60;
 
-type Step = 1 | 2 | 3;
+// Step 0 = ADR-012 Phase 1.4 listing of existing trails ("Czy ta trasa
+// już istnieje?"). Steps 1–3 are the legacy info / educator / summary
+// flow that fires only after the rider says "to inna trasa, jadę pierwszy".
+type Step = 0 | 1 | 2 | 3;
 
 type Submission =
   | { kind: 'idle' }
   | { kind: 'submitting' }
+  | { kind: 'duplicate_hard'; existing: CreateTrailSuggestion }
+  | { kind: 'duplicate_soft'; suggestions: CreateTrailSuggestion[] }
   | { kind: 'error'; message: string };
 
 export default function NewTrailScreen() {
@@ -76,12 +82,19 @@ export default function NewTrailScreen() {
   const { submit } = useCreateTrail();
   const { spot, status: spotStatus } = useSpot(spotId || null);
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [trailType, setTrailType] = useState<TrailType | null>(null);
   const [submission, setSubmission] = useState<Submission>({ kind: 'idle' });
   const [nameError, setNameError] = useState<string | null>(null);
+  // ADR-012 Phase 1.4: rider re-confirms "to inna trasa" after the
+  // Smart Suggest dialog. The next submit call passes forceCreate=true
+  // so the duplicate_base_key check is bypassed (hard normalized_name
+  // unique stays enforced server-side).
+  const [forceNextCreate, setForceNextCreate] = useState(false);
+
+  const { trails: existingTrails, loading: existingLoading } = useSpotTrails(spotId || null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -120,15 +133,20 @@ export default function NewTrailScreen() {
     setSubmission({ kind: 'submitting' });
     setNameError(null);
 
-    const result = await submit({ spotId, name: trimmed, difficulty, trailType });
+    const result = await submit({
+      spotId,
+      name: trimmed,
+      difficulty,
+      trailType,
+      forceCreate: forceNextCreate,
+    });
+    // forceCreate is single-use; clear it for any subsequent edit
+    // cycle. If the call still failed (different reason), the rider
+    // explicitly re-acknowledges the soft warn before the next try.
+    if (forceNextCreate) setForceNextCreate(false);
 
     if (result.ok) {
       notifySuccess();
-      // Delegate the routing decision to pickRunDestination so the
-      // educator flow and the spot/[id].tsx trail-card CTA can never
-      // drift. A freshly-created trail is always calibration='draft'
-      // -> /run/recording; the helper also keeps us honest if the
-      // DB trigger ever stamps something different.
       router.replace(
         pickRunDestination({
           trailId: result.data.trailId,
@@ -144,8 +162,21 @@ export default function NewTrailScreen() {
     notifyWarning();
     const message = result.message ?? 'Nie udało się utworzyć trasy';
 
+    if (result.code === 'duplicate_name_in_spot' && 'existing' in result) {
+      // Hard normalized_name collision — surface the existing trail
+      // so the rider can route straight to it.
+      setSubmission({ kind: 'duplicate_hard', existing: result.existing });
+      return;
+    }
+
+    if (result.code === 'name_suggests_existing' && 'suggestions' in result) {
+      // Soft duplicate_base_key warn — Smart Suggest dialog with
+      // "OTWÓRZ" / "TO INNA TRASA" / "WRÓĆ I POPRAW".
+      setSubmission({ kind: 'duplicate_soft', suggestions: result.suggestions });
+      return;
+    }
+
     if (
-      result.code === 'duplicate_name_in_spot' ||
       result.code === 'name_too_short' ||
       result.code === 'name_too_long'
     ) {
@@ -154,6 +185,7 @@ export default function NewTrailScreen() {
       setStep(1);
       return;
     }
+
     if (result.code === 'spot_not_active') {
       Alert.alert('Bike park nieaktywny', message, [
         { text: 'OK', onPress: () => router.back() },
@@ -161,8 +193,27 @@ export default function NewTrailScreen() {
       setSubmission({ kind: 'idle' });
       return;
     }
+
     setSubmission({ kind: 'error', message });
-  }, [canAdvanceStep1, difficulty, trailType, spotId, trimmed, submit, router]);
+  }, [canAdvanceStep1, difficulty, trailType, spotId, trimmed, submit, router, forceNextCreate]);
+
+  const handleConfirmDifferentTrail = useCallback(() => {
+    // Rider clicked "TO NAPRAWDĘ INNA TRASA" in the Smart Suggest
+    // dialog. Set force flag and re-fire submit. We do NOT reset
+    // submission to 'idle' first because handleStart will do it
+    // immediately ('submitting'); jumping to idle would briefly
+    // render Step 3 again.
+    setForceNextCreate(true);
+    void handleStart();
+  }, [handleStart]);
+
+  const handleOpenExistingTrail = useCallback(
+    (trailId: string) => {
+      tapLight();
+      router.replace({ pathname: '/trail/[id]', params: { id: trailId } });
+    },
+    [router],
+  );
 
   // Render-path auth gate (Codex round 2 P2.2): the useEffect above
   // queues a router.replace('/auth') for anon riders, but the screen
@@ -177,9 +228,16 @@ export default function NewTrailScreen() {
         <View style={styles.header}>
           <TopBar
             onBack={() => router.back()}
-            trailing={<StepDots step={step} />}
+            trailing={step > 0 ? <StepDots step={step} /> : null}
           />
-          <PageTitle title="Dodaj trasę" />
+          <PageTitle
+            title={step === 0 ? 'Trasy w tym parku' : 'Dodaj trasę'}
+            subtitle={
+              step === 0
+                ? 'Wybierz istniejącą trasę albo dodaj nową, jeśli jej nie ma na liście.'
+                : null
+            }
+          />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -188,6 +246,25 @@ export default function NewTrailScreen() {
               <ActivityIndicator color={colors.accent} />
               <Text style={styles.cardTitle}>Tworzę trasę…</Text>
             </View>
+          ) : submission.kind === 'duplicate_hard' ? (
+            <HardDuplicateCard
+              existing={submission.existing}
+              onOpen={() => handleOpenExistingTrail(submission.existing.trailId)}
+              onBackToEdit={() => {
+                setSubmission({ kind: 'idle' });
+                setStep(1);
+              }}
+            />
+          ) : submission.kind === 'duplicate_soft' ? (
+            <SmartSuggestCard
+              suggestions={submission.suggestions}
+              onOpen={(trailId) => handleOpenExistingTrail(trailId)}
+              onConfirmDifferent={handleConfirmDifferentTrail}
+              onBackToEdit={() => {
+                setSubmission({ kind: 'idle' });
+                setStep(1);
+              }}
+            />
           ) : submission.kind === 'error' ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Nie udało się</Text>
@@ -196,6 +273,12 @@ export default function NewTrailScreen() {
                 Spróbuj ponownie
               </Btn>
             </View>
+          ) : step === 0 ? (
+            <Step0Existing
+              trails={existingTrails}
+              loading={existingLoading}
+              onRideExisting={handleOpenExistingTrail}
+            />
           ) : step === 1 ? (
             <Step1
               name={name}
@@ -219,7 +302,11 @@ export default function NewTrailScreen() {
 
         {submission.kind === 'idle' ? (
           <View style={styles.footer}>
-            {step === 1 ? (
+            {step === 0 ? (
+              <Btn variant="primary" onPress={() => setStep(1)}>
+                + Dodaj nową trasę
+              </Btn>
+            ) : step === 1 ? (
               <Btn variant="primary" disabled={!canAdvanceStep1} onPress={() => setStep(2)}>
                 Dalej
               </Btn>
@@ -228,9 +315,15 @@ export default function NewTrailScreen() {
             ) : (
               <Btn variant="primary" onPress={handleStart}>Zacznij zjazd</Btn>
             )}
-            {step > 1 ? (
-              <Pressable onPress={() => setStep((s) => (s - 1) as Step)} hitSlop={8} style={styles.backStep}>
-                <Text style={styles.backStepLabel}>← Krok {step - 1}</Text>
+            {step > 0 ? (
+              <Pressable
+                onPress={() => setStep((s) => (s === 1 ? 0 : (s - 1)) as Step)}
+                hitSlop={8}
+                style={styles.backStep}
+              >
+                <Text style={styles.backStepLabel}>
+                  {step === 1 ? '← Wróć do listy' : `← Krok ${step - 1}`}
+                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -382,6 +475,178 @@ function Step3Summary({
   );
 }
 
+// ─── ADR-012 Phase 1.4 — Step 0 listing + duplicate dialogs ───
+
+function Step0Existing({
+  trails,
+  loading,
+  onRideExisting,
+}: {
+  trails: SpotTrailSummary[];
+  loading: boolean;
+  onRideExisting: (trailId: string) => void;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <ActivityIndicator color={colors.accent} />
+        <Text style={styles.cardBody}>Ładuję trasy w tym parku…</Text>
+      </View>
+    );
+  }
+
+  if (trails.length === 0) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Pionierski park</Text>
+        <Text style={styles.cardBody}>
+          Nikt jeszcze nie dodał tu trasy. Dodaj pierwszą — będziesz Pionierem.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <SectionHead label="Trasy w tym parku" count={trails.length} />
+      {trails.map((t) => (
+        <ExistingTrailCard key={t.trailId} trail={t} onRide={() => onRideExisting(t.trailId)} />
+      ))}
+    </View>
+  );
+}
+
+function ExistingTrailCard({
+  trail,
+  onRide,
+}: {
+  trail: SpotTrailSummary;
+  onRide: () => void;
+}) {
+  // Trust tier dictates the Pill state. Provisional trails (most
+  // post-pioneer rows) read 'pending'; verified reads 'verified'.
+  // Disputed reads 'invalid'. Anything else stays neutral.
+  const pillState =
+    trail.trustTier === 'verified'
+      ? 'verified'
+      : trail.trustTier === 'disputed'
+      ? 'invalid'
+      : trail.trustTier === 'provisional'
+      ? 'pending'
+      : 'neutral';
+  const pillLabel =
+    trail.trustTier === 'verified'
+      ? 'Zweryfikowana'
+      : trail.trustTier === 'disputed'
+      ? 'Spór'
+      : trail.trustTier === 'provisional'
+      ? 'Próbna'
+      : 'Draft';
+
+  const difficultyLabel =
+    DIFFICULTY_OPTIONS.find((d) => d.key === trail.difficulty)?.label ?? trail.difficulty;
+  const typeLabel =
+    TRAIL_TYPE_OPTIONS.find((t) => t.key === trail.trailType)?.label ?? trail.trailType;
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.existingHeader}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{trail.officialName}</Text>
+        <Pill state={pillState} size="sm">{pillLabel}</Pill>
+      </View>
+      <Text style={styles.cardBody}>
+        {difficultyLabel} · {typeLabel}
+        {trail.runsContributed > 0 ? ` · ${trail.runsContributed} zjazdów` : ''}
+        {trail.pioneerUsername ? ` · Pionier: ${trail.pioneerUsername}` : ''}
+      </Text>
+      <View style={styles.existingActions}>
+        <View style={{ flex: 1 }}>
+          <Btn variant="primary" onPress={onRide}>Jedź</Btn>
+        </View>
+        <View style={{ width: 12 }} />
+        <View style={{ flex: 1 }}>
+          <Btn variant="ghost" disabled onPress={() => undefined}>
+            Popraw linię
+          </Btn>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function HardDuplicateCard({
+  existing,
+  onOpen,
+  onBackToEdit,
+}: {
+  existing: CreateTrailSuggestion;
+  onOpen: () => void;
+  onBackToEdit: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Ta trasa już istnieje</Text>
+      <Text style={styles.cardBody}>
+        W tym parku jest już «{existing.officialName}». Możesz na nią wskoczyć
+        zamiast tworzyć nową.
+      </Text>
+      <Btn variant="primary" onPress={onOpen}>
+        Otwórz {existing.officialName}
+      </Btn>
+      <View style={{ height: 8 }} />
+      <Btn variant="ghost" onPress={onBackToEdit}>
+        Wróć i popraw nazwę
+      </Btn>
+    </View>
+  );
+}
+
+function SmartSuggestCard({
+  suggestions,
+  onOpen,
+  onConfirmDifferent,
+  onBackToEdit,
+}: {
+  suggestions: CreateTrailSuggestion[];
+  onOpen: (trailId: string) => void;
+  onConfirmDifferent: () => void;
+  onBackToEdit: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Wygląda jak istniejąca trasa</Text>
+      <Text style={styles.cardBody}>
+        W tym parku jest już:
+      </Text>
+      <View style={{ gap: 8, marginTop: 4 }}>
+        {suggestions.map((s) => (
+          <Pressable
+            key={s.trailId}
+            onPress={() => onOpen(s.trailId)}
+            style={({ pressed }) => [
+              styles.suggestionRow,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={styles.suggestionName} numberOfLines={1}>
+              {s.officialName}
+            </Text>
+            <Text style={styles.suggestionAction}>OTWÓRZ →</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={{ height: 14 }} />
+      <Btn variant="ghost" onPress={onConfirmDifferent}>
+        To naprawdę inna trasa
+      </Btn>
+      <View style={{ height: 8 }} />
+      <Btn variant="ghost" onPress={onBackToEdit}>
+        Wróć i popraw nazwę
+      </Btn>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   header: {
@@ -503,6 +768,41 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
     fontSize: 15,
+  },
+  existingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  existingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    gap: 12,
+  },
+  suggestionName: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontSize: 16,
+    flex: 1,
+  },
+  suggestionAction: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.8,
+    color: colors.accent,
   },
   footer: {
     paddingHorizontal: spacing.pad,

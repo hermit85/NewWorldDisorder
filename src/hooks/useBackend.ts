@@ -887,6 +887,46 @@ export function useCreateTrail() {
 }
 
 /**
+ * useSpotTrails — Step 0 feed for /trail/new (ADR-012 Phase 1.4).
+ *
+ * Returns every trail in the spot regardless of calibration_status,
+ * so the rider can see provisional / verified / draft trails before
+ * deciding whether to ride one or pioneer a new line. Bypasses RLS
+ * via the SECURITY DEFINER `list_spot_trails` RPC.
+ */
+export function useSpotTrails(spotId: string | null) {
+  const [trails, setTrails] = useState<api.SpotTrailSummary[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!spotId) {
+      setTrails([]);
+      setStatus('empty');
+      return;
+    }
+    setStatus('loading');
+    (async () => {
+      const result = await api.listSpotTrails(spotId);
+      if (cancelled) return;
+      if (result.ok) {
+        setTrails(result.data);
+        setStatus(result.data.length === 0 ? 'empty' : 'ok');
+      } else {
+        setTrails([]);
+        setStatus('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [spotId, refreshSignal]);
+
+  return { trails, status, loading: status === 'loading' };
+}
+
+/**
  * Fetch the raw geometry jsonb for a single trail. Kept separate from
  * useTrail so list screens / headers don't pay the payload cost. Used
  * by the run screen to rehydrate gate corridors from Pioneer line.

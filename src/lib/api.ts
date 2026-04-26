@@ -1869,6 +1869,38 @@ export interface CreateTrailParams {
   name: string;
   difficulty: 'easy' | 'medium' | 'hard' | 'expert';
   trailType: 'downhill' | 'flow' | 'tech' | 'jump';
+  /** ADR-012 Phase 1.2: bypass duplicate_base_key soft warn after the
+   *  rider confirms in the Smart Suggest dialog that the candidate
+   *  really is a different physical line. Hard normalized_name unique
+   *  per spot is still enforced. */
+  forceCreate?: boolean;
+}
+
+export interface CreateTrailSuggestion {
+  trailId: string;
+  officialName: string;
+  difficulty: string;
+  trailType: string;
+  calibrationStatus?: string;
+}
+
+export interface SpotTrailSummary {
+  trailId: string;
+  officialName: string;
+  normalizedName: string;
+  duplicateBaseKey: string;
+  difficulty: string;
+  trailType: string;
+  calibrationStatus: string;
+  trustTier: 'provisional' | 'verified' | 'disputed' | null;
+  isActive: boolean;
+  distanceM: number;
+  runsContributed: number;
+  uniqueConfirmingRidersCount: number;
+  currentVersionId: string | null;
+  pioneerUserId: string | null;
+  pioneerUsername: string | null;
+  aliases: string[];
 }
 
 export interface PioneerGeometryPoint {
@@ -1931,6 +1963,9 @@ const CREATE_TRAIL_ERRORS: Record<string, string> = {
   invalid_difficulty: 'Nieprawidłowa trudność',
   invalid_trail_type: 'Nieprawidłowy typ trasy',
   duplicate_name_in_spot: 'Trasa o tej nazwie już istnieje w tym bike parku',
+  // Soft warn from ADR-012 — UI handles via the Smart Suggest dialog,
+  // not a flat error toast.
+  name_suggests_existing: 'Wygląda jak istniejąca trasa',
   rpc_failed: 'Nie udało się utworzyć trasy. Spróbuj ponownie.',
 };
 
@@ -1956,25 +1991,123 @@ function polishError(code: string, map: Record<string, string>): ApiErr {
 }
 
 // ── createTrail ──
+//
+// ADR-012 Phase 1.2: server can return three semantically distinct
+// failures we map to discriminated client results:
+//   - duplicate_name_in_spot: hard collision on normalized_name; the
+//     conflicting trail row comes back in `existing` so the UI
+//     routes to "OTWÓRZ Kometa" without a second round-trip.
+//   - name_suggests_existing: soft warn on duplicate_base_key; the
+//     `suggestions` array drives the Smart Suggest dialog, where
+//     the rider can pick "OTWÓRZ" or confirm "TO INNA TRASA" (the
+//     latter retries with forceCreate=true).
+//   - any other: the legacy polish-error shape.
+
+export type CreateTrailResult =
+  | { ok: true; data: { trailId: string } }
+  | {
+      ok: false;
+      code: 'duplicate_name_in_spot';
+      message: string;
+      existing: CreateTrailSuggestion;
+    }
+  | {
+      ok: false;
+      code: 'name_suggests_existing';
+      message: string;
+      suggestions: CreateTrailSuggestion[];
+    }
+  | { ok: false; code: string; message: string };
+
+function mapCreateTrailSuggestion(raw: any): CreateTrailSuggestion {
+  return {
+    trailId: raw?.trail_id ?? '',
+    officialName: raw?.official_name ?? '',
+    difficulty: raw?.difficulty ?? '',
+    trailType: raw?.trail_type ?? '',
+    calibrationStatus: raw?.calibration_status,
+  };
+}
 
 export async function createTrail(
   params: CreateTrailParams,
-): Promise<ApiResult<{ trailId: string }>> {
+): Promise<CreateTrailResult> {
   const { data, error } = await db().rpc('create_trail', {
     p_spot_id: params.spotId,
     p_name: params.name,
     p_difficulty: params.difficulty,
     p_trail_type: params.trailType,
+    p_force_create: params.forceCreate ?? false,
   });
 
   if (error) {
-    return polishError('rpc_failed', CREATE_TRAIL_ERRORS);
+    return {
+      ok: false,
+      code: 'rpc_failed',
+      message: CREATE_TRAIL_ERRORS.rpc_failed ?? 'Błąd',
+    };
   }
   const res = data as any;
   if (res?.ok === true) {
     return { ok: true, data: { trailId: res.trail_id as string } };
   }
-  return polishError(res?.code ?? 'rpc_failed', CREATE_TRAIL_ERRORS);
+
+  const code = res?.code ?? 'rpc_failed';
+  const message =
+    CREATE_TRAIL_ERRORS[code] ?? CREATE_TRAIL_ERRORS.rpc_failed ?? 'Błąd';
+
+  if (code === 'duplicate_name_in_spot' && res?.existing) {
+    return {
+      ok: false,
+      code,
+      message,
+      existing: mapCreateTrailSuggestion(res.existing),
+    };
+  }
+
+  if (code === 'name_suggests_existing' && Array.isArray(res?.suggestions)) {
+    return {
+      ok: false,
+      code,
+      message,
+      suggestions: res.suggestions.map(mapCreateTrailSuggestion),
+    };
+  }
+
+  return { ok: false, code, message };
+}
+
+// ── listSpotTrails — Step 0 feed for trail/new ──
+
+export async function listSpotTrails(
+  spotId: string,
+): Promise<ApiResult<SpotTrailSummary[]>> {
+  const { data, error } = await db().rpc('list_spot_trails', {
+    p_spot_id: spotId,
+  });
+  if (error) {
+    return { ok: false, code: 'fetch_failed', message: error.message };
+  }
+  const rows = (data as any[] | null) ?? [];
+  const trails: SpotTrailSummary[] = rows.map((r) => ({
+    trailId: r.trail_id,
+    officialName: r.official_name,
+    normalizedName: r.normalized_name,
+    duplicateBaseKey: r.duplicate_base_key,
+    difficulty: r.difficulty,
+    trailType: r.trail_type,
+    calibrationStatus: r.calibration_status,
+    trustTier: r.trust_tier ?? null,
+    isActive: !!r.is_active,
+    distanceM: r.distance_m ?? 0,
+    runsContributed: r.runs_contributed ?? 0,
+    uniqueConfirmingRidersCount: r.unique_confirming_riders_count ?? 0,
+    currentVersionId: r.current_version_id ?? null,
+    pioneerUserId: r.pioneer_user_id ?? null,
+    pioneerUsername: r.pioneer_username ?? null,
+    aliases: Array.isArray(r.aliases) ? r.aliases : [],
+  }));
+  return { ok: true, data: trails };
 }
 
 // ── fetchTrailGeometry — lean path for run-screen rehydration ──
