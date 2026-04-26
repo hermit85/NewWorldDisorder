@@ -217,3 +217,36 @@ Time is **never** wall-clock from START tap to STOP tap. Time = `finish_gate.cro
 **Consequences**: Larger refactor than any prior ADR — touches `trails`, `runs`, `finalize_pioneer_run`, the trail/new flow, the leaderboard query, and ships new tables (`trail_geometry_versions`, `run_points`, `trail_name_aliases`, `route_review_queue`). Each phase ships independently and delivers value alone, but Phase 1 is non-negotiable before any further user growth — without `normalized_name` + geo-overlap auto-merge, every new rider adds entropy to the trail catalog faster than Phase 2+ can clean it.
 
 Pre-ADR data: existing 4 Słotwiny trails (Gałgan / Dookoła Świata / Kometa / Dzida) keep their adhoc geometry as Phase 1 ships, then re-enter the lifecycle as `provisional` once the verification tracks land. Curator GPX import (Track C) is the long-term right answer; until then, pioneer + crowd verification carries the load.
+
+---
+
+## ADR-013 — E2E framework: Detox over Playwright (with Playwright reserved for the web preview)
+
+**Status**: Accepted (2026-04-26, audit follow-up).
+
+**Context**: Audit identified a hard gap — zero E2E tests cover the most failure-prone paths of NWD: anon → onboarding → auth → first ride → submit → leaderboard, Pioneer geo-overlap auto-merge (Phase 1.3), Smart Suggest two-tier reject (Phase 1.4), crowd-verify Track A flip (Phase 2.2), crossing-based timing (Phase 3), curator import + merge + admin queue (Phase 4). All five flows touch native modules (background location, foreground GPS sampling, haptics, secure auth, deep link callbacks, AsyncStorage hydration). The unit suite + RPC mocks pin business logic but do not catch native-bridge regressions or layout shifts on real device chrome.
+
+**Two candidates**:
+
+1. **Playwright** — Microsoft's web-and-mobile e2e tool. Mature, parallel by default, excellent debugging UX, widely adopted outside RN. Native-mobile support via Appium / WebDriver bridge.
+2. **Detox** — Wix's e2e tool purpose-built for React Native. Synchronous-by-default test runner that waits on RN's bridge / Reanimated frames automatically. Drives the real iOS Simulator + Android Emulator.
+
+**Decision**: Adopt **Detox as primary** for the iOS app (and later Android). Reserve **Playwright for the `nwd-web` preview** if/when web ever ships as a real surface (today it is dev-only).
+
+**Rationale (Detox over Playwright for the mobile app)**:
+- *Native-bridge awareness*. Detox knows when the RN bridge is busy (Reanimated frame in flight, fetch pending, AsyncStorage write debounced). Playwright via Appium polls; Detox waits. NWD relies on Reanimated for the gate/HUD animations, the run timer's tabular-nums hero, and the pulsing armed dot — Playwright introduces flake on these.
+- *Real iOS Simulator coverage*. Detox runs against the same simulator we use during development (already booted in this session). Playwright/Appium needs a separate WebDriver session and re-installs the app on each suite. With our Sentry session-replay + native frames tracking, identical simulator surface matters.
+- *Background location story*. Phase 1 shipped `armRankedWithPreflight` (always-location permission preflight). This is a native modal. Detox can detect + auto-accept system dialogs via `device.launchApp({ permissions: { location: 'always' } })`. Playwright via Appium can do this too but with brittle selectors.
+- *Maintainer alignment*. Detox is RN-native; the project tracks Expo SDK upgrades. Playwright's mobile path is a Microsoft side-project — RN compatibility is best-effort.
+- *Setup cost is the same*. Both need a CI matrix with iOS Simulator. Detox additionally needs a debug build of the app (we already produce one for Expo Go testing).
+
+**Why Playwright doesn't disappear entirely**: the `nwd-web` preview at port 8089 is real and sometimes ships UI fixes that the audit can verify in-browser (we used it in this session for /admin/queue auth gate, /trail/new Step 0 dialog scaffolding, /help canonical migration). When the web preview becomes a public surface (rider invite landing, season recap pages), Playwright is the right tool there. Until then it's a "we know how to add it later" reservation.
+
+**Phase plan (Detox)**:
+1. Install Detox + a single smoke spec (anon → /onboarding → tap "WEJDŹ DO LIGI" 3× → /auth) within an iOS dev build. Goal: prove the harness works end to end.
+2. Add Pioneer happy-path: /trail/new → fill Step 1 → tap "ZACZNIJ ZJAZD" → mock GPS via `device.setLocation` → finish_gate cross → /run/result.
+3. Add the auto-merge regression: prep DB with a canonical Kometa, replay GPS that hits Kometa's line within 25 m → assert `auto_merged=true` payload + DB `runs.matched_geometry_version_id` points at Kometa.
+4. Two-tier name guard: `Kometa 2` → Smart Suggest dialog visible → "TO INNA TRASA" → re-fire with forceCreate=true.
+5. Crowd-verify Track A: prepare 3 distinct rider sessions (3 simulator profiles), each rides → assert trust_tier flips from `provisional` to `verified`.
+
+**Consequences**: ~1 day setup (Detox config + iOS Simulator pinned via xcrun simctl), ongoing CI cost ~2-3 minutes per spec on a green run. Each new ADR phase carries a "+1 e2e spec" expectation in its definition of done. The unit tests (currently 150) still cover business logic; Detox covers native-bridge and integration. Playwright stays parked as `docs/decisions` reference until a public web surface ships.
