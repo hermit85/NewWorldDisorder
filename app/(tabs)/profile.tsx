@@ -21,6 +21,7 @@ import {
   Card,
   IconGlyph,
   type IconName,
+  RiderIdCard,
   SectionHead,
   StatBox as NwdStatBox,
 } from '@/components/nwd';
@@ -214,41 +215,42 @@ export default function ProfileScreen() {
           </Card>
         ) : (
           <>
-            {/* Player card */}
-            <View style={styles.playerCard}>
-              {/* Avatar — tappable */}
-              <Pressable onPress={handleAvatarPress} style={styles.avatarWrap}>
-                {avatarLoading ? (
-                  <View style={[styles.avatarContainer, { borderColor: rank.color }]}>
-                    <ActivityIndicator size="small" color={colors.accent} />
+            {/* Sprint 5 — RIDER ID CARD hero. The rider's passport
+                replaces the inline "avatar + name + level" stack with
+                a single composed primitive: breathing accent ring,
+                Rajdhani 40px tag, rank+level row, optional meta line.
+                Avatar is passed as a node so the upload/edit Pressable
+                stays interactive (single-source identity flow). */}
+            <RiderIdCard
+              avatar={
+                <Pressable onPress={handleAvatarPress} style={styles.avatarWrap}>
+                  {avatarLoading ? (
+                    <View style={[styles.avatarContainer, { borderColor: rank.color }]}>
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    </View>
+                  ) : (
+                    <RiderAvatar
+                      avatarUrl={user?.avatarUrl}
+                      username={user?.username ?? 'R'}
+                      size={96}
+                      borderColor={rank.color}
+                    />
+                  )}
+                  <View style={styles.avatarEditBadge}>
+                    <Text style={styles.avatarEditIcon}>
+                      {user?.avatarUrl ? '✎' : '+'}
+                    </Text>
                   </View>
-                ) : (
-                  <RiderAvatar
-                    avatarUrl={user?.avatarUrl}
-                    username={user?.username ?? 'R'}
-                    size={88}
-                    borderColor={rank.color}
-                  />
-                )}
-                <View style={styles.avatarEditBadge}>
-                  <Text style={styles.avatarEditIcon}>
-                    {user?.avatarUrl ? '✎' : '+'}
-                  </Text>
-                </View>
-              </Pressable>
+                </Pressable>
+              }
+              riderTag={user?.username ?? 'rider'}
+              rankLabel={rank.name}
+              level={getLevel(user?.xp ?? 0)}
+              meta={`Sezon 01 · Beta · ${user?.totalRuns ?? 0} zjazdów`}
+              ringColor={rank.color}
+            />
 
-              <Text style={styles.username}>{user?.username ?? 'Rider'}</Text>
-
-              {/* Level + Rank */}
-              <View style={styles.levelRow}>
-                <View style={styles.levelBadge}>
-                  <Text style={styles.levelNumber}>{getLevel(user?.xp ?? 0)}</Text>
-                </View>
-                <Text style={[styles.rankTitle, { color: rank.color }]}>
-                  {rank.name}
-                </Text>
-              </View>
-
+            <View style={styles.playerCard}>
               {/* XP bar — shows progress to next level */}
               {(() => {
                 const lp = getLevelProgress(user?.xp ?? 0);
