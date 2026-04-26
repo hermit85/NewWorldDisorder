@@ -39,13 +39,17 @@ export function initSaveQueue(): void {
   flushSaveQueue();
 }
 
-/** Manually trigger retry of all queued/failed saves */
-export async function flushSaveQueue(): Promise<{ retried: number; succeeded: number }> {
+/** Trigger retry of all queued/failed saves. Manual UI calls can ignore cooldown. */
+export async function flushSaveQueue(
+  options: { ignoreCooldown?: boolean } = {},
+): Promise<{ retried: number; succeeded: number }> {
   if (_retrying) return { retried: 0, succeeded: 0 };
   if (!isBackendConfigured()) return { retried: 0, succeeded: 0 };
 
   const now = Date.now();
-  if (now - _lastRetryAt < getRetryCooldown()) return { retried: 0, succeeded: 0 };
+  if (!options.ignoreCooldown && now - _lastRetryAt < getRetryCooldown()) {
+    return { retried: 0, succeeded: 0 };
+  }
 
   _retrying = true;
   _lastRetryAt = now;

@@ -30,6 +30,7 @@ import { HeroCard } from '@/components/ui/HeroCard';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { XPBar } from '@/components/ui/XPBar';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
+import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
 import {
   Btn,
   Card,
@@ -183,11 +184,11 @@ export default function HomeScreen() {
               <Text style={styles.brand}>NWD</Text>
               <Text style={styles.brandSub}>LIGA GRAVITY</Text>
             </View>
-            <Pill state="neutral" size="md">Sezon 01</Pill>
+            <Pill state="neutral" size="md">Beta</Pill>
           </View>
 
           <Card hi glow padding={20} style={styles.anonCard}>
-            <Pill state="accent">Sezon 01 · Słotwiny</Pill>
+            <Pill state="accent">Sezon 1 · Słotwiny</Pill>
             <Text style={styles.anonTitle}>Dołącz do ligi</Text>
             <Text style={styles.anonBody}>
               Stwórz rider tag, zapisuj zjazdy, walcz o miejsce na tablicy.
@@ -242,6 +243,8 @@ export default function HomeScreen() {
             />
           </Pressable>
         </View>
+
+        <SyncOutboxCard />
 
         {(() => {
           const hasHeroBeat = !!heroBeat;
