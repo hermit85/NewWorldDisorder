@@ -74,11 +74,12 @@ export { RiderIdCard } from './profile';
 export type { RiderIdCardProps } from './profile';
 
 // Feed primitives — drama / event surfaces.
-export { LiveTicker, MOCK_TICKER_EVENTS } from './feed';
+export { LiveTicker, MOCK_TICKER_EVENTS, HeadToHeadCard } from './feed';
 export type {
   LiveTickerProps,
   LiveTickerEvent,
   LiveTickerEventKind,
+  HeadToHeadCardProps,
 } from './feed';
 
 // Brand primitives — chrome for non-tab screens (Auth, Help, Settings).
