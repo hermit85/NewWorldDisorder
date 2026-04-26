@@ -3,13 +3,20 @@
 //
 // Retries failed/queued saves automatically on:
 // - App launch (after hydration)
-// - Network restore (AppState 'active')
+// - App foreground (AppState 'active')
+// - True offline → online connectivity edge (NetInfo)
 // - Manual trigger
+//
+// AppState alone misses the case where the rider stays inside the app
+// (mounted + foreground) while leaving / re-entering signal. NetInfo
+// closes that gap; both listeners are kept because NetInfo can lag on
+// some devices and an AppState tick is a useful belt-and-braces.
 //
 // Uses canonical retryRunSubmit() — same path as manual retry.
 // ═══════════════════════════════════════════════════════════
 
 import { AppState, AppStateStatus } from 'react-native';
+import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import { getRetryableRuns, getPendingSaveCount } from './runStore';
 import { isBackendConfigured } from '@/hooks/useBackend';
 import { logDebugEvent } from './debugEvents';
@@ -19,6 +26,12 @@ import { retryRunSubmit } from './retrySubmit';
 
 let _retrying = false;
 let _appStateListener: { remove: () => void } | null = null;
+let _netInfoUnsubscribe: (() => void) | null = null;
+// Track last known offline state so we only flush on a real offline → online
+// edge. NetInfo fires immediately on subscribe with the current state, and
+// we don't want to flush on every connectivity tick — only when the rider
+// actually came back into signal.
+let _wasOffline = false;
 let _lastRetryAt = 0;
 let _consecutiveFailures = 0;
 
@@ -35,6 +48,9 @@ function getRetryCooldown(): number {
 export function initSaveQueue(): void {
   if (!_appStateListener) {
     _appStateListener = AppState.addEventListener('change', handleAppStateChange);
+  }
+  if (!_netInfoUnsubscribe) {
+    _netInfoUnsubscribe = NetInfo.addEventListener(handleConnectivityChange);
   }
   flushSaveQueue();
 }
@@ -106,5 +122,27 @@ export function getSaveQueueStatus(): {
 function handleAppStateChange(state: AppStateStatus): void {
   if (state === 'active') {
     flushSaveQueue();
+  }
+}
+
+function handleConnectivityChange(state: NetInfoState): void {
+  // isConnected can be null while NetInfo is still resolving the initial
+  // state; treat that as a no-op rather than guessing.
+  if (state.isConnected === null) return;
+
+  if (state.isConnected === false) {
+    _wasOffline = true;
+    return;
+  }
+
+  // Online. Only flush if we transitioned from a confirmed-offline state —
+  // skips the immediate fire-on-subscribe case when the app boots online.
+  // ignoreCooldown because the previous backoff was driven by being offline,
+  // and signal-just-returned is exactly when we want to retry now, not in
+  // 30s.
+  if (_wasOffline) {
+    _wasOffline = false;
+    logDebugEvent('queue', 'flush_on_reconnect', 'info');
+    void flushSaveQueue({ ignoreCooldown: true });
   }
 }
