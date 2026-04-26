@@ -81,9 +81,15 @@ const styles = StyleSheet.create({
   bigNumber: {
     fontFamily: fonts.racing,
     fontSize: 44,
-    lineHeight: 48,
+    // lineHeight === fontSize crushes the 4px asymmetric leading
+    // Rajdhani gets at this size; alignItems: 'center' on the parent
+    // then lands the glyph on the card's true vertical center.
+    lineHeight: 44,
     letterSpacing: -1,
     color: colors.accent,
+    // Same optical-center correction as RankBadge.
+    marginTop: 2,
+    includeFontPadding: false,
   },
   copyBlock: {
     gap: 2,
