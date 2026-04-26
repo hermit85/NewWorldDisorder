@@ -2,11 +2,11 @@
 // Pomoc / Zasady / FAQ / support — single entry point from the
 // Rider tab's POMOC link.
 //
-// Visual pass (post-B20 review): the earlier screen mixed legacy
-// `colors.bgCard` shells with chunk9 SectionHeaders, which read
-// as "old app, new app" side by side. Now uses the chunk9 dark /
-// emerald / hairline system end-to-end so the screen feels like
-// the rest of the tabs.
+// Canonical migration: dropped ui/SectionHeader + ui/Divider in
+// favour of nwd/ TopBar, PageTitle, SectionHead, Card, Btn, Pill.
+// Glyph decorations (✦/?/✉) removed per § 13.5 — section labels
+// carry their own meaning, no IconGlyph mapping fits the FAQ /
+// Kontakt semantics so the slot stays empty.
 // ═══════════════════════════════════════════════════════════
 
 import { useState } from 'react';
@@ -21,11 +21,10 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LEGAL } from '@/constants/legal';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { Divider } from '@/components/ui/Divider';
+import { Btn, Card, PageTitle, Pill, SectionHead, TopBar } from '@/components/nwd';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
+import { spacing } from '@/theme/spacing';
 
 interface FAQ {
   q: string;
@@ -85,104 +84,75 @@ export default function HelpScreen() {
           { paddingBottom: insets.bottom + 32 },
         ]}
       >
-        <View style={styles.headerRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Wróć"
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            hitSlop={12}
-          >
-            <Text style={styles.backGlyph}>←</Text>
-          </Pressable>
-          <Text style={styles.seasonBadge}>SEZON 01</Text>
-        </View>
+        <TopBar
+          onBack={() => router.back()}
+          trailing={<Pill state="verified" size="sm">SEZON 01</Pill>}
+        />
 
-        <View style={styles.identityBlock}>
-          <Text style={styles.kicker}>✦ PRZEWODNIK</Text>
-          <Text style={styles.title}>Jak działa NWD</Text>
-          <Text style={styles.subtitle}>
-            Zasady ligi, najczęstsze pytania i wsparcie — w jednym miejscu.
-          </Text>
-        </View>
+        <PageTitle
+          kicker="Przewodnik"
+          title="Jak działa NWD"
+          subtitle="Zasady ligi, najczęstsze pytania i wsparcie — w jednym miejscu."
+        />
 
         {/* ── Zasady ─────────────────────────────────────────── */}
-        <SectionHeader
-          label="Zasady"
-          glyph="✦"
-          glyphColor={colors.accent}
-          spacingTop="lg"
-        />
-        <View style={styles.rulesBlock}>
-          {RULES.map((rule) => (
-            <View key={rule.index} style={styles.ruleRow}>
-              <Text style={styles.ruleIndex}>{rule.index}</Text>
-              <Text style={styles.ruleText}>{rule.text}</Text>
-            </View>
-          ))}
+        <View style={styles.section}>
+          <SectionHead label="Zasady" />
+          <View style={styles.rulesBlock}>
+            {RULES.map((rule) => (
+              <View key={rule.index} style={styles.ruleRow}>
+                <Text style={styles.ruleIndex}>{rule.index}</Text>
+                <Text style={styles.ruleText}>{rule.text}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* ── FAQ ────────────────────────────────────────────── */}
-        <SectionHeader
-          label="Pytania"
-          glyph="?"
-          glyphColor={colors.textSecondary}
-          meta={String(FAQS.length)}
-          spacingTop="xl"
-        />
-        <View style={styles.faqBlock}>
-          {FAQS.map((faq, i) => {
-            const open = openFaq === i;
-            return (
-              <Pressable
-                key={i}
-                accessibilityRole="button"
-                accessibilityLabel={`${faq.q}, ${open ? 'zwiń' : 'rozwiń'}`}
-                accessibilityState={{ expanded: open }}
-                onPress={() => setOpenFaq(open ? null : i)}
-                style={({ pressed }) => [
-                  styles.faqItem,
-                  open && styles.faqItemOpen,
-                  pressed && styles.faqItemPressed,
-                ]}
-              >
-                <View style={styles.faqHeader}>
-                  <Text style={styles.faqQ}>{faq.q}</Text>
-                  <Text style={[styles.faqCaret, open && styles.faqCaretOpen]}>
-                    {open ? '−' : '+'}
-                  </Text>
-                </View>
-                {open ? <Text style={styles.faqA}>{faq.a}</Text> : null}
-              </Pressable>
-            );
-          })}
+        <View style={styles.section}>
+          <SectionHead label="Pytania" count={FAQS.length} />
+          <View style={styles.faqBlock}>
+            {FAQS.map((faq, i) => {
+              const open = openFaq === i;
+              return (
+                <Card
+                  key={i}
+                  glow={open}
+                  onPress={() => setOpenFaq(open ? null : i)}
+                  padding={16}
+                >
+                  <View style={styles.faqHeader}>
+                    <Text style={styles.faqQ}>{faq.q}</Text>
+                    <Text style={[styles.faqCaret, open && styles.faqCaretOpen]}>
+                      {open ? '−' : '+'}
+                    </Text>
+                  </View>
+                  {open ? <Text style={styles.faqA}>{faq.a}</Text> : null}
+                </Card>
+              );
+            })}
+          </View>
         </View>
 
         {/* ── Support ────────────────────────────────────────── */}
-        <SectionHeader
-          label="Kontakt"
-          glyph="✉"
-          glyphColor={colors.textSecondary}
-          spacingTop="xl"
-        />
-        <View style={styles.supportBlock}>
-          <Text style={styles.supportBody}>
-            Utknąłeś albo coś nie gra? Napisz — odpowiadamy w 24h.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Napisz na ${LEGAL.supportEmail}`}
-            onPress={() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)}
-            style={({ pressed }) => [
-              styles.supportCta,
-              pressed && styles.supportCtaPressed,
-            ]}
-          >
-            <Text style={styles.supportCtaLabel}>{LEGAL.supportEmail}</Text>
-          </Pressable>
+        <View style={styles.section}>
+          <SectionHead label="Kontakt" />
+          <Card>
+            <Text style={styles.supportBody}>
+              Utknąłeś albo coś nie gra? Napisz — odpowiadamy w 24h.
+            </Text>
+            <View style={styles.supportCtaRow}>
+              <Btn
+                variant="ghost"
+                size="sm"
+                fullWidth={false}
+                onPress={() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)}
+              >
+                {LEGAL.supportEmail}
+              </Btn>
+            </View>
+          </Card>
         </View>
-
-        <Divider variant="strong" />
 
         {/* ── Legal / meta ───────────────────────────────────── */}
         <View style={styles.legalRow}>
@@ -207,7 +177,7 @@ export default function HelpScreen() {
             <Text style={styles.legalLinkText}>WSPARCIE</Text>
           </Pressable>
         </View>
-        <Text style={styles.footerStamp}>NWD · Sezon 01 · Słotwiny Arena</Text>
+        <Text style={styles.footerStamp}>NWD · SEZON 01 · SŁOTWINY ARENA</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -220,55 +190,10 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: spacing.pad,
+    gap: spacing.lg,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 8,
-    marginBottom: 18,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backGlyph: {
-    ...typography.title,
-    fontSize: 18,
-    color: colors.textPrimary,
-    lineHeight: 18,
-  },
-  seasonBadge: {
-    ...typography.label,
-    color: colors.accent,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  identityBlock: {
-    marginBottom: 6,
-    gap: 6,
-  },
-  kicker: {
-    ...typography.label,
-    color: colors.accent,
-    letterSpacing: 2.4,
-  },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 20,
+  section: {
+    gap: spacing.sm,
   },
   rulesBlock: {
     gap: 4,
@@ -285,6 +210,9 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.accent,
     width: 28,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    letterSpacing: 1,
   },
   ruleText: {
     ...typography.body,
@@ -295,20 +223,6 @@ const styles = StyleSheet.create({
   },
   faqBlock: {
     gap: 8,
-  },
-  faqItem: {
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.panel,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  faqItemOpen: {
-    borderColor: colors.accent,
-  },
-  faqItemPressed: {
-    opacity: 0.8,
   },
   faqHeader: {
     flexDirection: 'row',
@@ -325,11 +239,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   faqCaret: {
-    ...typography.title,
-    fontSize: 20,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 22,
     color: colors.textTertiary,
-    lineHeight: 20,
-    width: 20,
+    lineHeight: 22,
+    width: 22,
     textAlign: 'center',
   },
   faqCaretOpen: {
@@ -341,36 +255,14 @@ const styles = StyleSheet.create({
     marginTop: 10,
     lineHeight: 20,
   },
-  supportBlock: {
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.panel,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    gap: 14,
-  },
   supportBody: {
     ...typography.body,
     color: colors.textSecondary,
     lineHeight: 20,
+    marginBottom: spacing.sm,
   },
-  supportCta: {
-    alignSelf: 'flex-start',
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-  },
-  supportCtaPressed: {
-    opacity: 0.7,
-  },
-  supportCtaLabel: {
-    ...typography.label,
-    color: colors.accent,
-    fontSize: 12,
-    letterSpacing: 2,
+  supportCtaRow: {
+    flexDirection: 'row',
   },
   legalRow: {
     flexDirection: 'row',
@@ -378,7 +270,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
+    marginTop: spacing.md,
   },
   legalLink: {
     paddingVertical: 6,
@@ -397,7 +289,7 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.textTertiary,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 8,
     letterSpacing: 2.4,
   },
 });
