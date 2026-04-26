@@ -169,4 +169,33 @@ describe('runStore', () => {
       expect(store.getFinalizedRun('queued-orphan')).toBeDefined();
     });
   });
+
+  it('keeps unsynced runs when saved history exceeds retention', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const store = await loadRunStore();
+      await store.hydrateRunStore();
+
+      for (let i = 0; i < 55; i++) {
+        store.setFinalizedRun(
+          makeFinalizedRun({
+            sessionId: `saved-${i}`,
+            saveStatus: 'saved',
+          }),
+        );
+      }
+      store.setFinalizedRun(makeFinalizedRun({ sessionId: 'queued-safe', saveStatus: 'queued' }));
+      store.setFinalizedRun(makeFinalizedRun({ sessionId: 'failed-safe', saveStatus: 'failed' }));
+      await store.flushRunStorePersistence();
+
+      const runs = store.getAllFinalizedRuns();
+      expect(runs.filter((run) => run.saveStatus === 'saved')).toHaveLength(50);
+      expect(store.getFinalizedRun('queued-safe')).toBeDefined();
+      expect(store.getFinalizedRun('failed-safe')).toBeDefined();
+
+      const persisted = (await readStorage()) as { sessionId: string; saveStatus: string }[];
+      expect(persisted.filter((run) => run.saveStatus === 'saved')).toHaveLength(50);
+      expect(persisted.some((run) => run.sessionId === 'queued-safe')).toBe(true);
+      expect(persisted.some((run) => run.sessionId === 'failed-safe')).toBe(true);
+    });
+  });
 });

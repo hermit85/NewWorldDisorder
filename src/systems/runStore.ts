@@ -51,7 +51,7 @@ export interface FinalizedRun {
 // ── Storage keys ──
 
 const STORAGE_KEY = '@nwd:finalized_runs';
-const MAX_STORED_RUNS = 15;
+const MAX_STORED_SAVED_RUNS = 50;
 
 // ── In-memory hot cache ──
 // _runCache: primary data store, keyed by sessionId. Writes go here + AsyncStorage.
@@ -81,9 +81,7 @@ let _persistInFlight: Promise<void> | null = null;
 
 async function writeToStorage(): Promise<void> {
   try {
-    const entries = Array.from(_runCache.values())
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, MAX_STORED_RUNS);
+    const entries = getRetainedRunsForPersistence();
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   } catch (e) {
     console.warn('[NWD] runStore persist failed:', e);
@@ -157,13 +155,27 @@ export function createRunSessionId(): string {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Evict oldest runs if store exceeds limit */
+function isSyncedHistoryRun(run: FinalizedRun): boolean {
+  return run.saveStatus === 'saved';
+}
+
+function getRetainedRunsForPersistence(): FinalizedRun[] {
+  const runs = Array.from(_runCache.values())
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const unsynced = runs.filter((run) => !isSyncedHistoryRun(run));
+  const saved = runs
+    .filter(isSyncedHistoryRun)
+    .slice(0, MAX_STORED_SAVED_RUNS);
+  return [...unsynced, ...saved].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/** Evict oldest saved history if store exceeds limit; never evict unsynced runs. */
 function evictOldest(): void {
-  if (_runCache.size <= MAX_STORED_RUNS) return;
-  const sorted = Array.from(_runCache.entries())
+  const saved = Array.from(_runCache.entries())
+    .filter(([, run]) => isSyncedHistoryRun(run))
     .sort((a, b) => a[1].updatedAt - b[1].updatedAt);
-  while (_runCache.size > MAX_STORED_RUNS && sorted.length > 0) {
-    const oldest = sorted.shift();
+  while (saved.length > MAX_STORED_SAVED_RUNS) {
+    const oldest = saved.shift();
     if (oldest) _runCache.delete(oldest[0]);
   }
 }
