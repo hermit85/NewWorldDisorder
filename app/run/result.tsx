@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { Btn } from '@/components/nwd';
+import { Btn, SectionHead } from '@/components/nwd';
 import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
@@ -24,7 +24,6 @@ import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionT
 import { getFinalizedRun, subscribeFinalizedRun } from '@/systems/runStore';
 import { retryRunSubmit } from '@/systems/retrySubmit';
 import { promoteRunAsBaseline } from '@/lib/api';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useResultImpact, ScopeImpact, useProfile } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
@@ -756,12 +755,7 @@ function StandardResultScreen() {
         {/* ═══ LEAGUE IMPACT — scoped positions ═══ */}
         {scopedImpact.length > 0 && isSaved && (
           <View style={styles.impactSection}>
-            <SectionHeader
-              label="Pozycja w lidze"
-              glyph="▲"
-              glyphColor={colors.textSecondary}
-              spacingTop="none"
-            />
+            <SectionHead label="Pozycja w lidze" />
             <View style={styles.impactGrid}>
               {scopedImpact.map((s) => (
                 <ScopeImpactChip key={s.scope} impact={s} />
@@ -774,12 +768,7 @@ function StandardResultScreen() {
         <View style={styles.divider} />
 
         {/* ═══ CTAs ═══ */}
-        <SectionHeader
-          label="Co dalej"
-          glyph="→"
-          glyphColor={colors.textSecondary}
-          spacingTop="none"
-        />
+        <SectionHead label="Co dalej" />
         {isOrphan ? (
           // Orphan recovery: the trail/spot was deleted server-side after
           // this run was submitted. The time + PB + rank metadata are all
