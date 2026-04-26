@@ -7,3 +7,6 @@
 
 export { LiveDot } from './LiveDot';
 export type { LiveDotProps, LiveDotMode } from './LiveDot';
+
+export { NWDHeader } from './NWDHeader';
+export type { NWDHeaderProps, NWDHeaderRightContext } from './NWDHeader';
