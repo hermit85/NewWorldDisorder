@@ -28,10 +28,10 @@ import Animated, {
 import Svg, {
   Circle,
   Defs,
-  LinearGradient,
   Line,
   Path,
-  Stop,
+  Pattern,
+  Rect,
 } from 'react-native-svg';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
@@ -82,11 +82,14 @@ export const GateSchematic = memo(function GateSchematic() {
     <View style={styles.container}>
       <Svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} style={StyleSheet.absoluteFillObject}>
         <Defs>
-          <LinearGradient id="corridorHalo" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={colors.accent} stopOpacity="0.6" />
-            <Stop offset="100%" stopColor={colors.accentDeep} stopOpacity="0.4" />
-          </LinearGradient>
+          {/* Subtle HUD scan-line pattern over the canvas */}
+          <Pattern id="scanLines" x="0" y="0" width="3" height="3" patternUnits="userSpaceOnUse">
+            <Rect width="3" height="0.5" fill={colors.textPrimary} fillOpacity="0.04" />
+          </Pattern>
         </Defs>
+
+        {/* Scan-line overlay (drawn first so it sits behind everything else) */}
+        <Rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill="url(#scanLines)" />
 
         {/* Corner brackets (4) — 14×14 with stroke 1.6 hairline */}
         <CornerBracket x={20} y={20} variant="tl" />
@@ -94,11 +97,11 @@ export const GateSchematic = memo(function GateSchematic() {
         <CornerBracket x={20} y={VIEW_H - 34} variant="bl" />
         <CornerBracket x={VIEW_W - 34} y={VIEW_H - 34} variant="br" />
 
-        {/* Corridor halo — outer 44px gradient stroke @ 0.6 */}
-        <Path d={CORRIDOR_D} stroke="url(#corridorHalo)" strokeWidth={44} strokeLinecap="round" fill="none" />
+        {/* Corridor halo — 44px solid accent @ 0.10 (RN-svg gradient was rendering as solid green banana on iOS) */}
+        <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.10} strokeWidth={44} strokeLinecap="round" fill="none" />
 
-        {/* Corridor fill — 36px accent @ 0.12 */}
-        <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.12} strokeWidth={36} strokeLinecap="round" fill="none" />
+        {/* Corridor fill — 36px accent @ 0.06 */}
+        <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.06} strokeWidth={36} strokeLinecap="round" fill="none" />
 
         {/* Corridor centre line — 1.5px dashed white */}
         <Path
@@ -106,7 +109,7 @@ export const GateSchematic = memo(function GateSchematic() {
           stroke={colors.textPrimary}
           strokeOpacity={0.55}
           strokeWidth={1.5}
-          strokeDasharray="6 6"
+          strokeDasharray="3 3"
           fill="none"
         />
 
