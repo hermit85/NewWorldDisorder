@@ -369,20 +369,29 @@ export default function ActiveRunScreen() {
     }
   })();
 
+  // Pattern 2 — Race-state owns color. Acid palette only:
+  //   armed / verified  → accent green (ranked, on-line)
+  //   pending           → warn amber  (validating: finishing / verifying)
+  //   invalid           → danger red  (DNF / DSQ / invalidated)
+  //   training          → textPrimary (practice mode active)
+  //   training settled  → textSecondary (saved but not ranked)
+  // Older revisions reached for `colors.blue` (Arctic palette) and
+  // `colors.gold` (podium) for practice / verifying respectively —
+  // both are palette-mixes that broke the canonical thread.
   const phaseColor = (() => {
     switch (state.phase) {
       case 'idle': return colors.textPrimary;
       case 'readiness_check':
         return state.readiness.rankedEligible ? colors.accent :
-               state.readiness.ctaEnabled ? colors.blue : colors.textTertiary;
+               state.readiness.ctaEnabled ? colors.textPrimary : colors.textTertiary;
       case 'armed_ranked': return colors.accent;
-      case 'armed_practice': return colors.blue;
+      case 'armed_practice': return colors.textPrimary;
       case 'running_ranked': return colors.accent;
-      case 'running_practice': return colors.blue;
-      case 'finishing': case 'verifying': return colors.gold;
+      case 'running_practice': return colors.textPrimary;
+      case 'finishing': case 'verifying': return colors.warn;
       case 'completed_verified': return colors.accent;
-      case 'completed_unverified': return colors.blue;
-      case 'invalidated': return colors.red;
+      case 'completed_unverified': return colors.textSecondary;
+      case 'invalidated': return colors.danger;
       default: return colors.textSecondary;
     }
   })();

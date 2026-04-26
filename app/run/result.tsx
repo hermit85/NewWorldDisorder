@@ -54,8 +54,11 @@ const STATUS_DISPLAY: Record<string, {
   practice_only: {
     eyebrow: 'TRENING',
     label: 'ZAPISANY',
-    color: colors.blue,
-    bg: 'rgba(0,122,255,0.15)',
+    // Pattern 2 — practice / training is a muted state in the Acid
+    // palette, not a separate accent. Earlier revision reached for
+    // colors.blue (Arctic palette) which mixed brand identities.
+    color: colors.textSecondary,
+    bg: 'rgba(242,244,243,0.06)',
     icon: 'timer',
     description: 'Trening zapisany. Nie wpływa na ranking.',
   },
@@ -1292,8 +1295,8 @@ const styles = StyleSheet.create({
   saveOfficialText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 2, fontSize: 10 },
   saveSavedBadge: { backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
   saveSavedText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, fontSize: 9 },
-  savePracticeBadge: { backgroundColor: 'rgba(0,122,255,0.08)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  savePracticeText: { ...typography.labelSmall, color: colors.blue, letterSpacing: 1, fontSize: 10 },
+  savePracticeBadge: { backgroundColor: 'rgba(242,244,243,0.06)', borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  savePracticeText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 1, fontSize: 10 },
   // Failed/offline — card with inline retry
   saveFailCard: {
     backgroundColor: 'rgba(255,149,0,0.06)',
