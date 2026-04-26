@@ -18,6 +18,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { colors } from '@/theme/colors';
+import { fonts } from '@/theme/typography';
 import { AuthProvider } from '@/hooks/AuthContext';
 import { hydrateRunStore } from '@/systems/runStore';
 import { initSaveQueue } from '@/systems/saveQueue';
@@ -88,19 +89,24 @@ class AppErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      // Error boundary stays on plain RN primitives — using nwd/Btn
+      // here would couple the last-resort UI to component code that
+      // could itself be the source of the error. Hand-styled is the
+      // safe fallback. Font family pulled from typography tokens so
+      // the one variable that can drift gets the canonical token.
       return (
         <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ fontFamily: 'Rajdhani_700Bold', fontSize: 14, color: '#FF3B30', letterSpacing: 3, marginBottom: 12 }}>
+          <Text style={{ fontFamily: fonts.racing, fontSize: 14, color: colors.danger, letterSpacing: 3, marginBottom: 12 }}>
             CRASH
           </Text>
-          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
             Coś poszło nie tak. Spróbuj ponownie.
           </Text>
           <Pressable
             onPress={() => this.setState({ hasError: false, error: null })}
-            style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 12 }}
+            style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12 }}
           >
-            <Text style={{ color: '#fff', fontSize: 13, letterSpacing: 2 }}>PONÓW</Text>
+            <Text style={{ color: colors.textPrimary, fontSize: 13, letterSpacing: 2 }}>PONÓW</Text>
           </Pressable>
         </View>
       );

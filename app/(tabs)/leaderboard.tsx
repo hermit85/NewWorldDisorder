@@ -17,27 +17,7 @@ import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
 import { LeaderboardRow } from '@/components/nwd';
-
-/** Shared with trail/[id].tsx — kept inline here to avoid a new shared
- *  util module for a three-line helper. If a third caller arrives, promote. */
-function getTrustDisclosure(
-  source: 'curator' | 'rider',
-  tier: 'provisional' | 'verified' | 'disputed',
-  confirmersCount: number = 0,
-  confirmersNeeded: number = 3,
-): string {
-  if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
-  if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
-  const remaining = Math.max(0, confirmersNeeded - confirmersCount);
-  const progressSuffix =
-    remaining > 0
-      ? ` · ${remaining} ${remaining === 1 ? 'potwierdzenie' : remaining < 5 ? 'potwierdzenia' : 'potwierdzeń'} do oficjalnego rankingu`
-      : ' · czeka na zatwierdzenie';
-  if (source === 'curator') {
-    return `Trasa kuratora${progressSuffix}`;
-  }
-  return `Trasa próbna${progressSuffix}`;
-}
+import { getTrustDisclosure } from '@/lib/trailTrust';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
 

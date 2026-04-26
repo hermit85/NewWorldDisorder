@@ -52,6 +52,7 @@ import {
   useUserTrailStats,
 } from '@/hooks/useBackend';
 import { getVenueForTrail } from '@/data/venues';
+import { getTrustDisclosure } from '@/lib/trailTrust';
 import { formatTime, formatTimeShort } from '@/content/copy';
 import { tapLight, tapMedium } from '@/systems/haptics';
 import { reportRider } from '@/services/moderation';
@@ -73,26 +74,8 @@ function formatPioneerDate(iso: string): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function getTrustDisclosure(
-  source: 'curator' | 'rider',
-  tier: 'provisional' | 'verified' | 'disputed',
-  confirmersCount: number = 0,
-  confirmersNeeded: number = 3,
-): string {
-  if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
-  if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
-  // ADR-012 Phase 2.4: surface progress toward Track A auto-verify so
-  // the rider sees that their zjazd actually moves the needle.
-  const remaining = Math.max(0, confirmersNeeded - confirmersCount);
-  const progressSuffix =
-    remaining > 0
-      ? ` · ${remaining} ${remaining === 1 ? 'potwierdzenie' : remaining < 5 ? 'potwierdzenia' : 'potwierdzeń'} do oficjalnego rankingu`
-      : ' · czeka na zatwierdzenie';
-  if (source === 'curator') {
-    return `Trasa kuratora${progressSuffix}`;
-  }
-  return `Trasa próbna${progressSuffix}`;
-}
+// getTrustDisclosure now lives in src/lib/trailTrust.ts (promoted
+// after admin queue became the third caller of the same copy).
 
 export default function TrailDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

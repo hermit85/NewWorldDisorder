@@ -39,7 +39,7 @@ import type { CreateTrailSuggestion, SpotTrailSummary } from '@/lib/api';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
 import { notifySuccess, notifyWarning, tapLight, tapMedium } from '@/systems/haptics';
 import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
+import { fonts, typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...typography.body,
-    color: '#FF4D6D',
+    color: colors.danger,
     marginTop: 4,
   },
   pills: {
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     ...typography.micro,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: fonts.bodyBold,
     fontSize: 10,
     letterSpacing: 1.8,
     color: colors.textSecondary,
@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   suggestionAction: {
-    fontFamily: 'Rajdhani_700Bold',
+    fontFamily: fonts.racing,
     fontSize: 11,
     letterSpacing: 1.8,
     color: colors.accent,
