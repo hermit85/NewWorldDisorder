@@ -24,8 +24,9 @@ import {
   submitSpotWithQueue,
   drainSubmissionQueue,
   getQueuedSubmissionCount,
+  getRejectedSubmissionCount,
 } from '@/services/spotSubmission';
-import { SUBMISSION_QUEUE_KEY } from '@/constants';
+import { SUBMISSION_QUEUE_KEY, SUBMISSION_REJECTIONS_KEY } from '@/constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const baseParams = {
@@ -38,6 +39,7 @@ const baseParams = {
 
 async function clearQueue() {
   await AsyncStorage.removeItem(SUBMISSION_QUEUE_KEY);
+  await AsyncStorage.removeItem(SUBMISSION_REJECTIONS_KEY);
 }
 
 async function getQueueRaw(): Promise<unknown[]> {
@@ -193,6 +195,7 @@ describe('drainSubmissionQueue', () => {
 
     expect(result).toEqual({ drained: 0, failed: 0 });
     expect(await getQueuedSubmissionCount()).toBe(0);
+    expect(await getRejectedSubmissionCount()).toBe(1);
   });
 
   it('processes mixed outcomes in queue order (success, network-fail, hard-reject)', async () => {
@@ -216,5 +219,6 @@ describe('drainSubmissionQueue', () => {
     const remaining = (await getQueueRaw()) as { name: string }[];
     expect(remaining).toHaveLength(1);
     expect(remaining[0].name).toBe('B');
+    expect(await getRejectedSubmissionCount()).toBe(1);
   });
 });

@@ -6,15 +6,21 @@ import { spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
 export function SyncOutboxCard() {
-  const { state, totalPending, flush } = useSyncOutbox();
+  const { state, totalPending, totalIssues, flush } = useSyncOutbox();
 
-  if (totalPending === 0) return null;
+  if (totalIssues === 0) return null;
 
-  const parts = [
+  const pendingParts = [
     state.pendingRuns > 0 ? `${state.pendingRuns} zjazd${state.pendingRuns === 1 ? '' : 'y'}` : null,
     state.pendingSpots > 0 ? `${state.pendingSpots} bike park${state.pendingSpots === 1 ? '' : 'i'}` : null,
   ].filter(Boolean);
+  const rejectedPart = state.rejectedSpots > 0
+    ? `${state.rejectedSpots} odrzucon${state.rejectedSpots === 1 ? 'y' : 'e'}`
+    : null;
   const busy = state.refreshing || state.isRetrying;
+  const body = totalPending > 0
+    ? `Czeka na wysłanie: ${pendingParts.join(' · ')}${rejectedPart ? ` · ${rejectedPart}` : ''}. Nic nie znika po wyjściu z appki.`
+    : `Odrzucono po synchronizacji: ${rejectedPart}. Sprawdź zgłoszenie przed ponowną próbą.`;
 
   return (
     <Card padding={16} style={styles.card}>
@@ -24,21 +30,21 @@ export function SyncOutboxCard() {
         </View>
         <View style={styles.copy}>
           <Text style={styles.title}>SYNC OUTBOX</Text>
-          <Text style={styles.body}>
-            Czeka na wysłanie: {parts.join(' · ')}. Nic nie znika po wyjściu z appki.
-          </Text>
+          <Text style={styles.body}>{body}</Text>
         </View>
       </View>
-      <Btn
-        variant="ghost"
-        size="sm"
-        fullWidth={false}
-        onPress={flush}
-        disabled={busy}
-        style={styles.cta}
-      >
-        {busy ? 'Wysyłam' : 'Wyślij teraz'}
-      </Btn>
+      {totalPending > 0 && (
+        <Btn
+          variant="ghost"
+          size="sm"
+          fullWidth={false}
+          onPress={flush}
+          disabled={busy}
+          style={styles.cta}
+        >
+          {busy ? 'Wysyłam' : 'Wyślij teraz'}
+        </Btn>
+      )}
     </Card>
   );
 }

@@ -17,7 +17,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import * as api from '@/lib/api';
-import { SUBMISSION_QUEUE_KEY } from '@/constants';
+import { SUBMISSION_QUEUE_KEY, SUBMISSION_REJECTIONS_KEY } from '@/constants';
 import { logDebugEvent } from '@/systems/debugEvents';
 
 export interface QueuedSubmission {
@@ -31,6 +31,12 @@ export interface QueuedSubmission {
   region?: string;
   description?: string;
   attemptedAt: number;
+}
+
+export interface RejectedSubmission extends QueuedSubmission {
+  code: string;
+  message?: string;
+  rejectedAt: number;
 }
 
 export type SubmitResult =
@@ -54,6 +60,31 @@ async function readQueue(): Promise<QueuedSubmission[]> {
 
 async function writeQueue(queue: QueuedSubmission[]): Promise<void> {
   await AsyncStorage.setItem(SUBMISSION_QUEUE_KEY, JSON.stringify(queue));
+}
+
+async function readRejections(): Promise<RejectedSubmission[]> {
+  try {
+    const raw = await AsyncStorage.getItem(SUBMISSION_REJECTIONS_KEY);
+    return raw ? (JSON.parse(raw) as RejectedSubmission[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeRejections(items: RejectedSubmission[]): Promise<void> {
+  await AsyncStorage.setItem(SUBMISSION_REJECTIONS_KEY, JSON.stringify(items.slice(0, 10)));
+}
+
+async function recordRejectedSubmission(
+  item: QueuedSubmission,
+  code: string,
+  message?: string,
+): Promise<void> {
+  const current = await readRejections();
+  await writeRejections([
+    { ...item, code, message, rejectedAt: Date.now() },
+    ...current,
+  ]);
 }
 
 async function enqueue(item: QueuedSubmission): Promise<void> {
@@ -151,6 +182,7 @@ export async function drainSubmissionQueue(): Promise<{ drained: number; failed:
         } else {
           // Hard reject (duplicate/validation/auth) — drop from queue. User's
           // submission was meaningfully refused; leaving it would loop forever.
+          await recordRejectedSubmission(item, res.code, res.message);
           logDebugEvent('queue', 'spot_drain_drop', 'warn', { payload: { code: res.code } });
         }
       } catch (e) {
@@ -170,5 +202,10 @@ export async function drainSubmissionQueue(): Promise<{ drained: number; failed:
 
 export async function getQueuedSubmissionCount(): Promise<number> {
   const q = await readQueue();
+  return q.length;
+}
+
+export async function getRejectedSubmissionCount(): Promise<number> {
+  const q = await readRejections();
   return q.length;
 }
