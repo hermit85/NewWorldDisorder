@@ -70,7 +70,9 @@ export async function getCurrentPosition(): Promise<GpsPoint | null> {
       timestamp: loc.timestamp,
     };
   } catch (e) {
-    console.warn('[NWD] getCurrentPosition failed:', e);
+    // Expected on simulators or cold GPS starts. Keep it out of LogBox so
+    // the rider-facing run screen does not get covered by a dev warning.
+    if (__DEV__) console.log('[NWD] getCurrentPosition unavailable:', e);
     return null;
   }
 }

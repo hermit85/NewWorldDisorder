@@ -86,7 +86,7 @@ export default function HelpScreen() {
       >
         <TopBar
           onBack={() => router.back()}
-          trailing={<Pill state="verified" size="sm">SEZON 01</Pill>}
+          trailing={<Pill state="verified" size="sm">Beta</Pill>}
         />
 
         <PageTitle

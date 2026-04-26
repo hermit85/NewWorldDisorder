@@ -2,7 +2,7 @@
 // Spot detail — canonical screens-spot-trail.jsx ScreenSpotDetail
 //
 // Layout per the canonical reference:
-//   TopBar         back btn + title "Spot" + S01 pill trailing
+//   TopBar         back btn + title "Spot" + season pill trailing
 //   Hero           Bike park kicker pill + h1 spot name + region
 //   Stats grid     3-col StatBox: Trasy / Riderzy (accent) / Zjazdy
 //   Action row     ghost btn "Tablica" → leaderboard
@@ -205,7 +205,7 @@ export default function SpotScreen() {
         <TopBar
           onBack={handleGoBack}
           title="Spot"
-          trailing={<Pill state="neutral" size="md">S01</Pill>}
+          trailing={<Pill state="neutral" size="sm">Beta</Pill>}
         />
 
         {/* ═════ HERO — kicker pill + h1 + region ═════ */}
