@@ -268,12 +268,64 @@ export default function TablicaScreen() {
           </View>
         ) : null}
 
-        {/* Stan B placeholder — full content in commit 3 */}
+        {/* Stan B — fresh rider (count === 0 OR no aggregated sections) */}
         {!isLoading && sections.length === 0 ? (
-          <View style={styles.contentPlaceholder}>
-            <Text style={styles.placeholderHint}>
-              [Stan B — content w commit 3]
-            </Text>
+          <View style={styles.freshBody}>
+            {/* Hint card — "Jak to działa" tutorial without
+                pretending the rider has data they don't */}
+            <View style={styles.hintCard}>
+              <Text style={styles.hintKicker}>JAK TO DZIAŁA</Text>
+              <Text style={styles.hintLine}>Tablica zapełni się sama.</Text>
+              <Text style={styles.hintLine}>Pierwszy zjazd = pierwsza pozycja.</Text>
+            </View>
+
+            {/* 2 LARGER mityagacje — primary surfaces in fresh state */}
+            <View style={styles.freshMitigations}>
+              <Pressable
+                style={[styles.bigMitigation, styles.bigMitigationAccent]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <View style={styles.bigMitigationBody}>
+                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(0, 255, 135, 0.7)' }]}>
+                    MASZ SWÓJ BIKE PARK?
+                  </Text>
+                  <Text style={styles.bigMitigationLine}>Dodaj go w Spotach.</Text>
+                  <Text style={styles.bigMitigationSub}>Pioneer slot lifetime.</Text>
+                </View>
+                <Text style={[styles.bigMitigationArrow, { color: colors.accent }]}>→</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.bigMitigation, styles.bigMitigationWarn]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <View style={styles.bigMitigationBody}>
+                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(255, 176, 32, 0.8)' }]}>
+                    PARK JEST, BRAK TWOJEJ TRASY?
+                  </Text>
+                  <Text style={styles.bigMitigationLine}>Zostań pionierem.</Text>
+                  <Text style={styles.bigMitigationSub}>
+                    Pierwszy czas zabezpiecza twoje miejsce.
+                  </Text>
+                </View>
+                <Text style={[styles.bigMitigationArrow, { color: colors.warn }]}>→</Text>
+              </Pressable>
+            </View>
+
+            {/* Separator + alt path */}
+            <View style={styles.lubBlock}>
+              <Text style={styles.lubSeparator}>— LUB —</Text>
+              <Text style={styles.lubLine}>Zjedź dowolną trasę z apki.</Text>
+              <Text style={styles.lubLine}>Tablica zapełni się automatycznie.</Text>
+            </View>
+
+            {/* Outline fallback CTA */}
+            <Pressable
+              style={styles.outlineCta}
+              onPress={() => router.push('/(tabs)/spots')}
+            >
+              <Text style={styles.outlineCtaText}>PRZEJDŹ DO SPOTÓW →</Text>
+            </Pressable>
           </View>
         ) : null}
       </ScrollView>
@@ -500,17 +552,124 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  contentPlaceholder: {
+  // Stan B — fresh rider styles
+  freshBody: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    gap: 18,
+  },
+  hintCard: {
+    height: 80,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#13181A',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2,
+    gap: 4,
+    justifyContent: 'center',
+  },
+  hintKicker: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(242, 244, 243, 0.5)',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  hintLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.85)',
+  },
+  freshMitigations: {
+    gap: 12,
+  },
+  bigMitigation: {
+    height: 68,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bigMitigationAccent: {
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+  },
+  bigMitigationWarn: {
+    backgroundColor: 'rgba(255, 176, 32, 0.06)',
+    borderColor: 'rgba(255, 176, 32, 0.4)',
+  },
+  bigMitigationBody: {
     flex: 1,
+    gap: 2,
+  },
+  bigMitigationKicker: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  bigMitigationLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.85)',
+  },
+  bigMitigationSub: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.5)',
+  },
+  bigMitigationArrow: {
+    fontFamily: fonts.body,
+    fontSize: 18,
+    fontWeight: '800',
+    marginLeft: 12,
+  },
+  lubBlock: {
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 6,
+  },
+  lubSeparator: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.32)',
+    letterSpacing: 2,
+  },
+  lubLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.55)',
+    textAlign: 'center',
+  },
+  outlineCta: {
+    height: 40,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 64,
+    marginTop: 8,
   },
-  placeholderHint: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    color: colors.textTertiary,
-    letterSpacing: 1.6,
+  outlineCtaText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
   },
 });
