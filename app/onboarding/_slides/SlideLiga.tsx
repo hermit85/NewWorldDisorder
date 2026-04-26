@@ -381,6 +381,6 @@ const styles = StyleSheet.create({
   liveBandSub: {
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
-    color: colors.textTertiary,
+    color: colors.textSecondary,
   },
 });
