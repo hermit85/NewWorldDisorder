@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
-import { chunk9Colors } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
 
 type SegmentLineProps = {
   insetHorizontal?: number;
@@ -18,7 +18,7 @@ export const SegmentLine = memo(function SegmentLine({
           y1="0.5"
           x2="100%"
           y2="0.5"
-          stroke={chunk9Colors.bg.hairline}
+          stroke={colors.border}
           strokeWidth={1}
           strokeDasharray="8 6"
         />

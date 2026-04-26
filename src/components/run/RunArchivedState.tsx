@@ -14,7 +14,8 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlowButton } from '@/components/ui/GlowButton';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
 
 function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -52,30 +53,39 @@ export const RunArchivedState = memo(function RunArchivedState({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: chunk9Colors.bg.base,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: chunk9Spacing.containerHorizontal,
+    paddingHorizontal: spacing.pad,
   },
   card: {
-    backgroundColor: chunk9Colors.bg.surface,
-    borderRadius: chunk9Radii.card,
-    padding: chunk9Spacing.cardPadding,
+    backgroundColor: colors.panel,
+    borderRadius: radii.card,
+    padding: spacing.lg,
     gap: 12,
     alignItems: 'center',
     alignSelf: 'stretch',
   },
   kicker: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.secondary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
   },
   time: {
-    ...chunk9Typography.display56,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 56,
+    lineHeight: 68,
+    color: colors.textPrimary,
+    fontVariant: ['tabular-nums'],
   },
   body: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   ctaWrap: {

@@ -1,7 +1,14 @@
 import { memo, useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { chunk9Colors, chunk9Radii, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { radii } from '@/theme/spacing';
+
+const monoFont = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
 
 type FilterPillProps = {
   label: string;
@@ -48,10 +55,18 @@ export const FilterPill = memo(function FilterPill({
   );
 });
 
+const captionMono10 = {
+  fontFamily: monoFont,
+  fontSize: 10,
+  lineHeight: 14,
+  letterSpacing: 1.4,
+  textTransform: 'uppercase' as const,
+};
+
 const styles = StyleSheet.create({
   container: {
     minHeight: 38,
-    borderRadius: chunk9Radii.pill,
+    borderRadius: radii.pill,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -59,31 +74,29 @@ const styles = StyleSheet.create({
   },
   containerActive: {
     borderWidth: 1,
-    borderColor: chunk9Colors.text.primary,
+    borderColor: colors.textPrimary,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   containerInactive: {
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
   },
   containerPressed: {
     opacity: 0.86,
   },
-  label: {
-    ...chunk9Typography.captionMono10,
-  },
+  label: captionMono10,
   labelActive: {
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
   },
   labelInactive: {
-    color: chunk9Colors.text.secondary,
+    color: colors.textSecondary,
   },
   countBadge: {
     minWidth: 20,
     height: 20,
     paddingHorizontal: 5,
-    borderRadius: chunk9Radii.pill,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -94,13 +107,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   countText: {
-    ...chunk9Typography.captionMono10,
+    ...captionMono10,
     lineHeight: 10,
   },
   countTextActive: {
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
   },
   countTextInactive: {
-    color: chunk9Colors.text.secondary,
+    color: colors.textSecondary,
   },
 });

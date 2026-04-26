@@ -1,6 +1,12 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { chunk9Colors, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/colors';
+
+const monoFont = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
 
 type StatCellProps = {
   label: string;
@@ -28,17 +34,24 @@ export const StatCell = memo(function StatCell({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    gap: chunk9Spacing.cardChildGap / 3,
+    gap: 4,
   },
   label: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    fontFamily: monoFont,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
   },
   value: {
-    ...chunk9Typography.stat19,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 19,
+    lineHeight: 24,
+    fontVariant: ['tabular-nums'],
+    color: colors.textPrimary,
   },
   valueAccent: {
-    color: chunk9Colors.accent.emerald,
+    color: colors.accent,
   },
 });

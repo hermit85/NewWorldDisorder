@@ -24,7 +24,36 @@ import {
   type SaveStatus,
 } from '@/systems/runStore';
 import { deleteRun } from '@/lib/api';
-import { chunk9Colors, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { Platform } from 'react-native';
+import { colors } from '@/theme/colors';
+import { spacing } from '@/theme/spacing';
+
+const monoFont = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+
+const captionMono10 = {
+  fontFamily: monoFont,
+  fontSize: 10,
+  lineHeight: 14,
+  letterSpacing: 1.4,
+  textTransform: 'uppercase' as const,
+};
+
+const body13 = {
+  fontFamily: 'Inter_500Medium',
+  fontSize: 13,
+  lineHeight: 19.5,
+};
+
+const stat19 = {
+  fontFamily: 'Rajdhani_700Bold',
+  fontSize: 19,
+  lineHeight: 24,
+  fontVariant: ['tabular-nums'] as ['tabular-nums'],
+};
 
 // Rider tab lays out Player card → Stats → Aktywność → Osiągnięcia
 // in a single ScrollView. The old ceiling of 10 rows (≈ 700 px on
@@ -216,7 +245,7 @@ export function ActivityList() {
 const styles = StyleSheet.create({
   section: {
     gap: 10,
-    marginTop: chunk9Spacing.sectionVertical,
+    marginTop: spacing.lg,
   },
   list: {
     gap: 2,
@@ -228,13 +257,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: chunk9Colors.bg.hairline,
+    borderBottomColor: colors.border,
   },
   rowPressed: { opacity: 0.6 },
   rowLeft: { flex: 1, marginRight: 16 },
   trailName: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
+    ...body13,
+    color: colors.textPrimary,
     fontSize: 15,
     lineHeight: 20,
   },
@@ -245,45 +274,45 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   pill: {
-    ...chunk9Typography.captionMono10,
+    ...captionMono10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
   },
-  pill_ok: { color: chunk9Colors.accent.emerald, backgroundColor: 'rgba(0,255,135,0.08)' },
+  pill_ok: { color: colors.accent, backgroundColor: 'rgba(0,255,135,0.08)' },
   pill_warn: { color: '#FFB547', backgroundColor: 'rgba(255,181,71,0.08)' },
-  pill_bad: { color: '#FF4D6D', backgroundColor: 'rgba(255,77,109,0.08)' },
-  pill_neutral: { color: chunk9Colors.text.secondary, backgroundColor: 'rgba(255,255,255,0.05)' },
+  pill_bad: { color: colors.danger, backgroundColor: 'rgba(255,77,109,0.08)' },
+  pill_neutral: { color: colors.textSecondary, backgroundColor: 'rgba(255,255,255,0.05)' },
   pbBadge: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.accent.emerald,
+    ...captionMono10,
+    color: colors.accent,
     borderWidth: 1,
-    borderColor: chunk9Colors.accent.emerald,
+    borderColor: colors.accent,
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 3,
   },
   meta: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    ...captionMono10,
+    color: colors.textTertiary,
     textTransform: 'none',
     letterSpacing: 0.5,
   },
   saveHint: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.tertiary,
+    ...body13,
+    color: colors.textTertiary,
     marginTop: 2,
     fontSize: 11,
   },
   time: {
-    ...chunk9Typography.stat19,
-    color: chunk9Colors.text.primary,
+    ...stat19,
+    color: colors.textPrimary,
   },
-  timePb: { color: chunk9Colors.accent.emerald },
+  timePb: { color: colors.accent },
   emptyBody: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...body13,
+    color: colors.textSecondary,
   },
   expandBtn: {
     alignSelf: 'center',
@@ -292,14 +321,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
   },
   expandBtnPressed: {
     opacity: 0.6,
   },
   expandLabel: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...captionMono10,
+    color: colors.textSecondary,
     letterSpacing: 2,
   },
 });

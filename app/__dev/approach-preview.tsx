@@ -18,7 +18,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, StyleSheet } from 'react-native';
 import { ApproachView } from '@/components/run/ApproachView';
 import type { ApproachState } from '@/features/run/approachNavigator';
-import { chunk9Colors } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+
+// Local alias keeps the stylesheet body unchanged. Dev-only screen.
+const chunk9Colors = {
+  bg: { base: colors.bg },
+} as const;
 
 type Variant = 'far' | 'near' | 'on_line_ready' | 'wrong_side' | 'gps_unsure';
 

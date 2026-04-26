@@ -4,8 +4,16 @@ import * as Haptics from 'expo-haptics';
 import { formatTimeShort } from '@/content/copy';
 import type { BikeParkTrailCardData } from '@/lib/api';
 import { formatRelativeTimestamp } from '@/lib/api';
+import { Platform } from 'react-native';
 import { GlowButton } from '@/components/ui/GlowButton';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+
+const monoFont = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
 
 type TrailCardProps = BikeParkTrailCardData & {
   onPress?: () => void;
@@ -139,19 +147,33 @@ export const TrailCard = memo(function TrailCard({
   );
 });
 
+const captionMono10 = {
+  fontFamily: monoFont,
+  fontSize: 10,
+  lineHeight: 14,
+  letterSpacing: 1.4,
+  textTransform: 'uppercase' as const,
+};
+
+const body13 = {
+  fontFamily: 'Inter_500Medium',
+  fontSize: 13,
+  lineHeight: 19.5,
+};
+
 const styles = StyleSheet.create({
   container: {
-    gap: chunk9Spacing.cardChildGap,
-    borderRadius: chunk9Radii.card,
+    gap: spacing.sm,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
-    padding: chunk9Spacing.cardPaddingTight,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
+    padding: 18,
   },
   containerBeaten: {
     borderColor: 'rgba(0,255,135,0.55)',
     borderLeftWidth: 3,
-    borderLeftColor: chunk9Colors.accent.emerald,
+    borderLeftColor: colors.accent,
   },
   containerPressed: {
     opacity: 0.92,
@@ -159,26 +181,27 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: chunk9Spacing.cardChildGap,
+    gap: spacing.sm,
   },
   titleBlock: {
     flex: 1,
     gap: 4,
   },
   title: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 24,
     lineHeight: 24,
+    letterSpacing: 0.56,
+    color: colors.textPrimary,
   },
   meta: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...captionMono10,
+    color: colors.textSecondary,
   },
   badge: {
-    borderRadius: chunk9Radii.pill,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
     paddingHorizontal: 10,
     paddingVertical: 5,
     backgroundColor: 'rgba(255,255,255,0.03)',
@@ -187,22 +210,22 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.16)',
   },
   badgeText: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.primary,
+    ...captionMono10,
+    color: colors.textPrimary,
   },
   badgeValidationText: {
-    color: chunk9Colors.text.secondary,
+    color: colors.textSecondary,
   },
   subtitle: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    ...body13,
+    color: colors.textSecondary,
   },
   subtitlePrimary: {
-    color: chunk9Colors.text.primary,
+    color: colors.textPrimary,
   },
   beatenCopy: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.accent.emerald,
+    ...body13,
+    color: colors.accent,
   },
   footerRow: {
     minHeight: 20,

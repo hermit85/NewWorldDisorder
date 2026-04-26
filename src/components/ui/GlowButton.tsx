@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
 
 type GlowButtonProps = {
   label: string;
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   primaryWrap: {
-    shadowColor: chunk9Colors.accent.emerald,
+    shadowColor: colors.accent,
     shadowOpacity: 0.42,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 0 },
@@ -83,28 +83,28 @@ const styles = StyleSheet.create({
     right: -1,
     bottom: -1,
     left: -1,
-    borderRadius: chunk9Radii.button + 1,
+    borderRadius: 17,
     backgroundColor: 'rgba(0,255,135,0.3)',
     opacity: 0.55,
     elevation: 8,
   },
   buttonBase: {
-    minHeight: chunk9Spacing.ctaHeight,
-    borderRadius: chunk9Radii.button,
+    minHeight: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
     overflow: 'hidden',
   },
   primaryButton: {
-    backgroundColor: chunk9Colors.accent.emerald,
+    backgroundColor: colors.accent,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.25)',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: chunk9Colors.accent.emerald,
+    borderColor: colors.accent,
   },
   buttonPressed: {
     transform: [{ scale: 0.985 }],
@@ -114,16 +114,18 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   buttonText: {
-    ...chunk9Typography.label13,
-    fontSize: chunk9Spacing.ctaFontSize,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 15,
+    lineHeight: 18,
     letterSpacing: 2.6,
+    textTransform: 'uppercase',
     textAlign: 'center',
   },
   primaryText: {
-    color: chunk9Colors.bg.base,
+    color: colors.bg,
   },
   secondaryText: {
-    color: chunk9Colors.accent.emerald,
+    color: colors.accent,
   },
   inlineLink: {
     alignSelf: 'flex-start',
@@ -136,8 +138,12 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   inlineLinkText: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.accent.emerald,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+    color: colors.accent,
   },
   disabledText: {
     opacity: 0.8,

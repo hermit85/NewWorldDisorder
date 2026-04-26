@@ -9,7 +9,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { chunk9Colors } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
 
 type PulseDotProps = {
   size?: 'sm' | 'md';
@@ -22,7 +22,7 @@ const sizeMap = {
 } as const;
 
 const colorMap = {
-  emerald: chunk9Colors.accent.emerald,
+  emerald: colors.accent,
 } as const;
 
 export const PulseDot = memo(function PulseDot({

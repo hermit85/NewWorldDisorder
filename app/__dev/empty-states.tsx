@@ -11,10 +11,41 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Platform, TextStyle } from 'react-native';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+
+// Local alias to keep the stylesheet body unchanged. Dev-only screen.
+const monoFontEmptyStates = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+const chunk9Colors = {
+  bg: { base: colors.bg, surface: colors.panel, hairline: colors.borderMid },
+  text: { primary: colors.textPrimary, secondary: colors.textSecondary, tertiary: colors.textTertiary },
+  accent: { emerald: colors.accent },
+} as const;
+const chunk9Spacing = {
+  containerHorizontal: spacing.pad,
+  sectionVertical: spacing.lg,
+  cardPadding: spacing.pad,
+  cardChildGap: spacing.gap,
+} as const;
+const chunk9Radii = {
+  card: radii.card,
+  pill: radii.pill,
+} as const;
+const chunk9Typography = {
+  display28: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, lineHeight: 34, letterSpacing: 0.56 } satisfies TextStyle,
+  display56: { fontFamily: 'Rajdhani_700Bold', fontSize: 56, lineHeight: 68, letterSpacing: 0 } satisfies TextStyle,
+  label13: { fontFamily: 'Rajdhani_700Bold', fontSize: 13, lineHeight: 18, letterSpacing: 2.86, textTransform: 'uppercase' } satisfies TextStyle,
+  body13: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 19.5 } satisfies TextStyle,
+  captionMono10: { fontFamily: monoFontEmptyStates, fontSize: 10, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' } satisfies TextStyle,
+} as const;
 
 type Kind = 'home-no-spots' | 'spots-empty' | 'add-spot-success';
 

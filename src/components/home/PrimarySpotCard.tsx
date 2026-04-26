@@ -15,7 +15,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { formatTimeShort } from '@/content/copy';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
 import { GlowButton } from '@/components/ui/GlowButton';
 
 type Props =
@@ -81,31 +82,44 @@ export const PrimarySpotCard = memo(function PrimarySpotCard(props: Props) {
   );
 });
 
+const label13 = {
+  fontFamily: 'Rajdhani_700Bold',
+  fontSize: 13,
+  lineHeight: 18,
+  letterSpacing: 2.86,
+  textTransform: 'uppercase' as const,
+};
+
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: chunk9Colors.bg.surface,
-    borderRadius: chunk9Radii.card,
-    paddingVertical: chunk9Spacing.cardPadding,
-    paddingHorizontal: chunk9Spacing.cardPadding,
+    backgroundColor: colors.panel,
+    borderRadius: radii.card,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   cardPressed: { opacity: 0.85 },
   microLabel: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.secondary,
+    ...label13,
+    color: colors.textSecondary,
   },
   title: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: 0.56,
+    color: colors.textPrimary,
     marginTop: 6,
   },
   summary: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: colors.textSecondary,
     marginTop: 4,
   },
   cta: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.accent.emerald,
+    ...label13,
+    color: colors.accent,
     marginTop: 12,
   },
   emptyCtaWrap: {

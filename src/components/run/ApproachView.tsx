@@ -12,7 +12,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   cancelAnimation,
@@ -22,7 +22,79 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { ApproachState } from '@/features/run/approachNavigator';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+
+// Local design-token shim. ApproachView's stylesheet is 70 sites
+// deep — flattening every reference inline would be invasive churn
+// without changing a single pixel. Instead, the file owns a tiny
+// const that mirrors the old chunk9 alias layer's shape but pulls
+// values from canonical theme tokens. Visual output is byte-
+// identical; only the import boundary changes, which lets the
+// chunk9.ts module retire once the last consumer goes.
+const monoFontApproach = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+const chunk9Colors = {
+  bg: { base: colors.bg, surface: colors.panel, hairline: colors.borderMid },
+  text: { primary: colors.textPrimary, secondary: colors.textSecondary, tertiary: colors.textTertiary },
+  accent: { emerald: colors.accent },
+} as const;
+const chunk9Spacing = {
+  containerHorizontal: spacing.pad,
+  sectionVertical: spacing.lg,
+  cardPadding: spacing.pad,
+  cardPaddingTight: spacing.md,
+  cardChildGap: spacing.gap,
+  ctaHeight: 52,
+  ctaFontSize: 15,
+} as const;
+const chunk9Radii = {
+  card: radii.card,
+  pill: radii.pill,
+  button: radii.control,
+} as const;
+const chunk9Typography = {
+  display28: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: 0.56,
+  } satisfies TextStyle,
+  display56: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 56,
+    lineHeight: 68,
+    letterSpacing: 0,
+  } satisfies TextStyle,
+  label13: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+  } satisfies TextStyle,
+  stat19: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 19,
+    lineHeight: 24,
+    fontVariant: ['tabular-nums'],
+  } satisfies TextStyle,
+  body13: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
+  } satisfies TextStyle,
+  captionMono10: {
+    fontFamily: monoFontApproach,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  } satisfies TextStyle,
+} as const;
 
 // ── Props ──
 

@@ -7,7 +7,8 @@ import { GlowButton } from '@/components/ui/GlowButton';
 import { PulseDot } from '@/components/ui/PulseDot';
 import { SegmentLine } from '@/components/ui/SegmentLine';
 import { StatCell } from '@/components/ui/StatCell';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
 
 type ActiveHeroCardProps = {
   variant: 'active';
@@ -105,12 +106,12 @@ export const HeroCard = memo(function HeroCard(props: HeroCardProps) {
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    gap: chunk9Spacing.cardChildGap,
-    borderRadius: chunk9Radii.card,
+    gap: spacing.sm,
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: chunk9Colors.bg.hairline,
-    backgroundColor: chunk9Colors.bg.surface,
-    padding: chunk9Spacing.cardPadding,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
+    padding: spacing.lg,
     overflow: 'hidden',
   },
   kickerRow: {
@@ -120,31 +121,40 @@ const styles = StyleSheet.create({
     paddingRight: 18,
   },
   kicker: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+    color: colors.textPrimary,
     flex: 1,
   },
   kickerDim: {
-    color: chunk9Colors.text.secondary,
+    color: colors.textSecondary,
   },
   dimDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: chunk9Colors.bg.hairline,
+    backgroundColor: colors.border,
   },
   title: {
-    ...chunk9Typography.display28,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: 0.56,
+    color: colors.textPrimary,
     paddingRight: 24,
   },
   body: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.secondary,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: colors.textSecondary,
     paddingRight: 10,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: chunk9Spacing.cardChildGap,
+    gap: spacing.sm,
   },
 });

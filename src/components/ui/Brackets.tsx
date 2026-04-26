@@ -1,14 +1,14 @@
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { chunk9Colors } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
 
 type BracketsProps = {
   color?: 'emerald' | 'dim';
 };
 
 const bracketColorMap = {
-  emerald: chunk9Colors.accent.emerald,
-  dim: chunk9Colors.bg.hairline,
+  emerald: colors.accent,
+  dim: colors.border,
 } as const;
 
 export const Brackets = memo(function Brackets({
