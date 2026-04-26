@@ -1,10 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// Onboarding — v8: 3 slides (LIGA / RANKING / PROGRESS) + GPS gate.
+// Onboarding — v8: 4-step (LIGA / RANKING / PROGRESS / WERYFIKACJA).
 //
-// Slide chrome (header + dots + CTA) lives here so it stays locked
-// at the same Y across all three slides. Each slide owns only its
-// own content + scroll. The GPS gate after slide 03 is unchanged
-// from the prior flow — we only restyled the CTA labels.
+// Slide chrome (NWD header + 4-dot pagination + CTA pinned bottom)
+// lives here so it stays locked at the same Y across all four
+// steps. Slides 1-3 swipe horizontally inside a FlatList; step 4
+// is the GPS permission gate, rendered in place of the FlatList
+// once the rider taps the slide-03 CTA. The page counter (NN / 04)
+// and the dot row treat the gate as the 4th step too, so the
+// rider's mental model — "where am I in the onboarding" — never
+// breaks.
 //
 // Lifecycle:
 //   slide 03 CTA → handleFinish
@@ -23,7 +27,6 @@ import {
   StyleSheet,
   FlatList,
   Dimensions,
-  Pressable,
   type ViewToken,
   type ListRenderItemInfo,
 } from 'react-native';
@@ -42,13 +45,17 @@ import { useBetaFlow } from '@/hooks/useBetaFlow';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { notifySuccess, tapLight } from '@/systems/haptics';
 import { OnboardingHeader } from './_components/Header';
+import { LiveDot } from './_components/LiveDot';
 import { PaginationDots } from './_components/PaginationDots';
 import { CtaButton } from './_components/CtaButton';
 import { SlideLiga } from './_slides/SlideLiga';
 import { SlideRanking } from './_slides/SlideRanking';
 import { SlideProgress } from './_slides/SlideProgress';
+import { RadarPulse } from './_graphics/RadarPulse';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const TOTAL_STEPS = 4; // 3 slides + GPS gate
 
 interface SlideDef {
   key: '01' | '02' | '03';
@@ -129,48 +136,60 @@ export default function OnboardingScreen() {
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
   if (showLocationPrompt) {
+    const gateCta = !permissionAsked
+      ? { label: 'Aktywuj GPS', onPress: handleRequestPermission }
+      : permissionGranted
+        ? { label: 'Wchodzę', onPress: handleEnterApp }
+        : { label: 'Trening offline', onPress: handleEnterApp };
+
     return (
       <SafeAreaView style={styles.container}>
-        <Animated.View style={[styles.gpsContent, fadeStyle]}>
-          <Text style={styles.gpsTag}>WERYFIKACJA</Text>
-          <Text style={styles.gpsTitle}>
-            Ranking działa{'\n'}tylko z aktywnym GPS.
-          </Text>
-          <Text style={styles.gpsBody}>
-            Bez lokalizacji możesz jechać trening, ale zweryfikowany zjazd
-            wymaga GPS.
-          </Text>
+        <View style={styles.headerWrap}>
+          <OnboardingHeader pageIndex={TOTAL_STEPS - 1} pageCount={TOTAL_STEPS} />
+        </View>
 
-          <View style={styles.gpsActions}>
-            {!permissionAsked ? (
-              <CtaButton label="Aktywuj GPS" onPress={handleRequestPermission} />
-            ) : permissionGranted ? (
-              <>
-                <View style={styles.gpsGranted}>
-                  <Text style={styles.gpsGrantedText}>GPS AKTYWNY</Text>
-                  <View style={styles.gpsGrantedDot} />
-                </View>
-                <CtaButton label="Wchodzę do appki" onPress={handleEnterApp} />
-              </>
-            ) : (
-              <>
-                <View style={styles.gpsDenied}>
-                  <Text style={styles.gpsDeniedText}>
-                    Włącz GPS w Ustawieniach aby jechać rankingowo.
-                  </Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Trening offline"
-                  onPress={handleEnterApp}
-                  style={styles.gpsSecondaryBtn}
-                >
-                  <Text style={styles.gpsSecondaryText}>TRENING OFFLINE</Text>
-                </Pressable>
-              </>
-            )}
+        <Animated.View style={[styles.gateBody, fadeStyle]}>
+          <View style={styles.eyebrowRow}>
+            <Text style={styles.eyebrow}>WERYFIKACJA</Text>
+            <LiveDot size={5} />
           </View>
+
+          <View style={styles.gateHeadlineBlock}>
+            <Text style={styles.gateHeadline}>Ranking działa</Text>
+            <Text style={styles.gateHeadline}>tylko z aktywnym GPS.</Text>
+          </View>
+
+          <View style={styles.gateSubBlock}>
+            <Text style={styles.gateSubPrimary}>
+              Bez lokalizacji możesz jechać trening,
+            </Text>
+            <Text style={styles.gateSubSecondary}>
+              ale zweryfikowany zjazd wymaga GPS.
+            </Text>
+          </View>
+
+          <View style={styles.radarWrap}>
+            <RadarPulse />
+          </View>
+
+          {permissionAsked && permissionGranted ? (
+            <View style={styles.gpsGranted}>
+              <View style={styles.gpsGrantedDot} />
+              <Text style={styles.gpsGrantedText}>GPS AKTYWNY</Text>
+            </View>
+          ) : permissionAsked ? (
+            <Text style={styles.gateDeniedText}>
+              Włącz GPS w Ustawieniach aby jechać rankingowo.
+            </Text>
+          ) : null}
         </Animated.View>
+
+        <View style={styles.bottom}>
+          <PaginationDots count={TOTAL_STEPS} activeIndex={TOTAL_STEPS - 1} />
+          <View style={styles.ctaWrap}>
+            <CtaButton label={gateCta.label} onPress={gateCta.onPress} />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -184,7 +203,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerWrap}>
-        <OnboardingHeader pageIndex={currentIndex} pageCount={SLIDES.length} />
+        <OnboardingHeader pageIndex={currentIndex} pageCount={TOTAL_STEPS} />
       </View>
 
       <FlatList
@@ -206,7 +225,7 @@ export default function OnboardingScreen() {
       />
 
       <View style={styles.bottom}>
-        <PaginationDots count={SLIDES.length} activeIndex={currentIndex} />
+        <PaginationDots count={TOTAL_STEPS} activeIndex={currentIndex} />
         <View style={styles.ctaWrap}>
           <CtaButton label={SLIDES[currentIndex].cta} onPress={handleCta} />
         </View>
@@ -236,44 +255,62 @@ const styles = StyleSheet.create({
   ctaWrap: {
     width: '100%',
   },
-  // ── GPS gate ────────────────────────────────────────
-  gpsContent: {
+  // ── GPS gate (step 04) ───────────────────────────────
+  gateBody: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 24,
   },
-  gpsTag: {
+  eyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 14,
+  },
+  eyebrow: {
     fontFamily: fonts.mono,
     fontSize: 10,
     letterSpacing: 2.5,
     color: colors.accent,
-    marginBottom: 16,
   },
-  gpsTitle: {
+  gateHeadlineBlock: {
+    marginTop: 16,
+  },
+  gateHeadline: {
     fontFamily: fonts.racing,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.4,
+    fontSize: 30,
+    lineHeight: 34,
+    letterSpacing: -0.5,
     color: colors.textPrimary,
-    marginBottom: 16,
   },
-  gpsBody: {
+  gateSubBlock: {
+    marginTop: 12,
+    gap: 4,
+  },
+  gateSubPrimary: {
     fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.textSecondary,
-    marginBottom: 40,
-    maxWidth: 340,
   },
-  gpsActions: {
-    gap: 12,
+  gateSubSecondary: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textTertiary,
+  },
+  radarWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
   },
   gpsGranted: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   gpsGrantedText: {
     fontFamily: fonts.bodySemiBold,
@@ -282,35 +319,16 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   gpsGrantedDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.accent,
   },
-  gpsDenied: {
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  gpsDeniedText: {
+  gateDeniedText: {
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.textTertiary,
     textAlign: 'center',
-  },
-  gpsSecondaryBtn: {
-    width: '100%',
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gpsSecondaryText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 3,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
+    paddingVertical: 8,
   },
 });
