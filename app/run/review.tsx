@@ -17,7 +17,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Polyline } from 'react-native-svg';
 import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { hudTypography, hudShadows } from '@/theme/gameHud';
+import { colors } from '@/theme/colors';
 import {
   buildTrailGeometry,
   type BufferedPoint,
@@ -37,9 +38,9 @@ import {
 } from '@/systems/haptics';
 
 const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
+  colors.panel,
+  colors.chrome,
+  colors.bg,
 ];
 
 const SVG_W = 300;
@@ -364,7 +365,7 @@ export default function ReviewScreen() {
         <LinearGradient colors={TERRAIN_GRADIENT} style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.safe}>
           <View style={styles.centered}>
-            <ActivityIndicator color={hudColors.gpsStrong} />
+            <ActivityIndicator color={colors.accent} />
             <Text style={styles.loadingLabel}>ODCZYT NAGRANIA…</Text>
           </View>
         </SafeAreaView>
@@ -442,7 +443,7 @@ export default function ReviewScreen() {
             <StatCell
               label="ŚREDNIA"
               value={`±${median.toFixed(1)} m`}
-              color={median > 20 ? hudColors.gpsWeak : median > 10 ? hudColors.gpsMedium : hudColors.gpsStrong}
+              color={median > 20 ? colors.danger : median > 10 ? colors.warn : colors.accent}
             />
           </View>
 
@@ -460,7 +461,7 @@ export default function ReviewScreen() {
                 <Polyline
                   points={polylinePoints}
                   fill="none"
-                  stroke={hudColors.gpsStrong}
+                  stroke={colors.accent}
                   strokeWidth={2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -498,7 +499,7 @@ export default function ReviewScreen() {
             ]}
           >
             {isSubmitting ? (
-              <ActivityIndicator color={hudColors.terrainDark} />
+              <ActivityIndicator color={colors.bg} />
             ) : (
               <Text
                 style={[
@@ -539,26 +540,26 @@ function StatCell({ label, value, color }: { label: string; value: string; color
 // ── Styles ────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
+  root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   scroll: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
 
   loadingLabel: {
     ...hudTypography.label,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
     marginTop: spacing.lg,
     letterSpacing: 4,
   },
   noBufferTitle: {
     ...hudTypography.displayLarge,
     fontSize: 28,
-    color: hudColors.gpsWeak,
+    color: colors.danger,
     letterSpacing: 3,
     marginBottom: spacing.md,
   },
   noBufferBody: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 14,
     lineHeight: 20,
@@ -567,14 +568,14 @@ const styles = StyleSheet.create({
   eyebrow: {
     ...hudTypography.label,
     fontSize: 12,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
     letterSpacing: 4,
     marginBottom: spacing.xs,
   },
   trailTitle: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 24,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     letterSpacing: 2,
     marginBottom: spacing.lg,
   },
@@ -587,7 +588,7 @@ const styles = StyleSheet.create({
   },
   timerLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 3,
     marginBottom: spacing.xs,
   },
@@ -595,9 +596,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 64,
     letterSpacing: 2,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     fontVariant: ['tabular-nums'] as any,
-    textShadowColor: hudColors.gpsStrong,
+    textShadowColor: colors.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 24,
   },
@@ -619,14 +620,14 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
     marginBottom: spacing.xs,
   },
   statValue: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     letterSpacing: 1,
   },
 
@@ -643,7 +644,7 @@ const styles = StyleSheet.create({
   },
   svgLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 3,
     marginBottom: spacing.sm,
   },
@@ -659,10 +660,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 217, 61, 0.10)',
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: hudColors.gpsMedium,
+    borderColor: colors.warn,
   },
   warnBannerText: {
-    color: hudColors.gpsMedium,
+    color: colors.warn,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -672,10 +673,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 67, 101, 0.10)',
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: hudColors.gpsWeak,
+    borderColor: colors.danger,
   },
   errorBannerText: {
-    color: hudColors.gpsWeak,
+    color: colors.danger,
     fontSize: 13,
   },
 
@@ -688,7 +689,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(232, 255, 240, 0.08)',
   },
   primaryCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderRadius: radii.lg,
     height: 64,
     alignItems: 'center',
@@ -716,14 +717,14 @@ const styles = StyleSheet.create({
   },
   polylineEmptyText: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
     textAlign: 'center',
   },
   primaryCtaLabel: {
     ...hudTypography.action,
     fontSize: 16,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
   secondaryCta: {
@@ -733,7 +734,7 @@ const styles = StyleSheet.create({
   },
   secondaryCtaLabel: {
     ...hudTypography.label,
-    color: hudColors.actionDanger,
+    color: colors.danger,
     fontSize: 11,
     letterSpacing: 2,
   },
