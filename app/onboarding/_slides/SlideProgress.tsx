@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   headlineBlock: {
-    marginTop: -4,
+    marginTop: 2,
   },
   headlineLine: {
     fontFamily: fonts.racing,

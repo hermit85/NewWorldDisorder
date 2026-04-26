@@ -26,6 +26,10 @@ import { LiveDot } from '../_components/LiveDot';
 export const SlideLiga = memo(function SlideLiga() {
   return (
     <View style={styles.container}>
+      <View style={styles.eyebrowRow}>
+        <Text style={styles.eyebrow}>LIGA</Text>
+        <LiveDot size={5} />
+      </View>
       <Headline />
       <SubCopy />
       <TrailContext />
@@ -166,14 +170,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 50,
+    paddingTop: 24,
   },
   spacer: {
     flex: 1,
     minHeight: 8,
   },
+  // ── Eyebrow ──────────────────────────────────────────
+  eyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 14,
+  },
+  eyebrow: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: colors.accent,
+  },
   // ── Headline ─────────────────────────────────────────
   headlineBlock: {
+    marginTop: 16,
     gap: 0,
   },
   headlineLine: {
