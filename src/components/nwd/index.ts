@@ -77,6 +77,15 @@ export type {
   TodayChallengeCardProps,
 } from './profile';
 
+// Leaderboard primitives — arena surfaces.
+export { PodiumPortraits, TrailThumbnailRow } from './leaderboard';
+export type {
+  PodiumPortraitsProps,
+  PodiumEntry,
+  TrailThumbnailRowProps,
+  TrailThumbnail,
+} from './leaderboard';
+
 // Feed primitives — drama / event surfaces.
 export { LiveTicker, MOCK_TICKER_EVENTS, HeadToHeadCard } from './feed';
 export type {
