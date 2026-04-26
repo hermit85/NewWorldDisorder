@@ -10,3 +10,6 @@ export type { TwojStandingProps } from './TwojStanding';
 
 export { TodayChallengeCard } from './TodayChallengeCard';
 export type { TodayChallengeCardProps } from './TodayChallengeCard';
+
+export { ActivitySparkline } from './ActivitySparkline';
+export type { ActivitySparklineProps } from './ActivitySparkline';
