@@ -15,6 +15,7 @@ import { OnboardingHeader } from '../onboarding/components/Header';
 import { PaginationDots } from '../onboarding/components/PaginationDots';
 import { CtaButton } from '../onboarding/components/CtaButton';
 import { SlideLiga } from '../onboarding/slides/SlideLiga';
+import { SlideProgress } from '../onboarding/slides/SlideProgress';
 import { SlideRanking } from '../onboarding/slides/SlideRanking';
 
 const CTA_LABEL: Record<string, string> = {
@@ -40,6 +41,7 @@ export default function OnboardingPreviewScreen() {
       <View style={styles.slideWrap}>
         {slide === '01' ? <SlideLiga /> : null}
         {slide === '02' ? <SlideRanking /> : null}
+        {slide === '03' ? <SlideProgress /> : null}
       </View>
 
       <View style={styles.bottom}>
