@@ -383,8 +383,8 @@ export default function AuthScreen() {
         </ScrollView>
         <View style={styles.bottomBandWrap}>
           <BottomBand
-            status="SEZON 01 · LIVE"
-            context="Bike Park Słotwiny · 142 riderów"
+            status="SEZON 01 · BETA"
+            context="Bike Park Słotwiny · wczesny dostęp"
             variant="live"
           />
         </View>
