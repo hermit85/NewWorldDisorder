@@ -31,8 +31,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GlowButton } from '@/components/ui/GlowButton';
-import { FilterPill } from '@/components/ui/FilterPill';
+import * as Haptics from 'expo-haptics';
+import { Btn, PageTitle, TopBar } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useCreateTrail, useSpot } from '@/hooks/useBackend';
 import { pickRunDestination } from '@/features/run/pickRunDestination';
@@ -175,11 +175,11 @@ export default function NewTrailScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={16} accessibilityRole="button" accessibilityLabel="Wróć">
-            <Text style={styles.backLabel}>← Wróć</Text>
-          </Pressable>
-          <Text style={styles.title}>Dodaj trasę</Text>
-          <StepDots step={step} />
+          <TopBar
+            onBack={() => router.back()}
+            trailing={<StepDots step={step} />}
+          />
+          <PageTitle title="Dodaj trasę" />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -192,11 +192,9 @@ export default function NewTrailScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Nie udało się</Text>
               <Text style={styles.cardBody}>{submission.message}</Text>
-              <GlowButton
-                label="Spróbuj ponownie"
-                variant="primary"
-                onPress={() => setSubmission({ kind: 'idle' })}
-              />
+              <Btn variant="primary" onPress={() => setSubmission({ kind: 'idle' })}>
+                Spróbuj ponownie
+              </Btn>
             </View>
           ) : step === 1 ? (
             <Step1
@@ -222,16 +220,13 @@ export default function NewTrailScreen() {
         {submission.kind === 'idle' ? (
           <View style={styles.footer}>
             {step === 1 ? (
-              <GlowButton
-                label="Dalej"
-                variant="primary"
-                disabled={!canAdvanceStep1}
-                onPress={() => setStep(2)}
-              />
+              <Btn variant="primary" disabled={!canAdvanceStep1} onPress={() => setStep(2)}>
+                Dalej
+              </Btn>
             ) : step === 2 ? (
-              <GlowButton label="Dalej" variant="primary" onPress={() => setStep(3)} />
+              <Btn variant="primary" onPress={() => setStep(3)}>Dalej</Btn>
             ) : (
-              <GlowButton label="Zacznij zjazd" variant="primary" onPress={handleStart} />
+              <Btn variant="primary" onPress={handleStart}>Zacznij zjazd</Btn>
             )}
             {step > 1 ? (
               <Pressable onPress={() => setStep((s) => (s - 1) as Step)} hitSlop={8} style={styles.backStep}>
@@ -290,16 +285,44 @@ function Step1({
 
       <Text style={[styles.label, { marginTop: 20 }]}>POZIOM</Text>
       <View style={styles.pills}>
-        {DIFFICULTY_OPTIONS.map((d) => (
-          <FilterPill key={d.key} label={d.label} active={d.key === difficulty} onPress={() => onDifficulty(d.key)} />
-        ))}
+        {DIFFICULTY_OPTIONS.map((d) => {
+          const active = d.key === difficulty;
+          return (
+            <Pressable
+              key={d.key}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => undefined);
+                onDifficulty(d.key);
+              }}
+              style={[styles.filter, active && styles.filterActive]}
+            >
+              <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                {d.label.toUpperCase()}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Text style={[styles.label, { marginTop: 20 }]}>TYP TRASY</Text>
       <View style={styles.pills}>
-        {TRAIL_TYPE_OPTIONS.map((t) => (
-          <FilterPill key={t.key} label={t.label} active={t.key === trailType} onPress={() => onTrailType(t.key)} />
-        ))}
+        {TRAIL_TYPE_OPTIONS.map((t) => {
+          const active = t.key === trailType;
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => undefined);
+                onTrailType(t.key);
+              }}
+              style={[styles.filter, active && styles.filterActive]}
+            >
+              <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                {t.label.toUpperCase()}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -366,14 +389,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: 12,
   },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  backLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
   dots: { flexDirection: 'row', gap: 6 },
   dot: {
     width: 18,
@@ -437,7 +452,31 @@ const styles = StyleSheet.create({
   pills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
+  },
+  filter: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterActive: {
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
+  },
+  filterLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.8,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  filterLabelActive: {
+    color: colors.bg,
   },
   educatorBody: {
     ...typography.body,
