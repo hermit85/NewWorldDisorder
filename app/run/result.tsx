@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { Btn, IconGlyph, SectionHead, type IconName } from '@/components/nwd';
+import { Btn, IconGlyph, RaceNumber, SectionHead, type IconName } from '@/components/nwd';
 import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
@@ -471,6 +471,21 @@ function StandardResultScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Pattern 4 — race-number watermark for verified ranked
+          results. Bleeds off the top-right edge at 0.04 opacity so
+          the rider sees their position as wallpaper while the eye
+          is still on the time / podium row. Only rendered when we
+          actually have a rank to celebrate (verified + ranked). */}
+      {showRank && rankPosition > 0 && (
+        <RaceNumber
+          n={rankPosition}
+          position="top-right"
+          size={220}
+          opacity={0.04}
+          color={rankPosition <= 3 ? colors.gold : colors.accent}
+        />
+      )}
+
       <Animated.ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
