@@ -16,7 +16,7 @@ import { useActiveSpots, useLeaderboard, useTrail, useTrails } from '@/hooks/use
 import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
-import { LeaderboardRow } from '@/components/nwd';
+import { LeaderboardRow, RaceNumber, SystemText } from '@/components/nwd';
 import { getTrustDisclosure } from '@/lib/trailTrust';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
@@ -174,6 +174,13 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Pattern 4 chrome — game-HUD feel without restructuring layout.
+          RaceNumber watermarks the season; SystemText pins beta-state
+          tag bottom-right. Both are absolute + pointer-events-none, so
+          touches on TabBar / podium continue to work. */}
+      <RaceNumber n="01" position="top-right" size={180} opacity={0.035} />
+      <SystemText slot="br" inset={88}>SEZON 01 · BETA</SystemText>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
