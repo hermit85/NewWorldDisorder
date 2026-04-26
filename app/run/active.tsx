@@ -349,14 +349,14 @@ export default function ActiveRunScreen() {
   // Phase display
   const phaseLabel = (() => {
     switch (state.phase) {
-      case 'idle': return 'DOTKNIJ — SPRAWDŹ GOTOWOŚĆ';
+      case 'idle': return 'SPRAWDŹ GOTOWOŚĆ';
       case 'readiness_check':
         if (state.permissionDenied) return 'WŁĄCZ LOKALIZACJĘ';
         if (state.readiness.rankedEligible) return state.readiness.ctaLabel;
         if (state.readiness.ctaEnabled) return state.readiness.ctaLabel;
         return state.readiness.ctaLabel;
       case 'armed_ranked': return isTrainingOnly ? 'TRENING — CZEKAM NA START' : 'UZBROJONY — CZEKAM NA LINIĘ';
-      case 'armed_practice': return 'TRENING — DOTKNIJ ABY START';
+      case 'armed_practice': return 'TRENING — START';
       case 'running_ranked': return 'ZJAZD RANKINGOWY';
       case 'running_practice': return 'ZJAZD TRENINGOWY';
       case 'finishing': return 'META…';
@@ -686,17 +686,23 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   phaseIndicator: {
+    width: '88%',
+    minHeight: 48,
     borderWidth: 2,
     borderRadius: radii.lg,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     marginBottom: spacing.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   phaseText: {
     ...typography.label,
-    fontSize: 14,
-    letterSpacing: 3,
+    fontSize: 12,
+    lineHeight: 15,
+    letterSpacing: 2.4,
     textAlign: 'center',
+    flexShrink: 1,
   },
   timerWrap: {
     opacity: 0.6,
