@@ -19,17 +19,24 @@
 // Commit 5 adds scope tabs + out-of-top-8 separator + BottomBand.
 // ═══════════════════════════════════════════════════════════
 
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { IconGlyph } from '@/components/nwd';
+import { BottomBand, IconGlyph } from '@/components/nwd';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useSpot, useLeaderboard } from '@/hooks/useBackend';
 import { formatTimeMs, formatDelta } from '@/utils/time';
-import type { LeaderboardEntry, Difficulty } from '@/data/types';
+import type { LeaderboardEntry, Difficulty, PeriodType } from '@/data/types';
+
+const SCOPE_TABS: Array<{ key: PeriodType; label: string }> = [
+  { key: 'day', label: 'DZIŚ' },
+  { key: 'weekend', label: 'WEEKEND' },
+  { key: 'all_time', label: 'SEZON' },
+];
 
 const DIFFICULTY_COLOR: Record<Difficulty, string> = {
   easy: '#22C55E',
@@ -206,12 +213,21 @@ export default function RankingScreen() {
   const { id: trailId } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuthContext();
 
+  const [scope, setScope] = useState<PeriodType>('all_time');
+
   const { trail } = useTrail(trailId ?? null);
   const { spot } = useSpot(trail?.spotId ?? null);
-  const { entries } = useLeaderboard(trailId ?? '', 'all_time', profile?.id);
+  const { entries } = useLeaderboard(trailId ?? '', scope, profile?.id);
 
   const top8 = entries.slice(0, 8);
   const leaderTimeMs = top8[0]?.bestDurationMs ?? 0;
+
+  // Edge case — current user is outside top 8. Render the standard
+  // top 8, then a "— TWÓJ CZAS —" separator + SelfRow with the
+  // rider's actual position. SELF + position never disappears.
+  const myEntry = entries.find((e) => e.isCurrentUser);
+  const myInTop8 = top8.some((e) => e.isCurrentUser);
+  const showSeparator = !!myEntry && !myInTop8;
 
   const trailName = trail?.name ?? 'Trasa';
   const spotName = spot?.name ?? '';
@@ -257,10 +273,38 @@ export default function RankingScreen() {
           </Text>
         </View>
 
-        {/* Ranking list — commit 5 will add scope tabs above + edge separator + BottomBand below */}
+        {/* Scope tabs — DZIŚ / WEEKEND / SEZON */}
+        <View style={styles.scopeTabsRow}>
+          {SCOPE_TABS.map((tab) => {
+            const active = scope === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => setScope(tab.key)}
+                style={[styles.scopeTab, active && styles.scopeTabActive]}
+              >
+                <Text style={[styles.scopeTabText, active && styles.scopeTabTextActive]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Ranking list */}
         <View style={styles.listContainer}>
           {top8.length > 0 ? (
-            top8.map((entry) => renderRow(entry, leaderTimeMs, trail?.pioneerUserId ?? null))
+            <>
+              {top8.map((entry) => renderRow(entry, leaderTimeMs, trail?.pioneerUserId ?? null))}
+              {showSeparator && myEntry ? (
+                <>
+                  <View style={styles.separator}>
+                    <Text style={styles.separatorText}>— TWÓJ CZAS —</Text>
+                  </View>
+                  {renderRow(myEntry, leaderTimeMs, trail?.pioneerUserId ?? null)}
+                </>
+              ) : null}
+            </>
           ) : (
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>BRAK WYNIKÓW</Text>
@@ -268,7 +312,45 @@ export default function RankingScreen() {
             </View>
           )}
         </View>
+
+        {/* Self placeholder when rider has no time — Q1 spec edge case */}
+        {!myEntry && profile ? (
+          <View style={[styles.listContainer, styles.selfPlaceholderWrap]}>
+            <View style={styles.separator}>
+              <Text style={styles.separatorText}>— TWÓJ CZAS —</Text>
+            </View>
+            <View style={styles.selfPlaceholderBody}>
+              <Text style={styles.selfPlaceholderCopy}>
+                Brak czasu. Jedź żeby się pojawić tutaj.
+              </Text>
+              <Pressable
+                style={styles.selfPlaceholderCta}
+                onPress={() =>
+                  router.push({
+                    pathname: '/run/active',
+                    params: {
+                      trailId: trailId ?? '',
+                      trailName: trail?.name ?? '',
+                      intent: 'ranked',
+                    },
+                  })
+                }
+              >
+                <Text style={styles.selfPlaceholderCtaText}>JEDŹ →</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
+
+      {/* BottomBand — sticky at the bottom of the screen */}
+      <View style={styles.bottomBandWrap}>
+        <BottomBand
+          status="● SEZON 01 · LIVE"
+          context="Przytrzymaj rider, aby zgłosić"
+          variant="live"
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -336,14 +418,98 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  listContainer: {
+  scopeTabsRow: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
     marginTop: 18,
+    gap: 6,
+  },
+  scopeTab: {
+    flex: 1,
+    height: 32,
+    borderRadius: 2,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scopeTabActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  scopeTabText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(242,244,243,0.55)',
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+  },
+  scopeTabTextActive: {
+    color: colors.accentInk,
+  },
+  listContainer: {
+    marginTop: 14,
     marginHorizontal: 24,
     backgroundColor: '#0E1517',
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: 2,
     overflow: 'hidden',
+  },
+  selfPlaceholderWrap: {
+    marginTop: 14,
+  },
+  selfPlaceholderBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  selfPlaceholderCopy: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242,244,243,0.55)',
+  },
+  selfPlaceholderCta: {
+    paddingHorizontal: 16,
+    height: 28,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,255,135,0.06)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,255,135,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selfPlaceholderCtaText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 1.5,
+  },
+  separator: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  separatorText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(242,244,243,0.32)',
+    letterSpacing: 2.5,
+  },
+  bottomBandWrap: {
+    paddingBottom: 8,
   },
   empty: {
     paddingVertical: 48,
