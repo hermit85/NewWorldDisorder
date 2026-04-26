@@ -139,8 +139,11 @@ export default function OnboardingScreen() {
     const gateCta = !permissionAsked
       ? { label: 'Aktywuj GPS', onPress: handleRequestPermission }
       : permissionGranted
-        ? { label: 'Wchodzę', onPress: handleEnterApp }
+        ? { label: 'Wchodzę do appki', onPress: handleEnterApp }
         : { label: 'Trening offline', onPress: handleEnterApp };
+
+    const isVerified = permissionAsked && permissionGranted;
+    const isDenied = permissionAsked && !permissionGranted;
 
     return (
       <SafeAreaView style={styles.container}>
@@ -155,33 +158,85 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={styles.gateHeadlineBlock}>
-            <Text style={styles.gateHeadline}>Ranking działa</Text>
-            <Text style={styles.gateHeadline}>tylko z aktywnym GPS.</Text>
+            {isVerified ? (
+              <>
+                <Text style={styles.gateHeadline}>GPS aktywny.</Text>
+                <Text style={[styles.gateHeadline, styles.gateHeadlineAccent]}>
+                  Wszystko gotowe.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.gateHeadline}>Ranking działa</Text>
+                <Text style={styles.gateHeadline}>tylko z aktywnym GPS.</Text>
+              </>
+            )}
           </View>
 
           <View style={styles.gateSubBlock}>
-            <Text style={styles.gateSubPrimary}>
-              Bez lokalizacji możesz jechać trening,
-            </Text>
-            <Text style={styles.gateSubSecondary}>
-              ale zweryfikowany zjazd wymaga GPS.
-            </Text>
+            {isVerified ? (
+              <>
+                <Text style={styles.gateSubPrimary}>
+                  Sygnał odebrany. Możesz wjeżdżać
+                </Text>
+                <Text style={styles.gateSubPrimary}>
+                  w ranking i mierzyć czasy.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.gateSubPrimary}>
+                  Bez lokalizacji możesz jechać trening,
+                </Text>
+                <Text style={styles.gateSubSecondary}>
+                  ale zweryfikowany zjazd wymaga GPS.
+                </Text>
+              </>
+            )}
           </View>
 
           <View style={styles.radarWrap}>
-            <RadarPulse />
+            <RadarPulse verified={isVerified} />
           </View>
 
-          {permissionAsked && permissionGranted ? (
-            <View style={styles.gpsGranted}>
-              <View style={styles.gpsGrantedDot} />
-              <Text style={styles.gpsGrantedText}>GPS AKTYWNY</Text>
-            </View>
-          ) : permissionAsked ? (
-            <Text style={styles.gateDeniedText}>
-              Włącz GPS w Ustawieniach aby jechać rankingowo.
-            </Text>
-          ) : null}
+          <View
+            style={[
+              styles.gateBand,
+              isVerified && styles.gateBandVerified,
+            ]}
+          >
+            {isVerified ? (
+              <>
+                <View style={styles.gateBandTopRow}>
+                  <LiveDot size={5} />
+                  <Text style={styles.gateBandLabelAccent}>SYGNAŁ ZWERYFIKOWANY</Text>
+                </View>
+                <Text style={styles.gateBandSubBright}>
+                  Bike Park Słotwiny · 700m n.p.m.
+                </Text>
+              </>
+            ) : isDenied ? (
+              <>
+                <View style={styles.gateBandTopRow}>
+                  <View style={styles.gateBandDotDanger} />
+                  <Text style={styles.gateBandLabelDanger}>BRAK GPS</Text>
+                </View>
+                <Text style={styles.gateBandSub}>
+                  Włącz GPS w Ustawieniach aby jechać rankingowo.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.gateBandTopRow}>
+                  <View style={styles.gateBandDotMuted} />
+                  <Text style={styles.gateBandLabelMuted}>OCZEKIWANIE</Text>
+                </View>
+                <Text style={styles.gateBandSub}>
+                  Wymagane uprawnienia lokalizacji.
+                </Text>
+              </>
+            )}
+          </View>
         </Animated.View>
 
         <View style={styles.bottom}>
@@ -282,6 +337,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     color: colors.textPrimary,
   },
+  gateHeadlineAccent: {
+    color: colors.accent,
+  },
   gateSubBlock: {
     marginTop: 12,
     gap: 4,
@@ -304,30 +362,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 200,
   },
-  gpsGranted: {
+  // ── Gate bottom band ────────────────────────────────
+  gateBand: {
+    height: 44,
+    backgroundColor: colors.panel,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 255, 135, 0.20)',
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  gateBandVerified: {
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.40)',
+  },
+  gateBandTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    paddingVertical: 8,
   },
-  gpsGrantedText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 2,
+  gateBandLabelAccent: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 2.5,
     color: colors.accent,
   },
-  gpsGrantedDot: {
+  gateBandLabelMuted: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: 'rgba(242, 244, 243, 0.6)',
+  },
+  gateBandLabelDanger: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    color: colors.danger,
+  },
+  gateBandSub: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    color: 'rgba(242, 244, 243, 0.55)',
+  },
+  gateBandSubBright: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    color: 'rgba(242, 244, 243, 0.7)',
+  },
+  gateBandDotMuted: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.accent,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
-  gateDeniedText: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.textTertiary,
-    textAlign: 'center',
-    paddingVertical: 8,
+  gateBandDotDanger: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.danger,
   },
 });
