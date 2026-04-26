@@ -5,70 +5,278 @@
 //
 //   Stan A — STANDARD (count > 0)
 //     Per-bike-park sections sorted MAX(run.created_at) DESC.
-//     Each section renders trail rows with rank pill + PB
-//     (when rider has time) or "JEDŹ →" CTA (when no time).
-//     Two dashed mityagacje cards at the bottom of the list.
+//     Trail rows: rank pill + PB if rider has time, else
+//     "JEDŹ →" CTA. Two dashed mityagacje at the bottom.
 //
-//   Stan B — ŚWIEŻY (count === 0)
-//     "Tablica zapełni się sama." hint card, two LARGER
-//     dashed mityagacje cards (centered, more padding), and a
-//     "PRZEJDŹ DO SPOTÓW" outline CTA fallback.
+//   Stan B — ŚWIEŻY (count === 0) — content w commit 3
 //
 // Anti-drift (per cc_prompt_tablica_phase1_final):
-//   - NO Słotwiny seed default
-//   - NO TODAY'S DRAMA / activity ticker
-//   - NO podium 2-1-3 swap
-//   - NO trail label klikalny (no trail switcher in row)
-//   - NO curator chip / banner
-//   - NO pagination counter "01" watermark
-//   - NO line chart / sparkline / elevation profile
-//   - NO NWDHeader (this is a tab screen, not a wizard)
-//   - NO English placeholders (DRAMA / BETA / TODAY)
+// NO Słotwiny seed · NO drama ticker · NO podium 2-1-3 swap ·
+// NO trail switcher · NO curator chip · NO pagination watermark ·
+// NO line/sparkline · NO NWDHeader · NO English placeholders.
 //
-// Tap a trail row → push to /trail/[id]/ranking (RankingScreen).
-//
-// Scaffolding — Commit 1. Content lands in commits 2-5.
+// Tap any trail row → push /trail/[id]/ranking (RankingScreen).
 // ═══════════════════════════════════════════════════════════
 
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
 import { LiveDot } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useUserRunCount } from '@/hooks/useUserRunCount';
+import {
+  useTablicaSections,
+  type TablicaTrailRow,
+} from '@/hooks/useTablicaSections';
+import { formatTimeMs } from '@/utils/time';
+import type { Difficulty } from '@/data/types';
+
+// Bike-park standard difficulty palette (per Q3 in spec) — NOT the
+// theme.map S0-S5 set. Black uses dark fill with 1px white stroke
+// for visibility on the dark background.
+const DIFFICULTY_COLOR: Record<Difficulty, string> = {
+  easy: '#22C55E',
+  medium: '#3B82F6',
+  hard: '#FF4757',
+  expert: '#0E1517',
+  pro: '#0E1517',
+};
+
+const isBlackDiff = (d: Difficulty) => d === 'expert' || d === 'pro';
+
+function trailWord(n: number): string {
+  if (n === 1) return 'TRASA';
+  if (n < 5) return 'TRASY';
+  return 'TRAS';
+}
+
+function zjazdWord(n: number): string {
+  if (n === 1) return 'ZJAZD';
+  if (n < 5) return 'ZJAZDY';
+  return 'ZJAZDÓW';
+}
+
+// Top-3 medal tone for the rank pill — gold / silver / bronze.
+// 4-10 = accent. 11+ = dimmed white.
+function rankTone(position: number): {
+  bg: string;
+  border: string;
+  text: string;
+  numeric: string;
+  pbColor: string;
+  pbLabel: string;
+} {
+  if (position === 1) {
+    return {
+      bg: 'rgba(255, 210, 63, 0.12)',
+      border: 'rgba(255, 210, 63, 0.5)',
+      text: 'rgba(255, 210, 63, 0.7)',
+      numeric: colors.gold,
+      pbColor: colors.gold,
+      pbLabel: 'REKORD',
+    };
+  }
+  if (position === 2) {
+    return {
+      bg: 'rgba(201, 209, 214, 0.10)',
+      border: 'rgba(201, 209, 214, 0.4)',
+      text: 'rgba(201, 209, 214, 0.7)',
+      numeric: colors.silver,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  if (position === 3) {
+    return {
+      bg: 'rgba(224, 138, 92, 0.10)',
+      border: 'rgba(224, 138, 92, 0.4)',
+      text: 'rgba(224, 138, 92, 0.7)',
+      numeric: colors.bronze,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  if (position <= 10) {
+    return {
+      bg: 'rgba(0, 255, 135, 0.10)',
+      border: 'rgba(0, 255, 135, 0.4)',
+      text: 'rgba(0, 255, 135, 0.6)',
+      numeric: colors.accent,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  return {
+    bg: 'rgba(255, 255, 255, 0.04)',
+    border: 'rgba(255, 255, 255, 0.15)',
+    text: 'rgba(242, 244, 243, 0.4)',
+    numeric: 'rgba(242, 244, 243, 0.6)',
+    pbColor: colors.textPrimary,
+    pbLabel: 'PB',
+  };
+}
+
+function TrailRow({
+  row,
+  onPress,
+}: {
+  row: TablicaTrailRow;
+  onPress: () => void;
+}) {
+  const { trail, userPbMs, userPosition, userRunCount } = row;
+  const hasTime = userPbMs != null && userPosition != null;
+  const diffColor = DIFFICULTY_COLOR[trail.difficulty];
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <View
+        style={[
+          styles.diffDot,
+          { backgroundColor: diffColor },
+          isBlackDiff(trail.difficulty) && styles.diffDotBlack,
+        ]}
+      />
+
+      <View style={styles.rowMain}>
+        <Text
+          style={[styles.trailName, !hasTime && styles.trailNameDim]}
+          numberOfLines={1}
+        >
+          {trail.name}
+        </Text>
+        <Text style={styles.runCount} numberOfLines={1}>
+          {userRunCount} {zjazdWord(userRunCount)}
+        </Text>
+      </View>
+
+      {hasTime ? (
+        <RankPillWithPb position={userPosition!} pbMs={userPbMs!} />
+      ) : (
+        <View style={styles.jedzCta}>
+          <Text style={styles.jedzText}>JEDŹ →</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function RankPillWithPb({ position, pbMs }: { position: number; pbMs: number }) {
+  const tone = rankTone(position);
+  return (
+    <View style={styles.rankWrap}>
+      <View
+        style={[
+          styles.rankPill,
+          { backgroundColor: tone.bg, borderColor: tone.border },
+        ]}
+      >
+        <Text style={[styles.rankTy, { color: tone.text }]}>TY</Text>
+        <Text style={[styles.rankNum, { color: tone.numeric }]}>
+          #{position}
+        </Text>
+      </View>
+      <View style={styles.pbBlock}>
+        <Text style={[styles.pbLabel, position === 1 && { color: 'rgba(255, 210, 63, 0.6)' }]}>
+          {tone.pbLabel}
+        </Text>
+        <Text style={[styles.pbTime, { color: tone.pbColor }]}>
+          {formatTimeMs(pbMs)}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export default function TablicaScreen() {
+  const router = useRouter();
   const { profile } = useAuthContext();
-  const { isFresh, status } = useUserRunCount(profile?.id);
+  const { count, isFresh, status: countStatus } = useUserRunCount(profile?.id);
+  const { sections, status: sectionsStatus } = useTablicaSections(profile?.id);
+
+  const totalTrails = sections.reduce((sum, s) => sum + s.trails.length, 0);
+  const totalParks = sections.length;
+
+  const isLoading = countStatus === 'loading' || sectionsStatus === 'loading';
 
   return (
     <SafeAreaView style={styles.root}>
-      <View style={styles.header}>
-        <View style={styles.miniLabelRow}>
-          <LiveDot size={6} color={colors.accent} mode="pulse" />
-          <Text style={styles.miniLabel}>TABLICA</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header — same shape both states */}
+        <View style={styles.header}>
+          <View style={styles.miniLabelRow}>
+            <LiveDot size={6} color={colors.accent} mode="pulse" />
+            <Text style={styles.miniLabel}>TABLICA</Text>
+          </View>
+          <Text style={styles.headline}>TABLICA</Text>
+          <Text style={styles.sub}>
+            {isLoading
+              ? 'Ładowanie…'
+              : isFresh || (count != null && count > 0 && totalParks === 0)
+                ? 'Pusta. Zacznij sezon.'
+                : `Twoje ${totalTrails} ${trailWord(totalTrails).toLowerCase()} · ${totalParks} bike park${totalParks === 1 ? '' : 'i'}`}
+          </Text>
         </View>
-        <Text style={styles.headline}>TABLICA</Text>
-        <Text style={styles.sub}>
-          {status === 'loading'
-            ? 'Ładowanie…'
-            : isFresh
-              ? 'Pusta. Zacznij sezon.'
-              : 'Twoje wyniki w lidze'}
-        </Text>
-      </View>
 
-      {/* Content scaffolding — Stan A and Stan B render in commits 2-3. */}
-      <View style={styles.contentPlaceholder}>
-        <Text style={styles.placeholderHint}>
-          {status === 'loading'
-            ? 'Wczytuję twój sezon…'
-            : isFresh
-              ? '[Stan B placeholder — content w commit 3]'
-              : '[Stan A placeholder — content w commit 2]'}
-        </Text>
-      </View>
+        {/* Stan A — content present */}
+        {!isLoading && sections.length > 0 ? (
+          <View style={styles.body}>
+            {sections.map((section) => (
+              <View key={section.spot.id} style={styles.section}>
+                <Text style={styles.sectionHeader}>
+                  {section.spot.name.toUpperCase()} · {section.trails.length}{' '}
+                  {trailWord(section.trails.length)}
+                </Text>
+                <View style={styles.sectionRows}>
+                  {section.trails.map((row) => (
+                    <TrailRow
+                      key={row.trail.id}
+                      row={row}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/trail/[id]/ranking',
+                          params: { id: row.trail.id },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            {/* 2 dashed mityagacje — subtle versions on Stan A */}
+            <View style={styles.mitigationsWrap}>
+              <Pressable
+                style={[styles.mitigation, styles.mitigationAccent]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <Text style={styles.mitigationCopy}>Brak twojego bike parku?</Text>
+                <Text style={styles.mitigationCtaAccent}>+ DODAJ W SPOTACH →</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.mitigation, styles.mitigationWarn]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <Text style={styles.mitigationCopy}>Brak twojej trasy w bike parku?</Text>
+                <Text style={styles.mitigationCtaWarn}>+ ZOSTAŃ PIONIEREM →</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Stan B placeholder — full content in commit 3 */}
+        {!isLoading && sections.length === 0 ? (
+          <View style={styles.contentPlaceholder}>
+            <Text style={styles.placeholderHint}>
+              [Stan B — content w commit 3]
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -77,6 +285,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  scroll: {
+    paddingBottom: 80,
   },
   header: {
     paddingHorizontal: 24,
@@ -111,11 +322,190 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
   },
+  body: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 18,
+  },
+  section: {
+    gap: 8,
+  },
+  sectionHeader: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(242, 244, 243, 0.5)',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    marginTop: 18,
+    marginBottom: 4,
+  },
+  sectionRows: {
+    gap: 6,
+  },
+
+  // Trail row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    paddingHorizontal: 14,
+    backgroundColor: '#13181A',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2, // sharp HUD
+    gap: 14,
+  },
+  rowPressed: {
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderColor: colors.borderHot,
+  },
+  diffDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  diffDotBlack: {
+    borderWidth: 1,
+    borderColor: '#F2F4F3',
+  },
+  rowMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  trailName: {
+    fontFamily: fonts.racing,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  trailNameDim: {
+    color: 'rgba(242, 244, 243, 0.7)',
+  },
+  runCount: {
+    fontFamily: fonts.mono,
+    fontSize: 8,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.4)',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+
+  // Right slot — rank pill + PB OR JEDŹ CTA
+  rankWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rankPill: {
+    width: 50,
+    height: 28,
+    borderRadius: 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    paddingVertical: 1,
+  },
+  rankTy: {
+    fontFamily: fonts.mono,
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  rankNum: {
+    fontFamily: fonts.racing,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  pbBlock: {
+    alignItems: 'flex-end',
+    width: 56,
+  },
+  pbLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 7,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.4)',
+    letterSpacing: 1.2,
+  },
+  pbTime: {
+    fontFamily: fonts.racing,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  jedzCta: {
+    width: 118,
+    height: 28,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 255, 135, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  jedzText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 1.5,
+  },
+
+  // Mityagacje — subtle dashed cards
+  mitigationsWrap: {
+    gap: 10,
+    marginTop: 18,
+  },
+  mitigation: {
+    height: 46,
+    paddingHorizontal: 16,
+    borderRadius: 2,
+    borderWidth: 0.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  mitigationAccent: {
+    backgroundColor: 'rgba(0, 255, 135, 0.04)',
+    borderColor: 'rgba(0, 255, 135, 0.25)',
+  },
+  mitigationWarn: {
+    backgroundColor: 'rgba(255, 176, 32, 0.04)',
+    borderColor: 'rgba(255, 176, 32, 0.25)',
+  },
+  mitigationCopy: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.7)',
+    textAlign: 'center',
+  },
+  mitigationCtaAccent: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.accent,
+    textAlign: 'center',
+  },
+  mitigationCtaWarn: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.warn,
+    textAlign: 'center',
+  },
+
   contentPlaceholder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 64,
   },
   placeholderHint: {
     fontFamily: fonts.mono,
