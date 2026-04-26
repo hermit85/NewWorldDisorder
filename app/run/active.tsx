@@ -6,6 +6,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { formatTime } from '@/content/copy';
+import { Btn, IconGlyph, Pill, RaceTime } from '@/components/nwd';
 import { useRealRun } from '@/systems/useRealRun';
 import { ReadinessPanel } from '@/components/run/ReadinessPanel';
 import { ApproachView } from '@/components/run/ApproachView';
@@ -448,10 +449,10 @@ export default function ActiveRunScreen() {
 
   // B29: badge reads intent, not state.mode — same value (makeInitialState
   // pins mode to intent) but sourcing from intent makes the invariant
-  // self-documenting.
-  const modeBadge = intent === 'ranked'
-    ? { label: 'RANKING', color: colors.accent, bg: colors.accentDim }
-    : { label: 'TRENING', color: colors.blue, bg: 'rgba(0, 122, 255, 0.15)' };
+  // self-documenting. Canonical Pill states: ranked → armed (accent),
+  // practice → training (muted) per § 01 race-state-owns-color.
+  const modePillState: 'armed' | 'training' = intent === 'ranked' ? 'armed' : 'training';
+  const modePillLabel = intent === 'ranked' ? 'RANKING' : 'TRENING';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -466,12 +467,10 @@ export default function ActiveRunScreen() {
           <Text style={styles.trailName}>{trailName.toUpperCase()}</Text>
         </Pressable>
 
-        {/* Mode badge */}
+        {/* Mode badge — canonical Pill */}
         {state.phase !== 'idle' && (
-          <View style={[styles.modeBadge, { backgroundColor: modeBadge.bg }]}>
-            <Text style={[styles.modeBadgeText, { color: modeBadge.color }]}>
-              {modeBadge.label}
-            </Text>
+          <View style={styles.modeBadgeWrap}>
+            <Pill state={modePillState} size="sm">{modePillLabel}</Pill>
           </View>
         )}
 
@@ -560,10 +559,17 @@ export default function ActiveRunScreen() {
           </Text>
         </View>
 
-        {/* Timer */}
-        <Text style={[styles.timer, showTimer && { color: phaseColor }]}>
-          {showTimer ? formatTime(state.elapsedMs) : '00.00'}
-        </Text>
+        {/* Timer — canonical RaceTime hero (56px). Pre-canonical hand-tuned
+            72px reduced to design-system spec; tabular-nums + dimMs comes
+            for free. Phase-tinted via wrapping View since RaceTime atom
+            does not expose a colour override on the hero glyph. */}
+        <View style={[styles.timerWrap, showTimer && { opacity: 1 }]}>
+          <RaceTime
+            value={showTimer ? formatTime(state.elapsedMs) : '00.00'}
+            size="hero"
+            dimMs
+          />
+        </View>
 
         {/* Gaming-context cards — delta-to-PB + rival / king state */}
         {running && (
@@ -626,16 +632,19 @@ export default function ActiveRunScreen() {
         )}
       </Pressable>
 
-{/* Cancel */}
+      {/* Cancel — canonical Btn ghost with arrow-left glyph */}
       {showCancel && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Wróć"
-          style={styles.cancelBtn}
-          onPress={handleCancel}
-        >
-          <Text style={styles.cancelText}>← WRÓĆ</Text>
-        </Pressable>
+        <View style={styles.cancelWrap}>
+          <Btn
+            variant="ghost"
+            size="sm"
+            fullWidth={false}
+            icon={<IconGlyph name="arrow-left" size={14} color={colors.textTertiary} />}
+            onPress={handleCancel}
+          >
+            Wróć
+          </Btn>
+        </View>
       )}
 
       {/* Debug overlay — dev builds only */}
@@ -661,15 +670,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     letterSpacing: 3,
   },
-  modeBadge: {
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xxs,
+  modeBadgeWrap: {
     marginBottom: spacing.xl,
-  },
-  modeBadgeText: {
-    ...typography.labelSmall,
-    letterSpacing: 3,
   },
   readinessContainer: {
     width: '100%',
@@ -696,11 +698,8 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     textAlign: 'center',
   },
-  timer: {
-    ...typography.timeHero,
-    color: colors.textPrimary,
-    fontSize: 72,
-    letterSpacing: 4,
+  timerWrap: {
+    opacity: 0.6,
   },
   liveStats: {
     flexDirection: 'row',
@@ -720,15 +719,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
   },
-  cancelBtn: {
+  cancelWrap: {
     position: 'absolute',
     bottom: spacing.xxxl,
     alignSelf: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-  },
-  cancelText: {
-    ...typography.label,
-    color: colors.textTertiary,
   },
 });
