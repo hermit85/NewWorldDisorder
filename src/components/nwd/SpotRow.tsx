@@ -73,9 +73,15 @@ export function SpotRow({
   if (distance) subParts.push(distance.toUpperCase());
   if (trailCount && trailCount > 0) subParts.push(`${trailCount} ${formatTrailWord(trailCount).toUpperCase()}`);
 
+  // Pioneer USP — a "new" spot is one where nobody has claimed the
+  // first verified line yet. Sprint 4 elevates the trailing pill
+  // from a passive "Nowy" tag to a call-to-arms: "PIONIER" with the
+  // accent state, signalling "you can be first here". Riders who
+  // tap this know they're competing for the seed slot, not just
+  // visiting another bike park.
   const trailingNode =
     trailing
-    ?? (status === 'new' ? <Pill state="pending">Nowy</Pill>
+    ?? (status === 'new' ? <Pill state="accent" dot>Pionier</Pill>
       : status === 'closed' ? <Pill state="invalid">Zamknięte</Pill>
         : riders != null ? <Pill state="accent">{`${riders}`}</Pill>
           : null);
@@ -119,6 +125,11 @@ export function SpotRow({
         <Text style={styles.sub} numberOfLines={1}>
           {subParts.join(' · ')}
         </Text>
+        {status === 'new' ? (
+          <Text style={styles.pioneerHint} numberOfLines={1}>
+            PIONEER SLOT WOLNY
+          </Text>
+        ) : null}
       </View>
 
       {trailingNode}
@@ -160,9 +171,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentDim,
     borderColor: colors.borderHot,
   },
+  // "new" status now uses the accent palette (pioneer USP) instead
+  // of warn — it's an opportunity, not a warning.
   markerWarn: {
-    backgroundColor: 'transparent',
-    borderColor: colors.warn,
+    backgroundColor: colors.accentDim,
+    borderColor: colors.borderHot,
   },
   markerClosed: {
     backgroundColor: 'transparent',
@@ -191,5 +204,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontWeight: '600',
     textTransform: 'uppercase',
+  },
+  // Pioneer-slot caption — only renders when status === 'new'.
+  // Mono accent + tight tracking signals "this is the USP hook,
+  // not just a tag". Sits below the region/distance line.
+  pioneerHint: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
 });
