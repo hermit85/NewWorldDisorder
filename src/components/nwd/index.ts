@@ -86,6 +86,10 @@ export type {
   TrailThumbnail,
 } from './leaderboard';
 
+// Spot primitives — bike-park / arena surfaces.
+export { SpotCard } from './spot';
+export type { SpotCardProps, SpotCardCta } from './spot';
+
 // Feed primitives — drama / event surfaces.
 export { LiveTicker, MOCK_TICKER_EVENTS, HeadToHeadCard } from './feed';
 export type {
