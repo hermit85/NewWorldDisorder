@@ -16,7 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { spacing, radii } from '@/theme/spacing';
-import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
+import { hudTypography, hudShadows } from '@/theme/gameHud';
+import { colors } from '@/theme/colors';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
 import { useGpsWarmup } from '@/features/recording/useGpsWarmup';
 import { READINESS_GATE } from '@/features/recording/validators';
@@ -25,13 +26,13 @@ import * as recordingStore from '@/features/recording/recordingStore';
 import { MotivationStack } from '@/components/run/MotivationStack';
 
 const TERRAIN_GRADIENT: readonly [string, string, string] = [
-  hudColors.terrainHigh,
-  hudColors.terrainMid,
-  hudColors.terrainDark,
+  colors.panel,
+  colors.chrome,
+  colors.bg,
 ];
 
 const DANGER_GRADIENT: readonly [string, string] = [
-  hudColors.terrainDark,
+  colors.bg,
   'rgba(255, 67, 101, 0.22)',
 ];
 
@@ -68,10 +69,10 @@ function gpsStrength(acc: number | null, weakSignal: boolean): GpsStrength {
 
 function GpsDots({ strength }: { strength: GpsStrength }) {
   const color =
-    strength === 'strong' ? hudColors.gpsStrong :
-    strength === 'medium' ? hudColors.gpsMedium :
-    strength === 'weak'   ? hudColors.gpsWeak   :
-    hudColors.gpsMuted;
+    strength === 'strong' ? colors.accent :
+    strength === 'medium' ? colors.warn :
+    strength === 'weak'   ? colors.danger   :
+    'rgba(255, 255, 255, 0.18)';
   const activeCount =
     strength === 'strong' ? 3 :
     strength === 'medium' ? 2 :
@@ -84,7 +85,7 @@ function GpsDots({ strength }: { strength: GpsStrength }) {
           key={i}
           style={[
             dotsStyles.dot,
-            { backgroundColor: i < activeCount ? color : hudColors.gpsMuted },
+            { backgroundColor: i < activeCount ? color : 'rgba(255, 255, 255, 0.18)' },
             i < activeCount && strength !== 'unknown' && {
               shadowColor: color,
               shadowOffset: { width: 0, height: 0 },
@@ -589,7 +590,7 @@ export default function RecordingScreen() {
               >
                 <View style={styles.readinessKickerRow}>
                   {warmup.readinessPhase === 'armed' ? (
-                    <Text style={[styles.readinessKickerSymbol, { color: hudColors.gpsStrong }]}>
+                    <Text style={[styles.readinessKickerSymbol, { color: colors.accent }]}>
                       ✦
                     </Text>
                   ) : (
@@ -597,7 +598,7 @@ export default function RecordingScreen() {
                       style={[
                         styles.readinessKickerSymbol,
                         { opacity: recordingPulse },
-                        warmup.readinessPhase === 'warm' && { color: hudColors.gpsMedium },
+                        warmup.readinessPhase === 'warm' && { color: colors.warn },
                       ]}
                     >
                       ●
@@ -606,8 +607,8 @@ export default function RecordingScreen() {
                   <Text
                     style={[
                       styles.readinessKicker,
-                      warmup.readinessPhase === 'warm'  && { color: hudColors.gpsMedium },
-                      warmup.readinessPhase === 'armed' && { color: hudColors.gpsStrong },
+                      warmup.readinessPhase === 'warm'  && { color: colors.warn },
+                      warmup.readinessPhase === 'armed' && { color: colors.accent },
                     ]}
                   >
                     {warmup.readinessPhase === 'searching' && 'CZEKAM NA GPS'}
@@ -822,7 +823,7 @@ export default function RecordingScreen() {
                     key={i}
                     style={[
                       styles.finishStripeCell,
-                      { backgroundColor: i % 2 === 0 ? hudColors.terrainDark : hudColors.timerPrimary },
+                      { backgroundColor: i % 2 === 0 ? colors.bg : colors.textPrimary },
                     ]}
                   />
                 ))}
@@ -834,7 +835,7 @@ export default function RecordingScreen() {
                     key={i}
                     style={[
                       styles.finishStripeCell,
-                      { backgroundColor: i % 2 === 0 ? hudColors.timerPrimary : hudColors.terrainDark },
+                      { backgroundColor: i % 2 === 0 ? colors.textPrimary : colors.bg },
                     ]}
                   />
                 ))}
@@ -890,7 +891,7 @@ export default function RecordingScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: hudColors.terrainDark },
+  root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
 
@@ -908,12 +909,12 @@ const styles = StyleSheet.create({
   idleTitle: {
     ...hudTypography.displayLarge,
     fontSize: 28,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     letterSpacing: 4,
   },
   idleBodyText: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -938,33 +939,33 @@ const styles = StyleSheet.create({
   readinessKickerSymbol: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 14,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
   },
   readinessCardWarm: {
-    borderColor: hudColors.gpsMedium,
+    borderColor: colors.warn,
     backgroundColor: 'rgba(255, 217, 61, 0.06)',
   },
   readinessCardReady: {
-    borderColor: hudColors.gpsStrong,
+    borderColor: colors.accent,
     backgroundColor: 'rgba(0, 255, 140, 0.08)',
   },
   readinessKicker: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 14,
     letterSpacing: 3,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
   },
   readinessSub: {
     fontFamily: 'Inter_500Medium',
     fontSize: 12,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 1,
   },
   idleFooter: {
     gap: spacing.sm,
   },
   startCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderRadius: radii.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
@@ -977,11 +978,11 @@ const styles = StyleSheet.create({
   startCtaLabel: {
     ...hudTypography.action,
     fontSize: 16,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
   startCtaLabelDisabled: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
   },
   idleCancel: {
@@ -990,7 +991,7 @@ const styles = StyleSheet.create({
   },
   idleCancelLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
   },
 
@@ -1008,9 +1009,9 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   explainerCard: {
-    backgroundColor: hudColors.terrainDark,
+    backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: hudColors.gpsStrong,
+    borderColor: colors.accent,
     borderRadius: radii.md,
     padding: spacing.xl,
     gap: spacing.md,
@@ -1020,22 +1021,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
   },
   explainerTitle: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 20,
     letterSpacing: 2,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
   },
   explainerBody: {
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
     lineHeight: 20,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
   },
   explainerCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
@@ -1044,7 +1045,7 @@ const styles = StyleSheet.create({
   explainerCtaLabel: {
     ...hudTypography.action,
     fontSize: 14,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
   explainerCancel: {
@@ -1053,7 +1054,7 @@ const styles = StyleSheet.create({
   },
   explainerCancelLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
   },
 
@@ -1062,7 +1063,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(255, 67, 101, 0.08)',
     borderWidth: 1,
-    borderColor: hudColors.gpsWeak,
+    borderColor: colors.danger,
     borderRadius: radii.md,
     padding: spacing.xl,
     gap: spacing.md,
@@ -1072,24 +1073,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: hudColors.gpsWeak,
+    color: colors.danger,
   },
   storageErrorTitle: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 20,
     letterSpacing: 2,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   storageErrorBody: {
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
     lineHeight: 20,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   storageErrorCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
@@ -1100,7 +1101,7 @@ const styles = StyleSheet.create({
   storageErrorCtaLabel: {
     ...hudTypography.action,
     fontSize: 14,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
 
@@ -1109,7 +1110,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(0, 255, 140, 0.06)',
     borderWidth: 1,
-    borderColor: hudColors.gpsStrong,
+    borderColor: colors.accent,
     borderRadius: radii.md,
     padding: spacing.xl,
     gap: spacing.md,
@@ -1119,24 +1120,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
   },
   resumableTitle: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
     letterSpacing: 2,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   resumableBody: {
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
     lineHeight: 20,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   resumableCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
@@ -1147,7 +1148,7 @@ const styles = StyleSheet.create({
   resumableCtaLabel: {
     ...hudTypography.action,
     fontSize: 14,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
   resumableCancel: {
@@ -1156,7 +1157,7 @@ const styles = StyleSheet.create({
   },
   resumableCancelLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 2,
   },
 
@@ -1167,7 +1168,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(255, 217, 61, 0.06)',
     borderWidth: 1,
-    borderColor: hudColors.gpsMedium,
+    borderColor: colors.warn,
     borderRadius: radii.md,
     padding: spacing.xl,
     gap: spacing.md,
@@ -1177,7 +1178,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 3,
-    color: hudColors.gpsMedium,
+    color: colors.warn,
   },
 
   // Permission
@@ -1186,29 +1187,29 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: 44,
     borderWidth: 2,
-    borderColor: hudColors.gpsStrong,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
     ...hudShadows.glowGreen,
   },
-  lockGlyph: { fontSize: 42, color: hudColors.gpsStrong, fontFamily: 'Rajdhani_700Bold' },
+  lockGlyph: { fontSize: 42, color: colors.accent, fontFamily: 'Rajdhani_700Bold' },
   permTitle: {
     ...hudTypography.displayLarge,
     fontSize: 36,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: spacing.md,
   },
   permBody: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.xxl,
     fontSize: 15,
     lineHeight: 22,
   },
   permCta: {
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: radii.md,
@@ -1217,21 +1218,21 @@ const styles = StyleSheet.create({
   permCtaLabel: {
     ...hudTypography.label,
     fontSize: 13,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
   permCancel: { paddingVertical: spacing.md },
-  permCancelLabel: { ...hudTypography.labelSmall, color: hudColors.textMuted },
+  permCancelLabel: { ...hudTypography.labelSmall, color: colors.textSecondary },
 
   // Countdown
   countdownNumber: {
     ...hudTypography.displayCountdown,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
   },
   countdownLabel: {
     ...hudTypography.label,
     fontSize: 13,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
     letterSpacing: 6,
     marginTop: spacing.lg,
   },
@@ -1247,18 +1248,18 @@ const styles = StyleSheet.create({
   gpsBlock: { flexDirection: 'column', gap: spacing.xs },
   gpsLabel: {
     ...hudTypography.labelSmall,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     letterSpacing: 2,
   },
   cancelBtn: { alignItems: 'flex-end' },
   cancelLabel: {
     ...hudTypography.label,
-    color: hudColors.actionDanger,
+    color: colors.danger,
     fontSize: 12,
   },
   cancelSubtitle: {
     ...hudTypography.labelSmall,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     fontSize: 8,
     marginTop: 2,
   },
@@ -1278,15 +1279,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 64,
     letterSpacing: 2,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     fontVariant: ['tabular-nums'] as any,
-    textShadowColor: hudColors.gpsStrong,
+    textShadowColor: colors.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 24,
   },
   timerSubLabel: {
     fontFamily: 'Rajdhani_700Bold',
-    color: hudColors.gpsStrong,
+    color: colors.accent,
     marginTop: spacing.sm,
     fontSize: 9,
     letterSpacing: 2,
@@ -1303,17 +1304,17 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
   },
   liveStatusDot: {
-    color: hudColors.gpsStrong,
+    color: colors.accent,
     fontSize: 12,
   },
   liveStatusText: {
     fontFamily: 'Rajdhani_500Medium',
     fontSize: 12,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     letterSpacing: 1,
   },
   liveStatusWarn: {
-    color: hudColors.gpsMedium,
+    color: colors.warn,
     fontSize: 12,
   },
 
@@ -1328,7 +1329,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: 'rgba(255, 217, 61, 0.10)',
     borderBottomWidth: 1,
-    borderBottomColor: hudColors.gpsMedium,
+    borderBottomColor: colors.warn,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
@@ -1339,17 +1340,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 12,
     letterSpacing: 2,
-    color: hudColors.gpsMedium,
+    color: colors.warn,
   },
   alwaysDeniedSub: {
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   alwaysDeniedBtn: {
     borderWidth: 1,
-    borderColor: hudColors.gpsMedium,
+    borderColor: colors.warn,
     borderRadius: radii.sm,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
@@ -1358,20 +1359,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
-    color: hudColors.gpsMedium,
+    color: colors.warn,
   },
 
   stopCta: {
     marginHorizontal: spacing.lg,
     height: '40%',
     borderRadius: 24,
-    backgroundColor: hudColors.actionPrimary,
+    backgroundColor: colors.accent,
     borderWidth: 2,
     borderColor: 'rgba(0, 0, 0, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: hudColors.gpsStrong,
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7,
     shadowRadius: 30,
@@ -1396,14 +1397,14 @@ const styles = StyleSheet.create({
   stopLabel: {
     ...hudTypography.action,
     fontSize: 24,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 4,
   },
 
   // Grace
   graceEyebrow: {
     ...hudTypography.label,
-    color: hudColors.gpsWeak,
+    color: colors.danger,
     letterSpacing: 6,
     marginBottom: spacing.lg,
   },
@@ -1411,17 +1412,17 @@ const styles = StyleSheet.create({
     ...hudTypography.displayCountdown,
     fontSize: 140,
     lineHeight: 140,
-    color: hudColors.gpsWeak,
+    color: colors.danger,
     marginBottom: spacing.lg,
   },
   graceBody: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.xxl,
     fontSize: 14,
   },
   extendCta: {
-    backgroundColor: hudColors.gpsMedium,
+    backgroundColor: colors.warn,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.xxl,
     paddingVertical: spacing.lg,
@@ -1429,7 +1430,7 @@ const styles = StyleSheet.create({
   extendLabel: {
     ...hudTypography.action,
     fontSize: 18,
-    color: hudColors.terrainDark,
+    color: colors.bg,
     letterSpacing: 3,
   },
 
@@ -1437,12 +1438,12 @@ const styles = StyleSheet.create({
   processingLabel: {
     ...hudTypography.displayLarge,
     fontSize: 32,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     letterSpacing: 4,
     marginBottom: spacing.md,
   },
   processingHint: {
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
   },
 });
