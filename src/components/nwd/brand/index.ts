@@ -10,3 +10,6 @@ export type { LiveDotProps, LiveDotMode } from './LiveDot';
 
 export { NWDHeader } from './NWDHeader';
 export type { NWDHeaderProps, NWDHeaderRightContext } from './NWDHeader';
+
+export { PageLabel } from './PageLabel';
+export type { PageLabelProps, PageLabelVariant } from './PageLabel';
