@@ -13,3 +13,6 @@ export type { NWDHeaderProps, NWDHeaderRightContext } from './NWDHeader';
 
 export { PageLabel } from './PageLabel';
 export type { PageLabelProps, PageLabelVariant } from './PageLabel';
+
+export { BottomBand } from './BottomBand';
+export type { BottomBandProps, BottomBandVariant } from './BottomBand';

@@ -53,3 +53,16 @@ export type { SpotRowProps } from './SpotRow';
 
 export { TrailCard } from './TrailCard';
 export type { TrailCardProps, TrailStatus } from './TrailCard';
+
+// Brand primitives — chrome for non-tab screens (Auth, Help, Settings).
+export { LiveDot } from './brand';
+export type { LiveDotProps, LiveDotMode } from './brand';
+
+export { NWDHeader } from './brand';
+export type { NWDHeaderProps, NWDHeaderRightContext } from './brand';
+
+export { PageLabel } from './brand';
+export type { PageLabelProps, PageLabelVariant } from './brand';
+
+export { BottomBand } from './brand';
+export type { BottomBandProps, BottomBandVariant } from './brand';
