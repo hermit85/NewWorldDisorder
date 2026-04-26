@@ -117,11 +117,17 @@ export const GateSchematic = memo(function GateSchematic() {
           fill="none"
         />
 
-        {/* START line at top */}
-        <Line x1={60} y1={60} x2={140} y2={60} stroke={colors.accent} strokeWidth={2} />
+        {/* START gate — line + side ticks + soft armed glow */}
+        <Line x1={60} y1={60} x2={140} y2={60} stroke={colors.accent} strokeOpacity={0.25} strokeWidth={6} strokeLinecap="round" />
+        <Line x1={60} y1={60} x2={140} y2={60} stroke={colors.accent} strokeWidth={2.5} />
+        <Line x1={60} y1={52} x2={60} y2={68} stroke={colors.accent} strokeWidth={2} />
+        <Line x1={140} y1={52} x2={140} y2={68} stroke={colors.accent} strokeWidth={2} />
 
-        {/* FINISH line at bottom */}
-        <Line x1={160} y1={340} x2={240} y2={340} stroke={colors.accent} strokeWidth={2} />
+        {/* FINISH gate — line + side ticks + soft armed glow */}
+        <Line x1={160} y1={340} x2={240} y2={340} stroke={colors.accent} strokeOpacity={0.25} strokeWidth={6} strokeLinecap="round" />
+        <Line x1={160} y1={340} x2={240} y2={340} stroke={colors.accent} strokeWidth={2.5} />
+        <Line x1={160} y1={332} x2={160} y2={348} stroke={colors.accent} strokeWidth={2} />
+        <Line x1={240} y1={332} x2={240} y2={348} stroke={colors.accent} strokeWidth={2} />
 
         {/* Corridor label leader line (right of mid-curve) */}
         <Line x1={170} y1={210} x2={250} y2={210} stroke={colors.textTertiary} strokeWidth={1} strokeDasharray="3 3" />
