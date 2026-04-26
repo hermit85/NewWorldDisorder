@@ -17,7 +17,9 @@ const KEYS = {
 // 0.4.0 = Sprint 26A+ race game intro rewrite
 // 0.5.0 = onboarding now routes to /auth (P0 fix — force every rider
 //         who last saw the pre-auth flow to re-run intro + land on auth)
-const CURRENT_BETA = '0.5.0';
+// 0.6.0 = v8 onboarding rewrite (LIGA / RANKING / PROGRESS slides),
+//         offline-first landing on /(tabs) after the GPS gate
+const CURRENT_BETA = '0.6.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{
