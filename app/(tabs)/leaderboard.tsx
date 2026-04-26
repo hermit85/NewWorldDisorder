@@ -16,7 +16,15 @@ import { useActiveSpots, useLeaderboard, useTrail, useTrails } from '@/hooks/use
 import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
-import { AmbientScan, LeaderboardRow, LiveTicker, RaceNumber, SystemText } from '@/components/nwd';
+import {
+  AmbientScan,
+  HeadToHeadCard,
+  LeaderboardRow,
+  LiveTicker,
+  RaceNumber,
+  SystemText,
+} from '@/components/nwd';
+import type { LeaderboardEntry } from '@/data/types';
 import { getTrustDisclosure } from '@/lib/trailTrust';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
@@ -113,6 +121,7 @@ export default function LeaderboardScreen() {
     profile?.id,
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedRival, setSelectedRival] = useState<LeaderboardEntry | null>(null);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -551,6 +560,13 @@ export default function LeaderboardScreen() {
                       time={formatTimeShort(entry.bestDurationMs)}
                       delta={posChange}
                       self={isUser}
+                      onPress={
+                        // Sprint 2 — tap a non-self row → head-to-head modal.
+                        // Self row stays inert (no point fighting yourself).
+                        entry.isCurrentUser
+                          ? undefined
+                          : () => setSelectedRival(entry)
+                      }
                       onLongPress={
                         entry.isCurrentUser
                           ? undefined
@@ -582,6 +598,40 @@ export default function LeaderboardScreen() {
           </Animated.View>
         )}
       </ScrollView>
+
+      {/* Head-to-head modal — Sprint 2. Renders self vs tapped rival
+          with the time gap and a WYZWIJ placeholder. Real challenge
+          plumbing lands when the friends graph + push system are
+          wired (likely Sprint 3 backend dep). */}
+      {selectedRival ? (
+        <HeadToHeadCard
+          visible={true}
+          onClose={() => setSelectedRival(null)}
+          selfAvatar={
+            <RiderAvatar
+              avatarUrl={profile?.avatar_url ?? null}
+              username={profile?.display_name ?? 'TY'}
+              size={56}
+              borderColor={colors.accent}
+            />
+          }
+          selfTag={profile?.display_name ?? 'rider'}
+          selfTimeMs={
+            entries.find((e) => e.isCurrentUser)?.bestDurationMs ?? null
+          }
+          rivalAvatar={
+            <RiderAvatar
+              avatarUrl={selectedRival.avatarUrl}
+              username={selectedRival.username}
+              size={56}
+            />
+          }
+          rivalTag={selectedRival.username}
+          rivalTimeMs={selectedRival.bestDurationMs}
+          rivalPosition={selectedRival.currentPosition}
+          trailName={selectedTrail?.name}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
