@@ -344,11 +344,11 @@ export default function AuthScreen() {
       <Text style={styles.legalText}>
         Logując się akceptujesz{' '}
         <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.termsUrl)}>
-          Regulamin
+          regulamin
         </Text>
         {' '}i{' '}
         <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
-          Politykę Prywatności
+          politykę prywatności
         </Text>
         .
       </Text>
