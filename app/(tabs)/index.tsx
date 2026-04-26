@@ -188,7 +188,7 @@ export default function HomeScreen() {
           </View>
 
           <Card hi glow padding={20} style={styles.anonCard}>
-            <Pill state="accent">Sezon 1 · Słotwiny</Pill>
+            <Pill state="accent">Sezon 01 · Beta</Pill>
             <Text style={styles.anonTitle}>Dołącz do ligi</Text>
             <Text style={styles.anonBody}>
               Stwórz rider tag, zapisuj zjazdy, walcz o miejsce na tablicy.

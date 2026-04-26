@@ -212,7 +212,7 @@ export default function OnboardingScreen() {
                   <Text style={styles.gateBandLabelAccent}>SYGNAŁ ZWERYFIKOWANY</Text>
                 </View>
                 <Text style={styles.gateBandSubBright}>
-                  Bike Park Słotwiny · 700m n.p.m.
+                  Sygnał odebrany · możesz jechać
                 </Text>
               </>
             ) : isDenied ? (

@@ -177,7 +177,7 @@ export default function HelpScreen() {
             <Text style={styles.legalLinkText}>WSPARCIE</Text>
           </Pressable>
         </View>
-        <Text style={styles.footerStamp}>NWD · SEZON 01 · SŁOTWINY ARENA</Text>
+        <Text style={styles.footerStamp}>NWD · SEZON 01 · BETA</Text>
       </ScrollView>
     </SafeAreaView>
   );

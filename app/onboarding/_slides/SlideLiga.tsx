@@ -159,9 +159,9 @@ function LiveBand() {
     <View style={styles.liveBand}>
       <View style={styles.liveBandTopRow}>
         <LiveDot size={3} />
-        <Text style={styles.liveBandLabel}>SEZON 01 · LIVE</Text>
+        <Text style={styles.liveBandLabel}>SEZON 01 · BETA</Text>
       </View>
-      <Text style={styles.liveBandSub}>Bike Park Słotwiny · twoja góra</Text>
+      <Text style={styles.liveBandSub}>Twój bike park · twoja góra</Text>
     </View>
   );
 }
