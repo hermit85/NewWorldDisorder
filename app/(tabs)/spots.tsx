@@ -28,7 +28,8 @@ import {
   Btn,
   PageTitle,
   Pill,
-  SpotRow,
+  SpotCard,
+  type SpotCardCta,
 } from '@/components/nwd';
 import { useActiveSpots } from '@/hooks/useBackend';
 import type { Spot } from '@/data/types';
@@ -96,23 +97,19 @@ export default function SpotsScreen() {
   // override (so the rider recognises their own pending submission).
   const renderSpotRow = (spot: Spot) => {
     const isOwnPending = spot.submissionStatus === 'pending';
-    const rowStatus: 'active' | 'new' | 'closed' =
-      isOwnPending ? 'new'
-        : spot.trailCount === 0 ? 'new'
-          : spot.status === 'active' ? 'active'
-            : 'closed';
-    const trailing = isOwnPending
-      ? <Pill state="pending">Twoje · czeka</Pill>
-      : undefined;
+    const ctaKind: SpotCardCta =
+      isOwnPending || spot.trailCount === 0 ? 'pioneer' : 'active';
     return (
-      <SpotRow
+      <SpotCard
         key={spot.id}
+        spotId={spot.id}
         name={spot.name}
         region={spot.region}
         trailCount={spot.trailCount}
-        status={rowStatus}
-        riders={rowStatus === 'active' ? spot.activeRidersToday : null}
-        trailing={trailing}
+        ridersNow={ctaKind === 'active' ? spot.activeRidersToday : null}
+        ridersToday={ctaKind === 'active' ? spot.activeRidersToday : null}
+        ctaKind={ctaKind}
+        ctaLabel={isOwnPending ? 'Twoje · czeka na curatora' : undefined}
         onPress={() => handleOpen(spot)}
       />
     );
