@@ -384,7 +384,7 @@ export default function AuthScreen() {
         <View style={styles.bottomBandWrap}>
           <BottomBand
             status="SEZON 01 · BETA"
-            context="Bike Park Słotwiny · wczesny dostęp"
+            context="wczesny dostęp"
             variant="live"
           />
         </View>

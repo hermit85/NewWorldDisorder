@@ -48,11 +48,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 22,
     color: colors.accentInk,
-    // Rajdhani allocates a tall ascent for diacritics, so the glyph
-    // bounding-box center sits ~2px above the optical glyph mid.
-    // Nudge the numeral down so "7" lands on the circle's actual
-    // center instead of the BB center.
-    marginTop: 2,
+    // Rajdhani allocates a tall ascent for diacritics; even with
+    // lineHeight === fontSize the glyph sits noticeably above the
+    // BB center on iOS native. Empirical 4px nudge lands "7" on
+    // the circle's optical mid (was 2px — still read as top-heavy).
+    marginTop: 4,
     includeFontPadding: false,
   },
 });

@@ -87,8 +87,9 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     letterSpacing: -1,
     color: colors.accent,
-    // Same optical-center correction as RankBadge.
-    marginTop: 2,
+    // Same optical-center correction as RankBadge — empirical 4px
+    // nudge after 2px still read as top-heavy on iOS native.
+    marginTop: 4,
     includeFontPadding: false,
   },
   copyBlock: {

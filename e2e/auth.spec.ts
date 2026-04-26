@@ -26,8 +26,11 @@ test.describe('auth screen', () => {
 
   test('shows honest beta bottom band, not LIVE', async ({ page }) => {
     await expect(page.getByText('SEZON 01 · BETA')).toBeVisible();
-    await expect(page.getByText('Bike Park Słotwiny · wczesny dostęp')).toBeVisible();
+    await expect(page.getByText('wczesny dostęp', { exact: true })).toBeVisible();
     await expect(page.getByText('SEZON 01 · LIVE')).toHaveCount(0);
+    // Auth screen never claims a specific location — the app can't
+    // verify GPS during signup, so chrome stays location-agnostic.
+    await expect(page.getByText(/Bike Park Słotwiny/)).toHaveCount(0);
   });
 
   test('email CTA renders without clipping', async ({ page }) => {
