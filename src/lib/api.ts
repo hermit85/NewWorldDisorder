@@ -1903,6 +1903,27 @@ export interface SpotTrailSummary {
   aliases: string[];
 }
 
+// ── ADR-012 Phase 4.4 — review queue admin surface ────────────
+
+export interface RouteReviewQueueEntry {
+  id: string;
+  trailId: string;
+  trailName: string | null;
+  spotId: string | null;
+  candidateGeometryVersionId: string | null;
+  reason:
+    | 'overlap_conflict'
+    | 'shortcut_detected'
+    | 'low_confidence_cluster'
+    | 'rider_dispute'
+    | 'name_collision'
+    | 'merge_proposal';
+  severity: 'low' | 'normal' | 'high';
+  details: Record<string, unknown> | null;
+  status: 'pending' | 'approved' | 'rejected' | 'merged';
+  createdAt: string;
+}
+
 export interface PioneerGeometryPoint {
   lat: number;
   lng: number;
@@ -2075,6 +2096,83 @@ export async function createTrail(
   }
 
   return { ok: false, code, message };
+}
+
+// ── ADR-012 Phase 4.4 — admin review queue API ───────────────
+
+export async function fetchReviewQueue(
+  status: 'pending' | 'approved' | 'rejected' | 'merged' = 'pending',
+  limit = 50,
+): Promise<ApiResult<RouteReviewQueueEntry[]>> {
+  const { data, error } = await db()
+    .from('route_review_queue')
+    .select(`
+      id, trail_id, candidate_geometry_version_id,
+      reason, severity, details, status, created_at,
+      trails:trail_id (official_name, spot_id)
+    `)
+    .eq('status', status)
+    .order('severity', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+
+  const rows = (data as any[] | null) ?? [];
+  const entries: RouteReviewQueueEntry[] = rows.map((r) => ({
+    id: r.id,
+    trailId: r.trail_id,
+    trailName: r.trails?.official_name ?? null,
+    spotId: r.trails?.spot_id ?? null,
+    candidateGeometryVersionId: r.candidate_geometry_version_id ?? null,
+    reason: r.reason,
+    severity: r.severity,
+    details: (r.details as Record<string, unknown> | null) ?? null,
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+  return { ok: true, data: entries };
+}
+
+export async function resolveReviewQueueEntry(
+  queueId: string,
+  action: 'approve' | 'reject',
+  notes?: string,
+): Promise<ApiResult<{ queueId: string; action: string }>> {
+  const { data, error } = await db().rpc('resolve_review_queue_entry', {
+    p_queue_id: queueId,
+    p_action: action,
+    p_notes: notes ?? null,
+  });
+  if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+  const res = data as any;
+  if (res?.ok === true) {
+    return { ok: true, data: { queueId, action } };
+  }
+  return { ok: false, code: res?.code ?? 'rpc_failed', message: 'Resolve failed' };
+}
+
+export async function mergeTrails(
+  sourceTrailId: string,
+  targetTrailId: string,
+  reason?: string,
+): Promise<ApiResult<{ runsMoved: number; aliasesAdded: number }>> {
+  const { data, error } = await db().rpc('merge_trails', {
+    p_source_trail_id: sourceTrailId,
+    p_target_trail_id: targetTrailId,
+    p_reason: reason ?? null,
+  });
+  if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+  const res = data as any;
+  if (res?.ok === true) {
+    return {
+      ok: true,
+      data: {
+        runsMoved: res.runs_moved ?? 0,
+        aliasesAdded: res.aliases_added ?? 0,
+      },
+    };
+  }
+  return { ok: false, code: res?.code ?? 'rpc_failed', message: 'Merge failed' };
 }
 
 // ── listSpotTrails — Step 0 feed for trail/new ──
