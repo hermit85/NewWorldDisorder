@@ -11,12 +11,12 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { colors } from '@/theme/colors';
-import { OnboardingHeader } from '../onboarding/components/Header';
-import { PaginationDots } from '../onboarding/components/PaginationDots';
-import { CtaButton } from '../onboarding/components/CtaButton';
-import { SlideLiga } from '../onboarding/slides/SlideLiga';
-import { SlideProgress } from '../onboarding/slides/SlideProgress';
-import { SlideRanking } from '../onboarding/slides/SlideRanking';
+import { OnboardingHeader } from '../onboarding/_components/Header';
+import { PaginationDots } from '../onboarding/_components/PaginationDots';
+import { CtaButton } from '../onboarding/_components/CtaButton';
+import { SlideLiga } from '../onboarding/_slides/SlideLiga';
+import { SlideProgress } from '../onboarding/_slides/SlideProgress';
+import { SlideRanking } from '../onboarding/_slides/SlideRanking';
 
 const CTA_LABEL: Record<string, string> = {
   '01': 'Dalej',

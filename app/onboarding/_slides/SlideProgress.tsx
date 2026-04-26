@@ -17,10 +17,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { LiveDot } from '../components/LiveDot';
-import { AchievementCard } from '../graphics/AchievementCard';
-import { RankBadge } from '../graphics/RankBadge';
-import { StreakCard } from '../graphics/StreakCard';
+import { LiveDot } from '../_components/LiveDot';
+import { AchievementCard } from '../_graphics/AchievementCard';
+import { RankBadge } from '../_graphics/RankBadge';
+import { StreakCard } from '../_graphics/StreakCard';
 
 const RANK_PROGRESS = 240 / 400;
 

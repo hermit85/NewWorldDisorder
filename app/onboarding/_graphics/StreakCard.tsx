@@ -10,7 +10,7 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { LiveDot } from '../components/LiveDot';
+import { LiveDot } from '../_components/LiveDot';
 
 export interface StreakCardProps {
   days: number;
