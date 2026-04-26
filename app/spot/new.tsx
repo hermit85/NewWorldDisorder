@@ -26,8 +26,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { GlowButton } from '@/components/ui/GlowButton';
-import { FilterPill } from '@/components/ui/FilterPill';
+import * as Haptics from 'expo-haptics';
+import { Btn, PageTitle, TopBar } from '@/components/nwd';
 import { findVoivodeship, VOIVODESHIPS } from '@/data/voivodeships';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { triggerRefresh } from '@/hooks/useRefresh';
@@ -113,11 +113,11 @@ export default function NewSpotScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={16} accessibilityRole="button" accessibilityLabel="Wróć">
-            <Text style={styles.backLabel}>← Wróć</Text>
-          </Pressable>
-          <Text style={styles.title}>Dodaj bike park</Text>
-          <StepDots step={step} />
+          <TopBar
+            onBack={() => router.back()}
+            trailing={<StepDots step={step} />}
+          />
+          <PageTitle title="Dodaj bike park" />
         </View>
 
         <ScrollView
@@ -170,24 +170,21 @@ export default function NewSpotScreen() {
         {submission.kind === 'idle' ? (
           <View style={styles.footer}>
             {step === 1 ? (
-              <GlowButton
-                label="Dalej"
-                variant="primary"
-                disabled={!canAdvanceStep1}
-                onPress={() => setStep(2)}
-              />
+              <Btn variant="primary" disabled={!canAdvanceStep1} onPress={() => setStep(2)}>
+                Dalej
+              </Btn>
             ) : step === 2 ? (
               <View style={styles.footerRow}>
                 <View style={{ flex: 1 }}>
-                  <GlowButton label="Pomiń" variant="secondary" onPress={() => setStep(3)} />
+                  <Btn variant="ghost" onPress={() => setStep(3)}>Pomiń</Btn>
                 </View>
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
-                  <GlowButton label="Dalej" variant="primary" onPress={() => setStep(3)} />
+                  <Btn variant="primary" onPress={() => setStep(3)}>Dalej</Btn>
                 </View>
               </View>
             ) : (
-              <GlowButton label="Zgłoś bike park" variant="primary" onPress={handleSubmit} />
+              <Btn variant="primary" onPress={handleSubmit}>Zgłoś bike park</Btn>
             )}
             {step > 1 ? (
               <Pressable onPress={() => setStep((s) => (s - 1) as Step)} hitSlop={8} style={styles.backStep}>
@@ -239,14 +236,23 @@ function Step1({
 
       <Text style={[styles.label, { marginTop: 20 }]}>WOJEWÓDZTWO</Text>
       <View style={styles.pills}>
-        {VOIVODESHIPS.map((v) => (
-          <FilterPill
-            key={v.id}
-            label={v.label}
-            active={v.id === regionId}
-            onPress={() => onRegionChange(v.id)}
-          />
-        ))}
+        {VOIVODESHIPS.map((v) => {
+          const active = v.id === regionId;
+          return (
+            <Pressable
+              key={v.id}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => undefined);
+                onRegionChange(v.id);
+              }}
+              style={[styles.filter, active && styles.filterActive]}
+            >
+              <Text style={[styles.filterLabel, active && styles.filterLabelActive]}>
+                {v.label.toUpperCase()}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -335,13 +341,11 @@ function SuccessCard({
           : 'Teraz dorzuć pierwszą trasę i pojedź ją jako pionier — twój czysty zjazd aktywuje park w lidze.'}
       </Text>
       {canChainToTrail ? (
-        <GlowButton
-          label="Dodaj pierwszą trasę"
-          variant="primary"
-          onPress={() => onAddTrail(spotId!)}
-        />
+        <Btn variant="primary" onPress={() => onAddTrail(spotId!)}>
+          Dodaj pierwszą trasę
+        </Btn>
       ) : (
-        <GlowButton label="Wróć do listy" variant="primary" onPress={onContinue} />
+        <Btn variant="primary" onPress={onContinue}>Wróć do listy</Btn>
       )}
     </View>
   );
@@ -369,11 +373,11 @@ function DuplicateCard({
       {nearSpotId ? (
         <>
           <View style={{ height: 8 }} />
-          <GlowButton label="Otwórz istniejący" variant="primary" onPress={onOpenExisting} />
+          <Btn variant="primary" onPress={onOpenExisting}>Otwórz istniejący</Btn>
         </>
       ) : null}
       <View style={{ height: 8 }} />
-      <GlowButton label="Popraw dane" variant="secondary" onPress={onDismiss} />
+      <Btn variant="ghost" onPress={onDismiss}>Popraw dane</Btn>
     </View>
   );
 }
@@ -383,7 +387,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void 
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Nie udało się</Text>
       <Text style={styles.cardBody}>{message}. Spróbuj ponownie za chwilę.</Text>
-      <GlowButton label="Wróć" variant="secondary" onPress={onRetry} />
+      <Btn variant="ghost" onPress={onRetry}>Wróć</Btn>
     </View>
   );
 }
@@ -392,16 +396,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.pad,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     gap: 12,
-  },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  backLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
   },
   dots: {
     flexDirection: 'row',
@@ -476,7 +473,31 @@ const styles = StyleSheet.create({
   pills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 8,
+  },
+  filter: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterActive: {
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
+  },
+  filterLabel: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.8,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  filterLabelActive: {
+    color: colors.bg,
   },
   locationLine: {
     ...typography.body,
