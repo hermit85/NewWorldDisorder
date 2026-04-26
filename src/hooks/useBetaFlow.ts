@@ -19,7 +19,8 @@ const KEYS = {
 //         who last saw the pre-auth flow to re-run intro + land on auth)
 // 0.6.0 = v8 onboarding rewrite (LIGA / RANKING / PROGRESS slides),
 //         offline-first landing on /(tabs) after the GPS gate
-const CURRENT_BETA = '0.6.0';
+// 0.7.0 = v8 polish #1 (auth-gated landing + schematic/streak fixes)
+const CURRENT_BETA = '0.7.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{
