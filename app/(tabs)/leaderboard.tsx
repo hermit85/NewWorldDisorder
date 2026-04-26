@@ -20,7 +20,7 @@
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
 import { LiveDot } from '@/components/nwd';
@@ -32,6 +32,7 @@ import {
 } from '@/hooks/useTablicaSections';
 import { formatTimeMs } from '@/utils/time';
 import type { Difficulty } from '@/data/types';
+import { MOCK_TABLICA_SECTIONS } from '@/dev/tablicaMock';
 
 // Bike-park standard difficulty palette (per Q3 in spec) — NOT the
 // theme.map S0-S5 set. Black uses dark fill with 1px white stroke
@@ -195,13 +196,22 @@ function RankPillWithPb({ position, pbMs }: { position: number; pbMs: number }) 
 export default function TablicaScreen() {
   const router = useRouter();
   const { profile } = useAuthContext();
+  const params = useLocalSearchParams<{ dev?: string }>();
   const { count, isFresh, status: countStatus } = useUserRunCount(profile?.id);
-  const { sections, status: sectionsStatus } = useTablicaSections(profile?.id);
+  const { sections: realSections, status: sectionsStatus } = useTablicaSections(profile?.id);
 
+  // __DEV__ walk-test overrides — only reachable via ?dev=mockA / mockB
+  // URL params on dev builds. Production strips this branch via the
+  // __DEV__ guard.
+  const isDevMockA = __DEV__ && params.dev === 'mockA';
+  const isDevMockB = __DEV__ && params.dev === 'mockB';
+
+  const sections = isDevMockA ? MOCK_TABLICA_SECTIONS : isDevMockB ? [] : realSections;
   const totalTrails = sections.reduce((sum, s) => sum + s.trails.length, 0);
   const totalParks = sections.length;
 
-  const isLoading = countStatus === 'loading' || sectionsStatus === 'loading';
+  const isLoading = !isDevMockA && !isDevMockB && (countStatus === 'loading' || sectionsStatus === 'loading');
+  const stanBHint = isDevMockB || (!isDevMockA && (isFresh || (count != null && count > 0 && totalParks === 0)));
 
   return (
     <SafeAreaView style={styles.root}>
@@ -216,7 +226,7 @@ export default function TablicaScreen() {
           <Text style={styles.sub}>
             {isLoading
               ? 'Ładowanie…'
-              : isFresh || (count != null && count > 0 && totalParks === 0)
+              : stanBHint
                 ? 'Pusta. Zacznij sezon.'
                 : `Twoje ${totalTrails} ${trailWord(totalTrails).toLowerCase()} · ${totalParks} bike park${totalParks === 1 ? '' : 'i'}`}
           </Text>

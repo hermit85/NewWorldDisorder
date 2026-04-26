@@ -31,6 +31,13 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useSpot, useLeaderboard } from '@/hooks/useBackend';
 import { formatTimeMs, formatDelta } from '@/utils/time';
 import type { LeaderboardEntry, Difficulty, PeriodType } from '@/data/types';
+import {
+  MOCK_LEADERBOARD_USER_1,
+  MOCK_LEADERBOARD_USER_5,
+  MOCK_LEADERBOARD_USER_14,
+  MOCK_PIONEER_USER_ID_FOR_OTHERS,
+  MOCK_PIONEER_USER_ID_FOR_VARIANT_1,
+} from '@/dev/tablicaMock';
 
 const SCOPE_TABS: Array<{ key: PeriodType; label: string }> = [
   { key: 'day', label: 'DZIŚ' },
@@ -210,14 +217,37 @@ function renderRow(entry: LeaderboardEntry, leaderTimeMs: number, pioneerUserId:
 
 export default function RankingScreen() {
   const router = useRouter();
-  const { id: trailId } = useLocalSearchParams<{ id: string }>();
+  const { id: trailId, dev: devParam } = useLocalSearchParams<{
+    id: string;
+    dev?: string;
+  }>();
   const { profile } = useAuthContext();
 
   const [scope, setScope] = useState<PeriodType>('all_time');
 
   const { trail } = useTrail(trailId ?? null);
   const { spot } = useSpot(trail?.spotId ?? null);
-  const { entries } = useLeaderboard(trailId ?? '', scope, profile?.id);
+  const { entries: realEntries } = useLeaderboard(trailId ?? '', scope, profile?.id);
+
+  // __DEV__ walk-test variants — ?dev=mock5 / mock1 / mock14
+  const isDevMock5 = __DEV__ && devParam === 'mock5';
+  const isDevMock1 = __DEV__ && devParam === 'mock1';
+  const isDevMock14 = __DEV__ && devParam === 'mock14';
+  const isAnyDevMock = isDevMock5 || isDevMock1 || isDevMock14;
+
+  const entries: LeaderboardEntry[] = isDevMock1
+    ? MOCK_LEADERBOARD_USER_1
+    : isDevMock14
+      ? MOCK_LEADERBOARD_USER_14
+      : isDevMock5
+        ? MOCK_LEADERBOARD_USER_5
+        : realEntries;
+
+  const pioneerUserId = isDevMock1
+    ? MOCK_PIONEER_USER_ID_FOR_VARIANT_1
+    : isAnyDevMock
+      ? MOCK_PIONEER_USER_ID_FOR_OTHERS
+      : (trail?.pioneerUserId ?? null);
 
   const top8 = entries.slice(0, 8);
   const leaderTimeMs = top8[0]?.bestDurationMs ?? 0;
@@ -295,13 +325,13 @@ export default function RankingScreen() {
         <View style={styles.listContainer}>
           {top8.length > 0 ? (
             <>
-              {top8.map((entry) => renderRow(entry, leaderTimeMs, trail?.pioneerUserId ?? null))}
+              {top8.map((entry) => renderRow(entry, leaderTimeMs, pioneerUserId))}
               {showSeparator && myEntry ? (
                 <>
                   <View style={styles.separator}>
                     <Text style={styles.separatorText}>— TWÓJ CZAS —</Text>
                   </View>
-                  {renderRow(myEntry, leaderTimeMs, trail?.pioneerUserId ?? null)}
+                  {renderRow(myEntry, leaderTimeMs, pioneerUserId)}
                 </>
               ) : null}
             </>
