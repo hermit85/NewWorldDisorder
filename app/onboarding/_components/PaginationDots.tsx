@@ -44,7 +44,7 @@ function Dot({ active }: { active: boolean }) {
 
   const style = useAnimatedStyle(() => ({
     width: DOT_INACTIVE + (DOT_ACTIVE - DOT_INACTIVE) * target.value,
-    backgroundColor: active ? colors.accent : 'rgba(255,255,255,0.18)',
+    backgroundColor: active ? colors.accent : 'rgba(255,255,255,0.45)',
   }));
 
   return <Animated.View style={[styles.dot, style]} />;

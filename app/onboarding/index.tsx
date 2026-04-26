@@ -229,6 +229,7 @@ const styles = StyleSheet.create({
   },
   bottom: {
     paddingHorizontal: 24,
+    paddingTop: 20,
     paddingBottom: 24,
     gap: 16,
   },
