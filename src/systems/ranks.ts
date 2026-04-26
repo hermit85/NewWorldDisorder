@@ -6,7 +6,7 @@ export const ranks: Rank[] = [
   { id: 'rider', name: 'Rider', xpThreshold: 500, color: colors.rankRider, icon: '◆' },
   { id: 'sender', name: 'Sender', xpThreshold: 2000, color: colors.rankSender, icon: '▼' },
   { id: 'ripper', name: 'Ripper', xpThreshold: 5000, color: colors.rankRipper, icon: '★' },
-  { id: 'charger', name: 'Charger', xpThreshold: 12000, color: colors.rankCharger, icon: '⚡' },
+  { id: 'charger', name: 'Charger', xpThreshold: 12000, color: colors.rankCharger, icon: '⬢' },
   { id: 'legend', name: 'Legend', xpThreshold: 30000, color: colors.rankLegend, icon: '✦' },
 ];
 
