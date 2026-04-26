@@ -20,7 +20,7 @@ export const copy = {
   challengeComplete: 'Wyzwanie ukończone',
   rankUp: (rankName: string) => `Awans na ${rankName}`,
   runAgain: 'Jedź ponownie',
-  viewLeaderboard: 'Tablica wyników',
+  viewLeaderboard: 'Ranking',
   shareResult: 'Udostępnij',
 
   // Run screen

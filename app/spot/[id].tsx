@@ -250,7 +250,7 @@ export default function SpotScreen() {
               icon={<IconGlyph name="podium" size={16} color={colors.textPrimary} />}
               onPress={handleOpenLeaderboard}
             >
-              Tablica
+              Ranking
             </Btn>
           </View>
         ) : null}

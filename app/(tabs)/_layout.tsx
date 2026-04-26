@@ -25,7 +25,7 @@ const TIMING = { duration: 200, easing: Easing.out(Easing.cubic) };
 const TAB_LABELS: Record<string, string> = {
   index: 'START',
   spots: 'SPOTY',
-  leaderboard: 'TABLICA',
+  leaderboard: 'RANKING',
   profile: 'RIDER',
 };
 

@@ -411,7 +411,7 @@ export default function TrailDetailScreen() {
         <View style={styles.section}>
           <SectionHead
             icon="podium"
-            label="Tablica"
+            label="Ranking"
             count={leaderboard.length || null}
             action={
               leaderboard.length > 5 ? (
@@ -464,7 +464,7 @@ export default function TrailDetailScreen() {
 
           {!lbLoading && lbStatus !== 'error' && top5.length === 0 ? (
             <View style={styles.boardEmpty}>
-              <Text style={styles.emptyText}>TABLICA PUSTA</Text>
+              <Text style={styles.emptyText}>RANKING PUSTY</Text>
               <Text style={styles.emptyHint}>Postaw pierwszy czas.</Text>
             </View>
           ) : null}

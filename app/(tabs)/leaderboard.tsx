@@ -191,7 +191,7 @@ export default function LeaderboardScreen() {
         {/* Header */}
         <View style={styles.titleRow}>
           <View style={styles.titleMain}>
-            <Text style={styles.title}>TABLICA</Text>
+            <Text style={styles.title}>RANKING</Text>
             <View style={styles.trustDot} />
           </View>
           <Text style={styles.subtitle}>
@@ -287,7 +287,7 @@ export default function LeaderboardScreen() {
         {spotsStatus !== 'loading' && !trailsLoading && !loading && (spotsStatus === 'error' || trailsStatus === 'error' || lbError) && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyTitle}>NIE UDAŁO SIĘ ZAŁADOWAĆ</Text>
-            <Text style={styles.emptyDesc}>Tablica wyników jest teraz niedostępna.</Text>
+            <Text style={styles.emptyDesc}>Ranking jest teraz niedostępny.</Text>
             <Pressable style={styles.retryBtn} onPress={refresh}>
               <Text style={styles.retryText}>PONÓW</Text>
             </Pressable>
@@ -365,7 +365,7 @@ export default function LeaderboardScreen() {
                         reportRider({
                           userId: entry.userId,
                           username: entry.username,
-                          surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
+                          surface: `Ranking · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
                         });
                       }}
                       delayLongPress={450}
@@ -547,7 +547,7 @@ export default function LeaderboardScreen() {
                               reportRider({
                                 userId: entry.userId,
                                 username: entry.username,
-                                surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
+                                surface: `Ranking · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
                               });
                             }
                       }
