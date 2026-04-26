@@ -65,6 +65,22 @@ export type {
   HudFrameProps,
 } from './chrome';
 
+// Atmosphere primitives — alive HUD layer (Sprint 1).
+export { AmbientScan } from './atmosphere';
+export type { AmbientScanProps } from './atmosphere';
+
+// Profile primitives — rider identity surfaces.
+export { RiderIdCard } from './profile';
+export type { RiderIdCardProps } from './profile';
+
+// Feed primitives — drama / event surfaces.
+export { LiveTicker, MOCK_TICKER_EVENTS } from './feed';
+export type {
+  LiveTickerProps,
+  LiveTickerEvent,
+  LiveTickerEventKind,
+} from './feed';
+
 // Brand primitives — chrome for non-tab screens (Auth, Help, Settings).
 export { LiveDot } from './brand';
 export type { LiveDotProps, LiveDotMode } from './brand';

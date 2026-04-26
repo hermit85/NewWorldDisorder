@@ -16,6 +16,7 @@ import { RiderAvatar } from '@/components/RiderAvatar';
 import { ActivityList } from '@/components/profile/ActivityList';
 import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
 import {
+  AmbientScan,
   Btn,
   Card,
   IconGlyph,
@@ -185,6 +186,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AmbientScan />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={
