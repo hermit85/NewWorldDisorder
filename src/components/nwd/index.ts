@@ -69,9 +69,13 @@ export type {
 export { AmbientScan } from './atmosphere';
 export type { AmbientScanProps } from './atmosphere';
 
-// Profile primitives — rider identity surfaces.
-export { RiderIdCard } from './profile';
-export type { RiderIdCardProps } from './profile';
+// Profile primitives — rider identity / cockpit surfaces.
+export { RiderIdCard, TwojStanding, TodayChallengeCard } from './profile';
+export type {
+  RiderIdCardProps,
+  TwojStandingProps,
+  TodayChallengeCardProps,
+} from './profile';
 
 // Feed primitives — drama / event surfaces.
 export { LiveTicker, MOCK_TICKER_EVENTS, HeadToHeadCard } from './feed';

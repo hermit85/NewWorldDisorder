@@ -38,8 +38,11 @@ import {
   LiveTicker,
   Pill,
   SectionHead,
+  TodayChallengeCard,
+  TwojStanding,
 } from '@/components/nwd';
 import { getRankForXp } from '@/systems/ranks';
+import { formatTimeShort } from '@/content/copy';
 import { getLevelProgress } from '@/systems/xp';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
@@ -257,61 +260,76 @@ export default function HomeScreen() {
 
         <SyncOutboxCard />
 
+        {/* TWOJE STANOWISKO — cockpit hero. Rider tag, rank, 3 mini
+            stats (zjazdy / PB / KOM count), XP progress bar with
+            "DO LVL N · X/Y XP" caption. Replaces the small XP-bar
+            in the brand-row with a full identity surface. */}
+        <TwojStanding
+          riderTag={profile?.username ?? 'rider'}
+          rankLabel={currentRank.name}
+          rankColor={currentRank.color}
+          level={level}
+          stats={[
+            { label: 'Zjazdy', value: profile?.totalRuns ?? 0 },
+            { label: 'PB', value: profile?.totalPbs ?? 0, accent: (profile?.totalPbs ?? 0) > 0 },
+            {
+              label: 'KOM',
+              value: profile?.pioneeredVerifiedCount ?? 0,
+              accent: (profile?.pioneeredVerifiedCount ?? 0) > 0,
+            },
+          ]}
+          currentLevelXp={currentLevelXp}
+          levelMaxXp={levelMaxXp}
+        />
+
+        {/* DZIŚ DO BICIA — featured trail hero. Picks the hero-beat
+            trail (someone-just-beat-you), or the primary-spot best
+            trail, or hides if no context. Animated trail silhouette
+            in the bg + KOM time + your delta + ranked CTA. */}
+        {heroBeat ? (
+          <TodayChallengeCard
+            trailName={heroBeat.trailName}
+            venueName={primarySpotSummary?.spot.name ?? 'Bike Park'}
+            komTime={formatTimeShort(heroBeat.beaterTimeMs)}
+            yourTime={heroBeat.userTimeMs ? formatTimeShort(heroBeat.userTimeMs) : null}
+            yourDeltaText={
+              heroBeat.deltaMs
+                ? `${heroBeat.deltaMs > 0 ? '+' : '−'}${(Math.abs(heroBeat.deltaMs) / 1000).toFixed(1)}s`
+                : null
+            }
+            onPress={() =>
+              router.push({
+                pathname: '/run/active',
+                params: {
+                  trailId: heroBeat.trailId,
+                  trailName: heroBeat.trailName,
+                  intent: 'ranked',
+                },
+              })
+            }
+          />
+        ) : null}
+
+        {/* TWOJA OKOLICA — primary spot card stays as the
+            "your home park" anchor. Will get hero-tile redesign in
+            a future Spoty-tile PR; here it's the simpler list. */}
         {(() => {
-          const hasHeroBeat = !!heroBeat;
-          const hasPrimarySpot = !!primarySpotSummary;
-          const isFreshRider =
-            !hasHeroBeat &&
-            !hasPrimarySpot &&
-            (profile?.totalRuns ?? 0) === 0;
-
-          const heroCard = hasHeroBeat ? (
-            <HeroCard
-              variant="active"
-              trailName={heroBeat!.trailName}
-              beaterName={heroBeat!.beaterName}
-              happenedAt={heroBeat!.happenedAt}
-              deltaMs={heroBeat!.deltaMs}
-              beaterTimeMs={heroBeat!.beaterTimeMs}
-              userTimeMs={heroBeat!.userTimeMs}
-              onPrimary={() =>
-                router.push({
-                  pathname: '/run/active',
-                  params: {
-                    trailId: heroBeat!.trailId,
-                    trailName: heroBeat!.trailName,
-                    intent: 'ranked',
-                  },
-                })
-              }
-            />
-          ) : isFreshRider ? null : (
-            <HeroCard variant="empty" onSecondary={handleInviteRival} />
-          );
-
           const spotCardVisible =
             primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error';
-          const spotCard = spotCardVisible
-            ? hasPrimarySpot
-              ? (
-                <PrimarySpotCard
-                  variant="active"
-                  spotId={primarySpotSummary!.spot.id}
-                  spotName={primarySpotSummary!.spot.name}
-                  trailCount={primarySpotSummary!.trailCount}
-                  bestDurationMs={primarySpotSummary!.bestDurationMs}
-                />
-              )
-              : primarySpotStatus === 'empty'
-                ? <PrimarySpotCard variant="empty" />
-                : null
-            : null;
-
-          return isFreshRider ? (
-            <>{spotCard}{heroCard}</>
-          ) : (
-            <>{heroCard}{spotCard}</>
-          );
+          if (!spotCardVisible) return null;
+          if (primarySpotSummary) {
+            return (
+              <PrimarySpotCard
+                variant="active"
+                spotId={primarySpotSummary.spot.id}
+                spotName={primarySpotSummary.spot.name}
+                trailCount={primarySpotSummary.trailCount}
+                bestDurationMs={primarySpotSummary.bestDurationMs}
+              />
+            );
+          }
+          if (primarySpotStatus === 'empty') return <PrimarySpotCard variant="empty" />;
+          return null;
         })()}
 
         <View style={styles.section}>
