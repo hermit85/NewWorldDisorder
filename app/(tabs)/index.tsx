@@ -32,6 +32,7 @@ import { XPBar } from '@/components/ui/XPBar';
 import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
 import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
 import {
+  AmbientScan,
   Btn,
   Card,
   Pill,
@@ -209,6 +210,7 @@ export default function HomeScreen() {
   // ── Authed flow — keep existing widgets, canonical shell ─────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AmbientScan />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,

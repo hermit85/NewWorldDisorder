@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
+  AmbientScan,
   Btn,
   PageTitle,
   Pill,
@@ -119,6 +120,7 @@ export default function SpotsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AmbientScan />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={

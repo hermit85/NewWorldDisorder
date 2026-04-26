@@ -16,7 +16,7 @@ import { useActiveSpots, useLeaderboard, useTrail, useTrails } from '@/hooks/use
 import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
-import { LeaderboardRow, RaceNumber, SystemText } from '@/components/nwd';
+import { AmbientScan, LeaderboardRow, LiveTicker, RaceNumber, SystemText } from '@/components/nwd';
 import { getTrustDisclosure } from '@/lib/trailTrust';
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
@@ -174,6 +174,9 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Sprint 1 atmosphere — slow horizontal sweep, sits behind
+          all content, pointer-events disabled. */}
+      <AmbientScan />
       {/* Pattern 4 chrome — game-HUD feel without restructuring layout.
           RaceNumber watermarks the season; SystemText pins beta-state
           tag bottom-right. Both are absolute + pointer-events-none, so
@@ -198,6 +201,14 @@ export default function LeaderboardScreen() {
             Tylko zweryfikowane zjazdy
             {totalEntries > 0 ? ` · ${totalEntries} ${totalEntries === 1 ? 'rider' : 'riderów'}` : ''}
           </Text>
+        </View>
+
+        {/* Today's Drama — auto-rotating event feed (Sprint 1 ships
+            with mock data; Sprint 3 wires real backend events). Sits
+            above the venue/scope tabs so the rider sees what's
+            happening before picking trail. */}
+        <View style={styles.dramaWrap}>
+          <LiveTicker />
         </View>
 
         {/* Venue tabs */}
@@ -578,6 +589,7 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
+  dramaWrap: { marginBottom: spacing.lg },
 
   // Sprint 4 — trust disclosure banner above podium
   disclosureBanner: {
