@@ -16,6 +16,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
+import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import * as api from '@/lib/api';
 import { SUBMISSION_QUEUE_KEY, SUBMISSION_REJECTIONS_KEY } from '@/constants';
 import { logDebugEvent } from '@/systems/debugEvents';
@@ -138,16 +139,37 @@ export async function submitSpotWithQueue(params: {
 
 let _draining = false;
 let _appStateListener: { remove: () => void } | null = null;
+let _netInfoUnsubscribe: (() => void) | null = null;
+// Track confirmed offline state so reconnect drains fire only on a real
+// edge (NetInfo also emits the current state on subscribe — without this
+// flag every fresh boot would drain pre-emptively).
+let _wasOffline = false;
 
 export function initSubmissionQueue(): void {
   if (!_appStateListener) {
     _appStateListener = AppState.addEventListener('change', handleAppState);
+  }
+  if (!_netInfoUnsubscribe) {
+    _netInfoUnsubscribe = NetInfo.addEventListener(handleConnectivity);
   }
   void drainSubmissionQueue();
 }
 
 function handleAppState(next: AppStateStatus) {
   if (next === 'active') void drainSubmissionQueue();
+}
+
+function handleConnectivity(state: NetInfoState) {
+  if (state.isConnected === null) return;
+  if (state.isConnected === false) {
+    _wasOffline = true;
+    return;
+  }
+  if (_wasOffline) {
+    _wasOffline = false;
+    logDebugEvent('queue', 'spot_drain_on_reconnect', 'info');
+    void drainSubmissionQueue();
+  }
 }
 
 export async function drainSubmissionQueue(): Promise<{ drained: number; failed: number }> {
