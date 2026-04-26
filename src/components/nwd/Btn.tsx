@@ -22,7 +22,6 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
 
 export type BtnVariant = 'primary' | 'ghost' | 'danger';
 export type BtnSize = 'sm' | 'md' | 'lg';
@@ -114,7 +113,15 @@ export function Btn({
       <Text
         style={[
           styles.label,
-          { color: surface.fg, fontSize, letterSpacing: fontSize * 0.24 },
+          {
+            color: surface.fg,
+            fontSize,
+            // Rajdhani's tall ascent (allocated for Polish diacritics)
+            // gets clipped when lineHeight ≤ fontSize. 1.2× gives the
+            // glyph room to render without trimming top/bottom edges.
+            lineHeight: fontSize * 1.2,
+            letterSpacing: fontSize * 0.24,
+          },
         ]}
         numberOfLines={1}
       >
@@ -136,12 +143,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    ...typography.label,
-    // letterSpacing computed inline because RN uses px not em.
-    // 0.24em @ 11px = 2.64; @ 12px = 2.88; @ 10px = 2.4.
+    // typography.label is calibrated for mono fonts (lineHeight === fontSize);
+    // dropping the spread lets the inline lineHeight prop give Rajdhani enough
+    // room. fontSize / lineHeight / letterSpacing are all set inline because
+    // RN uses px (not em) and they vary per Btn size.
+    fontFamily: 'Rajdhani_700Bold',
     fontWeight: '800',
     textTransform: 'uppercase',
-    fontFamily: 'Rajdhani_700Bold',
+    includeFontPadding: false,
   },
   primaryGlow: {
     shadowColor: colors.accent,

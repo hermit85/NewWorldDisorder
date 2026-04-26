@@ -3,4 +3,4 @@ export type { ColorKey, RaceStateKey } from './colors';
 export { typography, fonts } from './typography';
 export { spacing, radii } from './spacing';
 export { motion, glows, hapticPatterns } from './motion';
-export { trailLineColors, trailLineWidth, trailLineOpacity, darkMapStyle, markerConfig, officialTrailColors, getTrailColor } from './map';
+export { trailLineColors, trailLineWidth, trailLineOpacity, darkMapStyle, officialTrailColors, getTrailColor } from './map';

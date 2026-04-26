@@ -44,8 +44,8 @@ import { requestLocationPermission } from '@/systems/gps';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { notifySuccess, tapLight } from '@/systems/haptics';
+import { LiveDot } from '@/components/nwd/brand';
 import { OnboardingHeader } from './_components/Header';
-import { LiveDot } from './_components/LiveDot';
 import { PaginationDots } from './_components/PaginationDots';
 import { CtaButton } from './_components/CtaButton';
 import { SlideLiga } from './_slides/SlideLiga';
@@ -212,7 +212,7 @@ export default function OnboardingScreen() {
                   <Text style={styles.gateBandLabelAccent}>SYGNAŁ ZWERYFIKOWANY</Text>
                 </View>
                 <Text style={styles.gateBandSubBright}>
-                  Bike Park Słotwiny · 700m n.p.m.
+                  Sygnał odebrany · możesz jechać
                 </Text>
               </>
             ) : isDenied ? (

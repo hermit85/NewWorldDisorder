@@ -1,24 +1,40 @@
 // ═══════════════════════════════════════════════════════════
 // Auth Screen — wejście do ligi NWD
-// Email OTP (kod z maila) — prostszy i bardziej niezawodny niż magic link
+// 3 stepy: email → verify_code → create_profile
+// Email OTP (kod z maila), brand chrome (NWDHeader / PageLabel /
+// BottomBand) + Btn primary CTA. Cooldowns, rate-limit detection
+// and KeyboardAvoidingView preserved from the previous version.
 // ═══════════════════════════════════════════════════════════
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Linking,
+  View, Text, TextInput, StyleSheet, Pressable, ScrollView,
+  KeyboardAvoidingView, Platform, Linking, type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
-import { IconGlyph } from '@/components/nwd';
+import { fonts } from '@/theme/typography';
+import {
+  Btn, NWDHeader, PageLabel, BottomBand,
+} from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { LEGAL } from '@/constants/legal';
 import { validateUsername } from '@/services/moderation';
 
 type Step = 'email' | 'verify_code' | 'create_profile';
+
+const HEADER_LABEL: Record<Step, string> = {
+  email: 'REJESTRACJA',
+  verify_code: 'WERYFIKACJA',
+  create_profile: 'RIDER TAG',
+};
+
+const PAGE_LABEL: Record<Step, string> = {
+  email: 'DOŁĄCZ DO LIGI',
+  verify_code: 'KOD JEDNORAZOWY',
+  create_profile: 'OSTATNI KROK',
+};
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -32,7 +48,10 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [sendCooldown, setSendCooldown] = useState(0); // initial send cooldown (after first send)
+  const [sendCooldown, setSendCooldown] = useState(0);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [codeFocused, setCodeFocused] = useState(false);
+  const [usernameFocused, setUsernameFocused] = useState(false);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const sendCooldownRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
@@ -47,7 +66,7 @@ export default function AuthScreen() {
     }
   }, [state.status]);
 
-  // Cooldown timers
+  // Resend cooldown
   useEffect(() => {
     if (resendCooldown > 0) {
       cooldownRef.current = setInterval(() => {
@@ -60,6 +79,7 @@ export default function AuthScreen() {
     }
   }, [resendCooldown]);
 
+  // Initial-send cooldown (anti-spam right after first send)
   useEffect(() => {
     if (sendCooldown > 0) {
       sendCooldownRef.current = setInterval(() => {
@@ -72,13 +92,12 @@ export default function AuthScreen() {
     }
   }, [sendCooldown]);
 
-  /** Detect rate limit from Supabase error */
   const isRateLimited = (err: any): boolean => {
     const msg = (err?.message ?? '').toLowerCase();
-    return msg.includes('rate limit') ||
-      msg.includes('too many') ||
-      msg.includes('429') ||
-      err?.status === 429;
+    return msg.includes('rate limit')
+      || msg.includes('too many')
+      || msg.includes('429')
+      || err?.status === 429;
   };
 
   const handleSendCode = async () => {
@@ -87,14 +106,11 @@ export default function AuthScreen() {
       setError('Podaj prawidłowy adres email');
       return;
     }
-    // Block spam clicks during cooldown
     if (sendCooldown > 0) return;
 
     setLoading(true);
     setError('');
-
     const { error: authError } = await signInWithEmail(trimmed);
-
     setLoading(false);
     if (authError) {
       if (isRateLimited(authError)) {
@@ -106,7 +122,7 @@ export default function AuthScreen() {
     } else {
       setStep('verify_code');
       setResendCooldown(60);
-      setSendCooldown(30); // prevent rapid re-entry to email step + resend
+      setSendCooldown(30);
     }
   };
 
@@ -118,14 +134,11 @@ export default function AuthScreen() {
     }
     setLoading(true);
     setError('');
-
     const { error: verifyError } = await verifyOtp(email.trim(), code);
-
     setLoading(false);
     if (verifyError) {
       setError('Nieprawidłowy lub wygasły kod. Spróbuj ponownie.');
     }
-    // If successful, onAuthStateChange will fire and redirect
   };
 
   const handleResend = async () => {
@@ -153,12 +166,9 @@ export default function AuthScreen() {
       setError(validation.reason);
       return;
     }
-
     setLoading(true);
     setError('');
-
     const { error: profileError } = await createProfile(validation.normalized, username.trim());
-
     setLoading(false);
     if (profileError) {
       if (profileError.message?.includes('duplicate') || profileError.code === '23505') {
@@ -171,172 +181,212 @@ export default function AuthScreen() {
     }
   };
 
+  // ── Headline + sub copy per step ─────────────────────────────
+  const renderHeadline = () => {
+    if (step === 'email') {
+      return (
+        <View style={styles.headlineBlock}>
+          <Text style={styles.headline}>Twój rider tag</Text>
+          <Text style={[styles.headline, styles.headlineAccent]}>zaczyna się tutaj.</Text>
+          <Text style={styles.subPrimary}>Wyślemy ci kod jednorazowy.</Text>
+          <Text style={styles.subSecondary}>Bez hasła, bez śmieciowych maili.</Text>
+        </View>
+      );
+    }
+    if (step === 'verify_code') {
+      return (
+        <View style={styles.headlineBlock}>
+          <Text style={styles.headline}>Sprawdź skrzynkę.</Text>
+          <Text style={[styles.headline, styles.headlineAccent]}>Kod ważny 10 minut.</Text>
+          <Text style={styles.subPrimary}>Wpisz 6 cyfr z maila.</Text>
+          <Text style={styles.subSecondary}>Jeśli nie ma — sprawdź spam.</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.headlineBlock}>
+        <Text style={styles.headline}>Wybierz nick.</Text>
+        <Text style={[styles.headline, styles.headlineAccent]}>Tym podpiszesz swoje czasy.</Text>
+        <Text style={styles.subPrimary}>3-20 znaków. Litery, cyfry, _ i -.</Text>
+        <Text style={styles.subSecondary}>Nick widać na tablicy obok twojego czasu.</Text>
+      </View>
+    );
+  };
+
+  // ── Form per step ────────────────────────────────────────────
+  const renderEmailForm = () => (
+    <View style={styles.formBlock}>
+      <Text style={styles.fieldLabel}>EMAIL</Text>
+      <TextInput
+        style={[
+          styles.input,
+          emailFocused && styles.inputFocused,
+          !!error && styles.inputError,
+        ]}
+        placeholder="twoj@email.com"
+        placeholderTextColor="rgba(242,244,243,0.4)"
+        value={email}
+        onChangeText={setEmail}
+        onFocus={() => setEmailFocused(true)}
+        onBlur={() => setEmailFocused(false)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!loading}
+      />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.ctaWrap}>
+        <Btn
+          size="lg"
+          onPress={handleSendCode}
+          disabled={loading || sendCooldown > 0}
+        >
+          {loading
+            ? 'WYSYŁAM…'
+            : sendCooldown > 0
+              ? `WYŚLIJ PONOWNIE (${sendCooldown}s)`
+              : 'WYŚLIJ KOD'}
+        </Btn>
+      </View>
+    </View>
+  );
+
+  const renderVerifyForm = () => (
+    <View style={styles.formBlock}>
+      <Text style={styles.fieldLabel}>TWÓJ KOD</Text>
+      <TextInput
+        style={[
+          styles.input,
+          styles.codeInput,
+          codeFocused && styles.inputFocused,
+          !!error && styles.inputError,
+        ]}
+        placeholder="000000"
+        placeholderTextColor="rgba(242,244,243,0.4)"
+        value={otpCode}
+        onChangeText={setOtpCode}
+        onFocus={() => setCodeFocused(true)}
+        onBlur={() => setCodeFocused(false)}
+        keyboardType="number-pad"
+        maxLength={8}
+        editable={!loading}
+      />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.ctaWrap}>
+        <Btn size="lg" onPress={handleVerifyCode} disabled={loading}>
+          {loading ? 'WERYFIKUJĘ…' : 'POTWIERDŹ'}
+        </Btn>
+      </View>
+      <View style={styles.linkRow}>
+        <Pressable
+          onPress={handleResend}
+          disabled={resendCooldown > 0}
+          style={({ pressed }) => [styles.linkBtn, pressed && styles.linkBtnPressed]}
+        >
+          <Text style={[styles.linkText, resendCooldown > 0 && styles.linkTextDim]}>
+            {resendCooldown > 0 ? `PONOWNIE ZA ${resendCooldown}s` : 'WYŚLIJ PONOWNIE'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { setStep('email'); setError(''); setOtpCode(''); }}
+          style={({ pressed }) => [styles.linkBtn, pressed && styles.linkBtnPressed]}
+        >
+          <Text style={styles.linkText}>ZMIEŃ EMAIL</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderProfileForm = () => (
+    <View style={styles.formBlock}>
+      <Text style={styles.fieldLabel}>RIDER TAG</Text>
+      <TextInput
+        style={[
+          styles.input,
+          usernameFocused && styles.inputFocused,
+          !!error && styles.inputError,
+        ]}
+        placeholder="twoj.tag"
+        placeholderTextColor="rgba(242,244,243,0.4)"
+        value={username}
+        onChangeText={setUsername}
+        onFocus={() => setUsernameFocused(true)}
+        onBlur={() => setUsernameFocused(false)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={20}
+        editable={!loading}
+      />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.ctaWrap}>
+        <Btn size="lg" onPress={handleCreateProfile} disabled={loading}>
+          {loading ? 'TWORZĘ PROFIL…' : 'DOŁĄCZ DO LIGI'}
+        </Btn>
+      </View>
+    </View>
+  );
+
+  // Auth-context error (e.g. profile fetch failed) — replaces email form
+  const renderAuthErrorPanel = () => (
+    <View style={styles.formBlock}>
+      <View style={styles.errorPanel}>
+        <Text style={styles.errorPanelTitle}>PROBLEM Z LOGOWANIEM</Text>
+        <Text style={styles.errorPanelDesc}>{state.status === 'error' ? state.message : ''}</Text>
+      </View>
+      <View style={styles.ctaWrap}>
+        <Btn size="lg" onPress={retryAuth}>SPRÓBUJ PONOWNIE</Btn>
+      </View>
+    </View>
+  );
+
+  const renderLegal = () => (
+    <View style={styles.legalBlock}>
+      <Text style={styles.legalText}>
+        Logując się akceptujesz{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.termsUrl)}>
+          regulamin
+        </Text>
+        {' '}i{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
+          politykę prywatności
+        </Text>
+        .
+      </Text>
+    </View>
+  );
+
+  const showAuthErrorPanel = state.status === 'error' && step === 'email';
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        style={styles.content}
+        style={styles.keyboardWrap}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Brand header */}
-        <View style={styles.header}>
-          <Text style={styles.brand}>NWD</Text>
-          <Text style={styles.subtitle}>NEW WORLD DISORDER</Text>
-          <Text style={styles.tagline}>DOŁĄCZ DO LIGI</Text>
-        </View>
-
-        {step === 'email' && (
-          <View style={styles.form}>
-            <Text style={styles.label}>EMAIL</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="twoj@email.com"
-              placeholderTextColor={colors.textTertiary}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable
-              style={[styles.cta, (loading || sendCooldown > 0) && styles.ctaDisabled]}
-              onPress={handleSendCode}
-              disabled={loading || sendCooldown > 0}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.accentInk} />
-              ) : sendCooldown > 0 ? (
-                <Text style={styles.ctaText}>WYŚLIJ PONOWNIE ({sendCooldown}s)</Text>
-              ) : (
-                <Text style={styles.ctaText}>WYŚLIJ KOD</Text>
-              )}
-            </Pressable>
-
-            <Text style={styles.legalNote}>
-              Logując się akceptujesz{' '}
-              <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.termsUrl)}>
-                Regulamin
-              </Text>
-              {' '}i{' '}
-              <Text style={styles.legalLink} onPress={() => Linking.openURL(LEGAL.privacyUrl)}>
-                Politykę Prywatności
-              </Text>
-              .
-            </Text>
-          </View>
-        )}
-
-        {step === 'verify_code' && (
-          <View style={styles.form}>
-            <View style={styles.inboxCard}>
-              <View style={styles.inboxIconWrap}>
-                <IconGlyph name="verified" size={28} color={colors.accent} />
-              </View>
-              <Text style={styles.inboxTitle}>SPRAWDŹ SKRZYNKĘ</Text>
-              <Text style={styles.inboxDesc}>
-                Wysłaliśmy kod logowania na{'\n'}{email}
-              </Text>
-              <Text style={styles.inboxHint}>
-                Skopiuj kod z maila i wklej poniżej.
-              </Text>
-            </View>
-
-            <Text style={styles.label}>TWÓJ KOD</Text>
-            <TextInput
-              style={[styles.input, styles.codeInput]}
-              placeholder="00000000"
-              placeholderTextColor={colors.textTertiary}
-              value={otpCode}
-              onChangeText={setOtpCode}
-              keyboardType="number-pad"
-              maxLength={8}
-              editable={!loading}
-            />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable
-              style={[styles.cta, loading && styles.ctaDisabled]}
-              onPress={handleVerifyCode}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.accentInk} />
-              ) : (
-                <Text style={styles.ctaText}>POTWIERDŹ</Text>
-              )}
-            </Pressable>
-
-            <View style={styles.resendRow}>
-              <Pressable
-                style={[styles.skipBtn, resendCooldown > 0 && styles.skipBtnDisabled]}
-                onPress={handleResend}
-                disabled={resendCooldown > 0}
-              >
-                <Text style={[styles.skipText, resendCooldown > 0 && styles.skipTextDisabled]}>
-                  {resendCooldown > 0 ? `PONOWNIE ZA ${resendCooldown}s` : 'WYŚLIJ PONOWNIE'}
-                </Text>
-              </Pressable>
-
-              <Pressable style={styles.skipBtn} onPress={() => { setStep('email'); setError(''); setOtpCode(''); }}>
-                <Text style={styles.skipText}>ZMIEŃ EMAIL</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {step === 'create_profile' && (
-          <View style={styles.form}>
-            <Text style={styles.formTitle}>TWOJA NAZWA W LIDZE</Text>
-            <Text style={styles.formDesc}>
-              Tak będziesz widoczny na tablicy wyników.
-            </Text>
-
-            <Text style={styles.label}>RIDER TAG</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="twoj.tag"
-              placeholderTextColor={colors.textTertiary}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={20}
-              editable={!loading}
-            />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable
-              style={[styles.cta, loading && styles.ctaDisabled]}
-              onPress={handleCreateProfile}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.accentInk} />
-              ) : (
-                <Text style={styles.ctaText}>DOŁĄCZ DO LIGI</Text>
-              )}
-            </Pressable>
-          </View>
-        )}
-
-        {/* Auth error state — e.g. profile fetch failed */}
-        {state.status === 'error' && step === 'email' && (
-          <View style={styles.form}>
-            <View style={styles.errorCard}>
-              <Text style={styles.errorCardTitle}>PROBLEM Z LOGOWANIEM</Text>
-              <Text style={styles.errorCardDesc}>{state.message}</Text>
-            </View>
-            <Pressable style={styles.cta} onPress={retryAuth}>
-              <Text style={styles.ctaText}>SPRÓBUJ PONOWNIE</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Season badge */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>NWD · LIGA GRAVITY</Text>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <NWDHeader rightContext={{ type: 'label', text: HEADER_LABEL[step] }} />
+          <PageLabel text={PAGE_LABEL[step]} variant="default" />
+          {renderHeadline()}
+          {showAuthErrorPanel
+            ? renderAuthErrorPanel()
+            : step === 'email'
+              ? renderEmailForm()
+              : step === 'verify_code'
+                ? renderVerifyForm()
+                : renderProfileForm()}
+          {step === 'email' && !showAuthErrorPanel ? renderLegal() : null}
+        </ScrollView>
+        <View style={styles.bottomBandWrap}>
+          <BottomBand
+            status="SEZON 01 · BETA"
+            context="wczesny dostęp"
+            variant="live"
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -345,82 +395,125 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xl },
-  header: { alignItems: 'center', marginBottom: spacing.huge },
-  brand: { fontFamily: 'Rajdhani_700Bold', fontSize: 48, color: colors.textPrimary, letterSpacing: 12 },
-  subtitle: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, marginTop: spacing.sm },
-  tagline: { ...typography.label, color: colors.accent, letterSpacing: 6, marginTop: spacing.md },
-  form: { gap: spacing.md },
-  formTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', letterSpacing: 2 },
-  formDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.md },
-  label: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, marginBottom: spacing.xxs },
-  input: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, color: colors.textPrimary, ...typography.input },
-  // OTP digits in Rajdhani at letterSpacing 6 render "7" as a near-slash —
-  // unreadable. Use Inter_700Bold + tabular-nums for normal digit shapes
-  // and crisp alignment; modest letterSpacing keeps the code-field feel.
+  keyboardWrap: { flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 24 },
+
+  // Headline
+  headlineBlock: { paddingHorizontal: 24 },
+  headline: {
+    fontFamily: fonts.racing,
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+    lineHeight: 36,
+  },
+  headlineAccent: { color: colors.accent },
+  subPrimary: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: 'rgba(242,244,243,0.7)',
+    marginTop: 12,
+  },
+  subSecondary: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: 'rgba(242,244,243,0.55)',
+  },
+
+  // Form
+  formBlock: { paddingHorizontal: 24, marginTop: 60 },
+  fieldLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(242,244,243,0.5)',
+    letterSpacing: 2.5,
+    marginBottom: 8,
+  },
+  input: {
+    height: 52,
+    borderRadius: 2,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: 'rgba(0,255,135,0.25)',
+    paddingHorizontal: 16,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  inputFocused: { borderColor: 'rgba(0,255,135,0.6)' },
+  inputError: { borderColor: 'rgba(255,71,87,0.6)' },
   codeInput: {
     textAlign: 'center',
     fontSize: 24,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 4,
-    fontVariant: ['tabular-nums'] as any,
+    fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
   },
-  error: { ...typography.bodySmall, color: colors.red, textAlign: 'center' },
-  // § 06 Btn primary canonical: pill 999 radius, accent fill,
-  // accentInk text, Rajdhani 800 +0.24em CAPS label, glowSoft
-  // shadow. Pre-fix used radii.md (10px rounded-rect) which read
-  // as a generic OK button rather than a race CTA.
-  cta: {
-    backgroundColor: colors.accent,
-    borderRadius: 999,
-    height: 56,
-    alignItems: 'center',
+
+  errorText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.danger,
+    marginTop: 8,
+  },
+
+  ctaWrap: { marginTop: 28 },
+
+  // Resend / change-email row (verify_code step)
+  linkRow: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: spacing.sm,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.30,
-    shadowRadius: 16,
-    elevation: 8,
+    gap: 24,
+    marginTop: 18,
   },
-  ctaDisabled: { opacity: 0.4, shadowOpacity: 0 },
-  ctaText: {
-    fontFamily: 'Rajdhani_700Bold',
-    color: colors.accentInk,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 2.88, // 0.24em @ 12px
-    textTransform: 'uppercase',
+  linkBtn: { paddingVertical: 8, paddingHorizontal: 8 },
+  linkBtnPressed: { opacity: 0.6 },
+  linkText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(242,244,243,0.55)',
+    letterSpacing: 2,
   },
-  skipBtn: { alignItems: 'center', paddingVertical: spacing.md },
-  skipBtnDisabled: { opacity: 0.35 },
-  skipText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2 },
-  skipTextDisabled: { color: colors.textTertiary },
-  resendRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.lg },
-  // § 01 race state owns color: inboxCard is NOT a race-state element,
-  // so border drops back to neutral hairline. Accent reserved for the
-  // CTA pill below. Pre-fix this card had a full accent border which
-  // visually screamed "armed".
-  inboxCard: { backgroundColor: colors.panel, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-  inboxIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.accentDim,
+  linkTextDim: { color: 'rgba(242,244,243,0.32)' },
+
+  // Auth-context error panel (sharp HUD danger)
+  errorPanel: {
+    backgroundColor: 'rgba(255,71,87,0.08)',
     borderWidth: 1,
-    borderColor: colors.borderHot,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
+    borderColor: 'rgba(255,71,87,0.6)',
+    borderRadius: 2,
+    padding: 16,
   },
-  inboxTitle: { ...typography.h3, color: colors.textPrimary, letterSpacing: 2, marginBottom: spacing.sm },
-  inboxDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  inboxHint: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
-  errorCard: { backgroundColor: 'rgba(255, 59, 48, 0.08)', borderWidth: 1, borderColor: colors.red, borderRadius: radii.lg, padding: spacing.xl, alignItems: 'center' },
-  errorCardTitle: { ...typography.h3, color: colors.red, letterSpacing: 2, marginBottom: spacing.sm },
-  errorCardDesc: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  footer: { alignItems: 'center', marginTop: spacing.huge },
-  footerText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 9, letterSpacing: 3 },
-  legalNote: { ...typography.labelSmall, color: colors.textTertiary, textAlign: 'center', fontSize: 10, lineHeight: 16, marginTop: spacing.md, paddingHorizontal: spacing.md },
-  legalLink: { color: colors.textSecondary, textDecorationLine: 'underline' },
+  errorPanelTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.danger,
+    letterSpacing: 2.5,
+    marginBottom: 6,
+  },
+  errorPanelDesc: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(242,244,243,0.7)',
+  },
+
+  // Legal block (email step only)
+  legalBlock: { marginTop: 34, paddingHorizontal: 24 },
+  legalText: {
+    textAlign: 'center',
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: 'rgba(242,244,243,0.5)',
+    lineHeight: 18,
+  },
+  legalLink: { color: 'rgba(0,255,135,0.8)', fontWeight: '600' },
+
+  // Bottom band
+  bottomBandWrap: { paddingBottom: 8 },
 });

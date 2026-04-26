@@ -147,10 +147,13 @@ export default function TrailDetailScreen() {
   if (!trail) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.centered}>
-          <Text style={styles.errorTitle}>TRASA NIE ZNALEZIONA</Text>
-          <Btn variant="ghost" size="md" fullWidth={false} onPress={goBack}>
-            ← Wróć
+        <View style={styles.notFoundState}>
+          <Text style={styles.notFoundTitle}>TRASA NIE ZNALEZIONA</Text>
+          <Text style={styles.notFoundBody}>
+            Ten link nie prowadzi już do żadnej trasy.
+          </Text>
+          <Btn variant="primary" size="lg" onPress={goBack}>
+            WRÓĆ DO LISTY
           </Btn>
         </View>
       </SafeAreaView>
@@ -554,6 +557,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.pad,
+  },
+  // Not-found state — Pattern 5: muted CAPS title + body + primary CTA.
+  notFoundState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+  },
+  notFoundTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2.64,
+    color: colors.textMuted,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  notFoundBody: {
+    ...typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 320,
+    marginBottom: spacing.md,
   },
   errorTitle: {
     ...typography.label,

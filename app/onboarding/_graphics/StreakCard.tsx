@@ -10,7 +10,7 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { LiveDot } from '../_components/LiveDot';
+import { LiveDot } from '@/components/nwd/brand';
 
 export interface StreakCardProps {
   days: number;
@@ -81,9 +81,16 @@ const styles = StyleSheet.create({
   bigNumber: {
     fontFamily: fonts.racing,
     fontSize: 44,
-    lineHeight: 48,
+    // lineHeight === fontSize crushes the 4px asymmetric leading
+    // Rajdhani gets at this size; alignItems: 'center' on the parent
+    // then lands the glyph on the card's true vertical center.
+    lineHeight: 44,
     letterSpacing: -1,
     color: colors.accent,
+    // Same optical-center correction as RankBadge — empirical 4px
+    // nudge after 2px still read as top-heavy on iOS native.
+    marginTop: 4,
+    includeFontPadding: false,
   },
   copyBlock: {
     gap: 2,

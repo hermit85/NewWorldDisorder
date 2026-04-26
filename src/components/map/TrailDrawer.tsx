@@ -4,6 +4,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import { getTrailColor } from '@/theme/map';
+import { IconGlyph } from '@/components/nwd';
 import { Trail, Challenge } from '@/data/types';
 
 // Trail stats from the real backend hook — only what the backend actually provides
@@ -172,7 +173,7 @@ export function TrailDrawer({ trail, stats, challenges = [], readiness, rankingE
       {/* Active challenge — only when not compact */}
       {!isCompact && activeChallenge && (
         <View style={styles.challengeRow}>
-          <Text style={styles.challengeIcon}>⚡</Text>
+          <IconGlyph name="rec" size={14} variant="accent" />
           <View style={styles.challengeInfo}>
             <Text style={styles.challengeName}>{activeChallenge.name}</Text>
             <View style={styles.challengeBar}>

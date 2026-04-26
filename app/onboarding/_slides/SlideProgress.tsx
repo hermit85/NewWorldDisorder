@@ -17,7 +17,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { LiveDot } from '../_components/LiveDot';
+import { LiveDot } from '@/components/nwd/brand';
 import { AchievementCard } from '../_graphics/AchievementCard';
 import { RankBadge } from '../_graphics/RankBadge';
 import { StreakCard } from '../_graphics/StreakCard';

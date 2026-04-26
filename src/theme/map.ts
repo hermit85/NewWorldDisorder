@@ -133,11 +133,7 @@ export const darkMapStyle = [
   { featureType: 'administrative', stylers: [{ visibility: 'off' }] },
 ];
 
-// ── Legacy marker config (kept for compat) ──
-export const markerConfig = {
-  startGate: { emoji: '🏁', size: 24, label: 'START' },
-  finishGate: { emoji: '🔻', size: 20, label: 'FINISH' },
-  hotTrail: { emoji: '🔥', size: 22, label: 'HOT' },
-  challenge: { emoji: '⚡', size: 20, label: 'CHALLENGE' },
-  crown: { emoji: '👑', size: 20, label: 'RECORD' },
-} as const;
+// markerConfig (with emoji) was a never-consumed compat shim;
+// removed per voice.md "no emoji in UI". Markers now use IconGlyph
+// (`flag` for finish, `lock` for armed, `rec` for live, etc.) so
+// the visual identity stays inside the canonical glyph set.

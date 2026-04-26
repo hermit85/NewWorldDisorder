@@ -16,7 +16,7 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { LiveDot } from '../_components/LiveDot';
+import { LiveDot } from '@/components/nwd/brand';
 import { GateSchematic } from '../_graphics/GateSchematic';
 
 export const SlideRanking = memo(function SlideRanking() {

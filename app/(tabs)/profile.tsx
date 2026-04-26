@@ -404,7 +404,7 @@ export default function ProfileScreen() {
             quiet so it reads as chrome not content. */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>New World Disorder</Text>
-          <Text style={styles.appInfoText}>Sezon 01 · Słotwiny Arena</Text>
+          <Text style={styles.appInfoText}>Sezon 01 · Beta</Text>
           {isAuthenticated && (
             <Text style={styles.appInfoText}>{authUser?.email ?? ''}</Text>
           )}
