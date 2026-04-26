@@ -14,7 +14,6 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { ActivityList } from '@/components/profile/ActivityList';
-import { Divider } from '@/components/ui/Divider';
 import {
   Btn,
   Card,
@@ -373,10 +372,12 @@ export default function ProfileScreen() {
           </>
         )}
 
-        <Divider variant="strong" />
-
-        {/* Konto — nav links */}
-        <SectionHead label="Konto" />
+        {/* Konto — nav links. Boundary between badges/achievements
+            and account-management lives in spacing only; canonical
+            screens use whitespace, not a drawn rule. */}
+        <View style={{ marginTop: spacing.xxl }}>
+          <SectionHead label="Konto" />
+        </View>
         <View style={styles.appActions}>
           <Pressable style={styles.actionLink} onPress={() => router.push('/help')}>
             <Text style={styles.actionLinkText}>POMOC</Text>
