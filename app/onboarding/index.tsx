@@ -102,7 +102,10 @@ export default function OnboardingScreen() {
   const handleEnterApp = useCallback(async () => {
     notifySuccess();
     await completeOnboarding();
-    router.replace('/(tabs)');
+    // Auth-gated: every fresh rider must sign in before reaching tabs.
+    // /auth has its own "Przeglądaj bez logowania" escape hatch for the
+    // curious; we don't bypass it here.
+    router.replace('/auth');
   }, [router, completeOnboarding]);
 
   const handleCta = useCallback(() => {
