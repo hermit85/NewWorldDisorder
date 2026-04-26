@@ -35,6 +35,7 @@ import {
   AmbientScan,
   Btn,
   Card,
+  LiveTicker,
   Pill,
   SectionHead,
 } from '@/components/nwd';
@@ -246,6 +247,14 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* Sprint 3 — Live ticker as the league drama feed at the
+            top of Home. Rider sees what's happening (KOM swaps,
+            awanses, debuts) before scrolling into their own cards.
+            Mock data for now; backend events feed wires later. */}
+        <View style={styles.tickerWrap}>
+          <LiveTicker title="LIVE · LIGA" />
+        </View>
+
         <SyncOutboxCard />
 
         {(() => {
@@ -389,6 +398,9 @@ const styles = StyleSheet.create({
   },
   xpWrap: {
     width: 132,
+  },
+  tickerWrap: {
+    marginBottom: 4,
   },
   section: {
     gap: 10,
