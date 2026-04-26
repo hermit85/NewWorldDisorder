@@ -8,13 +8,13 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing, AppState,
+  View, Text, StyleSheet, Pressable, Alert, Linking, Animated, Easing, AppState, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { spacing, radii } from '@/theme/spacing';
 import { hudColors, hudTypography, hudShadows } from '@/theme/gameHud';
 import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
@@ -133,10 +133,20 @@ export default function RecordingScreen() {
   const spotId = rawSpotId ?? '';
   const router = useRouter();
 
-  // Keep the screen on for the lifetime of this mount. All non-cancel
-  // exits unmount the screen (review / back to trail), so the hook's
-  // unmount cleanup releases the lock.
-  useKeepAwake('nwd-recording');
+  // Keep the screen on for the lifetime of this mount. Native-only —
+  // the web Wake Lock API needs a user gesture and rejects on first
+  // mount, which surfaces as an unhandled pageerror in the dev
+  // preview (and Sentry replays). Native iOS / Android use a separate
+  // code path that doesn't have that constraint, so we call the
+  // imperative activate/deactivate gated on Platform.OS instead of
+  // relying on the hook (which has no built-in web bypass). All
+  // non-cancel exits unmount this screen (review / back to trail),
+  // so the cleanup runs naturally.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void activateKeepAwakeAsync('nwd-recording');
+    return () => { void deactivateKeepAwake('nwd-recording'); };
+  }, []);
 
   const {
     state,

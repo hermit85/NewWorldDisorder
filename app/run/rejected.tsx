@@ -64,7 +64,12 @@ export default function RejectedScreen() {
         <View style={styles.iconWrap}>
           <IconGlyph name="x" size={56} color={colors.danger} />
         </View>
-        <Pill state="invalid" dot size="md">{copy.pill}</Pill>
+        {/* Pill bakes in alignSelf: 'flex-start' so it sits inline
+            in row layouts (leaderboard meta, status strips). On a
+            standalone column-centered screen we want it under the X
+            icon — override at the call site, the only one that
+            needs centering. */}
+        <Pill state="invalid" dot size="md" style={{ alignSelf: 'center' }}>{copy.pill}</Pill>
         <Text style={styles.title}>{copy.title}</Text>
         <Text style={styles.body}>{copy.body}</Text>
       </View>
