@@ -7,13 +7,12 @@ import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTrailColor } from '@/theme/map';
-import { getVenue, getAllVenues } from '@/data/venues';
 import { formatTimeShort } from '@/content/copy';
 import { getRank } from '@/systems/ranks';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { PeriodType } from '@/data/types';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useLeaderboard, useTrails } from '@/hooks/useBackend';
+import { useActiveSpots, useLeaderboard, useTrail, useTrails } from '@/hooks/useBackend';
 import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
@@ -24,13 +23,20 @@ import { LeaderboardRow } from '@/components/nwd';
 function getTrustDisclosure(
   source: 'curator' | 'rider',
   tier: 'provisional' | 'verified' | 'disputed',
+  confirmersCount: number = 0,
+  confirmersNeeded: number = 3,
 ): string {
   if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
   if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
+  const remaining = Math.max(0, confirmersNeeded - confirmersCount);
+  const progressSuffix =
+    remaining > 0
+      ? ` · ${remaining} ${remaining === 1 ? 'potwierdzenie' : remaining < 5 ? 'potwierdzenia' : 'potwierdzeń'} do oficjalnego rankingu`
+      : ' · czeka na zatwierdzenie';
   if (source === 'curator') {
-    return 'Trasa kuratora · czasy orientacyjne dopóki społeczność nie potwierdzi';
+    return `Trasa kuratora${progressSuffix}`;
   }
-  return 'Trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi';
+  return `Trasa próbna${progressSuffix}`;
 }
 
 const VENUE_STORAGE_KEY = '@nwd_selected_venue';
@@ -57,25 +63,46 @@ const MEDAL = {
 
 export default function LeaderboardScreen() {
   const params = useLocalSearchParams<{ trailId?: string; scope?: string }>();
+  const routeTrailId = typeof params.trailId === 'string' ? params.trailId : undefined;
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(
     (params.scope as PeriodType) || 'all_time',
   );
   const [selectedVenueId, setSelectedVenueId] = useState('');
-  const venue = getVenue(selectedVenueId);
-  // Checkpoint A: trail list from DB; venue picker rail still seed-sourced
-  // (Checkpoint B rewires).
-  const { trails: venueTrails } = useTrails(selectedVenueId || null);
-  const allVenues = getAllVenues();
+  const { spots: allVenues, status: spotsStatus } = useActiveSpots();
+  const venue = allVenues.find((spot) => spot.id === selectedVenueId) ?? null;
+  const { trail: routeTrail } = useTrail(routeTrailId ?? null);
+  const { trails: venueTrails, status: trailsStatus, loading: trailsLoading } = useTrails(selectedVenueId || null);
+  const venueHydratedRef = useRef(false);
 
-  // Load persisted venue selection
+  // Load persisted venue selection. On a clean install we pick the first
+  // active spot from the DB; the old static venue registry is intentionally
+  // empty in this architecture, so it cannot be the default source.
   useEffect(() => {
+    if (venueHydratedRef.current) return;
+    if (allVenues.length === 0 && !routeTrail?.spotId) return;
+
+    venueHydratedRef.current = true;
     AsyncStorage.getItem(VENUE_STORAGE_KEY).then((stored) => {
-      if (stored && getVenue(stored)) setSelectedVenueId(stored);
+      const knownIds = new Set(allVenues.map((spot) => spot.id));
+      const next =
+        routeTrail?.spotId && knownIds.has(routeTrail.spotId)
+          ? routeTrail.spotId
+          : stored && knownIds.has(stored)
+            ? stored
+            : allVenues[0]?.id ?? '';
+      if (next) setSelectedVenueId(next);
     });
-  }, []);
+  }, [allVenues, routeTrail?.spotId]);
+
+  useEffect(() => {
+    if (!routeTrail?.spotId) return;
+    if (routeTrail.spotId === selectedVenueId) return;
+    setSelectedVenueId(routeTrail.spotId);
+    AsyncStorage.setItem(VENUE_STORAGE_KEY, routeTrail.spotId);
+  }, [routeTrail?.spotId, selectedVenueId]);
 
   const [selectedTrailId, setSelectedTrailId] = useState(
-    params.trailId ?? venueTrails[0]?.id ?? '',
+    routeTrailId ?? '',
   );
 
   // When venue changes (or trails list arrives), reset to first trail
@@ -92,13 +119,13 @@ export default function LeaderboardScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (params.trailId && venueTrails.some(t => t.id === params.trailId)) {
-      setSelectedTrailId(params.trailId);
+    if (routeTrailId && venueTrails.some(t => t.id === routeTrailId)) {
+      setSelectedTrailId(routeTrailId);
     }
     if (params.scope && ['day', 'weekend', 'all_time'].includes(params.scope)) {
       setSelectedPeriod(params.scope as PeriodType);
     }
-  }, [params.trailId, params.scope]);
+  }, [routeTrailId, params.scope, venueTrails]);
 
   const { entries, loading, error: lbError, refresh } = useLeaderboard(
     selectedTrailId,
@@ -140,8 +167,7 @@ export default function LeaderboardScreen() {
   }, []);
 
   const selectedTrail = venueTrails.find((t) => t.id === selectedTrailId);
-  const selectedVenueTrail = venue?.trails.find((o) => o.id === selectedTrailId);
-  const diffColor = selectedTrail ? getTrailColor(selectedVenueTrail?.colorClass, selectedTrail.difficulty) : colors.accent;
+  const diffColor = selectedTrail ? getTrailColor(undefined, selectedTrail.difficulty) : colors.accent;
 
   const myEntry = entries.find((e) => e.isCurrentUser);
   const myPos = myEntry?.currentPosition ?? 0;
@@ -182,7 +208,7 @@ export default function LeaderboardScreen() {
             <View style={styles.trustDot} />
           </View>
           <Text style={styles.subtitle}>
-            {venue?.rankingEnabled === false ? 'Walidacja treningowa' : 'Tylko zweryfikowane zjazdy'}
+            Tylko zweryfikowane zjazdy
             {totalEntries > 0 ? ` · ${totalEntries} ${totalEntries === 1 ? 'rider' : 'riderów'}` : ''}
           </Text>
         </View>
@@ -201,7 +227,7 @@ export default function LeaderboardScreen() {
                     AsyncStorage.setItem(VENUE_STORAGE_KEY, v.id);
                   }}
                 >
-                  <Text style={[styles.venueTabText, isActive && styles.venueTabTextActive]}>
+                  <Text style={[styles.venueTabText, isActive && styles.venueTabTextActive]} numberOfLines={1}>
                     {v.name.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -235,8 +261,7 @@ export default function LeaderboardScreen() {
         >
           {venueTrails.map((trail) => {
             const isActive = selectedTrailId === trail.id;
-            const vt = venue?.trails.find((o) => o.id === trail.id);
-            const tColor = getTrailColor(vt?.colorClass, trail.difficulty);
+            const tColor = getTrailColor(undefined, trail.difficulty);
             return (
               <Pressable
                 key={trail.id}
@@ -265,14 +290,14 @@ export default function LeaderboardScreen() {
         </ScrollView>
 
         {/* Loading */}
-        {loading && (
+        {(spotsStatus === 'loading' || trailsLoading || loading) && (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={colors.accent} size="small" />
           </View>
         )}
 
         {/* Error state */}
-        {!loading && lbError && (
+        {spotsStatus !== 'loading' && !trailsLoading && !loading && (spotsStatus === 'error' || trailsStatus === 'error' || lbError) && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyTitle}>NIE UDAŁO SIĘ ZAŁADOWAĆ</Text>
             <Text style={styles.emptyDesc}>Tablica wyników jest teraz niedostępna.</Text>
@@ -282,30 +307,39 @@ export default function LeaderboardScreen() {
           </View>
         )}
 
-        {/* Signed-out state */}
-        {!loading && !lbError && !profile && (
+        {/* Missing trail context */}
+        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && spotsStatus !== 'error' && trailsStatus !== 'error' && !selectedTrailId && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>ZALOGUJ SIĘ</Text>
-            <Text style={styles.emptyDesc}>Tablica wyników wymaga konta. Zjedź trasę, żeby pojawić się w rankingu.</Text>
+            <Text style={styles.emptyTitle}>BRAK TRAS</Text>
+            <Text style={styles.emptyDesc}>
+              Wybierz bike park z trasami albo dodaj pierwszą trasę w tym miejscu.
+            </Text>
+          </View>
+        )}
+
+        {/* Signed-out state */}
+        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && !profile && entries.length === 0 && !!selectedTrailId && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyLine}>—</Text>
+            <Text style={styles.emptyTitle}>JESZCZE PUSTO</Text>
+            <Text style={styles.emptyDesc}>Możesz przeglądać bez konta. Zaloguj się dopiero, gdy chcesz zapisać swój czas w lidze.</Text>
           </View>
         )}
 
         {/* Empty state (logged in but no entries) */}
-        {!loading && !lbError && !!profile && entries.length === 0 && (
+        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && !!profile && entries.length === 0 && !!selectedTrailId && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyLine}>—</Text>
             <Text style={styles.emptyTitle}>BRAK WYNIKÓW</Text>
             <Text style={styles.emptyDesc}>
-              {venue?.rankingEnabled === false
-                ? `${venue.name} jest w trybie walidacji. Ranking pojawi się po weryfikacji tras.`
-                : `Nikt jeszcze nie zjechał ${selectedTrail?.name ?? 'tej trasy'} w tym zakresie. Bądź pierwszy.`}
+              {`Nikt jeszcze nie zjechał ${selectedTrail?.name ?? 'tej trasy'} w tym zakresie. Bądź pierwszy.`}
             </Text>
           </View>
         )}
 
         {/* ═══ BOARD CONTENT — animated in ═══ */}
-        {!loading && !lbError && entries.length > 0 && (
+        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && entries.length > 0 && (
           <Animated.View style={{ opacity: fadeAnim }}>
 
             {/* ═══ TRUST DISCLOSURE (GPT Rule 2: mandatory) ═══ */}
@@ -314,10 +348,15 @@ export default function LeaderboardScreen() {
                 <TrustBadge
                   seedSource={selectedTrail.seedSource}
                   trustTier={selectedTrail.trustTier}
+                  confirmersCount={selectedTrail.uniqueConfirmingRidersCount}
                   size="sm"
                 />
                 <Text style={styles.disclosureText}>
-                  {getTrustDisclosure(selectedTrail.seedSource, selectedTrail.trustTier)}
+                  {getTrustDisclosure(
+                    selectedTrail.seedSource,
+                    selectedTrail.trustTier,
+                    selectedTrail.uniqueConfirmingRidersCount,
+                  )}
                 </Text>
               </View>
             )}
@@ -577,11 +616,26 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  titleRow: { marginBottom: spacing.md, gap: 4 },
+  titleRow: { marginBottom: spacing.lg, gap: 12 },
   titleMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { fontFamily: 'Rajdhani_700Bold', fontSize: 28, color: colors.textPrimary, letterSpacing: 4 },
-  trustDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
-  subtitle: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 1.5, fontSize: 11 },
+  title: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 36,
+    lineHeight: 42,
+    color: colors.textPrimary,
+    letterSpacing: 7.2,
+    fontWeight: '800',
+  },
+  trustDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent },
+  subtitle: {
+    fontFamily: 'Inter_700Bold',
+    color: colors.textSecondary,
+    letterSpacing: 3.6,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
 
   // Venue tabs
   venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
@@ -592,26 +646,30 @@ const styles = StyleSheet.create({
 
   // Scope tabs
   scopeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.lg },
-  // § 01 race-state-owns-color fix: scope tab is a filter affordance,
-  // not a race state. Pre-fix the active tab fully filled with accent
-  // (`backgroundColor: colors.accent`) which read as "ARMED", not
-  // "this period selected". Canonical screens-spot-trail.jsx uses
-  // accentDim bg + accent text + borderHot border for active filter
-  // tabs — same pattern shipped here.
   scopeTab: {
+    minWidth: 98,
+    height: 52,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radii.sm,
+    borderRadius: radii.lg,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scopeTabActive: {
-    backgroundColor: colors.accentDim,
-    borderColor: colors.borderHot,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
-  scopeTabText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 9 },
-  scopeTabTextActive: { color: colors.accent, fontFamily: 'Inter_700Bold' },
+  scopeTabText: {
+    fontFamily: 'Inter_700Bold',
+    color: colors.textTertiary,
+    letterSpacing: 3.2,
+    fontSize: 13,
+    lineHeight: 15,
+    fontWeight: '800',
+  },
+  scopeTabTextActive: { color: colors.accentInk },
 
   // Trail selector
   trailSelector: { marginBottom: spacing.xl, marginHorizontal: -spacing.lg },

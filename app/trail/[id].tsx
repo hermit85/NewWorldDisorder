@@ -76,13 +76,22 @@ function formatPioneerDate(iso: string): string {
 function getTrustDisclosure(
   source: 'curator' | 'rider',
   tier: 'provisional' | 'verified' | 'disputed',
+  confirmersCount: number = 0,
+  confirmersNeeded: number = 3,
 ): string {
   if (tier === 'disputed') return 'Wyniki zamrożone · weryfikacja w toku';
   if (tier === 'verified') return 'Trasa potwierdzona przez społeczność · oficjalne wyniki';
+  // ADR-012 Phase 2.4: surface progress toward Track A auto-verify so
+  // the rider sees that their zjazd actually moves the needle.
+  const remaining = Math.max(0, confirmersNeeded - confirmersCount);
+  const progressSuffix =
+    remaining > 0
+      ? ` · ${remaining} ${remaining === 1 ? 'potwierdzenie' : remaining < 5 ? 'potwierdzenia' : 'potwierdzeń'} do oficjalnego rankingu`
+      : ' · czeka na zatwierdzenie';
   if (source === 'curator') {
-    return 'Trasa kuratora · czasy orientacyjne dopóki społeczność nie potwierdzi';
+    return `Trasa kuratora${progressSuffix}`;
   }
-  return 'Trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi';
+  return `Trasa próbna${progressSuffix}`;
 }
 
 export default function TrailDetailScreen() {
@@ -182,7 +191,7 @@ export default function TrailDetailScreen() {
           <TopBar
             onBack={goBack}
             title="Trasa"
-            trailing={<Pill state="neutral" size="md">S01</Pill>}
+            trailing={<Pill state="neutral" size="sm">Beta</Pill>}
           />
 
           {spotName ? (
@@ -272,7 +281,7 @@ export default function TrailDetailScreen() {
         <TopBar
           onBack={goBack}
           title="Trasa"
-          trailing={<Pill state="neutral" size="md">S01</Pill>}
+          trailing={<Pill state="neutral" size="sm">Beta</Pill>}
         />
 
         {spotName ? (
@@ -295,7 +304,11 @@ export default function TrailDetailScreen() {
             <DifficultyPill tone={tone} />
             <Pill state="neutral" size="xs">{trail.trailType}</Pill>
             {trail.seedSource && trail.trustTier
-              ? <TrustBadge seedSource={trail.seedSource} trustTier={trail.trustTier} />
+              ? <TrustBadge
+                  seedSource={trail.seedSource}
+                  trustTier={trail.trustTier}
+                  confirmersCount={trail.uniqueConfirmingRidersCount}
+                />
               : null}
           </View>
 
@@ -332,7 +345,11 @@ export default function TrailDetailScreen() {
           <View style={styles.trustBanner}>
             <IconGlyph name="verified" size={14} color={colors.accent} />
             <Text style={styles.trustText}>
-              {getTrustDisclosure(trail.seedSource, trail.trustTier)}
+              {getTrustDisclosure(
+                trail.seedSource,
+                trail.trustTier,
+                trail.uniqueConfirmingRidersCount,
+              )}
             </Text>
           </View>
         ) : null}
