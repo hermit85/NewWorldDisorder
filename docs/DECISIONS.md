@@ -124,3 +124,96 @@ from Trailforks.
 **Consequences**: A small visual shift — Rajdhani is narrower than Orbitron at the same point size, so HUD headings look slightly more condensed. Acceptable trade-off for correctness; if the proportions read wrong in specific screens we can bump sizes locally. Reopen the decision only if Rajdhani itself turns out to be missing glyphs we need.
 
 **Regression guard**: `app/__dev/polish-test.tsx` (route `/__dev/polish-test`, `__DEV__` only) renders every `typography.*` and `hudTypography.*` style with a full Polish sample + a live TextInput; used to verify on-device after the swap and guards against future font regressions.
+
+---
+
+## ADR-012 — Route identity, geometry, and leaderboard standard
+
+**Status**: Accepted (2026-04-26). Supersedes the implicit "first pioneer wins, geometry pinned forever" model from migration 008 + 20260423180000.
+
+**Context**: The pre-ADR-012 model treated `trail.official_name` (case-insensitive, exact match per spot) as the only anti-duplicate key, and the first pioneer's GPS trace as canonical geometry forever (`pioneer_user_id` immutable, `geometry` jsonb pinned on `finalize_pioneer_run`). This produced two incompatible failure modes:
+
+1. **Naming sprawl** — `Kometa`, `Kometa 2`, `Kometa V2`, `Kometa bis`, `Kometa poprawna` all pass the exact-match check, fragmenting a single physical line across multiple leaderboards.
+2. **Frozen wrong geometry** — a pioneer with weak GPS, missed gate, or pocketed phone ships an incorrect line. Subsequent riders ride the same physical trail but their corrected GPS doesn't fix the canonical geometry; their only escape is to create `Kometa 2`, looping back to failure 1.
+
+The TrustBadge UI ("trasa próbna · czasy tymczasowe dopóki społeczność nie potwierdzi") promised crowd verification; the backend had no RPC that would actually flip a trail to verified — see [crowd_validation_gap memory pin](memory/crowd_validation_gap.md).
+
+**Decision** — North star:
+
+> One public trail name. Versioned geometry. Versioned gates. Runs count only after crossing official start and finish gates and matching the route corridor.
+
+### Core principles
+
+1. Trail identity is not geometry. `trails` carries the public name + lifecycle; `trail_geometry_versions` carries the line.
+2. A pioneer run creates a candidate, not permanent truth.
+3. Trail name is stable; geometry is corrected and versioned in place.
+4. Start and finish are gates (center + radius + direction vector), not GPS points.
+5. Leaderboards are computed views: `runs WHERE trail_id=X AND matched_geometry_version_id=current_geometry_version_id AND counted_in_leaderboard=true`. No separate `leaderboard_versions` table — historical rankings reconstruct from raw traces against any geometry version.
+6. Raw GPS traces persist in `run_points` (one row per fix); enables recompute against future geometry corrections.
+7. Duplicate prevention is two-tier: deterministic name normalization + geo-overlap detection. **Geometry is the final arbiter, name is only a filter.**
+8. Wrong geometry is fixed through correction flow, never by creating duplicate trail names.
+
+### Naming — two deterministic keys
+
+- `normalized_name` (hard unique per spot): lowercase, trim, strip diacritics, remove punctuation, collapse whitespace. `KÓMĘTA!!! → kometa`.
+- `duplicate_base_key` (soft warn / redirect): same as normalized_name plus strip garbage suffixes — trailing digits, `v\d+`, `bis`, `copy`, `new`, `poprawna`, `prawdziwa`, year suffixes. `Kometa 2 → kometa`, `Kometa V2 → kometa`, `Kometa bis → kometa`, `Kometa 2025 → kometa`.
+
+**Do not strip semantic route suffixes** (`elite`, `pro`, `black`, `beginner`, `blue`, `red`, `flow`, `dh`, `jump`). They may be real variants — let geometry decide. `Kometa Pro` passes both name keys; if its geometry overlaps `Kometa` ≥85%, geo-overlap auto-merges the run.
+
+### Variants
+
+Materially different physical lines (`Kometa Elite`, `Kometa Beginner`, `Kometa Black`) are **separate trails** with separate leaderboards, connected only via aliases for discovery. No `runs.line_variant` model — mixing different lengths/drops/profiles in one leaderboard is unsound for gravity racing.
+
+### Lifecycle
+
+`trails.status`: `draft → provisional → verified` plus side states `disputed | merged | archived`. No `locked` for now (use admin flag if needed later).
+
+`trail_geometry_versions.status`: `candidate | canonical | superseded`. Soft-delete via `archived_at`/`rejection_reason` instead of an explicit `rejected` state.
+
+Visibility is computed from trail status, not stored: `draft → owner-only`, `provisional → deeplink + "Do potwierdzenia" section`, `verified → public hub`, `disputed → hidden+warned`, `merged → redirect`, `archived → hidden`.
+
+### Verification — three tracks
+
+- **Track A (crowd auto-verify):** ≥3 unique riders + match_score ≥0.80 + start/finish gate consensus + zero conflicts → auto promote provisional → verified.
+- **Track B (time + admin nudge):** after 30 days + ≥1 confirm + zero conflicts → admin queue for 1-click verify. Without this, low-traffic trails would die in `provisional`.
+- **Track C (curator GPX):** curator/admin uploads GPX → starts as `verified`, skips provisional.
+
+### Pioneer + correction flow
+
+`finalize_pioneer_run` runs `check_trail_overlap(spot_id, geometry)` against existing trails in the same spot:
+
+| Overlap | Action |
+|---|---|
+| ≥85% | auto-merge: run lands in existing trail's leaderboard; no new trail created |
+| 60–85% | candidate / review queue |
+| <60% | new provisional trail, current pioneer claims |
+
+Correction runs (explicit `recording_mode='correction'`) and passive correction candidates (`normal_run` with match_score 0.60–0.85) feed the `trail_geometry_versions` queue. Weights: passive normal 1.0×, explicit correction 1.5×, trusted rider 1.5–2.0×, curator GPX 5.0× / instant canonical.
+
+### Anti-gaming guards (mandatory with crowd verification)
+
+- 1 correction proposal per rider per trail per 24h.
+- Minimum account age / reputation for correction weight to count.
+- Shortcut detection: candidate `distance_m` < canonical by >5–8% → never auto-promote, always admin queue.
+- Candidates that materially shorten the canonical line require explicit admin approval regardless of supporter count.
+
+### Direction
+
+`trail_geometry_versions.direction_type`: `descending | ascending | loop_cw | loop_ccw | bidirectional`. Bike park default `descending`. Run validation rejects reverse crossings (start gate after finish gate timestamp).
+
+### Timing
+
+Time is **never** wall-clock from START tap to STOP tap. Time = `finish_gate.crossed_at − start_gate.crossed_at`. Copy must instruct: "Włącz nagrywanie przed startem. Zatrzymaj się dopiero po mecie. Czas policzymy automatycznie po przecięciu bramek."
+
+### Implementation phases
+
+| Phase | Scope | Goal |
+|---|---|---|
+| **1** | Step 0, normalized_name + duplicate_base_key, trail_name_aliases, correction mode, raw trace (run_points), trail_geometry_versions, check_trail_overlap RPC, geo-overlap auto-merge in finalize_pioneer_run | Base stops rotting |
+| **2** | match_score, unique-rider confirmations, passive correction consensus, Track A/B/C verification, TrustBadge wired to backend | Trails actually verify |
+| **3** | start_gate / finish_gate as gates (not points), crossing-based timing, route corridor, recompute from raw_trace, leaderboard as query over geometry_version | Honest racing |
+| **4** | Curator GPX import, admin review queue, merge/split, dispute resolution, full anti-gaming guards | Scale + ops |
+
+**Consequences**: Larger refactor than any prior ADR — touches `trails`, `runs`, `finalize_pioneer_run`, the trail/new flow, the leaderboard query, and ships new tables (`trail_geometry_versions`, `run_points`, `trail_name_aliases`, `route_review_queue`). Each phase ships independently and delivers value alone, but Phase 1 is non-negotiable before any further user growth — without `normalized_name` + geo-overlap auto-merge, every new rider adds entropy to the trail catalog faster than Phase 2+ can clean it.
+
+Pre-ADR data: existing 4 Słotwiny trails (Gałgan / Dookoła Świata / Kometa / Dzida) keep their adhoc geometry as Phase 1 ships, then re-enter the lifecycle as `provisional` once the verification tracks land. Curator GPX import (Track C) is the long-term right answer; until then, pioneer + crowd verification carries the load.
