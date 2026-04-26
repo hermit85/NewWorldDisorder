@@ -54,6 +54,17 @@ export type { SpotRowProps } from './SpotRow';
 export { TrailCard } from './TrailCard';
 export type { TrailCardProps, TrailStatus } from './TrailCard';
 
+// Chrome primitives — game-HUD decoration (HudFrame composes the rest).
+export { CornerBrackets, ScanLines, RaceNumber, SystemText, HudFrame } from './chrome';
+export type {
+  CornerBracketsProps,
+  ScanLinesProps,
+  RaceNumberProps,
+  SystemTextProps,
+  SystemTextSlot,
+  HudFrameProps,
+} from './chrome';
+
 // Brand primitives — chrome for non-tab screens (Auth, Help, Settings).
 export { LiveDot } from './brand';
 export type { LiveDotProps, LiveDotMode } from './brand';
