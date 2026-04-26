@@ -359,18 +359,144 @@ export type Database = {
         }
         Relationships: []
       }
+      route_review_queue: {
+        Row: {
+          assigned_to: string | null
+          candidate_geometry_version_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          reason: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string
+          trail_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          candidate_geometry_version_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          reason: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+          trail_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          candidate_geometry_version_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          reason?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+          trail_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_review_queue_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_review_queue_candidate_geometry_version_id_fkey"
+            columns: ["candidate_geometry_version_id"]
+            isOneToOne: false
+            referencedRelation: "trail_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_review_queue_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_review_queue_trail_id_fkey"
+            columns: ["trail_id"]
+            isOneToOne: false
+            referencedRelation: "trails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_points: {
+        Row: {
+          accuracy_m: number | null
+          altitude_m: number | null
+          lat: number
+          lng: number
+          point_index: number
+          recorded_at: string
+          run_id: string
+          speed_mps: number | null
+        }
+        Insert: {
+          accuracy_m?: number | null
+          altitude_m?: number | null
+          lat: number
+          lng: number
+          point_index: number
+          recorded_at: string
+          run_id: string
+          speed_mps?: number | null
+        }
+        Update: {
+          accuracy_m?: number | null
+          altitude_m?: number | null
+          lat?: number
+          lng?: number
+          point_index?: number
+          recorded_at?: string
+          run_id?: string
+          speed_mps?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_points_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runs: {
         Row: {
+          computed_time_ms: number | null
           counted_in_leaderboard: boolean
           created_at: string
           duration_ms: number
+          finish_crossed_at: string | null
           finished_at: string
           gps_trace: Json | null
           id: string
           is_pb: boolean
+          match_score: number | null
+          matched_geometry_version_id: string | null
           mode: string
+          recording_mode: Database["public"]["Enums"]["recording_mode"]
+          rejection_reason: string | null
+          run_quality_status:
+            | Database["public"]["Enums"]["run_quality_status"]
+            | null
           spot_id: string
+          start_crossed_at: string | null
           started_at: string
+          timing_confidence: number | null
           trail_id: string
           trail_version_id: string | null
           user_id: string
@@ -379,16 +505,27 @@ export type Database = {
           xp_awarded: number
         }
         Insert: {
+          computed_time_ms?: number | null
           counted_in_leaderboard?: boolean
           created_at?: string
           duration_ms: number
+          finish_crossed_at?: string | null
           finished_at: string
           gps_trace?: Json | null
           id?: string
           is_pb?: boolean
+          match_score?: number | null
+          matched_geometry_version_id?: string | null
           mode?: string
+          recording_mode?: Database["public"]["Enums"]["recording_mode"]
+          rejection_reason?: string | null
+          run_quality_status?:
+            | Database["public"]["Enums"]["run_quality_status"]
+            | null
           spot_id: string
+          start_crossed_at?: string | null
           started_at: string
+          timing_confidence?: number | null
           trail_id: string
           trail_version_id?: string | null
           user_id: string
@@ -397,16 +534,27 @@ export type Database = {
           xp_awarded?: number
         }
         Update: {
+          computed_time_ms?: number | null
           counted_in_leaderboard?: boolean
           created_at?: string
           duration_ms?: number
+          finish_crossed_at?: string | null
           finished_at?: string
           gps_trace?: Json | null
           id?: string
           is_pb?: boolean
+          match_score?: number | null
+          matched_geometry_version_id?: string | null
           mode?: string
+          recording_mode?: Database["public"]["Enums"]["recording_mode"]
+          rejection_reason?: string | null
+          run_quality_status?:
+            | Database["public"]["Enums"]["run_quality_status"]
+            | null
           spot_id?: string
+          start_crossed_at?: string | null
           started_at?: string
+          timing_confidence?: number | null
           trail_id?: string
           trail_version_id?: string | null
           user_id?: string
@@ -415,6 +563,13 @@ export type Database = {
           xp_awarded?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "runs_matched_geometry_version_id_fkey"
+            columns: ["matched_geometry_version_id"]
+            isOneToOne: false
+            referencedRelation: "trail_versions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "runs_spot_id_fkey"
             columns: ["spot_id"]
@@ -575,37 +730,127 @@ export type Database = {
           },
         ]
       }
-      trail_versions: {
+      trail_name_aliases: {
         Row: {
+          alias: string
           created_at: string
           created_by: string | null
+          id: string
+          normalized_alias: string | null
+          source: string
+          trail_id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          normalized_alias?: string | null
+          source?: string
+          trail_id: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          normalized_alias?: string | null
+          source?: string
+          trail_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trail_name_aliases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trail_name_aliases_trail_id_fkey"
+            columns: ["trail_id"]
+            isOneToOne: false
+            referencedRelation: "trails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trail_versions: {
+        Row: {
+          archived_at: string | null
+          became_canonical_at: string | null
+          confidence_score: number | null
+          created_at: string
+          created_by: string | null
+          direction_type: Database["public"]["Enums"]["trail_direction_type"]
+          distance_m: number | null
+          elevation_drop_m: number | null
+          finish_gate: Json | null
           geometry: Json
           id: string
           is_current: boolean
+          rejection_reason: string | null
+          route_corridor_radius_m: number | null
+          source_run_id: string | null
+          source_type: string | null
+          source_user_id: string | null
+          start_gate: Json | null
+          status: Database["public"]["Enums"]["trail_geometry_version_status"]
           superseded_at: string | null
           superseded_by_version_id: string | null
+          supporters_count: number
           trail_id: string
           version_number: number
         }
         Insert: {
+          archived_at?: string | null
+          became_canonical_at?: string | null
+          confidence_score?: number | null
           created_at?: string
           created_by?: string | null
+          direction_type?: Database["public"]["Enums"]["trail_direction_type"]
+          distance_m?: number | null
+          elevation_drop_m?: number | null
+          finish_gate?: Json | null
           geometry: Json
           id?: string
           is_current?: boolean
+          rejection_reason?: string | null
+          route_corridor_radius_m?: number | null
+          source_run_id?: string | null
+          source_type?: string | null
+          source_user_id?: string | null
+          start_gate?: Json | null
+          status?: Database["public"]["Enums"]["trail_geometry_version_status"]
           superseded_at?: string | null
           superseded_by_version_id?: string | null
+          supporters_count?: number
           trail_id: string
           version_number: number
         }
         Update: {
+          archived_at?: string | null
+          became_canonical_at?: string | null
+          confidence_score?: number | null
           created_at?: string
           created_by?: string | null
+          direction_type?: Database["public"]["Enums"]["trail_direction_type"]
+          distance_m?: number | null
+          elevation_drop_m?: number | null
+          finish_gate?: Json | null
           geometry?: Json
           id?: string
           is_current?: boolean
+          rejection_reason?: string | null
+          route_corridor_radius_m?: number | null
+          source_run_id?: string | null
+          source_type?: string | null
+          source_user_id?: string | null
+          start_gate?: Json | null
+          status?: Database["public"]["Enums"]["trail_geometry_version_status"]
           superseded_at?: string | null
           superseded_by_version_id?: string | null
+          supporters_count?: number
           trail_id?: string
           version_number?: number
         }
@@ -613,6 +858,20 @@ export type Database = {
           {
             foreignKeyName: "trail_versions_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trail_versions_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trail_versions_source_user_id_fkey"
+            columns: ["source_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -644,6 +903,7 @@ export type Database = {
           description: string
           difficulty: string
           distance_m: number
+          duplicate_base_key: string | null
           elevation_drop_m: number
           game_flavor: string
           game_label: string
@@ -651,6 +911,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_race_trail: boolean
+          normalized_name: string | null
           official_name: string
           pioneer_user_id: string | null
           pioneered_at: string | null
@@ -662,6 +923,7 @@ export type Database = {
           trail_type: string
           trust_tier: Database["public"]["Enums"]["trust_tier"] | null
           unique_confirming_riders_count: number
+          verified_at: string | null
         }
         Insert: {
           avg_grade_pct?: number
@@ -673,6 +935,7 @@ export type Database = {
           description?: string
           difficulty?: string
           distance_m?: number
+          duplicate_base_key?: string | null
           elevation_drop_m?: number
           game_flavor?: string
           game_label?: string
@@ -680,6 +943,7 @@ export type Database = {
           id: string
           is_active?: boolean
           is_race_trail?: boolean
+          normalized_name?: string | null
           official_name: string
           pioneer_user_id?: string | null
           pioneered_at?: string | null
@@ -691,6 +955,7 @@ export type Database = {
           trail_type?: string
           trust_tier?: Database["public"]["Enums"]["trust_tier"] | null
           unique_confirming_riders_count?: number
+          verified_at?: string | null
         }
         Update: {
           avg_grade_pct?: number
@@ -702,6 +967,7 @@ export type Database = {
           description?: string
           difficulty?: string
           distance_m?: number
+          duplicate_base_key?: string | null
           elevation_drop_m?: number
           game_flavor?: string
           game_label?: string
@@ -709,6 +975,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_race_trail?: boolean
+          normalized_name?: string | null
           official_name?: string
           pioneer_user_id?: string | null
           pioneered_at?: string | null
@@ -720,6 +987,7 @@ export type Database = {
           trail_type?: string
           trust_tier?: Database["public"]["Enums"]["trust_tier"] | null
           unique_confirming_riders_count?: number
+          verified_at?: string | null
         }
         Relationships: [
           {
@@ -888,9 +1156,20 @@ export type Database = {
         Args: { p_run_id: string; p_trail_id: string }
         Returns: Json
       }
+      check_trail_overlap: {
+        Args: { p_geometry: Json; p_spot_id: string }
+        Returns: {
+          decision_band: string
+          geometry_version_id: string
+          official_name: string
+          overlap_pct: number
+          trail_id: string
+        }[]
+      }
       create_trail: {
         Args: {
           p_difficulty: string
+          p_force_create?: boolean
           p_name: string
           p_spot_id: string
           p_trail_type: string
@@ -931,10 +1210,41 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_bearing_deg: {
+        Args: { p_lat1: number; p_lat2: number; p_lng1: number; p_lng2: number }
+        Returns: number
+      }
+      fn_derive_finish_gate: {
+        Args: { p_geometry: Json; p_radius_m?: number }
+        Returns: Json
+      }
+      fn_derive_start_gate: {
+        Args: { p_geometry: Json; p_radius_m?: number }
+        Returns: Json
+      }
+      fn_duplicate_base_key: { Args: { p_name: string }; Returns: string }
+      fn_first_gate_cross: {
+        Args: { p_gate: Json; p_run_id: string }
+        Returns: string
+      }
+      fn_jsonb_geometry_to_linestring: {
+        Args: { p_geometry: Json }
+        Returns: unknown
+      }
+      fn_last_gate_cross: {
+        Args: { p_gate: Json; p_run_id: string }
+        Returns: string
+      }
+      fn_maybe_verify_trail: {
+        Args: { p_trail_id: string }
+        Returns: undefined
+      }
+      fn_normalize_trail_name: { Args: { p_name: string }; Returns: string }
       gps_distance_m: {
         Args: { p_lat1: number; p_lat2: number; p_lng1: number; p_lng2: number }
         Returns: number
       }
+      immutable_unaccent: { Args: { p_in: string }; Returns: string }
       increment_profile_runs: {
         Args: { p_is_pb?: boolean; p_user_id: string }
         Returns: Json
@@ -943,9 +1253,44 @@ export type Database = {
         Args: { p_user_id: string; p_xp_to_add: number }
         Returns: Json
       }
+      list_spot_trails: {
+        Args: { p_spot_id: string }
+        Returns: {
+          aliases: string[]
+          calibration_status: string
+          current_version_id: string
+          difficulty: string
+          distance_m: number
+          duplicate_base_key: string
+          is_active: boolean
+          normalized_name: string
+          official_name: string
+          pioneer_user_id: string
+          pioneer_username: string
+          runs_contributed: number
+          trail_id: string
+          trail_type: string
+          trust_tier: Database["public"]["Enums"]["trust_tier"]
+          unique_confirming_riders_count: number
+        }[]
+      }
+      nudge_stale_provisional_trails: {
+        Args: { p_min_age_days?: number; p_min_confirmers?: number }
+        Returns: {
+          age_days: number
+          official_name: string
+          queue_id: string
+          trail_id: string
+          unique_confirming_riders_count: number
+        }[]
+      }
       promote_run_as_baseline: { Args: { p_run_id: string }; Returns: Json }
       recalibrate_trail: {
         Args: { p_new_geometry: Json; p_trail_id: string }
+        Returns: Json
+      }
+      recompute_run_against_geometry: {
+        Args: { p_geometry_version_id: string; p_run_id: string }
         Returns: Json
       }
       recompute_trail_confidence: {
@@ -986,6 +1331,7 @@ export type Database = {
             }
             Returns: Json
           }
+      unaccent: { Args: { "": string }; Returns: string }
       unlock_achievement_with_xp: {
         Args: { p_achievement_id: string; p_user_id: string }
         Returns: Json
@@ -1014,7 +1360,16 @@ export type Database = {
           }
     }
     Enums: {
+      recording_mode: "normal" | "pioneer" | "correction"
+      run_quality_status: "valid" | "invalid_gps" | "invalid_route" | "partial"
       seed_source: "curator" | "rider"
+      trail_direction_type:
+        | "descending"
+        | "ascending"
+        | "loop_cw"
+        | "loop_ccw"
+        | "bidirectional"
+      trail_geometry_version_status: "candidate" | "canonical" | "superseded"
       trust_tier: "provisional" | "verified" | "disputed"
     }
     CompositeTypes: {
@@ -1143,7 +1498,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      recording_mode: ["normal", "pioneer", "correction"],
+      run_quality_status: ["valid", "invalid_gps", "invalid_route", "partial"],
       seed_source: ["curator", "rider"],
+      trail_direction_type: [
+        "descending",
+        "ascending",
+        "loop_cw",
+        "loop_ccw",
+        "bidirectional",
+      ],
+      trail_geometry_version_status: ["candidate", "canonical", "superseded"],
       trust_tier: ["provisional", "verified", "disputed"],
     },
   },
@@ -1162,3 +1527,7 @@ export type DbChallenge = Database["public"]["Tables"]["challenges"]["Row"]
 export type DbChallengeProgress = Database["public"]["Tables"]["challenge_progress"]["Row"]
 export type DbAchievement = Database["public"]["Tables"]["achievements"]["Row"]
 export type DbUserAchievement = Database["public"]["Tables"]["user_achievements"]["Row"]
+export type DbTrailVersion = Database["public"]["Tables"]["trail_versions"]["Row"]
+export type DbRunPoint = Database["public"]["Tables"]["run_points"]["Row"]
+export type DbTrailNameAlias = Database["public"]["Tables"]["trail_name_aliases"]["Row"]
+export type DbRouteReviewQueue = Database["public"]["Tables"]["route_review_queue"]["Row"]

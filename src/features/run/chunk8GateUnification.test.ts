@@ -259,13 +259,21 @@ function makeDbRun(
     gps_trace: null,
     counted_in_leaderboard: verificationStatus === 'verified',
     created_at: new Date(0).toISOString(),
-    updated_at: new Date(0).toISOString(),
     xp_awarded: 0,
     is_pb: false,
-    // Added when leaderboard_entries got version-pinned
-    // (mig 20260428000000). Tests don't exercise the version path here,
-    // but the field is non-null in the new Row type so we keep parity.
     trail_version_id: null,
+    // ADR-012 Phase 1.1+ columns — null in the test fixture because
+    // these tests don't exercise the route-identity / crossing-timing
+    // pipeline; the trigger chain populates them on real inserts.
+    matched_geometry_version_id: null,
+    match_score: null,
+    recording_mode: 'normal',
+    run_quality_status: null,
+    timing_confidence: null,
+    computed_time_ms: null,
+    start_crossed_at: null,
+    finish_crossed_at: null,
+    rejection_reason: null,
   } as DbRun;
 }
 

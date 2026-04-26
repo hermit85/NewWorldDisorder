@@ -16,12 +16,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
-import { Btn, SectionHead } from '@/components/nwd';
+import { Btn, IconGlyph, SectionHead, type IconName } from '@/components/nwd';
 import { useTrail, useSpot, useRun } from '@/hooks/useBackend';
 import { calculateRunXp, getLevel } from '@/systems/xp';
 import { formatTime } from '@/content/copy';
 import { tapLight, tapMedium, tapHeavy, notifySuccess, notifyWarning, selectionTick } from '@/systems/haptics';
-import { getFinalizedRun, subscribeFinalizedRun } from '@/systems/runStore';
+import { getFinalizedRun, isRunStoreHydrated, subscribeFinalizedRun } from '@/systems/runStore';
 import { retryRunSubmit } from '@/systems/retrySubmit';
 import { promoteRunAsBaseline } from '@/lib/api';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -40,7 +40,7 @@ const STATUS_DISPLAY: Record<string, {
   label: string;
   color: string;
   bg: string;
-  icon: string;
+  icon: IconName;
   description: string;
 }> = {
   verified: {
@@ -48,7 +48,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'ZALICZONY',
     color: colors.accent,
     bg: colors.accentDim,
-    icon: '✓',
+    icon: 'verified',
     description: 'Zjazd zweryfikowany i zapisany w lidze.',
   },
   practice_only: {
@@ -56,7 +56,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'ZAPISANY',
     color: colors.blue,
     bg: 'rgba(0,122,255,0.15)',
-    icon: '○',
+    icon: 'timer',
     description: 'Trening zapisany. Nie wpływa na ranking.',
   },
   weak_signal: {
@@ -64,7 +64,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'ZAPISANY',
     color: colors.orange,
     bg: 'rgba(255,149,0,0.12)',
-    icon: '!',
+    icon: 'timer',
     description: 'Słaby GPS. Wynik zapisany, ale poza oficjalnym rankingiem.',
   },
   missing_checkpoint: {
@@ -72,7 +72,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'ZAPISANY',
     color: colors.orange,
     bg: 'rgba(255,149,0,0.12)',
-    icon: '!',
+    icon: 'split',
     description: 'Nie wszystkie punkty kontrolne zostały zaliczone.',
   },
   shortcut_detected: {
@@ -80,7 +80,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'NIE ZALICZONY',
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
-    icon: '✕',
+    icon: 'x',
     description: 'Zjechałeś poza oficjalną trasę. Spróbuj ponownie.',
   },
   outside_start_gate: {
@@ -88,7 +88,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'NIE ZALICZONY',
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
-    icon: '✕',
+    icon: 'gate',
     description: 'Nie wykryto przejazdu przez bramkę startową.',
   },
   outside_finish_gate: {
@@ -96,7 +96,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'NIE ZALICZONY',
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
-    icon: '✕',
+    icon: 'flag',
     description: 'Meta nie została wykryta. Spróbuj ponownie.',
   },
   invalid_route: {
@@ -104,7 +104,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'NIE ZALICZONY',
     color: colors.red,
     bg: 'rgba(255,59,48,0.08)',
-    icon: '✕',
+    icon: 'x',
     description: 'Przejazd nie pokrywa się z oficjalną trasą.',
   },
   pending: {
@@ -112,7 +112,7 @@ const STATUS_DISPLAY: Record<string, {
     label: 'SPRAWDZAM',
     color: colors.gold,
     bg: 'rgba(255,204,0,0.08)',
-    icon: '…',
+    icon: 'timer',
     description: 'Trwa weryfikacja zjazdu.',
   },
 };
@@ -215,6 +215,7 @@ function StandardResultScreen() {
   const [lastRetryAt, setLastRetryAt] = useState<number | null>(null);
   const [promotingBaseline, setPromotingBaseline] = useState(false);
   const [baselineError, setBaselineError] = useState<string | null>(null);
+  const [storeHydrated, setStoreHydrated] = useState(isRunStoreHydrated());
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
@@ -241,7 +242,12 @@ function StandardResultScreen() {
 
   useEffect(() => {
     if (!runSessionId) return;
-    const unsub = subscribeFinalizedRun(() => forceUpdate());
+    const sync = () => {
+      setStoreHydrated(isRunStoreHydrated());
+      forceUpdate();
+    };
+    sync();
+    const unsub = subscribeFinalizedRun(sync);
     return unsub;
   }, [runSessionId]);
 
@@ -349,6 +355,17 @@ function StandardResultScreen() {
   };
 
   // ── Fallback ──
+  if (!run && !storeHydrated) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.fallback}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.fallbackText}>Odtwarzam zjazd…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!run) {
     return (
       <SafeAreaView style={styles.container}>
@@ -390,7 +407,7 @@ function StandardResultScreen() {
     position: rankPosition || null,
     previousPosition: run.backendResult?.leaderboardResult?.previousPosition ?? null,
   });
-  const xpAwarded = run.backendResult?.run?.xp_awarded ?? xpBreakdown.total;
+  const xpAwarded = run.xpAwarded ?? run.backendResult?.run?.xp_awarded ?? xpBreakdown.total;
   const showRank = isRanked && isVerified && rankPosition > 0;
   const isSaving = run.saveStatus === 'saving' || run.saveStatus === 'pending';
   const isSaved = run.saveStatus === 'saved';
@@ -472,26 +489,45 @@ function StandardResultScreen() {
             hitSlop={16}
             style={styles.headerBack}
           >
-            <Text style={styles.headerBackGlyph}>←</Text>
+            <IconGlyph name="arrow-left" size={24} color={colors.textPrimary} />
           </Pressable>
           <Text style={styles.trailLabel}>{trailName.toUpperCase()}</Text>
           <View style={[styles.statusBadge, { backgroundColor: sd.bg }]}>
-            <Text style={[styles.statusIcon, { color: sd.color }]}>{sd.icon}</Text>
+            <IconGlyph name={sd.icon} size={14} color={sd.color} />
             <Text style={[styles.statusText, { color: sd.color }]}>{sd.eyebrow}</Text>
           </View>
         </View>
 
         {/* ═══ THE TIME — hero element ═══ */}
-        <Animated.View style={[styles.timeContainer, { transform: [{ scale: timeScaleAnim }] }]}>
-          <Text style={[
-            styles.timeHero,
-            isPb && { color: colors.accent },
-            isOfficialRankedResult && !isPb && { color: colors.textPrimary },
-            !isVerified && !isPractice && { color: colors.textSecondary },
-          ]}>
-            {formatTime(run.durationMs)}
-          </Text>
-        </Animated.View>
+        {/* ADR-012 Phase 3: prefer the gate-crossing time when the
+            backend computed it. The client durationMs is wall-clock
+            from START tap to STOP tap; computed_time_ms is the
+            authoritative span between start_gate.crossed_at and
+            finish_gate.crossed_at. Fall back to durationMs when the
+            backend hasn't computed yet (queue-retry path, weak GPS,
+            missing canonical version). */}
+        {(() => {
+          const computedMs = run.backendResult?.run?.computed_time_ms ?? null;
+          const heroMs = computedMs ?? run.durationMs;
+          const showComputedNote = computedMs !== null && computedMs !== run.durationMs;
+          return (
+            <Animated.View style={[styles.timeContainer, { transform: [{ scale: timeScaleAnim }] }]}>
+              <Text style={[
+                styles.timeHero,
+                isPb && { color: colors.accent },
+                isOfficialRankedResult && !isPb && { color: colors.textPrimary },
+                !isVerified && !isPractice && { color: colors.textSecondary },
+              ]}>
+                {formatTime(heroMs)}
+              </Text>
+              {showComputedNote ? (
+                <Text style={styles.timeSubtle}>
+                  CZAS PO BRAMCE · TIMER {formatTime(run.durationMs)}
+                </Text>
+              ) : null}
+            </Animated.View>
+          );
+        })()}
 
         {/* ═══ SAVE STATUS — immediately after time, before celebrations ═══ */}
         {/* User must know immediately: did this save? */}
@@ -572,7 +608,7 @@ function StandardResultScreen() {
             </View>
           ) : isOfficialRankedResult ? (
             <View style={styles.saveOfficialBadge}>
-              <Text style={styles.saveOfficialText}>✓ WYNIK W LIDZE</Text>
+              <Text style={styles.saveOfficialText}>WYNIK W LIDZE</Text>
             </View>
           ) : isSaved && !isVerified && isRanked ? (
             <View style={styles.saveSavedBadge}>
@@ -927,7 +963,11 @@ function PioneerResultScreen({ runId }: { runId: string }) {
     );
   }
 
-  const durationMs = run.duration_ms ?? 0;
+  // ADR-012 Phase 3: prefer the gate-crossing time when the backend
+  // has computed it; fall back to the wall-clock duration otherwise.
+  const computedMs = run.computed_time_ms ?? null;
+  const durationMs = computedMs ?? (run.duration_ms ?? 0);
+  const showComputedNote = computedMs !== null && run.duration_ms != null && computedMs !== run.duration_ms;
   const trailName = trail?.name ?? 'TRASA';
   const spotName = spot?.name;
 
@@ -962,6 +1002,11 @@ function PioneerResultScreen({ runId }: { runId: string }) {
         )}
 
         <Text style={pioneerStyles.heroTime}>{formatTime(durationMs)}</Text>
+        {showComputedNote ? (
+          <Text style={pioneerStyles.timeSubtle}>
+            CZAS PO BRAMCE · TIMER {formatTime(run.duration_ms ?? 0)}
+          </Text>
+        ) : null}
         <Text style={pioneerStyles.rankLabel}>POTRZEBNY DRUGI ZJAZD</Text>
       </View>
 
@@ -1056,6 +1101,13 @@ const pioneerStyles = StyleSheet.create({
     textShadowRadius: 18,
     marginBottom: spacing.xs,
   },
+  timeSubtle: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    marginBottom: spacing.sm,
+  },
   // Intensity ladder: accent heroTitle (primary signal) → textPrimary
   // heroTime (celebration numeric) → accent rankLabel (mono CAPS support).
   rankLabel: {
@@ -1132,6 +1184,13 @@ const styles = StyleSheet.create({
   // Time — hero
   timeContainer: { alignItems: 'center', paddingVertical: spacing.xl, marginBottom: spacing.lg },
   timeHero: { fontFamily: 'Rajdhani_700Bold', fontSize: 64, color: colors.textPrimary, letterSpacing: 3 },
+  timeSubtle: {
+    ...typography.labelSmall,
+    color: colors.textTertiary,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    marginTop: 4,
+  },
 
   // PB celebration
   pbCard: {
