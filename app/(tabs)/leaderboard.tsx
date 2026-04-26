@@ -21,8 +21,12 @@ import {
   HeadToHeadCard,
   LeaderboardRow,
   LiveTicker,
+  PodiumPortraits,
+  type PodiumEntry,
   RaceNumber,
   SystemText,
+  TrailThumbnailRow,
+  type TrailThumbnail,
 } from '@/components/nwd';
 import type { LeaderboardEntry } from '@/data/types';
 import { getTrustDisclosure } from '@/lib/trailTrust';
@@ -258,43 +262,21 @@ export default function LeaderboardScreen() {
           ))}
         </View>
 
-        {/* Trail selector */}
-        <ScrollView
-          ref={trailScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.trailSelector}
-          contentContainerStyle={styles.trailSelectorContent}
-        >
-          {venueTrails.map((trail) => {
-            const isActive = selectedTrailId === trail.id;
-            const tColor = getTrailColor(undefined, trail.difficulty);
-            return (
-              <Pressable
-                key={trail.id}
-                style={[
-                  styles.trailChip,
-                  isActive && { borderColor: tColor, backgroundColor: tColor + '20', borderWidth: 1.5 },
-                ]}
-                onPress={() => handleTrailSelect(trail.id)}
-                onLayout={(e) => {
-                  chipLayoutsRef.current.set(trail.id, {
-                    x: e.nativeEvent.layout.x,
-                    width: e.nativeEvent.layout.width,
-                  });
-                }}
-              >
-                <View style={[styles.trailChipDot, { backgroundColor: tColor }]} />
-                <Text
-                  style={[styles.trailChipText, isActive && { color: colors.textPrimary }]}
-                  numberOfLines={1}
-                >
-                  {trail.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Trail picker — TrailThumbnailRow replaces the previous flat
+            chip row. Each tile shows a deterministic elevation
+            silhouette + name + KOM time, active tile gets accent
+            border + accent KOM tint. */}
+        <View style={styles.trailRowWrap}>
+          <TrailThumbnailRow
+            trails={venueTrails.map<TrailThumbnail>((trail) => ({
+              id: trail.id,
+              name: trail.name,
+              komTime: null, // KOM time per trail not in venueTrails — backend extension later
+            }))}
+            activeTrailId={selectedTrailId || null}
+            onSelect={handleTrailSelect}
+          />
+        </View>
 
         {/* Loading */}
         {(spotsStatus === 'loading' || trailsLoading || loading) && (
@@ -368,89 +350,38 @@ export default function LeaderboardScreen() {
               </View>
             )}
 
-            {/* ═══ PODIUM — top 3 ═══ */}
+            {/* ═══ PODIUM — top 3 horizontal portraits ═══ */}
             {podium.length > 0 && (
-              <View style={styles.podiumSection}>
-                {podium.map((entry) => {
-                  const rank = getRank(entry.rankId);
-                  const isUser = entry.isCurrentUser;
-                  const pos = entry.currentPosition;
-                  const medal = MEDAL[pos];
-
-                  return (
-                    <Pressable
-                      key={entry.userId}
-                      onLongPress={() => {
-                        if (entry.isCurrentUser) return;
-                        reportRider({
-                          userId: entry.userId,
-                          username: entry.username,
-                          surface: `Ranking · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
-                        });
-                      }}
-                      delayLongPress={450}
-                      style={[
-                        styles.podiumCard,
-                        medal && { borderColor: medal.border, backgroundColor: medal.bg },
-                        isUser && styles.podiumUser,
-                      ]}
-                    >
-                      {/* Position */}
-                      <View style={styles.podiumPosRow}>
-                        <Text style={[
-                          styles.podiumPos,
-                          medal && { color: medal.color },
-                          pos === 1 && { fontSize: 30 },
-                        ]}>
-                          {pos}
-                        </Text>
-                      </View>
-
-                      {/* Avatar */}
+              <View style={styles.podiumSectionWrap}>
+                <PodiumPortraits
+                  entries={podium.map<PodiumEntry>((entry) => ({
+                    userId: entry.userId,
+                    position: entry.currentPosition as 1 | 2 | 3,
+                    username: entry.username,
+                    bestTimeMs: entry.bestDurationMs,
+                    deltaMs:
+                      entry.currentPosition === 1
+                        ? undefined
+                        : entry.bestDurationMs -
+                          (podium.find((e) => e.currentPosition === 1)?.bestDurationMs ?? entry.bestDurationMs),
+                    isCurrentUser: entry.isCurrentUser,
+                  }))}
+                  renderAvatar={(entry, size) => {
+                    const fullEntry = podium.find((e) => e.userId === entry.userId);
+                    return (
                       <RiderAvatar
-                        avatarUrl={entry.avatarUrl}
+                        avatarUrl={fullEntry?.avatarUrl}
                         username={entry.username}
-                        size={pos === 1 ? 44 : 36}
-                        borderColor={medal?.color ?? colors.border}
+                        size={size}
                       />
-
-                      {/* Info */}
-                      <View style={styles.podiumInfo}>
-                        <View style={styles.podiumNameRow}>
-                          <Text style={[styles.podiumRankIcon, { color: rank.color }]}>{rank.icon}</Text>
-                          <Text style={[
-                            styles.podiumName,
-                            isUser && { color: colors.accent },
-                          ]} numberOfLines={1}>
-                            {entry.username}
-                          </Text>
-                          {isUser && <Text style={styles.youTag}>TY</Text>}
-                          {entry.userId === selectedTrail?.pioneerUserId && (
-                            <PioneerBadge size="sm" />
-                          )}
-                        </View>
-                        <Text style={[
-                          styles.podiumTime,
-                          medal && { color: medal.color },
-                        ]}>
-                          {formatTimeShort(entry.bestDurationMs)}
-                        </Text>
-                      </View>
-
-                      {/* Delta */}
-                      {entry.delta > 0 && (
-                        <View style={styles.podiumDelta}>
-                          <Text style={styles.podiumDeltaText}>↑{entry.delta}</Text>
-                        </View>
-                      )}
-                      {entry.delta === 0 && entry.isCurrentUser && (
-                        <View style={[styles.podiumDelta, { backgroundColor: colors.accentDim }]}>
-                          <Text style={[styles.podiumDeltaText, { color: colors.accent }]}>NOWY</Text>
-                        </View>
-                      )}
-                    </Pressable>
-                  );
-                })}
+                    );
+                  }}
+                  onPressEntry={(entry) => {
+                    if (entry.isCurrentUser) return;
+                    const fullEntry = podium.find((e) => e.userId === entry.userId);
+                    if (fullEntry) setSelectedRival(fullEntry);
+                  }}
+                />
               </View>
             )}
 
@@ -640,6 +571,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
   dramaWrap: { marginBottom: spacing.lg },
+  trailRowWrap: { marginBottom: spacing.lg },
+  podiumSectionWrap: { marginBottom: spacing.md },
 
   // Sprint 4 — trust disclosure banner above podium
   disclosureBanner: {
