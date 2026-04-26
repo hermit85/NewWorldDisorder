@@ -70,16 +70,14 @@ const CONSOLE_NOISE = [
   /shadow.*not supported/i,
   /pointerEvents.*deprecated/i,
   /Image.*resizeMode.*style/i,
-  // expo-keep-awake on web requires a user gesture; native is fine.
-  /Wake Lock/i,
   // expo-router dev-only nav warning when deep-linking with no history.
   /GO_BACK.*was not handled/i,
 ];
 
 // Page errors that are web-runtime-specific and don't affect native.
-const PAGE_ERROR_NOISE = [
-  /Wake Lock/i,
-];
+// Wake Lock is no longer here — we now Platform.OS-guard it in
+// run/recording.tsx, so any future appearance is a real regression.
+const PAGE_ERROR_NOISE: RegExp[] = [];
 
 function setupCapture(page: Page) {
   const consoleErrors: string[] = [];
