@@ -171,7 +171,11 @@ export async function submitRun(params: {
           xpReasons: fullXp.reasons,
         },
       });
-      updateFinalizedRun(sessionId, { saveStatus: 'saved', backendResult: result });
+      updateFinalizedRun(sessionId, {
+        saveStatus: 'saved',
+        backendResult: result,
+        xpAwarded: fullXp.total,
+      });
       triggerRefresh();
       return result;
     } else {

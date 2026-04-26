@@ -59,6 +59,7 @@ import { SubmitRunResult } from '@/lib/api';
 import { createRunSessionId, setFinalizedRun } from './runStore';
 import { logDebugEvent } from './debugEvents';
 import { isTestMode, shouldSimTrackingFail } from './testMode';
+import { calculateRunXp } from './xp';
 
 // Extracted modules
 import { finalizeRun } from './runFinalization';
@@ -805,6 +806,7 @@ export function useRealRun(
           verification: null,
           saveStatus: 'offline',
           backendResult: null,
+          xpAwarded: 0,
           traceSnapshot: null,
           qualityTier: null,
           updatedAt: Date.now(),
@@ -842,6 +844,13 @@ export function useRealRun(
       saveCompletedRun({ ...completedTrace, verification });
 
       const saveStatus = getInitialSaveStatus(userId);
+      const xpSnapshot = calculateRunXp({
+        isEligible: verification.isLeaderboardEligible,
+        isPractice: completedTrace.mode === 'practice',
+        isPb: false,
+        position: null,
+        previousPosition: null,
+      }).total;
 
       safeSetState((s) => ({
         ...s,
@@ -878,6 +887,7 @@ export function useRealRun(
         verification,
         saveStatus: toSaveStatus(saveStatus),
         backendResult: null,
+        xpAwarded: xpSnapshot,
         traceSnapshot,
         qualityTier: qualityAssessment.quality,
         updatedAt: Date.now(),

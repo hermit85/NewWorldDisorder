@@ -80,7 +80,10 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       mode: snapshot.mode,
     };
 
-    // Calculate XP using same logic as initial submit
+    // Reuse the local reward snapshot when present. Queued runs are
+    // created before backend PB/rank context exists, so this is normally
+    // base XP; the important part is that retry submits the same value
+    // the rider saw locally instead of recalculating a different one.
     const xpCalc = calculateRunXp({
       isEligible: verification.isLeaderboardEligible,
       isPractice: run.mode === 'practice',
@@ -88,6 +91,7 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       position: null,
       previousPosition: null,
     });
+    const xpAwarded = run.xpAwarded ?? xpCalc.total;
 
     const result = await submitRunToBackend({
       userId,
@@ -99,7 +103,7 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       durationMs: run.durationMs,
       verification,
       trace: traceForRetry as any,
-      xpAwarded: xpCalc.total,
+      xpAwarded,
       qualityTier: run.qualityTier ?? undefined,
     });
 
@@ -109,7 +113,7 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
         trailId: run.trailId,
         payload: { isPb: result.isPb, position: result.leaderboardResult?.position },
       });
-      updateFinalizedRun(run.sessionId, { saveStatus: 'saved', backendResult: result });
+      updateFinalizedRun(run.sessionId, { saveStatus: 'saved', backendResult: result, xpAwarded });
       triggerRefresh();
       return { success: true, result };
     } else {

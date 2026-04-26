@@ -39,6 +39,8 @@ export interface FinalizedRun {
   verification: VerificationResult | null;
   saveStatus: SaveStatus;
   backendResult: SubmitRunResult | null;
+  /** Reward snapshot shown locally and reused by retry to avoid XP drift. */
+  xpAwarded?: number | null;
   /** Snapshot of trace for retry — created at finalization time */
   traceSnapshot: TraceSnapshot | null;
   /** Quality tier from gate engine */
@@ -180,7 +182,7 @@ export function setFinalizedRun(run: FinalizedRun): void {
 /** Update specific fields on an existing finalized run */
 export function updateFinalizedRun(
   sessionId: string,
-  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult' | 'qualityTier'>>,
+  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult' | 'qualityTier' | 'xpAwarded'>>,
 ): boolean {
   const existing = _runCache.get(sessionId);
   if (!existing) {
