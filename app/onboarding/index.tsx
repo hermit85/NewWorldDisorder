@@ -185,7 +185,6 @@ export default function OnboardingScreen() {
         </Animated.View>
 
         <View style={styles.bottom}>
-          <PaginationDots count={TOTAL_STEPS} activeIndex={TOTAL_STEPS - 1} />
           <View style={styles.ctaWrap}>
             <CtaButton label={gateCta.label} onPress={gateCta.onPress} />
           </View>
@@ -203,7 +202,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerWrap}>
-        <OnboardingHeader pageIndex={currentIndex} pageCount={TOTAL_STEPS} />
+        <OnboardingHeader pageIndex={currentIndex} pageCount={SLIDES.length} />
       </View>
 
       <FlatList
@@ -225,7 +224,7 @@ export default function OnboardingScreen() {
       />
 
       <View style={styles.bottom}>
-        <PaginationDots count={TOTAL_STEPS} activeIndex={currentIndex} />
+        <PaginationDots count={SLIDES.length} activeIndex={currentIndex} />
         <View style={styles.ctaWrap}>
           <CtaButton label={SLIDES[currentIndex].cta} onPress={handleCta} />
         </View>
