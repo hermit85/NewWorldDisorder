@@ -22,11 +22,14 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const TIMING = { duration: 200, easing: Easing.out(Easing.cubic) };
 
+// Tablica Phase 1: profile tab label flips RIDER → JA. Internal route
+// name stays `profile` (file path collision risk). Other "rider"
+// strings throughout the app (typed surface labels, copy) stay as-is.
 const TAB_LABELS: Record<string, string> = {
   index: 'START',
   spots: 'SPOTY',
-  leaderboard: 'RANKING',
-  profile: 'RIDER',
+  leaderboard: 'TABLICA',
+  profile: 'JA',
 };
 
 function TabItem({ label, focused }: { label: string; focused: boolean }) {
