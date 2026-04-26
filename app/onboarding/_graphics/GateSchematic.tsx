@@ -42,8 +42,10 @@ const VIEW_H = 440;
 // Spec-pinned corridor path (slide 02 hero).
 const CORRIDOR_D = 'M 100 60 Q 130 120 110 180 Q 90 250 150 300 Q 200 330 200 340';
 
-// Approximate xy of the rider dot ~midway along the corridor.
-const RIDER_X = 110;
+// xy on the corridor centerline at vertical midpoint. y=200 sits inside
+// the second Q-segment (control x=90), so x dips left to ~105.9 — the
+// pulse must follow it or it floats off the dashed line.
+const RIDER_X = 106;
 const RIDER_Y = 200;
 
 export const GateSchematic = memo(function GateSchematic() {
@@ -143,8 +145,23 @@ export const GateSchematic = memo(function GateSchematic() {
         <Text style={styles.corridorLabel}>KORYTARZ ± 10 M</Text>
       </View>
 
-      {/* Animated rider dot + halo */}
-      <View style={[styles.absLabel, { top: RIDER_Y - 12, left: RIDER_X - 12 }]}>
+      {/* Animated rider dot + halo. Position uses % of the container so it
+          tracks the SVG viewBox at any rendered scale (the SVG's 360×440
+          coordinate space is scaled to fit, while RN absolute top/left
+          stay in CSS pixels — fixing pixel coords would only line up at
+          one container width). marginTop/Left compensate for the 24px
+          halo's own size so its centre lands on (RIDER_X, RIDER_Y). */}
+      <View
+        style={[
+          styles.absLabel,
+          {
+            top: `${(RIDER_Y / VIEW_H) * 100}%`,
+            left: `${(RIDER_X / VIEW_W) * 100}%`,
+            marginTop: -12,
+            marginLeft: -12,
+          },
+        ]}
+      >
         <Animated.View style={[styles.riderHalo, haloStyle]} />
         <View style={styles.riderDot} />
       </View>

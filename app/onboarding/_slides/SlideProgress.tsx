@@ -166,8 +166,16 @@ const styles = StyleSheet.create({
     height: 84,
     borderRadius: 12,
     backgroundColor: colors.panel,
-    paddingLeft: 16,
+    // 4px accent bar lives at x=0-4. paddingLeft 16 left only 12px of
+    // breathing room before the 44px badge — visually crowded against
+    // the bar. 24 gives the badge a 20px gap and matches the streak
+    // card's left rhythm.
+    paddingLeft: 24,
     paddingRight: 14,
+    // paddingBottom shrinks the flex area that holds the badge + text,
+    // pushing them up so the absolute progress bar at bottom:12 has
+    // ~10px of clearance from the badge instead of touching it.
+    paddingBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -212,7 +220,7 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     position: 'absolute',
-    left: 16,
+    left: 24,
     right: 14,
     bottom: 12,
     height: 6,
