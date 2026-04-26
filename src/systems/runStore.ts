@@ -217,6 +217,19 @@ export function getRunsByStatus(status: SaveStatus): FinalizedRun[] {
   return Array.from(_runCache.values()).filter((r) => r.saveStatus === status);
 }
 
+function canRetryRun(run: FinalizedRun): boolean {
+  if (run.saveStatus === 'queued' || run.saveStatus === 'failed') return true;
+  return run.saveStatus === 'offline' &&
+    !!run.userId &&
+    !!run.traceSnapshot &&
+    !!run.verification;
+}
+
+/** Get all runs that an automatic/manual queue flush can actually retry. */
+export function getRetryableRuns(): FinalizedRun[] {
+  return Array.from(_runCache.values()).filter(canRetryRun);
+}
+
 /** Get all finalized runs, newest first */
 export function getAllFinalizedRuns(): FinalizedRun[] {
   return Array.from(_runCache.values()).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -224,9 +237,7 @@ export function getAllFinalizedRuns(): FinalizedRun[] {
 
 /** Get count of runs pending save (queued + failed) */
 export function getPendingSaveCount(): number {
-  return Array.from(_runCache.values()).filter(
-    (r) => r.saveStatus === 'queued' || r.saveStatus === 'failed'
-  ).length;
+  return getRetryableRuns().length;
 }
 
 /**

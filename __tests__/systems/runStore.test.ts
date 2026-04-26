@@ -198,4 +198,48 @@ describe('runStore', () => {
       expect(persisted.some((run) => run.sessionId === 'failed-safe')).toBe(true);
     });
   });
+
+  it('counts only retryable offline runs in the pending queue', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const store = await loadRunStore();
+      await store.hydrateRunStore();
+
+      store.setFinalizedRun(makeFinalizedRun({ sessionId: 'queued-run', saveStatus: 'queued' }));
+      store.setFinalizedRun(makeFinalizedRun({ sessionId: 'failed-run', saveStatus: 'failed' }));
+      store.setFinalizedRun(
+        makeFinalizedRun({
+          sessionId: 'offline-retryable',
+          saveStatus: 'offline',
+          userId: 'rider-1',
+          verification: {
+            status: 'verified',
+            isLeaderboardEligible: true,
+            reasons: [],
+          } as never,
+          traceSnapshot: {
+            pointCount: 1,
+            startedAt: 100,
+            finishedAt: 200,
+            durationMs: 100,
+            mode: 'ranked',
+            sampledPoints: [{ lat: 49.4, lng: 20.9, alt: null, ts: 100 }],
+          },
+        }),
+      );
+      store.setFinalizedRun(
+        makeFinalizedRun({
+          sessionId: 'offline-anon',
+          saveStatus: 'offline',
+          userId: null,
+        }),
+      );
+
+      expect(store.getPendingSaveCount()).toBe(3);
+      expect(store.getRetryableRuns().map((run) => run.sessionId).sort()).toEqual([
+        'failed-run',
+        'offline-retryable',
+        'queued-run',
+      ]);
+    });
+  });
 });

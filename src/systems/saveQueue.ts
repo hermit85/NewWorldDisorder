@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { AppState, AppStateStatus } from 'react-native';
-import { getRunsByStatus, getPendingSaveCount } from './runStore';
+import { getRetryableRuns, getPendingSaveCount } from './runStore';
 import { isBackendConfigured } from '@/hooks/useBackend';
 import { logDebugEvent } from './debugEvents';
 import { retryRunSubmit } from './retrySubmit';
@@ -54,10 +54,7 @@ export async function flushSaveQueue(
   _retrying = true;
   _lastRetryAt = now;
 
-  const queued = [
-    ...getRunsByStatus('queued'),
-    ...getRunsByStatus('failed'),
-  ];
+  const queued = getRetryableRuns();
 
   if (queued.length === 0) {
     _retrying = false;
