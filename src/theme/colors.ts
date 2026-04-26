@@ -41,6 +41,7 @@ export const colors = {
 
   // ── Accent (canonical brand — race-state only) ────────────
   accent: '#00FF87',
+  accentDeep: '#00CC6A',          // gradient end-stop for accent (v8 onboarding)
   accentDim: 'rgba(0, 255, 135, 0.14)',
   accentGlow: 'rgba(0, 255, 135, 0.40)',
   accentInk: '#04150B',           // text color sitting ON accent

@@ -1,4 +1,4 @@
-import { TextStyle } from 'react-native';
+import { Platform, TextStyle } from 'react-native';
 
 // ─────────────────────────────────────────────────────────────
 // NWD Design System v1.0 — Typography
@@ -33,10 +33,17 @@ export const fonts = {
   bodyMedium: 'Inter_500Medium',
   bodySemiBold: 'Inter_600SemiBold',
   bodyBold: 'Inter_700Bold',
-  // Mono — JetBrains Mono not yet bundled. Inter_700Bold with
-  // wide tracking + uppercase is an acceptable substitute for
-  // label / micro until the font ships in a TestFlight build.
-  mono: 'Inter_700Bold',
+  // Mono — JetBrains Mono not yet bundled. Until then we lean on
+  // the platform's native monospace face (Menlo on iOS, system
+  // monospace on Android) instead of Inter-wearing-mono-clothes.
+  // Less confusing, no extra Google-fonts deps + bundle hit.
+  // Trigger the swap to JetBrains Mono when we ship a paid tier
+  // or Sezon 02 press build.
+  mono: Platform.select({
+    ios: 'Menlo',
+    android: 'monospace',
+    default: 'Menlo',
+  }) as string,
 } as const;
 
 export const typography = {
