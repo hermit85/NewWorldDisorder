@@ -100,16 +100,20 @@ export const GateSchematic = memo(function GateSchematic() {
         {/* Corridor halo — 44px solid accent @ 0.10 (RN-svg gradient was rendering as solid green banana on iOS) */}
         <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.10} strokeWidth={44} strokeLinecap="round" fill="none" />
 
-        {/* Corridor fill — 36px accent @ 0.06 */}
+        {/* Corridor middle — 36px accent @ 0.06 */}
         <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.06} strokeWidth={36} strokeLinecap="round" fill="none" />
+
+        {/* Corridor inner — 24px accent @ 0.04 (subtler core) */}
+        <Path d={CORRIDOR_D} stroke={colors.accent} strokeOpacity={0.04} strokeWidth={24} strokeLinecap="round" fill="none" />
 
         {/* Corridor centre line — 1.5px dashed white */}
         <Path
           d={CORRIDOR_D}
           stroke={colors.textPrimary}
-          strokeOpacity={0.55}
+          strokeOpacity={0.85}
           strokeWidth={1.5}
-          strokeDasharray="3 3"
+          strokeDasharray="4 4"
+          strokeLinecap="square"
           fill="none"
         />
 
