@@ -620,7 +620,7 @@ function StandardResultScreen() {
         {/* ═══ PB CELEBRATION ═══ */}
         {isPb && (
           <View style={styles.pbCard}>
-            <Text style={styles.pbIcon}>▲</Text>
+            <IconGlyph name="verified" size={28} color={colors.accent} />
             <Text style={styles.pbLabel}>PERSONAL BEST</Text>
             {pbDeltaText && (
               <Text style={styles.pbDelta}>{pbDeltaText}</Text>
@@ -760,19 +760,19 @@ function StandardResultScreen() {
               Bramka nie odczytała przecięcia, ale przejazd spełnia warunki pełnej trasy:
             </Text>
             <View style={styles.rescueRow}>
-              <Text style={styles.rescueBullet}>✓</Text>
+              <IconGlyph name="verified" size={14} color={colors.accent} />
               <Text style={styles.rescueRowText}>
                 Checkpointy: {v.checkpointsPassed}/{v.checkpointsTotal}
               </Text>
             </View>
             <View style={styles.rescueRow}>
-              <Text style={styles.rescueBullet}>✓</Text>
+              <IconGlyph name="verified" size={14} color={colors.accent} />
               <Text style={styles.rescueRowText}>
                 Korytarz: {Math.round(v.corridor.coveragePercent)}% pokrycia · maks. odchyłka {Math.round(v.corridor.maxDeviationM)} m
               </Text>
             </View>
             <View style={styles.rescueRow}>
-              <Text style={styles.rescueBullet}>✓</Text>
+              <IconGlyph name="verified" size={14} color={colors.accent} />
               <Text style={styles.rescueRowText}>
                 Sygnał GPS: {v.avgAccuracyM.toFixed(1)} m średnio
               </Text>

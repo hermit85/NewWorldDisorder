@@ -14,10 +14,12 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useProfile, useAchievements } from '@/hooks/useBackend';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { ActivityList } from '@/components/profile/ActivityList';
+import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
 import {
   Btn,
   Card,
-  Pill,
+  IconGlyph,
+  type IconName,
   SectionHead,
   StatBox as NwdStatBox,
 } from '@/components/nwd';
@@ -29,15 +31,15 @@ import { purgeOrphanedRuns } from '@/systems/runStore';
 
 // All achievements in the game. `progressTarget` + `progressField`
 // power the numeric "3/20" chip rendered on locked rows whose unlock
-// condition can be read directly off the profile row. Icons stick to
-// the geometric-glyph set (▲ ★ ◆ ⚡ ◇ ♛ ✦) — picked for iOS font
-// coverage after the help-screen emoji tofu incident. ♛ / ✦ were
-// spot-checked on iOS 17 / 18 and render clean; if a future device
-// font strips either, swap to ● or ◉ without touching consumers.
+// condition can be read directly off the profile row. Icons map to
+// the canonical 12-glyph IconGlyph set (§ 13.5 forbids decorative
+// Unicode glyphs in UI). The mapping favours semantic fit over
+// novelty — "first verified zjazd" → verified, "each trail in
+// park" → spot, etc.
 type AchievementDef = {
   slug: string;
   name: string;
-  icon: string;
+  icon: IconName;
   description: string;
   /** Optional progress key — read off the `User` profile row for the
    *  numeric "N/target" chip. Omit for achievements whose progress is
@@ -47,13 +49,13 @@ type AchievementDef = {
 };
 
 const ACHIEVEMENT_CATALOG: readonly AchievementDef[] = [
-  { slug: 'first-blood', name: 'First Blood', icon: '▲', description: 'Pierwszy zweryfikowany zjazd', progressField: 'totalRuns', progressTarget: 1 },
-  { slug: 'top-10-entry', name: 'Top 10', icon: '★', description: 'Wejdź do TOP 10 na dowolnej trasie' },
-  { slug: 'weekend-warrior', name: 'Weekend Warrior', icon: '◆', description: '3 zjazdy w jeden weekend' },
-  { slug: 'double-pb', name: 'Double PB', icon: '⚡', description: 'Dwa rekordy w jeden dzień', progressField: 'totalPbs', progressTarget: 2 },
-  { slug: 'trail-hunter', name: 'Trail Hunter', icon: '◇', description: 'Zjedź każdą trasę w bike parku' },
-  { slug: 'slotwiny-local', name: 'Local Hero', icon: '♛', description: '20 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 20 },
-  { slug: 'gravity-addict', name: 'Gravity Addict', icon: '✦', description: '50 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 50 },
+  { slug: 'first-blood', name: 'First Blood', icon: 'verified', description: 'Pierwszy zweryfikowany zjazd', progressField: 'totalRuns', progressTarget: 1 },
+  { slug: 'top-10-entry', name: 'Top 10', icon: 'podium', description: 'Wejdź do TOP 10 na dowolnej trasie' },
+  { slug: 'weekend-warrior', name: 'Weekend Warrior', icon: 'flag', description: '3 zjazdy w jeden weekend' },
+  { slug: 'double-pb', name: 'Double PB', icon: 'rec', description: 'Dwa rekordy w jeden dzień', progressField: 'totalPbs', progressTarget: 2 },
+  { slug: 'trail-hunter', name: 'Trail Hunter', icon: 'spot', description: 'Zjedź każdą trasę w bike parku' },
+  { slug: 'slotwiny-local', name: 'Local Hero', icon: 'bike', description: '20 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 20 },
+  { slug: 'gravity-addict', name: 'Gravity Addict', icon: 'line', description: '50 zjazdów łącznie', progressField: 'totalRuns', progressTarget: 50 },
 ] as const;
 
 export default function ProfileScreen() {
@@ -189,20 +191,23 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />
         }
       >
-        {/* Sign in prompt — canonical Card + Pill kicker + Btn primary.
-            Pre-fix used a bespoke `signInCard` with full accent border
-            (§ 01 race-state-owns-color violation) and inline button.
-            Card glow signals importance without abusing the race-state
-            channel; CTA is the canonical primary pill. */}
+        {/* Sign in prompt — canonical Card + Btn primary.
+            Handoff reference keeps this as a framed league entry card:
+            centered copy, accent edge/glow, and an inset primary CTA. */}
         {!isAuthenticated ? (
-          <Card hi glow padding={20} style={{ gap: 12, marginTop: spacing.sm }}>
-            <Pill state="accent">Sezon 01 · Słotwiny</Pill>
-            <Text style={styles.anonTitle}>Dołącz do ligi</Text>
+          <Card hi glow padding={24} style={styles.signInCard}>
+            <Text style={styles.anonTitle}>Zaloguj się</Text>
             <Text style={styles.anonBody}>
               Stwórz rider tag, zapisuj zjazdy i dołącz do ligi.
             </Text>
-            <Btn variant="primary" size="lg" onPress={() => router.push('/auth')}>
-              Zaloguj się
+            <Btn
+              variant="primary"
+              size="lg"
+              fullWidth={false}
+              style={styles.signInCta}
+              onPress={() => router.push('/auth')}
+            >
+              Dołącz do ligi
             </Btn>
           </Card>
         ) : (
@@ -311,6 +316,8 @@ export default function ProfileScreen() {
               />
             </View>
 
+            <SyncOutboxCard />
+
             {/* Aktywność — handoff A6 moved run history here from the old ZJAZDY tab */}
             <View style={{ marginTop: spacing.xl }}>
               <SectionHead icon="timer" label="Aktywność" />
@@ -341,16 +348,16 @@ export default function ProfileScreen() {
                       styles.achievementBadge,
                       unlocked ? styles.achievementBadgeUnlocked : styles.achievementBadgeLocked,
                     ]}>
-                      <Text style={[
-                        styles.achievementBadgeText,
-                        // Locked icons stay visible at reduced opacity
-                        // instead of being swapped to a neutral glyph —
-                        // silhouette recognition still teaches the user
-                        // what's on offer.
-                        { color: unlocked ? colors.accent : 'rgba(255,255,255,0.55)' },
-                      ]}>
-                        {def.icon}
-                      </Text>
+                      {/* Canonical IconGlyph set (§ 13.5). Locked icons
+                          stay visible at reduced opacity instead of
+                          being swapped to a neutral glyph — silhouette
+                          recognition still teaches the user what's on
+                          offer. */}
+                      <IconGlyph
+                        name={def.icon}
+                        size={20}
+                        color={unlocked ? colors.accent : 'rgba(255,255,255,0.55)'}
+                      />
                     </View>
                     <Text style={[styles.achievementName, !unlocked && styles.achievementNameLocked]} numberOfLines={1}>
                       {def.name}
@@ -372,10 +379,12 @@ export default function ProfileScreen() {
           </>
         )}
 
+        <View style={styles.sectionDivider} />
+
         {/* Konto — nav links. Boundary between badges/achievements
             and account-management lives in spacing only; canonical
             screens use whitespace, not a drawn rule. */}
-        <View style={{ marginTop: spacing.xxl }}>
+        <View>
           <SectionHead label="Konto" />
         </View>
         <View style={styles.appActions}>
@@ -487,24 +496,39 @@ const styles = StyleSheet.create({
   achievementUnlockedTag: { fontFamily: 'Rajdhani_700Bold', fontSize: 9, color: colors.accent, letterSpacing: 1.2, marginTop: 6 },
   achievementProgress: { fontFamily: 'Rajdhani_700Bold', fontSize: 11, color: colors.textSecondary, marginTop: 6, letterSpacing: 0.5 },
   achievementItemLocked: { opacity: 0.82 },
-  // Canonical anon hero — replaces the old `signInCard` (full accent
-  // border = § 01 violation, hand-rolled CTA pill). Card supplies the
-  // surface; these are only the interior typography styles.
+  signInCard: {
+    gap: 18,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+  },
+  signInCta: {
+    width: '62%',
+    minWidth: 220,
+    alignSelf: 'center',
+  },
   anonTitle: {
-    ...typography.title,
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 28,
-    lineHeight: 28,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    lineHeight: 22,
     color: colors.textPrimary,
     fontWeight: '800',
-    letterSpacing: -0.28,
+    letterSpacing: 4.2,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   anonBody: {
     ...typography.body,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 19,
+    lineHeight: 28,
     color: colors.textSecondary,
+    textAlign: 'center',
+    maxWidth: 520,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: colors.borderMid,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   appInfo: { alignItems: 'center', paddingTop: spacing.xxl, paddingBottom: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.xxl, gap: spacing.xxs },
   appInfoText: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 10, letterSpacing: 1 },
