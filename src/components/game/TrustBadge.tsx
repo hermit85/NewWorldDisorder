@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { View, Text, StyleSheet } from 'react-native';
-import { hudColors, hudTypography } from '@/theme/gameHud';
+import { colors } from '@/theme/colors';
 import type { SeedSource, TrustTier } from '@/data/types';
 
 export interface TrustBadgeProps {
@@ -33,16 +33,16 @@ interface Variant {
 /** Four states — disputed wins over tier, else verified wins over source. */
 function getVariant(source: SeedSource, tier: TrustTier): Variant {
   if (tier === 'disputed') {
-    return { color: hudColors.trustDisputed, label: 'TRASA SPORNA' };
+    return { color: colors.danger, label: 'TRASA SPORNA' };
   }
   if (tier === 'verified') {
-    return { color: hudColors.trustVerified, label: 'POTWIERDZONA' };
+    return { color: colors.accent, label: 'POTWIERDZONA' };
   }
   // tier === 'provisional' → variant depends on source
   if (source === 'curator') {
-    return { color: hudColors.trustCuratorProvisional, label: 'TRASA KURATORA' };
+    return { color: colors.warn, label: 'TRASA KURATORA' };
   }
-  return { color: hudColors.trustRiderProvisional, label: 'TRASA PRÓBNA' };
+  return { color: colors.diffBlue, label: 'TRASA PRÓBNA' };
 }
 
 export function TrustBadge({
@@ -101,14 +101,19 @@ const styles = StyleSheet.create({
   md: { paddingHorizontal: 8, paddingVertical: 4 },
   dotSm: { width: 5, height: 5, borderRadius: 3 },
   dotMd: { width: 6, height: 6, borderRadius: 3 },
+  // TrustBadge labels stay on Rajdhani display — same call as
+  // PioneerBadge: trust disclosure reads as race-state badge, not
+  // mono system text.
   labelSm: {
-    ...hudTypography.labelSmall,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 9,
     letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   labelMd: {
-    ...hudTypography.label,
+    fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
+    textTransform: 'uppercase',
   },
 });

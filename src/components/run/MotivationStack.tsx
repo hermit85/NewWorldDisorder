@@ -14,12 +14,13 @@
 // rival entry, gap ms, rank) and pass as props. Component
 // makes no network calls and owns no state.
 //
-// Style tokens: existing flat hudColors baseline. Emerald =
-// gpsStrong, amber = gpsMedium. No new design system.
+// Style tokens: canonical Acid palette via @/theme/colors. Emerald
+// = accent (state.armed/verified), amber = warn (state.pending).
+// No separate HUD theme.
 // ═══════════════════════════════════════════════════════════
 
 import { View, Text, StyleSheet } from 'react-native';
-import { hudColors } from '@/theme/gameHud';
+import { colors } from '@/theme/colors';
 import { spacing, radii } from '@/theme/spacing';
 import { formatDelta } from '@/lib/format';
 
@@ -77,7 +78,7 @@ export function MotivationStack({
       {hasPb ? (() => {
         const deltaMs = elapsedMs - userPbMs!;
         const ahead = deltaMs < 0;
-        const accent = ahead ? hudColors.gpsStrong : hudColors.gpsMedium;
+        const accent = ahead ? colors.accent : colors.warn;
         return (
           <View
             style={[
@@ -108,7 +109,7 @@ export function MotivationStack({
       {isKing ? (
         <View style={[styles.deltaCard, styles.deltaCardAhead]}>
           <View>
-            <Text style={[styles.kicker, { color: hudColors.gpsStrong }]}>
+            <Text style={[styles.kicker, { color: colors.accent }]}>
               ✦ KRÓL TRASY
             </Text>
             <Text style={styles.sub}>Trzymaj pozycję</Text>
@@ -152,11 +153,11 @@ const styles = StyleSheet.create({
   },
   deltaCardAhead: {
     backgroundColor: 'rgba(0, 255, 140, 0.08)',
-    borderColor: hudColors.gpsStrong,
+    borderColor: colors.accent,
   },
   deltaCardBehind: {
     backgroundColor: 'rgba(255, 217, 61, 0.08)',
-    borderColor: hudColors.gpsMedium,
+    borderColor: colors.warn,
   },
   kicker: {
     fontFamily: 'Rajdhani_700Bold',
@@ -166,7 +167,7 @@ const styles = StyleSheet.create({
   sub: {
     fontFamily: 'Inter_500Medium',
     fontSize: 10,
-    color: hudColors.textMuted,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   deltaValue: {
@@ -189,7 +190,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 11,
     letterSpacing: 2,
-    color: hudColors.gpsStrong,
+    color: colors.accent,
   },
   rivalCard: {
     flexDirection: 'row',
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(255, 217, 61, 0.08)',
     borderLeftWidth: 3,
-    borderLeftColor: hudColors.gpsMedium,
+    borderLeftColor: colors.warn,
     borderRadius: radii.sm,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -207,18 +208,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 10,
     letterSpacing: 2,
-    color: hudColors.gpsMedium,
+    color: colors.warn,
   },
   rivalName: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 15,
-    color: hudColors.timerPrimary,
+    color: colors.textPrimary,
     marginTop: 4,
   },
   rivalDelta: {
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 22,
-    color: hudColors.gpsMedium,
+    color: colors.warn,
     fontVariant: ['tabular-nums'] as any,
   },
 });
