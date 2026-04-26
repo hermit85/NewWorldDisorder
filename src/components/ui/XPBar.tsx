@@ -1,6 +1,13 @@
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { spacing, radii } from '@/theme/spacing';
+
+const monoFont = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
 
 type XPBarProps = {
   current: number;
@@ -59,16 +66,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: chunk9Spacing.cardChildGap,
+    gap: spacing.sm,
   },
   rankLabel: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+    color: colors.textPrimary,
     flexShrink: 1,
   },
   levelLabel: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    fontFamily: monoFont,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
   },
   valueRow: {
     flexDirection: 'row',
@@ -76,22 +91,33 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   valueText: {
-    ...chunk9Typography.stat19,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 19,
+    lineHeight: 24,
+    fontVariant: ['tabular-nums'],
+    color: colors.textPrimary,
   },
   valueDivider: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.tertiary,
+    fontFamily: monoFont,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textTertiary,
   },
   valueTextMuted: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    fontFamily: monoFont,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
   },
   track: {
     height: 4,
-    borderRadius: chunk9Radii.pill,
+    borderRadius: radii.pill,
     overflow: 'hidden',
-    backgroundColor: chunk9Colors.bg.hairline,
+    backgroundColor: colors.border,
     position: 'relative',
   },
   fill: {
@@ -99,8 +125,8 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    borderRadius: chunk9Radii.pill,
-    backgroundColor: chunk9Colors.accent.emerald,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
   },
   tick: {
     position: 'absolute',
@@ -108,7 +134,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 1,
     left: '25%',
-    backgroundColor: chunk9Colors.bg.base,
+    backgroundColor: colors.bg,
     opacity: 0.55,
   },
   tickMid: {

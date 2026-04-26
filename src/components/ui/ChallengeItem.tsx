@@ -1,7 +1,9 @@
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { chunk9Colors, chunk9Radii, chunk9Spacing, chunk9Typography } from '@/theme/chunk9';
+import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
+import { spacing, radii } from '@/theme/spacing';
 
 export type ChallengeItemData = {
   id: string;
@@ -56,7 +58,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: chunk9Radii.card,
+    borderRadius: radii.card,
     paddingVertical: 12,
   },
   containerPressed: {
@@ -67,36 +69,48 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: chunk9Colors.bg.hairline,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: chunk9Colors.bg.surface,
+    backgroundColor: colors.panel,
   },
   checkboxCompleted: {
-    borderColor: chunk9Colors.accent.emerald,
+    borderColor: colors.accent,
   },
   checkboxInner: {
     width: 8,
     height: 8,
     borderRadius: 2,
-    backgroundColor: chunk9Colors.accent.emerald,
+    backgroundColor: colors.accent,
   },
   copyBlock: {
     flex: 1,
     gap: 2,
   },
   title: {
-    ...chunk9Typography.body13,
-    color: chunk9Colors.text.primary,
+    ...typography.body,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: colors.textPrimary,
   },
   subtitle: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
+    ...typography.micro,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
   },
   xpLabel: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: 2.86,
+    textTransform: 'uppercase',
+    color: colors.textPrimary,
     textAlign: 'right',
-    marginLeft: chunk9Spacing.cardChildGap,
+    marginLeft: spacing.sm,
   },
 });
