@@ -180,7 +180,6 @@ export function ActivityList() {
   if (runs.length === 0) {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>AKTYWNOŚĆ</Text>
         <Text style={styles.emptyBody}>Jeszcze bez zjazdów. Pierwszy run odblokuje historię.</Text>
       </View>
     );
@@ -188,12 +187,6 @@ export function ActivityList() {
 
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>AKTYWNOŚĆ</Text>
-        {hasMore ? (
-          <Text style={styles.sectionMeta}>{visible.length}/{runs.length}</Text>
-        ) : null}
-      </View>
       <View style={styles.list}>
         {visible.map((run) => (
           <RunRow
@@ -224,19 +217,6 @@ const styles = StyleSheet.create({
   section: {
     gap: 10,
     marginTop: chunk9Spacing.sectionVertical,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    ...chunk9Typography.label13,
-    color: chunk9Colors.text.primary,
-  },
-  sectionMeta: {
-    ...chunk9Typography.captionMono10,
-    color: chunk9Colors.text.secondary,
   },
   list: {
     gap: 2,

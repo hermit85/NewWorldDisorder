@@ -19,18 +19,21 @@ import { typography } from '@/theme/typography';
 
 export interface LeaderboardRowProps {
   position: number;
-  rider: string;
-  /** Sub-meta line — "Bike Park · Trail" / "Twój ostatni przejazd". */
+  /** String → rendered as styled rider name; ReactNode → consumer owns the row content (badges, tags). */
+  rider: string | ReactNode;
+  /** Sub-meta line — "Bike Park · Trail" / "+1.4s do lidera". */
   sub?: string | null;
   /** Pre-formatted time, e.g. "02:14.83". */
   time: string;
-  /** Optional delta — "−1.42" / "+0.38". */
+  /** Optional delta — time ("−1.42" / "+0.38") or position ("↑3" / "↓2"). */
   delta?: string | null;
   /** Marks the current user's row. */
   self?: boolean;
   /** Optional avatar / icon left-of-position. Renders inside the 48px slot. */
   leading?: ReactNode;
   onPress?: () => void;
+  onLongPress?: () => void;
+  delayLongPress?: number;
   style?: ViewStyle;
 }
 
@@ -42,8 +45,10 @@ const PODIUM: Record<number, string> = {
 
 function deltaTone(delta: string): 'accent' | 'danger' | 'muted' {
   const t = delta.trim();
-  if (t.startsWith('−') || t.startsWith('-')) return 'accent';
-  if (t.startsWith('+')) return 'danger';
+  // Time delta: "−1.42" faster (good), "+0.38" slower (bad).
+  // Position delta: "↑3" gained places (good), "↓2" lost places (bad).
+  if (t.startsWith('−') || t.startsWith('-') || t.startsWith('↑')) return 'accent';
+  if (t.startsWith('+') || t.startsWith('↓')) return 'danger';
   return 'muted';
 }
 
@@ -62,13 +67,18 @@ export function LeaderboardRow({
   self = false,
   leading,
   onPress,
+  onLongPress,
+  delayLongPress,
   style,
 }: LeaderboardRowProps) {
   const positionColor = PODIUM[position] ?? colors.textPrimary;
-  const Container = onPress ? Pressable : View;
-  const containerProps = onPress
+  const isPressable = Boolean(onPress || onLongPress);
+  const Container = isPressable ? Pressable : View;
+  const containerProps = isPressable
     ? {
         onPress,
+        onLongPress,
+        delayLongPress,
         style: ({ pressed }: { pressed: boolean }) => [
           styles.row,
           self && styles.rowSelf,
@@ -88,12 +98,16 @@ export function LeaderboardRow({
       </View>
 
       <View style={styles.main}>
-        <Text
-          style={[styles.rider, self && styles.riderSelf]}
-          numberOfLines={1}
-        >
-          {rider}
-        </Text>
+        {typeof rider === 'string' ? (
+          <Text
+            style={[styles.rider, self && styles.riderSelf]}
+            numberOfLines={1}
+          >
+            {rider}
+          </Text>
+        ) : (
+          rider
+        )}
         {sub ? (
           <Text style={styles.sub} numberOfLines={1}>
             {sub}

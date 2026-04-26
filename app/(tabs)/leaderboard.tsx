@@ -17,6 +17,7 @@ import { useLeaderboard, useTrails } from '@/hooks/useBackend';
 import { reportRider } from '@/services/moderation';
 import { TrustBadge } from '@/components/game/TrustBadge';
 import { PioneerBadge } from '@/components/game/PioneerBadge';
+import { LeaderboardRow } from '@/components/nwd';
 
 /** Shared with trail/[id].tsx — kept inline here to avoid a new shared
  *  util module for a three-line helper. If a third caller arrives, promote. */
@@ -469,83 +470,64 @@ export default function LeaderboardScreen() {
                   const isRivalAbove = rivalAbove?.userId === entry.userId;
                   const isRivalBelow = rivalBelow?.userId === entry.userId;
 
-                  return (
-                    <Pressable
-                      key={entry.userId}
-                      onLongPress={() => {
-                        if (entry.isCurrentUser) return;
-                        reportRider({
-                          userId: entry.userId,
-                          username: entry.username,
-                          surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
-                        });
-                      }}
-                      delayLongPress={450}
-                      style={[
-                        styles.entry,
-                        isUser && styles.entryUser,
-                        (isRivalAbove || isRivalBelow) && styles.entryRival,
-                      ]}
-                    >
-                      {/* User accent bar */}
-                      {isUser && <View style={styles.entryAccentBar} />}
-
-                      <View style={styles.positionCol}>
-                        <Text style={[
-                          styles.position,
+                  const riderContent = (
+                    <View style={styles.riderInline}>
+                      <Text style={[styles.rankIconInline, { color: rank.color }]}>{rank.icon}</Text>
+                      <Text
+                        style={[
+                          styles.riderNameInline,
                           isUser && { color: colors.accent },
                           isRivalAbove && { color: colors.orange },
-                        ]}>
-                          {entry.currentPosition}
-                        </Text>
-                      </View>
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {entry.username}
+                      </Text>
+                      {isUser && <Text style={styles.youTag}>TY</Text>}
+                      {isRivalAbove && <Text style={styles.rivalTag}>CEL</Text>}
+                      {isRivalBelow && <Text style={styles.chaserTag}>GONI</Text>}
+                      {entry.userId === selectedTrail?.pioneerUserId && (
+                        <PioneerBadge size="sm" />
+                      )}
+                    </View>
+                  );
 
-                      <View style={styles.avatarCol}>
+                  const posChange =
+                    entry.delta > 0 ? `↑${entry.delta}` :
+                    entry.delta < 0 ? `↓${Math.abs(entry.delta)}` :
+                    null;
+
+                  return (
+                    <LeaderboardRow
+                      key={entry.userId}
+                      position={entry.currentPosition}
+                      leading={
                         <RiderAvatar
                           avatarUrl={entry.avatarUrl}
                           username={entry.username}
                           size={28}
                           borderColor={isUser ? colors.accent : undefined}
                         />
-                      </View>
-
-                      <View style={styles.deltaCol}>
-                        {entry.delta > 0 && <Text style={styles.deltaUp}>↑{entry.delta}</Text>}
-                        {entry.delta < 0 && <Text style={styles.deltaDown}>↓{Math.abs(entry.delta)}</Text>}
-                        {entry.delta === 0 && <Text style={styles.deltaFlat}>—</Text>}
-                      </View>
-
-                      <View style={styles.riderCol}>
-                        <View style={styles.riderRow}>
-                          <Text style={[styles.rankIcon, { color: rank.color }]}>{rank.icon}</Text>
-                          <Text
-                            style={[
-                              styles.riderName,
-                              isUser && { color: colors.accent },
-                              isRivalAbove && { color: colors.orange },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {entry.username}
-                          </Text>
-                          {isUser && <Text style={styles.youTag}>TY</Text>}
-                          {isRivalAbove && <Text style={styles.rivalTag}>CEL</Text>}
-                          {isRivalBelow && <Text style={styles.chaserTag}>GONI</Text>}
-                          {entry.userId === selectedTrail?.pioneerUserId && (
-                            <PioneerBadge size="sm" />
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.timeCol}>
-                        <Text style={[styles.time, isUser && { color: colors.accent }]}>
-                          {formatTimeShort(entry.bestDurationMs)}
-                        </Text>
-                        {entry.gapToLeader > 0 && (
-                          <Text style={styles.gap}>+{(entry.gapToLeader / 1000).toFixed(1)}s</Text>
-                        )}
-                      </View>
-                    </Pressable>
+                      }
+                      rider={riderContent}
+                      sub={entry.gapToLeader > 0 ? `+${(entry.gapToLeader / 1000).toFixed(1)}s do lidera` : null}
+                      time={formatTimeShort(entry.bestDurationMs)}
+                      delta={posChange}
+                      self={isUser}
+                      onLongPress={
+                        entry.isCurrentUser
+                          ? undefined
+                          : () => {
+                              reportRider({
+                                userId: entry.userId,
+                                username: entry.username,
+                                surface: `Tablica · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
+                              });
+                            }
+                      }
+                      delayLongPress={450}
+                      style={isRivalAbove || isRivalBelow ? styles.rowRival : undefined}
+                    />
                   );
                 })}
               </View>
@@ -695,33 +677,18 @@ const styles = StyleSheet.create({
   riderAmbition: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
 
   // ═══ BOARD (pos 4+) ═══
-  boardSection: { },
-  entry: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: spacing.md, paddingHorizontal: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  boardSection: {},
+  rowRival: { borderColor: colors.orange, backgroundColor: 'rgba(255, 149, 0, 0.06)' },
+  riderInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  rankIconInline: { fontSize: 12 },
+  riderNameInline: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 16,
+    lineHeight: 18,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    flexShrink: 1,
   },
-  entryUser: {
-    backgroundColor: colors.accentDim, borderRadius: radii.sm,
-    borderBottomWidth: 0, marginVertical: spacing.xxs,
-    overflow: 'hidden',
-  },
-  entryAccentBar: {
-    position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-    backgroundColor: colors.accent, borderTopLeftRadius: radii.sm, borderBottomLeftRadius: radii.sm,
-  },
-  entryRival: { backgroundColor: 'rgba(255, 149, 0, 0.06)' },
-  positionCol: { width: 32 },
-  avatarCol: { width: 34, alignItems: 'center' as const },
-  position: { fontFamily: 'Rajdhani_700Bold', fontSize: 16, color: colors.textTertiary },
-  deltaCol: { width: 36, alignItems: 'center' },
-  deltaUp: { ...typography.labelSmall, color: colors.accent },
-  deltaDown: { ...typography.labelSmall, color: colors.red },
-  deltaFlat: { ...typography.labelSmall, color: colors.textTertiary, fontSize: 8 },
-  riderCol: { flex: 1 },
-  riderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  rankIcon: { fontSize: 12 },
-  riderName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   youTag: {
     ...typography.labelSmall, color: colors.accent,
     fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
@@ -736,9 +703,6 @@ const styles = StyleSheet.create({
     fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
     opacity: 0.7,
   },
-  timeCol: { alignItems: 'flex-end' },
-  time: { ...typography.timeSmall, color: colors.textSecondary, fontSize: 15 },
-  gap: { ...typography.labelSmall, color: colors.textTertiary, marginTop: spacing.xxs, fontSize: 9 },
 
   // Board footer
   boardFooter: { alignItems: 'center', paddingVertical: spacing.xl },
