@@ -1,36 +1,40 @@
 // ─────────────────────────────────────────────────────────────
-// Home tab — canonical shell over existing widgets
+// Home tab — Race Day Command Center.
 //
-// Reshapes the screen chrome to match design-system/screens-home.jsx
-// ScreenHome: NWD brand header, "Sezon 01" pill, anonymous hero
-// Card with Pill kicker + Btn primary, section heads via canonical
-// SectionHead, empty/error states using canonical Btn.
+// The screen answers one question: "co teraz robię?". Home is a
+// state machine — deriveHomeMission() returns exactly one mission
+// per render, and HomeMissionCard ALWAYS renders. There is no
+// empty/missing-data branch on Home.
 //
-// Inner widgets (HeroCard, PrimarySpotCard, ChallengeItem,
-// StreakIndicator, XPBar) keep their existing implementations —
-// they'll be migrated screen-by-screen as a follow-up. They already
-// render with correct color values via the chunk9 alias layer.
+// Layout:
+//   1. Context header — venue is the H1; status summarizes trails
+//      + rider position when known.
+//   2. Mission card — adapts to NO_SPOT, NO_TRAILS, TRAIL_CALIBRATING,
+//      VERIFIED_NO_USER_TIME, USER_LEADS, USER_BEATEN, USER_HAS_TIME.
+//      Mission tone (green/amber) tints the kicker + position badge;
+//      CTA stays green (action). See @/features/home/mission.
+//   3. Live ticker — community drama feed.
+//   4. Quest progress chip — collapsed daily challenges.
+//   5. Streak indicator — identity-anchor at the bottom.
+//
+// Profile stats, XP and the bike-park card live on the JA tab.
+// Anonymous flow is unchanged.
 // ─────────────────────────────────────────────────────────────
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChallengeItem } from '@/components/ui/ChallengeItem';
-import { HeroCard } from '@/components/ui/HeroCard';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
-import { XPBar } from '@/components/ui/XPBar';
-import { PrimarySpotCard } from '@/components/home/PrimarySpotCard';
 import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
+import { HomeMissionCard } from '@/components/home/HomeMissionCard';
+import { formatTimeShort } from '@/content/copy';
 import {
   AmbientScan,
   Btn,
@@ -38,12 +42,7 @@ import {
   LiveTicker,
   Pill,
   SectionHead,
-  TodayChallengeCard,
-  TwojStanding,
 } from '@/components/nwd';
-import { getRankForXp } from '@/systems/ranks';
-import { formatTimeShort } from '@/content/copy';
-import { getLevelProgress } from '@/systems/xp';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
   useDailyChallenges,
@@ -51,7 +50,10 @@ import {
   usePrimarySpot,
   useProfile,
   useStreakState,
+  useTrails,
 } from '@/hooks/useBackend';
+import { deriveHomeMission, type HomeMission } from '@/features/home/mission';
+import { resolveHomeMissionRoute } from '@/features/home/route';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
@@ -63,6 +65,41 @@ function formatChallengeCountdown(now: Date = new Date()): string {
   const hours = Math.floor(remainingMs / (60 * 60 * 1000));
   const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
   return `${hours}h ${minutes}m`;
+}
+
+// "5 min temu" / "2h temu" / "wczoraj" — minimal Polish relative formatter.
+// Used for hero pressure line; precise enough for "Kacper przejął #1 · 14 min temu".
+function formatRelativePl(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso).getTime();
+  const diffMs = now.getTime() - then;
+  if (diffMs < 60_000) return 'przed chwilą';
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `${minutes} min temu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h temu`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? 'wczoraj' : `${days} dni temu`;
+}
+
+// Polish plural for "trasa" (1) / "trasy" (2-4) / "tras" (5+, 0).
+function trasaWord(n: number): string {
+  if (n === 1) return 'trasa';
+  const lastTwo = n % 100;
+  const lastOne = n % 10;
+  if (lastTwo >= 12 && lastTwo <= 14) return 'tras';
+  if (lastOne >= 2 && lastOne <= 4) return 'trasy';
+  return 'tras';
+}
+
+// "1 trasa aktywna" / "2 trasy aktywne" / "5 tras aktywnych".
+// Used in the context-header status; the noun + adjective must agree.
+function activeTrailsLabel(n: number): string {
+  if (n === 1) return '1 trasa aktywna';
+  const lastTwo = n % 100;
+  const lastOne = n % 10;
+  if (lastTwo >= 12 && lastTwo <= 14) return `${n} tras aktywnych`;
+  if (lastOne >= 2 && lastOne <= 4) return `${n} trasy aktywne`;
+  return `${n} tras aktywnych`;
 }
 
 function buildStreakSubtitle(params: {
@@ -92,8 +129,9 @@ export default function HomeScreen() {
   const { heroBeat, status: heroBeatStatus, refresh: refreshHeroBeat } = useHeroBeat(authProfile?.id);
   const { challenges, refresh: refreshChallenges } = useDailyChallenges(authProfile?.id);
   const { streak, refresh: refreshStreak } = useStreakState(authProfile?.id);
-  const { data: primarySpotSummary, status: primarySpotStatus, refresh: refreshPrimarySpot } =
+  const { data: primarySpotSummary, refresh: refreshPrimarySpot } =
     usePrimarySpot(authProfile?.id ?? null);
+  const { trails, refresh: refreshTrails } = useTrails(primarySpotSummary?.spot.id ?? null);
 
   const isColdLoading =
     isAuthenticated &&
@@ -106,17 +144,71 @@ export default function HomeScreen() {
     await Promise.all([refreshProfile(), refreshHeroBeat()]);
   }
 
-  const currentXp = profile?.xp ?? 0;
-  const currentRank = getRankForXp(currentXp);
-  const levelProgress = getLevelProgress(currentXp);
-  const level = levelProgress.level;
-  const currentLevelXp = levelProgress.currentXp;
-  const levelMaxXp = levelProgress.nextLevelXp;
-
+  const challengesDone = challenges.filter((c) => c.completed).length;
+  const challengesTotal = challenges.length;
   const challengeCompletionRatio =
-    challenges.length > 0
-      ? challenges.filter((c) => c.completed).length / challenges.length
-      : 0;
+    challengesTotal > 0 ? challengesDone / challengesTotal : 0;
+  // "Najbliżej" hint = the first uncompleted quest. Adds one line of
+  // forward-momentum copy under the progress bar without reintroducing
+  // the full checkbox list (which used to compete with the hero CTA).
+  const nextChallenge = challenges.find((c) => !c.completed) ?? null;
+
+  // ── Mission state machine ─────────────────────────────────────
+  // Home always renders exactly one primary mission card; the kind
+  // is derived purely from real data with no invented copy.
+  const mission: HomeMission = deriveHomeMission({
+    primarySpotSummary,
+    trails,
+    heroBeat,
+    beaterRelativeTime: heroBeat?.happenedAt
+      ? formatRelativePl(heroBeat.happenedAt)
+      : null,
+  });
+
+  // Context-header H1 + status. For NO_SPOT we show a generic prompt
+  // (no venue exists yet); other states surface the actual bike park.
+  const headerVenueLine = mission.kind === 'NO_SPOT'
+    ? 'TWOJA ARENA'
+    : (primarySpotSummary?.spot.name ?? 'Twój bike park').toUpperCase();
+
+  // Status line is mission-driven: each state has its own concrete copy
+  // anchored in real data (trail count, PB, current position). We only
+  // mention what we can verify — never invent a position or a leader.
+  const contextStatusLine = (() => {
+    const trailCount = primarySpotSummary?.trailCount ?? 0;
+    const userPb =
+      heroBeat?.userTimeMs
+      ?? primarySpotSummary?.bestDurationMs
+      ?? null;
+    switch (mission.kind) {
+      case 'NO_SPOT':
+        return 'Wybierz pierwszy bike park';
+      case 'NO_TRAILS':
+        return '0 aktywnych tras · pionier potrzebny';
+      case 'TRAIL_CALIBRATING':
+        return `${trasaWord(trailCount)} w kalibracji`;
+      case 'VERIFIED_NO_USER_TIME':
+        return `${activeTrailsLabel(trailCount)} · pierwszy czas czeka`;
+      case 'USER_LEADS':
+        return userPb
+          ? `${trailCount} ${trasaWord(trailCount)} · jesteś #1 · PB ${formatTimeShort(userPb)}`
+          : `${trailCount} ${trasaWord(trailCount)} · jesteś #1`;
+      case 'USER_BEATEN':
+        return `${trailCount} ${trasaWord(trailCount)} · spadłeś na #${heroBeat!.currentPosition}`;
+      case 'USER_HAS_TIME':
+        return userPb
+          ? `${trailCount} ${trasaWord(trailCount)} · Twój PB ${formatTimeShort(userPb)}`
+          : `${trailCount} ${trasaWord(trailCount)}`;
+    }
+  })();
+
+  function handleMissionPress() {
+    const target = resolveHomeMissionRoute(mission, {
+      primarySpotId: primarySpotSummary?.spot.id ?? null,
+    });
+    if (!target) return;
+    router.push(target as any);
+  }
 
   const streakSubtitle = buildStreakSubtitle({
     days: streak?.days ?? 0,
@@ -135,17 +227,11 @@ export default function HomeScreen() {
         refreshChallenges(),
         refreshStreak(),
         refreshPrimarySpot(),
+        refreshTrails(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }
-
-  async function handleInviteRival() {
-    const url = Linking.createURL('/');
-    await Share.share({
-      message: `Wbijaj do NWD i spróbuj mnie wyprzedzić. ${url}`,
-    });
   }
 
   if (isColdLoading) {
@@ -189,11 +275,10 @@ export default function HomeScreen() {
               <Text style={styles.brand}>NWD</Text>
               <Text style={styles.brandSub}>LIGA GRAVITY</Text>
             </View>
-            <Pill state="neutral" size="md">Beta</Pill>
           </View>
 
           <Card hi glow padding={20} style={styles.anonCard}>
-            <Pill state="accent">Sezon 01 · Beta</Pill>
+            <Pill state="accent">Sezon 01</Pill>
             <Text style={styles.anonTitle}>Dołącz do ligi</Text>
             <Text style={styles.anonBody}>
               Stwórz rider tag, zapisuj zjazdy, walcz o miejsce na tablicy.
@@ -211,7 +296,11 @@ export default function HomeScreen() {
     );
   }
 
-  // ── Authed flow — keep existing widgets, canonical shell ─────
+  // ── Authed flow — Race Day Command Center.
+  // One screen, one question: "co teraz robię?". The context header
+  // names the venue; the mission card answers with a position-aware
+  // (or empty-state-aware) hero. Mission state machine guarantees
+  // the hero ALWAYS renders — there is no empty Home.
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <AmbientScan />
@@ -228,141 +317,76 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.brand}>NWD</Text>
-            <Text style={styles.brandSub}>LIGA GRAVITY</Text>
+        {/* CONTEXT HEADER — venue is the H1 of the screen. */}
+        <View style={styles.contextHeader}>
+          <View style={styles.contextKickerRow}>
+            <View style={styles.contextDot} />
+            <Text style={styles.contextKicker}>DZIŚ NA GÓRZE</Text>
           </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Profil: ${currentRank.name}, poziom ${level}`}
-            onPress={() => router.push('/(tabs)/profile')}
-            style={styles.xpWrap}
-          >
-            <XPBar
-              current={currentLevelXp}
-              max={levelMaxXp}
-              rank={currentRank.name}
-              level={level}
-              compact
-            />
-          </Pressable>
-        </View>
-
-        {/* Sprint 3 — Live ticker as the league drama feed at the
-            top of Home. Rider sees what's happening (KOM swaps,
-            awanses, debuts) before scrolling into their own cards.
-            Mock data for now; backend events feed wires later. */}
-        <View style={styles.tickerWrap}>
-          <LiveTicker title="LIVE · LIGA" />
+          <Text style={styles.contextTitle} numberOfLines={2}>
+            {headerVenueLine}
+          </Text>
+          <Text style={styles.contextStatus} numberOfLines={1}>
+            {contextStatusLine}
+          </Text>
         </View>
 
         <SyncOutboxCard />
 
-        {/* TWOJE STANOWISKO — cockpit hero. Rider tag, rank, 3 mini
-            stats (zjazdy / PB / KOM count), XP progress bar with
-            "DO LVL N · X/Y XP" caption. Replaces the small XP-bar
-            in the brand-row with a full identity surface. */}
-        <TwojStanding
-          riderTag={profile?.username ?? 'rider'}
-          rankLabel={currentRank.name}
-          rankColor={currentRank.color}
-          level={level}
-          stats={[
-            { label: 'Zjazdy', value: profile?.totalRuns ?? 0 },
-            { label: 'PB', value: profile?.totalPbs ?? 0, accent: (profile?.totalPbs ?? 0) > 0 },
-            {
-              label: 'KOM',
-              value: profile?.pioneeredVerifiedCount ?? 0,
-              accent: (profile?.pioneeredVerifiedCount ?? 0) > 0,
-            },
-          ]}
-          currentLevelXp={currentLevelXp}
-          levelMaxXp={levelMaxXp}
+        <HomeMissionCard
+          kicker={mission.kicker}
+          title={mission.title}
+          body={mission.body}
+          pressureLine={mission.pressureLine}
+          ctaLabel={mission.cta}
+          tone={mission.tone}
+          positionBadge={mission.positionBadge}
+          komTime={mission.komTime}
+          yourDeltaText={mission.yourDeltaText}
+          venueName={mission.venueName}
+          onPress={handleMissionPress}
         />
 
-        {/* DZIŚ DO BICIA — featured trail hero. Picks the hero-beat
-            trail (someone-just-beat-you), or the primary-spot best
-            trail, or hides if no context. Animated trail silhouette
-            in the bg + KOM time + your delta + ranked CTA. */}
-        {heroBeat ? (
-          <TodayChallengeCard
-            trailName={heroBeat.trailName}
-            venueName={primarySpotSummary?.spot.name ?? 'Bike Park'}
-            komTime={formatTimeShort(heroBeat.beaterTimeMs)}
-            yourTime={heroBeat.userTimeMs ? formatTimeShort(heroBeat.userTimeMs) : null}
-            yourDeltaText={
-              heroBeat.deltaMs
-                ? `${heroBeat.deltaMs > 0 ? '+' : '−'}${(Math.abs(heroBeat.deltaMs) / 1000).toFixed(1)}s`
-                : null
-            }
-            onPress={() =>
-              router.push({
-                pathname: '/run/active',
-                params: {
-                  trailId: heroBeat.trailId,
-                  trailName: heroBeat.trailName,
-                  intent: 'ranked',
-                },
-              })
-            }
+        {/* COMMUNITY PULSE — drama feed under the hero. Suppresses
+            pioneer events while the active mission is a ranked run
+            (otherwise the slot reads like a competing CTA). Renders
+            related-trail events in their accent color, unrelated ones
+            muted, and a quiet pulse line if nothing remains. */}
+        <View style={styles.tickerWrap}>
+          <LiveTicker
+            title="LIVE · LIGA"
+            currentTrailName={mission.trailName}
+            suppressKinds={mission.action === 'RANKED_RUN' ? ['pioneer'] : []}
+            emptyCopy="Pierwszy wynik dnia ustawi tablicę."
           />
-        ) : null}
-
-        {/* TWOJA OKOLICA — primary spot card stays as the
-            "your home park" anchor. Will get hero-tile redesign in
-            a future Spoty-tile PR; here it's the simpler list. */}
-        {(() => {
-          const spotCardVisible =
-            primarySpotStatus !== 'signed_out' && primarySpotStatus !== 'error';
-          if (!spotCardVisible) return null;
-          if (primarySpotSummary) {
-            return (
-              <PrimarySpotCard
-                variant="active"
-                spotId={primarySpotSummary.spot.id}
-                spotName={primarySpotSummary.spot.name}
-                trailCount={primarySpotSummary.trailCount}
-                bestDurationMs={primarySpotSummary.bestDurationMs}
-              />
-            );
-          }
-          if (primarySpotStatus === 'empty') return <PrimarySpotCard variant="empty" />;
-          return null;
-        })()}
-
-        <View style={styles.section}>
-          <SectionHead
-            label="Wyzwania"
-            icon="bike"
-            count={formatChallengeCountdown()}
-          />
-
-          <View style={styles.challengeProgressTrack}>
-            <View
-              style={[
-                styles.challengeProgressFill,
-                { width: `${challengeCompletionRatio * 100}%` },
-              ]}
-            />
-          </View>
-
-          <View style={styles.sectionBody}>
-            {challenges.map((challenge) => (
-              <ChallengeItem
-                key={challenge.id}
-                challenge={{
-                  id: challenge.id,
-                  title: challenge.title,
-                  subtitle: `${challenge.current}/${challenge.target}`,
-                  xpLabel: `+${challenge.rewardXp} XP`,
-                }}
-                progress={{ completed: challenge.completed }}
-              />
-            ))}
-          </View>
         </View>
+
+        {/* QUEST PROGRESS CHIP — collapsed challenge section.
+            Detail (per-quest checkboxes + reward XP) lives elsewhere;
+            Home only conveys "where am I in today's quests". */}
+        {challengesTotal > 0 ? (
+          <View style={styles.questChip}>
+            <View style={styles.questHeaderRow}>
+              <Text style={styles.questLabel}>WYZWANIA DNIA</Text>
+              <Text style={styles.questCount}>
+                {challengesDone}/{challengesTotal} · do północy {formatChallengeCountdown()}
+              </Text>
+            </View>
+            <View style={styles.challengeProgressTrack}>
+              <View
+                style={[
+                  styles.challengeProgressFill,
+                  { width: `${challengeCompletionRatio * 100}%` },
+                ]}
+              />
+            </View>
+            {nextChallenge ? (
+              <Text style={styles.questHint} numberOfLines={1}>
+                Najbliżej: {nextChallenge.title} · +{nextChallenge.rewardXp} XP
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View>
           <SectionHead
@@ -414,14 +438,79 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2, // 0.22em @ 10
     fontWeight: '700',
   },
-  xpWrap: {
-    width: 132,
-  },
   tickerWrap: {
     marginBottom: 4,
   },
-  section: {
+  contextHeader: {
+    paddingTop: spacing.sm,
+    gap: 8,
+  },
+  contextKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contextDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+  },
+  contextKicker: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 2.4,
+  },
+  contextTitle: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 40,
+    lineHeight: 42,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    textTransform: 'uppercase',
+  },
+  contextStatus: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  questChip: {
     gap: 10,
+    paddingVertical: 4,
+  },
+  questHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  questLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: 2.4,
+  },
+  questCount: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+    letterSpacing: 0.4,
+  },
+  questHint: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   challengeProgressTrack: {
     height: 3,
@@ -433,9 +522,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 999,
     backgroundColor: colors.accent,
-  },
-  sectionBody: {
-    gap: 4,
   },
   centeredState: {
     flex: 1,

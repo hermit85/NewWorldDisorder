@@ -1725,6 +1725,31 @@ export async function fetchTrails(spotId: string): Promise<ApiResult<Trail[]>> {
   return { ok: true, data: (data ?? []).map((row) => mapTrail(row)) };
 }
 
+// Batched trails fetch — used by SPOTY to derive arena state for many
+// spots in a single query. Returns a map keyed by spotId so the
+// caller can look up trails per row without N+1 round-trips.
+export async function fetchTrailsForSpotIds(
+  spotIds: string[],
+): Promise<ApiResult<Map<string, Trail[]>>> {
+  const empty = new Map<string, Trail[]>();
+  if (spotIds.length === 0) return { ok: true, data: empty };
+  const { data, error } = await db()
+    .from('trails')
+    .select('*')
+    .in('spot_id', spotIds)
+    .eq('is_active', true)
+    .eq('is_race_trail', true)
+    .order('sort_order');
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  const out = new Map<string, Trail[]>();
+  for (const id of spotIds) out.set(id, []);
+  for (const row of data ?? []) {
+    const list = out.get(row.spot_id);
+    if (list) list.push(mapTrail(row));
+  }
+  return { ok: true, data: out };
+}
+
 export async function fetchTrail(id: string): Promise<ApiResult<Trail>> {
   // Join pioneer profile for the display username — second round-trip
   // would be cheap but one query is cleaner. `pioneer:profiles!...`

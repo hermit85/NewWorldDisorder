@@ -103,15 +103,15 @@ export function RiderIdCard({
 const styles = StyleSheet.create({
   root: {
     alignItems: 'center',
-    paddingVertical: 24,
-    gap: 12,
+    paddingVertical: 14,
+    gap: 8,
   },
   avatarWrap: {
     width: 112,
     height: 112,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 0,
   },
   ring: {
     position: 'absolute',

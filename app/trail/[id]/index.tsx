@@ -174,11 +174,7 @@ export default function TrailDetailScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <TopBar
-            onBack={goBack}
-            title="Trasa"
-            trailing={<Pill state="neutral" size="sm">Beta</Pill>}
-          />
+          <TopBar onBack={goBack} title="Trasa" />
 
           {spotName ? (
             <Pressable onPress={goToSpot} style={styles.crumb} hitSlop={8}>
@@ -264,11 +260,7 @@ export default function TrailDetailScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 }]}
       >
-        <TopBar
-          onBack={goBack}
-          title="Trasa"
-          trailing={<Pill state="neutral" size="sm">Beta</Pill>}
-        />
+        <TopBar onBack={goBack} title="Trasa" />
 
         {spotName ? (
           <Pressable onPress={goToSpot} style={styles.crumb} hitSlop={8}>

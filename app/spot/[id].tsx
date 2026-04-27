@@ -205,11 +205,7 @@ export default function SpotScreen() {
           />
         }
       >
-        <TopBar
-          onBack={handleGoBack}
-          title="Spot"
-          trailing={<Pill state="neutral" size="sm">Beta</Pill>}
-        />
+        <TopBar onBack={handleGoBack} title="Spot" />
 
         {/* ═════ HERO — kicker pill + h1 + region ═════ */}
         <View style={styles.hero}>

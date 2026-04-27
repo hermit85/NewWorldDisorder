@@ -790,6 +790,47 @@ export function useActiveSpots() {
   return { spots, status, loading: status === 'loading', refresh };
 }
 
+// Batched trails-by-spot fetch. Returns a Map keyed by spot id; spots
+// without trails resolve to an empty array (not missing) so callers
+// can count zeros without ?? branches. Used by SPOTY to derive each
+// spot's arena state in one round-trip.
+export function useTrailsForSpots(spotIds: string[]) {
+  const [byId, setById] = useState<Map<string, Trail[]>>(new Map());
+  const [status, setStatus] = useState<FetchStatus>('loading');
+  const refreshSignal = useRefreshSignal();
+
+  // Stable key so the effect doesn't re-run on every render when the
+  // caller passes a fresh array reference with the same contents.
+  const idsKey = spotIds.slice().sort().join(',');
+
+  const refresh = useCallback(async () => {
+    if (spotIds.length === 0) {
+      setById(new Map());
+      setStatus('empty');
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      setById(new Map());
+      setStatus('error');
+      return;
+    }
+    setStatus('loading');
+    const res = await api.fetchTrailsForSpotIds(spotIds);
+    if (!res.ok) {
+      setById(new Map());
+      setStatus('error');
+      return;
+    }
+    setById(res.data);
+    setStatus('ok');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, refreshSignal]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  return { byId, status, loading: status === 'loading', refresh };
+}
+
 export function useSpot(id: string | null) {
   const [spot, setSpot] = useState<Spot | null>(null);
   const [status, setStatus] = useState<FetchStatus>('loading');

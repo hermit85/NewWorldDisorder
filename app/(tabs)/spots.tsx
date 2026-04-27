@@ -1,15 +1,21 @@
 // ─────────────────────────────────────────────────────────────
-// Spots tab — bike park list (canonical screens-home.jsx ScreenSpots)
+// /(tabs)/spots — Arena Selector.
 //
-// Layout per the canonical reference:
-//   PageTitle            kicker "Spoty" + h1 "Bike parki" + sub
-//   filter pills         WSZYSTKIE / AKTYWNE / NOWE
-//   SpotRow list         44×44 marker · name · region+distance · pill
-//   "+ Dodaj bike park"  outline btn
+// SPOTY is no longer a "list of bike parks". It's the screen
+// where the rider picks an arena to ride. Each card carries a
+// *truthful* state derived from the actual trails table, not the
+// denormalised `spot.trailCount` (which mapSpot zeros out and was
+// the root cause of "0 trasy / PIONEER SLOT WOLNY" lies on parks
+// that had a verified trail with the rider's PB).
 //
-// All atoms come from `@/components/nwd`. No chunk9 imports —
-// everything reads from the canonical token bag.
+// Pipeline:
+//   1. useActiveSpots               → list of spots
+//   2. useTrailsForSpots(ids)       → batched trails per spot
+//   3. useTablicaSections           → rider's PBs by trail
+//   4. deriveSpotArenaState(...)    → per-spot {kind, label, cta}
+//   5. SpotArenaCard renders        → one card per spot
 // ─────────────────────────────────────────────────────────────
+
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,21 +29,31 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Btn, PageTitle } from '@/components/nwd';
+import { useAuthContext } from '@/hooks/AuthContext';
 import {
-  AmbientScan,
-  Btn,
-  PageTitle,
-  Pill,
-  SpotCard,
-  type SpotCardCta,
-} from '@/components/nwd';
-import { useActiveSpots } from '@/hooks/useBackend';
-import type { Spot } from '@/data/types';
+  useActiveSpots,
+  useTrailsForSpots,
+} from '@/hooks/useBackend';
+import { useTablicaSections } from '@/hooks/useTablicaSections';
+import {
+  deriveSpotArenaState,
+  type SpotArenaState,
+} from '@/features/spots/arenaState';
+import { resolveSpotArenaRoute } from '@/features/spots/route';
+import { SpotArenaCard } from '@/components/spots/SpotArenaCard';
+import type { Spot, Trail } from '@/data/types';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
 
 type Filter = 'all' | 'active' | 'new';
+
+const FILTERS: Array<{ id: Filter; label: string }> = [
+  { id: 'all', label: 'Wszystkie' },
+  { id: 'active', label: 'Aktywne' },
+  { id: 'new', label: 'Nowe' },
+];
 
 function spotsLabel(n: number): string {
   if (n === 1) return '1 spot';
@@ -48,29 +64,77 @@ function spotsLabel(n: number): string {
   return `${n} spotów`;
 }
 
-function applyFilter(spots: Spot[], filter: Filter): Spot[] {
-  if (filter === 'all') return spots;
-  if (filter === 'active') return spots.filter((s) => s.status === 'active' && s.trailCount > 0);
-  return spots.filter((s) => s.trailCount === 0);
+function activeTrailsTotalLabel(n: number): string {
+  if (n === 1) return '1 trasa aktywna';
+  const lastTwo = n % 100;
+  const lastOne = n % 10;
+  if (lastTwo >= 12 && lastTwo <= 14) return `${n} tras aktywnych`;
+  if (lastOne >= 2 && lastOne <= 4) return `${n} trasy aktywne`;
+  return `${n} tras aktywnych`;
 }
-
-const FILTERS: Array<{ id: Filter; label: string }> = [
-  { id: 'all', label: 'Wszystkie' },
-  { id: 'active', label: 'Aktywne' },
-  { id: 'new', label: 'Nowe' },
-];
 
 export default function SpotsScreen() {
   const router = useRouter();
+  const { profile } = useAuthContext();
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const { spots, status, refresh } = useActiveSpots();
+  const spotIds = useMemo(() => spots.map((s) => s.id), [spots]);
+  const { byId: trailsBySpot, refresh: refreshTrails } = useTrailsForSpots(spotIds);
+  const { sections } = useTablicaSections(profile?.id ?? null);
 
-  const visible = useMemo(() => applyFilter(spots, filter), [spots, filter]);
+  // Build a flat trailId → userPb lookup once, used by every card's
+  // derive() call. Tablica sections already aggregate this server-
+  // side (one round-trip), so we get truthful PBs without N+1 fetches.
+  const userPbsByTrailId = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const section of sections) {
+      for (const row of section.trails) {
+        if (row.userPbMs != null) out.set(row.trail.id, row.userPbMs);
+      }
+    }
+    return out;
+  }, [sections]);
+
+  // Per-spot arena state. Derived together so the header counters
+  // can sum truthful active-trail totals across all visible spots.
+  const arenaBySpot = useMemo(() => {
+    const out = new Map<string, SpotArenaState>();
+    for (const spot of spots) {
+      const trails: Trail[] = trailsBySpot.get(spot.id) ?? [];
+      out.set(spot.id, deriveSpotArenaState({ spot, trails, userPbsByTrailId }));
+    }
+    return out;
+  }, [spots, trailsBySpot, userPbsByTrailId]);
+
+  const visible = useMemo(() => {
+    if (filter === 'all') return spots;
+    if (filter === 'active') {
+      return spots.filter((s) => {
+        const a = arenaBySpot.get(s.id);
+        return a != null && a.activeTrailCount > 0;
+      });
+    }
+    // 'new' = no trails yet (the original "świeży spot" filter).
+    return spots.filter((s) => {
+      const a = arenaBySpot.get(s.id);
+      return a != null && a.totalTrailCount === 0;
+    });
+  }, [spots, filter, arenaBySpot]);
+
+  const totalActiveTrails = useMemo(() => {
+    let sum = 0;
+    for (const a of arenaBySpot.values()) sum += a.activeTrailCount;
+    return sum;
+  }, [arenaBySpot]);
 
   async function handleRefresh() {
     setRefreshing(true);
-    try { await refresh(); } finally { setRefreshing(false); }
+    try {
+      await Promise.all([refresh(), refreshTrails()]);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function handleAdd() {
@@ -78,46 +142,22 @@ export default function SpotsScreen() {
     router.push('/spot/new');
   }
 
-  function handleOpen(spot: Spot) {
-    router.push(`/spot/${spot.id}`);
+  function handleArenaPress(spot: Spot, arena: SpotArenaState) {
+    Haptics.selectionAsync().catch(() => undefined);
+    const target = resolveSpotArenaRoute(arena, spot.id);
+    router.push(target as any);
   }
 
   const isEmptyAll = status === 'empty' || (status === 'ok' && spots.length === 0);
   const isEmptyFilter = status === 'ok' && spots.length > 0 && visible.length === 0;
   const isInitialLoading = status === 'loading' && spots.length === 0;
 
-  const activeCount = spots.filter((s) => s.status === 'active' && s.trailCount > 0).length;
   const headerSubtitle = isEmptyAll
     ? null
-    : `${spotsLabel(spots.length)} · ${activeCount} aktywne`;
-
-  // Resolve SpotRow status from data shape. The canonical row knows
-  // active | new | closed; submission_status='pending' folds to "new"
-  // visually with an additional "TWOJE · CZEKA" pill via trailing
-  // override (so the rider recognises their own pending submission).
-  const renderSpotRow = (spot: Spot) => {
-    const isOwnPending = spot.submissionStatus === 'pending';
-    const ctaKind: SpotCardCta =
-      isOwnPending || spot.trailCount === 0 ? 'pioneer' : 'active';
-    return (
-      <SpotCard
-        key={spot.id}
-        spotId={spot.id}
-        name={spot.name}
-        region={spot.region}
-        trailCount={spot.trailCount}
-        ridersNow={ctaKind === 'active' ? spot.activeRidersToday : null}
-        ridersToday={ctaKind === 'active' ? spot.activeRidersToday : null}
-        ctaKind={ctaKind}
-        ctaLabel={isOwnPending ? 'Twoje · czeka na curatora' : undefined}
-        onPress={() => handleOpen(spot)}
-      />
-    );
-  };
+    : `${spotsLabel(spots.length)} · ${activeTrailsTotalLabel(totalActiveTrails)}`;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <AmbientScan />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={
@@ -145,10 +185,7 @@ export default function SpotsScreen() {
                     Haptics.selectionAsync().catch(() => undefined);
                     setFilter(f.id);
                   }}
-                  style={[
-                    styles.filter,
-                    active && styles.filterActive,
-                  ]}
+                  style={[styles.filter, active && styles.filterActive]}
                 >
                   <Text
                     style={[
@@ -174,12 +211,7 @@ export default function SpotsScreen() {
             <Text style={styles.emptyBody}>
               Spoty nie dojechały. Spróbuj jeszcze raz.
             </Text>
-            <Btn
-              variant="ghost"
-              size="md"
-              fullWidth={false}
-              onPress={handleRefresh}
-            >
+            <Btn variant="ghost" size="md" fullWidth={false} onPress={handleRefresh}>
               Spróbuj ponownie
             </Btn>
           </View>
@@ -189,23 +221,31 @@ export default function SpotsScreen() {
             <Text style={styles.emptyBody}>
               Brak parków w twojej okolicy. Dodaj pierwszy.
             </Text>
-            <Btn
-              variant="primary"
-              size="lg"
-              onPress={handleAdd}
-            >
+            <Btn variant="primary" size="lg" onPress={handleAdd}>
               + Dodaj pierwszy bike park
             </Btn>
           </View>
         ) : isEmptyFilter ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyBody}>
-              Nic w tym filtrze. Wypróbuj inny.
-            </Text>
+            <Text style={styles.emptyBody}>Nic w tym filtrze. Wypróbuj inny.</Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {visible.map(renderSpotRow)}
+            {visible.map((spot) => {
+              const arena = arenaBySpot.get(spot.id);
+              if (!arena) return null;
+              return (
+                <SpotArenaCard
+                  key={spot.id}
+                  label={arena.label}
+                  title={arena.title}
+                  meta={arena.meta}
+                  cta={arena.cta}
+                  tone={arena.tone}
+                  onPress={() => handleArenaPress(spot, arena)}
+                />
+              );
+            })}
           </View>
         )}
 
@@ -257,7 +297,7 @@ const styles = StyleSheet.create({
     ...typography.micro,
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
-    letterSpacing: 1.8, // 0.18em @ 10
+    letterSpacing: 1.8,
     color: colors.textSecondary,
     fontWeight: '700',
   },
@@ -281,7 +321,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
-    letterSpacing: 2.64, // 0.24em @ 11
+    letterSpacing: 2.64,
     textAlign: 'center',
   },
   emptyBody: {

@@ -1,343 +1,309 @@
-// ═══════════════════════════════════════════════════════════
-// /(tabs)/leaderboard — TablicaScreen Landing (Phase 1)
+// ─────────────────────────────────────────────────────────────
+// /(tabs)/leaderboard — Tablica race-day status screen.
 //
-// Two states gated on `useUserRunCount`:
+// Replaces the older "list of my trails by spot" landing. The new
+// Tablica is a per-trail competitive view that mirrors Home's
+// state-machine discipline:
 //
-//   Stan A — STANDARD (count > 0)
-//     Per-bike-park sections sorted MAX(run.created_at) DESC.
-//     Trail rows: rank pill + PB if rider has time, else
-//     "JEDŹ →" CTA. Two dashed mityagacje at the bottom.
+//   1. Header        — TABLICA · {spotName} · {trailName}
+//   2. Scope toggle  — DZIŚ / WEEKEND / SEZON / ALL-TIME
+//   3. Trail picker  — only when spot has 2+ verified trails
+//   4. Hero          — LeaderboardHero, position-aware
+//   5. Top 3 podium  — gold/silver/bronze racing board
+//   6. Sticky TY row — when user is outside the top 3
+//   7. Tail rows     — remaining standings
+//   8. CTA           — secondary, contextual to mission
 //
-//   Stan B — ŚWIEŻY (count === 0) — content w commit 3
-//
-// Anti-drift (per cc_prompt_tablica_phase1_final):
-// NO Słotwiny seed · NO drama ticker · NO podium 2-1-3 swap ·
-// NO trail switcher · NO curator chip · NO pagination watermark ·
-// NO line/sparkline · NO NWDHeader · NO English placeholders.
-//
-// Tap any trail row → push /trail/[id]/ranking (RankingScreen).
-// ═══════════════════════════════════════════════════════════
+// Default trail = the trail Home is promoting. heroBeat wins; we
+// fall back to the first verified trail. Once the rider taps a
+// chip in the picker, that selection sticks for the session.
+// ─────────────────────────────────────────────────────────────
 
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
 import { LiveDot } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
-import { useUserRunCount } from '@/hooks/useUserRunCount';
 import {
-  useTablicaSections,
-  type TablicaTrailRow,
-} from '@/hooks/useTablicaSections';
-import { formatTimeMs } from '@/utils/time';
-import type { Difficulty } from '@/data/types';
-import { MOCK_TABLICA_SECTIONS } from '@/dev/tablicaMock';
+  useHeroBeat,
+  useLeaderboard,
+  usePrimarySpot,
+  useTrails,
+} from '@/hooks/useBackend';
+import { deriveLeaderboardState } from '@/features/leaderboard/state';
+import { resolveLeaderboardCtaRoute } from '@/features/leaderboard/route';
+import { LeaderboardHero } from '@/components/leaderboard/LeaderboardHero';
+import {
+  ScopeToggle,
+  type ScopeKey,
+} from '@/components/leaderboard/ScopeToggle';
+import { PodiumBlock } from '@/components/leaderboard/PodiumBlock';
+import { LeagueProofCard } from '@/components/leaderboard/LeagueProofCard';
+import {
+  buildWalkInput,
+  isWalkState,
+  type WalkState,
+} from '@/dev/leaderboardWalk';
+import type { CalibrationStatus, PeriodType, Trail } from '@/data/types';
 
-// Bike-park standard difficulty palette (per Q3 in spec) — NOT the
-// theme.map S0-S5 set. Black uses dark fill with 1px white stroke
-// for visibility on the dark background.
-const DIFFICULTY_COLOR: Record<Difficulty, string> = {
-  easy: '#22C55E',
-  medium: '#3B82F6',
-  hard: '#FF4757',
-  expert: '#0E1517',
-  pro: '#0E1517',
-};
+const TAB_BAR_CLEARANCE = 64;
 
-const isBlackDiff = (d: Difficulty) => d === 'expert' || d === 'pro';
+const VERIFIED_CALIBRATIONS: ReadonlySet<CalibrationStatus> = new Set([
+  'live_fresh',
+  'live_confirmed',
+  'stable',
+  'verified',
+  'locked',
+]);
 
-function trailWord(n: number): string {
-  if (n === 1) return 'TRASA';
-  if (n < 5) return 'TRASY';
-  return 'TRAS';
-}
-
-function zjazdWord(n: number): string {
-  if (n === 1) return 'ZJAZD';
-  if (n < 5) return 'ZJAZDY';
-  return 'ZJAZDÓW';
-}
-
-// Top-3 medal tone for the rank pill — gold / silver / bronze.
-// 4-10 = accent. 11+ = dimmed white.
-function rankTone(position: number): {
-  bg: string;
-  border: string;
-  text: string;
-  numeric: string;
-  pbColor: string;
-  pbLabel: string;
-} {
-  if (position === 1) {
-    return {
-      bg: 'rgba(255, 210, 63, 0.12)',
-      border: 'rgba(255, 210, 63, 0.5)',
-      text: 'rgba(255, 210, 63, 0.7)',
-      numeric: colors.gold,
-      pbColor: colors.gold,
-      pbLabel: 'REKORD',
-    };
+// SEZON isn't yet a distinct period in the API. Until the backend
+// exposes a season-scoped query we route SEZON to the all-time
+// leaderboard so the chip is interactive but truthful (it shows
+// season-long results, just without per-season filtering yet).
+// TODO(api): wire a real `season_*` PeriodType when sezony land.
+function scopeToPeriod(scope: ScopeKey): PeriodType {
+  switch (scope) {
+    case 'today':
+      return 'day';
+    case 'weekend':
+      return 'weekend';
+    case 'season':
+    case 'all_time':
+      return 'all_time';
   }
-  if (position === 2) {
-    return {
-      bg: 'rgba(201, 209, 214, 0.10)',
-      border: 'rgba(201, 209, 214, 0.4)',
-      text: 'rgba(201, 209, 214, 0.7)',
-      numeric: colors.silver,
-      pbColor: colors.textPrimary,
-      pbLabel: 'PB',
-    };
-  }
-  if (position === 3) {
-    return {
-      bg: 'rgba(224, 138, 92, 0.10)',
-      border: 'rgba(224, 138, 92, 0.4)',
-      text: 'rgba(224, 138, 92, 0.7)',
-      numeric: colors.bronze,
-      pbColor: colors.textPrimary,
-      pbLabel: 'PB',
-    };
-  }
-  if (position <= 10) {
-    return {
-      bg: 'rgba(0, 255, 135, 0.10)',
-      border: 'rgba(0, 255, 135, 0.4)',
-      text: 'rgba(0, 255, 135, 0.6)',
-      numeric: colors.accent,
-      pbColor: colors.textPrimary,
-      pbLabel: 'PB',
-    };
-  }
-  return {
-    bg: 'rgba(255, 255, 255, 0.04)',
-    border: 'rgba(255, 255, 255, 0.15)',
-    text: 'rgba(242, 244, 243, 0.4)',
-    numeric: 'rgba(242, 244, 243, 0.6)',
-    pbColor: colors.textPrimary,
-    pbLabel: 'PB',
-  };
-}
-
-function TrailRow({
-  row,
-  onPress,
-}: {
-  row: TablicaTrailRow;
-  onPress: () => void;
-}) {
-  const { trail, userPbMs, userPosition, userRunCount } = row;
-  const hasTime = userPbMs != null && userPosition != null;
-  const diffColor = DIFFICULTY_COLOR[trail.difficulty];
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View
-        style={[
-          styles.diffDot,
-          { backgroundColor: diffColor },
-          isBlackDiff(trail.difficulty) && styles.diffDotBlack,
-        ]}
-      />
-
-      <View style={styles.rowMain}>
-        <Text
-          style={[styles.trailName, !hasTime && styles.trailNameDim]}
-          numberOfLines={1}
-        >
-          {trail.name}
-        </Text>
-        <Text style={styles.runCount} numberOfLines={1}>
-          {userRunCount} {zjazdWord(userRunCount)}
-        </Text>
-      </View>
-
-      {hasTime ? (
-        <RankPillWithPb position={userPosition!} pbMs={userPbMs!} />
-      ) : (
-        <View style={styles.jedzCta}>
-          <Text style={styles.jedzText}>JEDŹ →</Text>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
-function RankPillWithPb({ position, pbMs }: { position: number; pbMs: number }) {
-  const tone = rankTone(position);
-  return (
-    <View style={styles.rankWrap}>
-      <View
-        style={[
-          styles.rankPill,
-          { backgroundColor: tone.bg, borderColor: tone.border },
-        ]}
-      >
-        <Text style={[styles.rankTy, { color: tone.text }]}>TY</Text>
-        <Text style={[styles.rankNum, { color: tone.numeric }]}>
-          #{position}
-        </Text>
-      </View>
-      <View style={styles.pbBlock}>
-        <Text style={[styles.pbLabel, position === 1 && { color: 'rgba(255, 210, 63, 0.6)' }]}>
-          {tone.pbLabel}
-        </Text>
-        <Text style={[styles.pbTime, { color: tone.pbColor }]}>
-          {formatTimeMs(pbMs)}
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 export default function TablicaScreen() {
   const router = useRouter();
-  const { profile } = useAuthContext();
-  const params = useLocalSearchParams<{ dev?: string }>();
-  const { count, isFresh, status: countStatus } = useUserRunCount(profile?.id);
-  const { sections: realSections, status: sectionsStatus } = useTablicaSections(profile?.id);
+  const insets = useSafeAreaInsets();
+  const { profile, isAuthenticated } = useAuthContext();
+  const params = useLocalSearchParams<{ walk?: string }>();
+  const walkState: WalkState | null =
+    __DEV__ && isWalkState(params.walk) ? params.walk : null;
+  const walkInput = walkState ? buildWalkInput(walkState) : null;
 
-  // __DEV__ walk-test overrides — only reachable via ?dev=mockA / mockB
-  // URL params on dev builds. Production strips this branch via the
-  // __DEV__ guard.
-  const isDevMockA = __DEV__ && params.dev === 'mockA';
-  const isDevMockB = __DEV__ && params.dev === 'mockB';
+  const { data: primarySpotSummary } = usePrimarySpot(profile?.id ?? null);
+  const { trails } = useTrails(primarySpotSummary?.spot.id ?? null);
+  const { heroBeat } = useHeroBeat(profile?.id);
 
-  const sections = isDevMockA ? MOCK_TABLICA_SECTIONS : isDevMockB ? [] : realSections;
-  const totalTrails = sections.reduce((sum, s) => sum + s.trails.length, 0);
-  const totalParks = sections.length;
+  // Trail focus — heroBeat wins (continuity with Home), then a manual
+  // selection from the chip picker, then the first verified trail.
+  const verifiedTrails = useMemo(
+    () => trails.filter((t) => VERIFIED_CALIBRATIONS.has(t.calibrationStatus)),
+    [trails],
+  );
+  const [manualTrailId, setManualTrailId] = useState<string | null>(null);
+  const focusTrail: Trail | null = useMemo(() => {
+    if (manualTrailId) {
+      return verifiedTrails.find((t) => t.id === manualTrailId) ?? null;
+    }
+    if (heroBeat) {
+      const fromBeat = verifiedTrails.find((t) => t.id === heroBeat.trailId);
+      if (fromBeat) return fromBeat;
+    }
+    return verifiedTrails[0] ?? null;
+  }, [verifiedTrails, manualTrailId, heroBeat]);
 
-  const isLoading = !isDevMockA && !isDevMockB && (countStatus === 'loading' || sectionsStatus === 'loading');
-  const stanBHint = isDevMockB || (!isDevMockA && (isFresh || (count != null && count > 0 && totalParks === 0)));
+  const [scope, setScope] = useState<ScopeKey>('today');
+  const period = scopeToPeriod(scope);
+  const { entries: leaderboardRows, status: leaderboardStatus } = useLeaderboard(
+    focusTrail?.id ?? '',
+    period,
+    profile?.id,
+  );
+  // History fetch — separate so we can detect "today empty but the
+  // league exists" and power the proof card. When the active scope
+  // is already all-time we'd be querying the same data twice; we
+  // skip the redundant call by passing an empty trailId (the hook
+  // short-circuits to status='empty').
+  const isAllTimeScope = period === 'all_time';
+  const { entries: allTimeRows } = useLeaderboard(
+    isAllTimeScope ? '' : (focusTrail?.id ?? ''),
+    'all_time',
+    profile?.id,
+  );
+  const historyRows = isAllTimeScope ? leaderboardRows : allTimeRows;
+
+  const state = useMemo(
+    () =>
+      deriveLeaderboardState(
+        walkInput ?? {
+          primarySpotSummary,
+          trails,
+          focusTrail,
+          leaderboardRows,
+          historyRows,
+          currentUserId: profile?.id ?? null,
+          scope,
+        },
+      ),
+    [walkInput, primarySpotSummary, trails, focusTrail, leaderboardRows, historyRows, profile?.id, scope],
+  );
+
+  // Header subtitle reflects the walked input when present so visual
+  // QA matches the rendered state. Otherwise pull from real data.
+  const headerSpot = walkInput?.primarySpotSummary ?? primarySpotSummary;
+  const headerFocusTrail = walkInput?.focusTrail ?? focusTrail;
+  const headerSubtitle = (() => {
+    if (!headerSpot) return 'Wybierz pierwszy bike park';
+    const spotName = headerSpot.spot.name;
+    if (headerFocusTrail) return `${spotName.toUpperCase()} · ${headerFocusTrail.name.toUpperCase()}`;
+    if (verifiedTrails.length === 0 && trails.length > 0) {
+      return `${spotName.toUpperCase()} · TRASA W KALIBRACJI`;
+    }
+    return `${spotName.toUpperCase()} · BRAK TRAS`;
+  })();
+
+  function handleHeroCta() {
+    const target = resolveLeaderboardCtaRoute(state, {
+      primarySpotId: primarySpotSummary?.spot.id ?? null,
+      focusTrail,
+    });
+    if (!target) return;
+    router.push(target as any);
+  }
+
+  // Anonymous flow — keep parity with Home: prompt to sign in.
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.root} edges={['top']}>
+        <View style={styles.centered}>
+          <Text style={styles.signinTitle}>TABLICA</Text>
+          <Text style={styles.signinBody}>
+            Zaloguj się, żeby zobaczyć swoją pozycję w lidze.
+          </Text>
+          <Pressable
+            onPress={() => router.push('/auth')}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          >
+            <Text style={styles.ctaLabel}>ZALOGUJ SIĘ</Text>
+            <Text style={styles.ctaArrow}>→</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isLoadingFocusedBoard =
+    !!focusTrail && leaderboardStatus === 'loading' && leaderboardRows.length === 0;
 
   return (
-    <SafeAreaView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header — same shape both states */}
+    <SafeAreaView style={styles.root} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <View style={styles.miniLabelRow}>
             <LiveDot size={6} color={colors.accent} mode="pulse" />
             <Text style={styles.miniLabel}>TABLICA</Text>
           </View>
           <Text style={styles.headline}>TABLICA</Text>
-          <Text style={styles.sub}>
-            {isLoading
-              ? 'Ładowanie…'
-              : stanBHint
-                ? 'Pusta. Zacznij sezon.'
-                : `Twoje ${totalTrails} ${trailWord(totalTrails).toLowerCase()} · ${totalParks} bike park${totalParks === 1 ? '' : 'i'}`}
+          <Text style={styles.sub} numberOfLines={1}>
+            {headerSubtitle}
           </Text>
         </View>
 
-        {/* Stan A — content present */}
-        {!isLoading && sections.length > 0 ? (
-          <View style={styles.body}>
-            {sections.map((section) => (
-              <View key={section.spot.id} style={styles.section}>
-                <Text style={styles.sectionHeader}>
-                  {section.spot.name.toUpperCase()} · {section.trails.length}{' '}
-                  {trailWord(section.trails.length)}
-                </Text>
-                <View style={styles.sectionRows}>
-                  {section.trails.map((row) => (
-                    <TrailRow
-                      key={row.trail.id}
-                      row={row}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/trail/[id]/ranking',
-                          params: { id: row.trail.id },
-                        })
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
+        <View style={styles.scopeRow}>
+          <ScopeToggle value={scope} onChange={setScope} />
+        </View>
 
-            {/* 2 dashed mityagacje — subtle versions on Stan A */}
-            <View style={styles.mitigationsWrap}>
-              <Pressable
-                style={[styles.mitigation, styles.mitigationAccent]}
-                onPress={() => router.push('/(tabs)/spots')}
-              >
-                <Text style={styles.mitigationCopy}>Brak twojego bike parku?</Text>
-                <Text style={styles.mitigationCtaAccent}>+ DODAJ W SPOTACH →</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.mitigation, styles.mitigationWarn]}
-                onPress={() => router.push('/(tabs)/spots')}
-              >
-                <Text style={styles.mitigationCopy}>Brak twojej trasy w bike parku?</Text>
-                <Text style={styles.mitigationCtaWarn}>+ ZOSTAŃ PIONIEREM →</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Stan B — fresh rider (count === 0 OR no aggregated sections) */}
-        {!isLoading && sections.length === 0 ? (
-          <View style={styles.freshBody}>
-            {/* Hint card — "Jak to działa" tutorial without
-                pretending the rider has data they don't */}
-            <View style={styles.hintCard}>
-              <Text style={styles.hintKicker}>JAK TO DZIAŁA</Text>
-              <Text style={styles.hintLine}>Tablica zapełni się sama.</Text>
-              <Text style={styles.hintLine}>Pierwszy zjazd = pierwsza pozycja.</Text>
-            </View>
-
-            {/* 2 LARGER mityagacje — primary surfaces in fresh state */}
-            <View style={styles.freshMitigations}>
-              <Pressable
-                style={[styles.bigMitigation, styles.bigMitigationAccent]}
-                onPress={() => router.push('/(tabs)/spots')}
-              >
-                <View style={styles.bigMitigationBody}>
-                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(0, 255, 135, 0.7)' }]}>
-                    MASZ SWÓJ BIKE PARK?
-                  </Text>
-                  <Text style={styles.bigMitigationLine}>Dodaj go w Spotach.</Text>
-                  <Text style={styles.bigMitigationSub}>Pioneer slot lifetime.</Text>
-                </View>
-                <Text style={[styles.bigMitigationArrow, { color: colors.accent }]}>→</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.bigMitigation, styles.bigMitigationWarn]}
-                onPress={() => router.push('/(tabs)/spots')}
-              >
-                <View style={styles.bigMitigationBody}>
-                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(255, 176, 32, 0.8)' }]}>
-                    PARK JEST, BRAK TWOJEJ TRASY?
-                  </Text>
-                  <Text style={styles.bigMitigationLine}>Zostań pionierem.</Text>
-                  <Text style={styles.bigMitigationSub}>
-                    Pierwszy czas zabezpiecza twoje miejsce.
-                  </Text>
-                </View>
-                <Text style={[styles.bigMitigationArrow, { color: colors.warn }]}>→</Text>
-              </Pressable>
-            </View>
-
-            {/* Separator + alt path */}
-            <View style={styles.lubBlock}>
-              <Text style={styles.lubSeparator}>— LUB —</Text>
-              <Text style={styles.lubLine}>Zjedź dowolną trasę z apki.</Text>
-              <Text style={styles.lubLine}>Tablica zapełni się automatycznie.</Text>
-            </View>
-
-            {/* Outline fallback CTA */}
-            <Pressable
-              style={styles.outlineCta}
-              onPress={() => router.push('/(tabs)/spots')}
+        {verifiedTrails.length > 1 ? (
+          <View style={styles.trailPickerRow}>
+            <Text style={styles.trailPickerLabel}>TRASA</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.trailPickerChips}
             >
-              <Text style={styles.outlineCtaText}>PRZEJDŹ DO SPOTÓW →</Text>
-            </Pressable>
+              {verifiedTrails.map((t) => {
+                const isActive = focusTrail?.id === t.id;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setManualTrailId(t.id)}
+                    style={({ pressed }) => [
+                      styles.trailChip,
+                      isActive && styles.trailChipActive,
+                      pressed && !isActive && styles.trailChipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.trailChipLabel,
+                        isActive && styles.trailChipLabelActive,
+                      ]}
+                    >
+                      {t.name.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
         ) : null}
+
+        {isLoadingFocusedBoard ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator size="large" color={colors.accent} />
+          </View>
+        ) : (
+          <>
+            <LeaderboardHero
+              kicker={state.hero.kicker}
+              title={state.hero.title}
+              body={state.hero.body}
+              pressureLine={state.hero.pressureLine}
+              tone={state.hero.tone}
+              positionBadge={state.hero.positionBadge}
+              leaderTime={state.hero.leaderTime}
+              gapText={state.hero.gapText}
+              ctaLabel={state.cta?.label}
+              onPress={state.cta ? handleHeroCta : undefined}
+            />
+
+            {state.proofCard ? (
+              <LeagueProofCard
+                data={state.proofCard}
+                onPress={() => setScope('all_time')}
+              />
+            ) : null}
+
+            {state.topRows.length > 0 ? (
+              <View style={styles.podiumWrap}>
+                <Text style={styles.sectionLabel}>PODIUM</Text>
+                <PodiumBlock rows={state.topRows} />
+              </View>
+            ) : null}
+
+            {state.stickyUserRow ? (
+              <View style={styles.stickyWrap}>
+                <View style={styles.stickyDivider} />
+                <PodiumBlock rows={[state.stickyUserRow]} />
+              </View>
+            ) : null}
+
+            {state.tailRows.length > 0 ? (
+              <View style={styles.tailWrap}>
+                <Text style={styles.sectionLabel}>POZOSTALI</Text>
+                <PodiumBlock rows={state.tailRows} />
+              </View>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -349,18 +315,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   scroll: {
-    paddingBottom: 80,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 18,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
     gap: 8,
   },
   miniLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   miniLabel: {
     fontFamily: fonts.mono,
@@ -377,309 +343,134 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     letterSpacing: -0.5,
     lineHeight: 42,
+    textTransform: 'uppercase',
   },
   sub: {
     fontFamily: fonts.body,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  body: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    gap: 18,
+  scopeRow: {
+    paddingTop: 4,
   },
-  section: {
-    gap: 8,
+  trailPickerRow: {
+    gap: 10,
   },
-  sectionHeader: {
+  trailPickerLabel: {
     fontFamily: fonts.mono,
     fontSize: 9,
     fontWeight: '800',
-    color: 'rgba(242, 244, 243, 0.5)',
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-    marginTop: 18,
-    marginBottom: 4,
+    color: colors.textTertiary,
+    letterSpacing: 2.4,
   },
-  sectionRows: {
-    gap: 6,
-  },
-
-  // Trail row
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 50,
-    paddingHorizontal: 14,
-    backgroundColor: '#13181A',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 2, // sharp HUD
-    gap: 14,
-  },
-  rowPressed: {
-    backgroundColor: 'rgba(0, 255, 135, 0.06)',
-    borderColor: colors.borderHot,
-  },
-  diffDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  diffDotBlack: {
-    borderWidth: 1,
-    borderColor: '#F2F4F3',
-  },
-  rowMain: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  trailName: {
-    fontFamily: fonts.racing,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  trailNameDim: {
-    color: 'rgba(242, 244, 243, 0.7)',
-  },
-  runCount: {
-    fontFamily: fonts.mono,
-    fontSize: 8,
-    fontWeight: '700',
-    color: 'rgba(242, 244, 243, 0.4)',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-
-  // Right slot — rank pill + PB OR JEDŹ CTA
-  rankWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  trailPickerChips: {
     gap: 8,
+    paddingRight: 24,
   },
-  rankPill: {
-    width: 50,
-    height: 28,
-    borderRadius: 2,
+  trailChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 0,
-    paddingVertical: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
   },
-  rankTy: {
+  trailChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  trailChipPressed: {
+    backgroundColor: colors.accentDim,
+  },
+  trailChipLabel: {
     fontFamily: fonts.mono,
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  rankNum: {
-    fontFamily: fonts.racing,
-    fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 14,
-  },
-  pbBlock: {
-    alignItems: 'flex-end',
-    width: 56,
-  },
-  pbLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 7,
-    fontWeight: '700',
-    color: 'rgba(242, 244, 243, 0.4)',
-    letterSpacing: 1.2,
-  },
-  pbTime: {
-    fontFamily: fonts.racing,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  jedzCta: {
-    width: 118,
-    height: 28,
-    borderRadius: 2,
-    backgroundColor: 'rgba(0, 255, 135, 0.06)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 255, 135, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  jedzText: {
-    fontFamily: fonts.bodyBold,
     fontSize: 10,
     fontWeight: '800',
+    color: colors.textSecondary,
+    letterSpacing: 1.6,
+  },
+  trailChipLabelActive: {
     color: colors.accent,
-    letterSpacing: 1.5,
   },
-
-  // Mityagacje — subtle dashed cards
-  mitigationsWrap: {
-    gap: 10,
-    marginTop: 18,
-  },
-  mitigation: {
-    height: 46,
-    paddingHorizontal: 16,
-    borderRadius: 2,
-    borderWidth: 0.5,
-    borderStyle: 'dashed',
+  loaderWrap: {
+    paddingVertical: 60,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
   },
-  mitigationAccent: {
-    backgroundColor: 'rgba(0, 255, 135, 0.04)',
-    borderColor: 'rgba(0, 255, 135, 0.25)',
+  podiumWrap: {
+    gap: 10,
   },
-  mitigationWarn: {
-    backgroundColor: 'rgba(255, 176, 32, 0.04)',
-    borderColor: 'rgba(255, 176, 32, 0.25)',
-  },
-  mitigationCopy: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(242, 244, 243, 0.7)',
-    textAlign: 'center',
-  },
-  mitigationCtaAccent: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.accent,
-    textAlign: 'center',
-  },
-  mitigationCtaWarn: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.warn,
-    textAlign: 'center',
-  },
-
-  // Stan B — fresh rider styles
-  freshBody: {
-    paddingHorizontal: 24,
-    paddingTop: 18,
-    gap: 18,
-  },
-  hintCard: {
-    height: 80,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#13181A',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 2,
-    gap: 4,
-    justifyContent: 'center',
-  },
-  hintKicker: {
+  sectionLabel: {
     fontFamily: fonts.mono,
     fontSize: 9,
     fontWeight: '800',
-    color: 'rgba(242, 244, 243, 0.5)',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 4,
+    color: colors.textTertiary,
+    letterSpacing: 2.4,
   },
-  hintLine: {
+  stickyWrap: {
+    gap: 10,
+  },
+  stickyDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 4,
+  },
+  tailWrap: {
+    gap: 10,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  signinTitle: {
+    fontFamily: fonts.racing,
+    fontSize: 36,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  signinBody: {
     fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(242, 244, 243, 0.85)',
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  freshMitigations: {
-    gap: 12,
-  },
-  bigMitigation: {
-    height: 68,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    paddingHorizontal: 20,
+  cta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 12,
+    height: 48,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    backgroundColor: colors.accent,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+    marginTop: 8,
   },
-  bigMitigationAccent: {
-    backgroundColor: 'rgba(0, 255, 135, 0.06)',
-    borderColor: 'rgba(0, 255, 135, 0.4)',
+  ctaPressed: {
+    transform: [{ scale: 0.98 }],
   },
-  bigMitigationWarn: {
-    backgroundColor: 'rgba(255, 176, 32, 0.06)',
-    borderColor: 'rgba(255, 176, 32, 0.4)',
-  },
-  bigMitigationBody: {
-    flex: 1,
-    gap: 2,
-  },
-  bigMitigationKicker: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  bigMitigationLine: {
-    fontFamily: fonts.body,
+  ctaLabel: {
+    fontFamily: fonts.racing,
     fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(242, 244, 243, 0.85)',
+    fontWeight: '800',
+    color: colors.accentInk,
+    letterSpacing: 2.88,
+    textTransform: 'uppercase',
   },
-  bigMitigationSub: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(242, 244, 243, 0.5)',
-  },
-  bigMitigationArrow: {
+  ctaArrow: {
     fontFamily: fonts.body,
     fontSize: 18,
     fontWeight: '800',
-    marginLeft: 12,
-  },
-  lubBlock: {
-    alignItems: 'center',
-    marginTop: 16,
-    gap: 6,
-  },
-  lubSeparator: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    fontWeight: '700',
-    color: 'rgba(242, 244, 243, 0.32)',
-    letterSpacing: 2,
-  },
-  lubLine: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(242, 244, 243, 0.55)',
-    textAlign: 'center',
-  },
-  outlineCta: {
-    height: 40,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 135, 0.4)',
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  outlineCtaText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.accent,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
+    color: colors.accentInk,
   },
 });

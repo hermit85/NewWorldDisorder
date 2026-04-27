@@ -21,7 +21,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LEGAL } from '@/constants/legal';
-import { Btn, Card, PageTitle, Pill, SectionHead, TopBar } from '@/components/nwd';
+import { Btn, Card, PageTitle, SectionHead, TopBar } from '@/components/nwd';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
@@ -84,10 +84,7 @@ export default function HelpScreen() {
           { paddingBottom: insets.bottom + 32 },
         ]}
       >
-        <TopBar
-          onBack={() => router.back()}
-          trailing={<Pill state="verified" size="sm">Beta</Pill>}
-        />
+        <TopBar onBack={() => router.back()} />
 
         <PageTitle
           kicker="Przewodnik"

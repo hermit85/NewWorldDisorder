@@ -37,6 +37,10 @@ export interface TodayChallengeCardProps {
   onPress?: () => void;
   /** CTA text. Default "JEDŹ RANKINGOWO". */
   ctaLabel?: string;
+  /** Override the default "DZIŚ DO BICIA" kicker (e.g., "ODBIJ POZYCJĘ"). */
+  kickerOverride?: string;
+  /** Optional pressure line under the trail row ("Kacper przejął #1 · 14 min temu"). */
+  pressureLine?: string;
 }
 
 export function TodayChallengeCard({
@@ -47,6 +51,8 @@ export function TodayChallengeCard({
   yourDeltaText,
   onPress,
   ctaLabel = 'JEDŹ RANKINGOWO',
+  kickerOverride,
+  pressureLine,
 }: TodayChallengeCardProps) {
   // Trail silhouette gradient pan — slow, subtle, ambient.
   const pan = useSharedValue(0);
@@ -87,7 +93,7 @@ export function TodayChallengeCard({
         </Svg>
       </Animated.View>
 
-      <Text style={styles.kicker}>DZIŚ DO BICIA</Text>
+      <Text style={styles.kicker}>{(kickerOverride ?? 'DZIŚ DO BICIA').toUpperCase()}</Text>
 
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
@@ -110,6 +116,12 @@ export function TodayChallengeCard({
           )}
         </View>
       </View>
+
+      {pressureLine ? (
+        <Text style={styles.pressure} numberOfLines={2}>
+          {pressureLine}
+        </Text>
+      ) : null}
 
       {onPress ? (
         <Pressable
@@ -209,6 +221,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textTertiary,
     letterSpacing: 1.6,
+  },
+  pressure: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   cta: {
     flexDirection: 'row',

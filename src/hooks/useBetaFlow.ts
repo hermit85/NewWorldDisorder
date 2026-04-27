@@ -20,7 +20,10 @@ const KEYS = {
 // 0.6.0 = v8 onboarding rewrite (LIGA / RANKING / PROGRESS slides),
 //         offline-first landing on /(tabs) after the GPS gate
 // 0.7.0 = v8 polish #1 (auth-gated landing + schematic/streak fixes)
-const CURRENT_BETA = '0.7.0';
+// 0.8.0 = Home race-day redesign — mission state machine on (tabs)/index.
+//         Bump forces riders who saw the old mixed-dashboard Home to
+//         re-run intro so framing matches the new "co teraz robisz?" copy.
+const CURRENT_BETA = '0.8.0';
 
 export function useBetaFlow() {
   const [state, setState] = useState<{
