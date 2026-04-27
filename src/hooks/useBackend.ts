@@ -27,14 +27,6 @@ export const isProductionMisconfigured = !isSupabaseConfigured && !__DEV__;
 // ── Typed fetch status ──
 export type FetchStatus = 'loading' | 'ok' | 'empty' | 'error' | 'signed_out';
 
-// Trail / Spot IDs are Postgres uuid columns. Hitting Supabase REST
-// with a malformed string (e.g. a deep-link to /trail/foo) returns a
-// 406 — useless for the UI and noisy in Sentry. Reject obvious
-// non-UUIDs at the hook layer so we render the not-found state
-// without a network round-trip.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const isUuid = (s: string): boolean => UUID_RE.test(s);
-
 declare global {
   // DevTools override: global.__DEV_MOCK_HERO_BEAT__ = true
   // eslint-disable-next-line no-var
@@ -843,7 +835,6 @@ export function useSpot(id: string | null) {
       setStatus('ok');
       return;
     }
-    if (!isUuid(id)) { setSpot(null); setStatus('empty'); return; }
     if (!isSupabaseConfigured) { setSpot(null); setStatus('error'); return; }
     setStatus('loading');
     const res = await api.fetchSpot(id);
@@ -892,7 +883,6 @@ export function useTrail(id: string | null) {
 
   const refresh = useCallback(async () => {
     if (!id) { setTrail(null); setStatus('empty'); return; }
-    if (!isUuid(id)) { setTrail(null); setStatus('empty'); return; }
     if (!isSupabaseConfigured) { setTrail(null); setStatus('error'); return; }
     setStatus('loading');
     const res = await api.fetchTrail(id);

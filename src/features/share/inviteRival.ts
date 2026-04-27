@@ -56,18 +56,17 @@ export function buildInviteShare(ctx: InviteContext): InvitePayload {
   };
 }
 
-function buildDeepLink(ctx: InviteContext): string {
-  // App scheme deep links don't open from messengers that strip
-  // unknown schemes, so we use an https landing fallback that the
-  // app's universal link config can later catch. For now the URL
-  // is a placeholder — the feature must NOT block on perfect deep
-  // linking (per spec).
-  const params = new URLSearchParams();
-  if (ctx.spotId) params.set('spotId', ctx.spotId);
-  if (ctx.trailId) params.set('trailId', ctx.trailId);
-  if (ctx.timeMs) params.set('time', String(ctx.timeMs));
-  const qs = params.toString();
-  return `${APP_LANDING_URL}/challenge${qs ? `?${qs}` : ''}`;
+function buildDeepLink(_ctx: InviteContext): string {
+  // No `/challenge` route exists yet — neither the app (no universal
+  // link / scheme handler for it) nor the website (Next.js project
+  // under `website/` only ships home + legal pages). Shipping a
+  // `/challenge?...` URL would be a dead link.
+  // For Build 35 we fall back to the homepage so the URL always
+  // resolves to a real page. Trail name + time are already in the
+  // message body, so the recipient still has full context.
+  // When the handler ships, restore the param-bearing path here and
+  // re-enable the URL-shape assertions in inviteRival.test.ts.
+  return APP_LANDING_URL;
 }
 
 /** Mirror of buildDeepLink for the in-app `nwd://` scheme — useful

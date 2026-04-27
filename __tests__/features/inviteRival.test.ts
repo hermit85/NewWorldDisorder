@@ -25,8 +25,9 @@ describe('buildInviteShare', () => {
     expect(p.message).toContain('1:21.0');
     expect(p.message.toLowerCase()).toContain('należy do mnie');
     expect(p.message).toContain('https://newworlddisorder.app');
-    expect(p.url).toContain('spotId=spot-wwa');
-    expect(p.url).toContain('trailId=trail-prezydencka');
+    // Build 35: URL is the bare homepage (no /challenge handler yet).
+    // When the handler ships, re-enable the spotId/trailId assertions.
+    expect(p.url).toBe('https://newworlddisorder.app');
   });
 
   test('chaser copy: challenges the recipient to beat the time', () => {
@@ -58,14 +59,15 @@ describe('buildInviteShare', () => {
     expect(p.title).toContain('1:21.0');
   });
 
-  test('omits unknown fields from URL without breaking the link', () => {
+  test('url is the live homepage fallback (Build 35 — no /challenge handler yet)', () => {
     const p = buildInviteShare({
       trailName: 'Prezydencka',
       timeMs: 81_000,
+      spotId: 'spot-wwa',
+      trailId: 'trail-prezydencka',
     });
-    expect(p.url.startsWith('https://newworlddisorder.app/challenge')).toBe(true);
-    // No spotId / trailId set — URL still has time and is well-formed.
-    expect(p.url).toContain('time=81000');
+    // Bare homepage regardless of params — no dead link goes out.
+    expect(p.url).toBe('https://newworlddisorder.app');
   });
 
   test('buildInviteSchemeUrl returns nwd:// fallback for sharing into the app', () => {
