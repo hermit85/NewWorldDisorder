@@ -230,6 +230,10 @@ function RootLayout() {
             options={{ animation: 'slide_from_right' }}
           />
           <Stack.Screen
+            name="settings/index"
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
             name="settings/delete-account"
             options={{ animation: 'slide_from_right' }}
           />

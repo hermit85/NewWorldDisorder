@@ -22,7 +22,8 @@ export type IconName =
   // Common nav/utility additions kept inside the same visual rules
   // (square caps, miter joins, stroke 1.6). The 12 above are the
   // brand set; these support nav chrome.
-  | 'arrow-left' | 'arrow-right' | 'chevron-right' | 'plus' | 'x';
+  | 'arrow-left' | 'arrow-right' | 'chevron-right' | 'plus' | 'x'
+  | 'sliders';
 
 export interface IconGlyphProps {
   name: IconName;
@@ -144,6 +145,20 @@ function renderPath(
       return <Path {...p} d="M12 5 L12 19 M5 12 L19 12" />;
     case 'x':
       return <Path {...p} d="M6 6 L18 18 M18 6 L6 18" />;
+    case 'sliders':
+      // Settings/equalizer glyph — three horizontal rails with
+      // square knobs at staggered positions. Reads as "tweakable
+      // settings" without copying the rounded gear emoji.
+      return (
+        <G {...p}>
+          <Path d="M3 7 L21 7" />
+          <Path d="M3 12 L21 12" />
+          <Path d="M3 17 L21 17" />
+          <Path d="M9 5 L13 5 L13 9 L9 9 Z" />
+          <Path d="M14 10 L18 10 L18 14 L14 14 Z" />
+          <Path d="M6 15 L10 15 L10 19 L6 19 Z" />
+        </G>
+      );
     default:
       return null;
   }

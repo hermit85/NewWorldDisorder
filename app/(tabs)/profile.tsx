@@ -6,7 +6,7 @@
 // ze mną na zawsze?". Layout:
 //
 //   1. IDENTITY HERO  — avatar + handle + rank + season + rank bar
-//                       (gear icon top-right opens SettingsSheet)
+//                       (sliders icon top-right pushes /settings)
 //   2. DOROBEK        — 4 truthful metrics: Pionier / Rekordy PB /
 //                       Bike parki / Passa
 //   3. PASY           — achievement grid, locked + unlocked
@@ -18,10 +18,6 @@
 
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -33,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
-import { LEGAL } from '@/constants/legal';
 import { getRank, getXpToNextRank } from '@/systems/ranks';
 import { getLevel } from '@/systems/xp';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -55,13 +50,7 @@ import {
 import { IdentityHero } from '@/components/profile/IdentityHero';
 import { DorobekGrid } from '@/components/profile/DorobekGrid';
 import { PersonalRecordsList } from '@/components/profile/PersonalRecordsList';
-import { SettingsSheet } from '@/components/profile/SettingsSheet';
-import { FounderToolsSheet } from '@/components/profile/FounderToolsSheet';
-import { useFounderStatus } from '@/hooks/useFounderTools';
-import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
-import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
-import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
 import { fetchUserRuns } from '@/lib/api';
 import { purgeOrphanedRuns } from '@/systems/runStore';
 import { derivePassport } from '@/features/profile/passport';
@@ -95,18 +84,13 @@ const ACHIEVEMENT_CATALOG: readonly AchievementDef[] = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profile: authProfile, user: authUser, isAuthenticated, signOut } = useAuthContext();
+  const { profile: authProfile, isAuthenticated } = useAuthContext();
   const { profile: user } = useProfile(authProfile?.id);
   const { achievements } = useAchievements(authProfile?.id);
   const { sections } = useTablicaSections(authProfile?.id);
   const { streak } = useStreakState(authProfile?.id);
 
-  const [avatarLoading, setAvatarLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [founderOpen, setFounderOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const { isFounder } = useFounderStatus(authProfile?.id ?? null);
 
   const rank = user ? getRank(user.rankId) : getRank('rookie');
   const level = getLevel(user?.xp ?? 0);
@@ -140,73 +124,6 @@ export default function ProfileScreen() {
     }
   }, [userId]);
 
-  const handlePickAndUpload = useCallback(async () => {
-    if (!authProfile?.id) return;
-    const pickResult = await pickAvatarImage();
-    if ('denied' in pickResult) {
-      Alert.alert('Brak dostępu', 'Włącz dostęp do galerii w Ustawieniach telefonu.');
-      return;
-    }
-    if ('cancelled' in pickResult) return;
-    if ('error' in pickResult) {
-      notifyWarning();
-      Alert.alert('Błąd', pickResult.error);
-      return;
-    }
-    setAvatarLoading(true);
-    const result = await uploadAvatar(authProfile.id, pickResult.uri);
-    setAvatarLoading(false);
-    if (result.status === 'success') {
-      tapMedium();
-      notifySuccess();
-      triggerRefresh();
-    } else if (result.status === 'error') {
-      notifyWarning();
-      Alert.alert('Nie udało się', result.message);
-    }
-  }, [authProfile?.id]);
-
-  const handleRemoveAvatar = useCallback(async () => {
-    if (!authProfile?.id) return;
-    setAvatarLoading(true);
-    const ok = await removeAvatar(authProfile.id);
-    setAvatarLoading(false);
-    if (ok) {
-      tapLight();
-      triggerRefresh();
-    } else {
-      notifyWarning();
-    }
-  }, [authProfile?.id]);
-
-  const handleAvatarPress = useCallback(() => {
-    if (!authProfile?.id) return;
-    tapLight();
-    if (user?.avatarUrl) {
-      Alert.alert(
-        'Zdjęcie profilowe',
-        undefined,
-        [
-          { text: 'Zmień zdjęcie', onPress: handlePickAndUpload },
-          { text: 'Usuń zdjęcie', style: 'destructive', onPress: handleRemoveAvatar },
-          { text: 'Anuluj', style: 'cancel' },
-        ],
-      );
-      return;
-    }
-    handlePickAndUpload();
-  }, [authProfile?.id, user?.avatarUrl, handlePickAndUpload, handleRemoveAvatar]);
-
-  const handleSignOut = useCallback(async () => {
-    await signOut();
-    router.replace('/auth');
-  }, [signOut, router]);
-
-  const closeSettingsAnd = (action: () => void) => () => {
-    setSettingsOpen(false);
-    // Defer one tick so the sheet animation can finish before navigating.
-    setTimeout(action, 240);
-  };
 
   // ─── Anonymous flow — keep parity with old screen ────────────
   if (!isAuthenticated) {
@@ -269,23 +186,12 @@ export default function ProfileScreen() {
       >
         <IdentityHero
           avatar={
-            <Pressable onPress={handleAvatarPress} style={styles.avatarWrap}>
-              {avatarLoading ? (
-                <View style={[styles.avatarContainer, { borderColor: rank.color }]}>
-                  <ActivityIndicator size="small" color={colors.accent} />
-                </View>
-              ) : (
-                <RiderAvatar
-                  avatarUrl={user?.avatarUrl}
-                  username={user?.username ?? 'R'}
-                  size={96}
-                  borderColor={rank.color}
-                />
-              )}
-              <View style={styles.avatarEditBadge}>
-                <Text style={styles.avatarEditIcon}>{user?.avatarUrl ? '✎' : '+'}</Text>
-              </View>
-            </Pressable>
+            <RiderAvatar
+              avatarUrl={user?.avatarUrl}
+              username={user?.username ?? 'R'}
+              size={96}
+              borderColor={rank.color}
+            />
           }
           riderTag={user?.username ?? 'rider'}
           rankLabel={rank.name}
@@ -293,7 +199,7 @@ export default function ProfileScreen() {
           level={level}
           seasonLine={seasonLine}
           rankProgress={rankProgressDisplay}
-          onSettingsPress={() => setSettingsOpen(true)}
+          onSettingsPress={() => router.push('/settings')}
         />
 
         <SyncOutboxCard />
@@ -384,73 +290,6 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      <SettingsSheet
-        visible={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        items={[
-          {
-            label: 'Zmień zdjęcie profilowe',
-            onPress: closeSettingsAnd(handleAvatarPress),
-          },
-          {
-            label: 'Polityka prywatności',
-            onPress: closeSettingsAnd(() => Linking.openURL(LEGAL.privacyUrl)),
-          },
-          {
-            label: 'Regulamin',
-            onPress: closeSettingsAnd(() => Linking.openURL(LEGAL.termsUrl)),
-          },
-          {
-            label: 'Wyślij feedback',
-            onPress: closeSettingsAnd(() => setFeedbackOpen(true)),
-          },
-          {
-            label: 'Wsparcie',
-            onPress: closeSettingsAnd(() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)),
-          },
-          {
-            label: 'Pomoc',
-            onPress: closeSettingsAnd(() => router.push('/help')),
-          },
-          {
-            label: 'Wyloguj',
-            destructive: true,
-            onPress: closeSettingsAnd(handleSignOut),
-          },
-          {
-            label: 'Usuń konto',
-            destructive: true,
-            onPress: closeSettingsAnd(() => router.push('/settings/delete-account')),
-          },
-          // Founder tools: rendered last so it sits visually below
-          // the regular destructive actions. Server-side gated via
-          // is_founder_user(); the menu item is just hidden for
-          // everyone else.
-          ...(isFounder
-            ? [{
-                label: 'Founder tools',
-                destructive: true,
-                onPress: closeSettingsAnd(() => setFounderOpen(true)),
-              }]
-            : []),
-        ]}
-      />
-
-      <FounderToolsSheet
-        visible={founderOpen}
-        onClose={() => setFounderOpen(false)}
-      />
-
-      {authProfile?.id ? (
-        <FeedbackSheet
-          visible={feedbackOpen}
-          onClose={() => setFeedbackOpen(false)}
-          context={{
-            userId: authProfile.id,
-            screen: 'ja',
-          }}
-        />
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -464,40 +303,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
-  },
-
-  // Avatar overlays (used inside IdentityHero's avatar slot).
-  avatarWrap: {
-    width: 96,
-    height: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarEditBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.bg,
-  },
-  avatarEditIcon: {
-    fontSize: 13,
-    color: colors.accentInk,
-    fontWeight: '800',
   },
 
   // PASY grid (kept inline — same shape as before).

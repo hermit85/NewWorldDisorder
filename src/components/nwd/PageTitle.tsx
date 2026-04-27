@@ -63,14 +63,16 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontFamily: 'Rajdhani_700Bold',
     fontSize: 42,
-    lineHeight: 42 * 0.95,
+    // 1.1× — Polish diacritics in CAPS need ascender headroom.
+    // 0.95× clips Ó/Ś/Ć dots, Ł stroke, Ż/Ź marks.
+    lineHeight: 42 * 1.1,
     letterSpacing: -0.84, // -0.02em @ 42
     fontWeight: '800',
     textTransform: 'uppercase',
   },
   titleHero: {
     fontSize: 56,
-    lineHeight: 56 * 0.95,
+    lineHeight: 56 * 1.1,
     letterSpacing: -1.12, // -0.02em @ 56
   },
   subtitle: {

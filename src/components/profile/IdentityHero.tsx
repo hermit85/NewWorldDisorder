@@ -4,7 +4,7 @@
 // Wraps the existing RiderIdCard primitive (avatar with breathing
 // ring, big @handle, rank/level row, season meta) with two extra
 // pieces the passport screen needs:
-//   - gear icon top-right (opens SettingsSheet)
+//   - sliders icon top-right (pushes to /settings)
 //   - rank progression bar below identity ("RIDER → SENDER · 1300 XP")
 //
 // XP-to-next-level bar lives one section down on the screen (we keep
@@ -17,6 +17,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
 import { RiderIdCard } from '@/components/nwd';
+import { IconGlyph } from '@/components/nwd/IconGlyph';
 
 export interface IdentityHeroProps {
   avatar: ReactNode;
@@ -60,7 +61,7 @@ export function IdentityHero({
         hitSlop={12}
         style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
       >
-        <Text style={styles.menuLabel}>MENU</Text>
+        <IconGlyph name="sliders" size={18} color={colors.textSecondary} />
       </Pressable>
 
       <RiderIdCard
@@ -111,18 +112,20 @@ const styles = StyleSheet.create({
     position: 'relative',
     paddingTop: 4,
   },
-  // Small mono-uppercase MENU button — the carousel-indicator vibe
-  // of three dots was confusing here, and a real ⚙ glyph isn't in
-  // Inter. A text affordance reads correctly in any font.
+  // Sliders icon affordance for settings — replaces the prior
+  // "MENU" pill that read as misplaced bottom-bar chrome at the
+  // top-right of the passport. Now a quiet 36×36 round button
+  // matching the back-button style on detail screens.
   menuBtn: {
     position: 'absolute',
-    top: 14,
-    right: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    top: 8,
+    right: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.borderMid,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
@@ -130,13 +133,6 @@ const styles = StyleSheet.create({
   menuBtnPressed: {
     backgroundColor: colors.accentDim,
     borderColor: colors.borderHot,
-  },
-  menuLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 2,
   },
   rankProgressBlock: {
     marginTop: 4,

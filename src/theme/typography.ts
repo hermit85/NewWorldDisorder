@@ -54,7 +54,11 @@ export const typography = {
   hero: {
     fontFamily: fonts.racing,
     fontSize: 56,
-    lineHeight: 56 * 0.95,        // 53.2 — tight for big display
+    // 1.1× — gives the ascender headroom for Polish diacritics
+    // (Ó, Ś, Ć, Ń, Ż, Ź) and the descender room for ogonki (Ą, Ę)
+    // when rendered in CAPS. Tighter ratios (< 1.05) clip the dot
+    // and stroke marks on Rajdhani at this size.
+    lineHeight: 56 * 1.1,
     letterSpacing: -1,             // ≈ -0.02em at 56px
     fontVariant: ['tabular-nums'] as TextStyle['fontVariant'],
   } satisfies TextStyle,
@@ -88,7 +92,11 @@ export const typography = {
   label: {
     fontFamily: fonts.mono,
     fontSize: 11,
-    lineHeight: 11,
+    // 1.45× — Polish diacritics in CAPS (Ó, Ś, Ć, Ń, Ż, Ź dots,
+    // Ł stroke, Ą/Ę ogonki) need both ascender and descender
+    // room. 1:1 lineHeight clips them. 1.45× is the conservative
+    // safe ratio for Latin Extended-A coverage on small caps.
+    lineHeight: 16,
     letterSpacing: 2.64,           // 0.24em @ 11px
     textTransform: 'uppercase',
     fontWeight: '800',
@@ -97,7 +105,10 @@ export const typography = {
   micro: {
     fontFamily: fonts.mono,
     fontSize: 9,
-    lineHeight: 9,
+    // 1.55× — see `label`. Even more headroom because at 9px the
+    // diacritics are already so small that any clip looks like a
+    // missing glyph (cf. "WOJEWÓDZTWO" reading as "WOJEWODZTWO").
+    lineHeight: 14,
     letterSpacing: 2.88,           // 0.32em @ 9px
     textTransform: 'uppercase',
     fontWeight: '700',

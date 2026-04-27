@@ -75,3 +75,111 @@ export function useTestDataPreview(opts: {
 
   return { preview, loading, error, refresh };
 }
+
+// ─── God-mode listings ──────────────────────────────────────
+// Lists EVERY spot / pioneer trail so the founder can hunt down
+// test-garbage. Refreshing is imperative (caller bumps refreshKey
+// after a successful delete) to keep the picker up-to-date
+// without subscribing every screen to a global refresh signal.
+
+export function useAllSpotsForFounder(opts: {
+  enabled: boolean;
+  currentUserId: string | null;
+  refreshKey?: number;
+}) {
+  const [rows, setRows] = useState<api.FounderSpotRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!opts.enabled || !opts.currentUserId) {
+      setRows([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.listAllSpotsForFounder(opts.currentUserId).then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        setRows(res.data);
+      } else {
+        setRows([]);
+        setError(res.code);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [opts.enabled, opts.currentUserId, opts.refreshKey]);
+
+  return { rows, loading, error };
+}
+
+export function useAllUsersForFounder(opts: {
+  enabled: boolean;
+  currentUserId: string | null;
+  refreshKey?: number;
+}) {
+  const [rows, setRows] = useState<api.FounderUserRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!opts.enabled || !opts.currentUserId) {
+      setRows([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.listAllUsersForFounder(opts.currentUserId).then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        setRows(res.data);
+      } else {
+        setRows([]);
+        setError(res.code);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [opts.enabled, opts.currentUserId, opts.refreshKey]);
+
+  return { rows, loading, error };
+}
+
+export function useAllTrailsForFounder(opts: {
+  enabled: boolean;
+  currentUserId: string | null;
+  refreshKey?: number;
+}) {
+  const [rows, setRows] = useState<api.FounderTrailRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!opts.enabled || !opts.currentUserId) {
+      setRows([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.listAllTrailsForFounder(opts.currentUserId).then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        setRows(res.data);
+      } else {
+        setRows([]);
+        setError(res.code);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [opts.enabled, opts.currentUserId, opts.refreshKey]);
+
+  return { rows, loading, error };
+}

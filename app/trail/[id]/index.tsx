@@ -504,31 +504,34 @@ export default function TrailDetailScreen() {
         ) : null}
       </ScrollView>
 
-      {/* ═════ ACTION BAR ═════ */}
+      {/* ═════ ACTION BAR ═════
+        Trening button is hidden when ranking is available — riders
+        kept tapping the secondary "Trening" CTA by accident on smaller
+        screens and ending up in a non-counted run. We surface practice
+        only on training-only venues, where it's the ONLY way to ride
+        the trail (ranking is gated until the venue gets a canonical
+        version). For ranked-capable trails, one obvious primary CTA. */}
       <View style={styles.actionBar}>
-        <Btn
-          variant="primary"
-          size="lg"
-          onPress={handleStartRanked}
-          disabled={isTrainingOnly}
-          icon={<IconGlyph name="lock" size={16} color={colors.accentInk} />}
-          style={{ flex: 1 }}
-        >
-          {isTrainingOnly
-            ? 'Ranking niedostępny'
-            : isAuthenticated
-              ? 'Jedź ranking'
-              : 'Zaloguj — jedź ranking'}
-        </Btn>
-        <Btn
-          variant="ghost"
-          size="lg"
-          fullWidth={false}
-          onPress={handleStartPractice}
-          style={{ minWidth: 120 }}
-        >
-          Trening
-        </Btn>
+        {isTrainingOnly ? (
+          <Btn
+            variant="primary"
+            size="lg"
+            onPress={handleStartPractice}
+            style={{ flex: 1 }}
+          >
+            Trening
+          </Btn>
+        ) : (
+          <Btn
+            variant="primary"
+            size="lg"
+            onPress={handleStartRanked}
+            icon={<IconGlyph name="lock" size={16} color={colors.accentInk} />}
+            style={{ flex: 1 }}
+          >
+            {isAuthenticated ? 'Jedź ranking' : 'Zaloguj — jedź ranking'}
+          </Btn>
+        )}
       </View>
     </SafeAreaView>
   );

@@ -2816,3 +2816,163 @@ export async function deleteTestSpot(
     return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
   }
 }
+
+// ─── Founder god-mode listings ──────────────────────────────
+// Surface ALL spots / pioneer trails so the founder can hunt
+// down test-garbage left by anyone, not just their own. RLS lets
+// founders read everything ("Curators read all spots", and the
+// trails table has no per-status read gate). Delete RPCs are
+// the real authority — these queries just feed the picker.
+
+export interface FounderSpotRow {
+  spotId: string;
+  name: string;
+  status: 'pending' | 'active' | 'rejected' | string;
+  submittedBy: string | null;
+  submitterUsername: string | null;
+  isMine: boolean;
+  trailCount: number;
+  createdAt: string | null;
+}
+
+export async function listAllSpotsForFounder(
+  currentUserId: string,
+): Promise<ApiResult<FounderSpotRow[]>> {
+  const { data, error } = await db()
+    .from('spots')
+    .select(
+      'id, name, status, submitted_by, created_at, ' +
+      'submitter:profiles!spots_submitted_by_fkey(username), ' +
+      'trails(count)',
+    )
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  const rows = (data ?? []).map((r: any): FounderSpotRow => ({
+    spotId: r.id,
+    name: r.name,
+    status: r.status,
+    submittedBy: r.submitted_by ?? null,
+    submitterUsername: r.submitter?.username ?? null,
+    isMine: r.submitted_by === currentUserId,
+    trailCount: Array.isArray(r.trails) ? Number(r.trails[0]?.count ?? 0) : 0,
+    createdAt: r.created_at ?? null,
+  }));
+  return { ok: true, data: rows };
+}
+
+export interface FounderTrailRow {
+  trailId: string;
+  name: string;
+  spotId: string;
+  spotName: string | null;
+  pioneerUserId: string | null;
+  pioneerUsername: string | null;
+  isMine: boolean;
+  calibrationStatus: string | null;
+  runsContributed: number;
+}
+
+export interface FounderUserRow {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  role: string;
+  totalRuns: number;
+  pioneeredTotal: number;
+  createdAt: string | null;
+  isMe: boolean;
+}
+
+export async function listAllUsersForFounder(
+  currentUserId: string,
+): Promise<ApiResult<FounderUserRow[]>> {
+  const { data, error } = await db()
+    .from('profiles')
+    .select('id, username, display_name, role, total_runs, pioneered_total_count, created_at')
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  const rows = (data ?? []).map((r: any): FounderUserRow => ({
+    userId: r.id,
+    username: r.username,
+    displayName: r.display_name ?? null,
+    role: r.role ?? 'rider',
+    totalRuns: Number(r.total_runs ?? 0),
+    pioneeredTotal: Number(r.pioneered_total_count ?? 0),
+    createdAt: r.created_at ?? null,
+    isMe: r.id === currentUserId,
+  }));
+  return { ok: true, data: rows };
+}
+
+export interface UserDeleteOutcome {
+  deletedUsername: string;
+  cascade: {
+    runs: number;
+    leaderboardEntries: number;
+    spotsOrphaned: number;
+    trailsOrphaned: number;
+  };
+}
+
+export async function deleteUserCascade(
+  userId: string,
+  reason: string = '',
+): Promise<ApiResult<UserDeleteOutcome>> {
+  try {
+    const { data, error } = await db().rpc('delete_user_cascade', {
+      p_user_id: userId,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return { ok: false, code: res?.code ?? 'rpc_failed' };
+    }
+    return {
+      ok: true,
+      data: {
+        deletedUsername: res.deleted_user,
+        cascade: {
+          runs: Number(res.cascade?.runs ?? 0),
+          leaderboardEntries: Number(res.cascade?.leaderboard_entries ?? 0),
+          spotsOrphaned: Number(res.cascade?.spots_orphaned ?? 0),
+          trailsOrphaned: Number(res.cascade?.trails_orphaned ?? 0),
+        },
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}
+
+export async function listAllTrailsForFounder(
+  currentUserId: string,
+): Promise<ApiResult<FounderTrailRow[]>> {
+  const { data, error } = await db()
+    .from('trails')
+    .select(
+      'id, official_name, spot_id, pioneer_user_id, calibration_status, runs_contributed, ' +
+      'spot:spots!trails_spot_id_fkey(name), ' +
+      'pioneer:profiles!trails_pioneer_user_id_fkey(username)',
+    )
+    .order('id', { ascending: false })
+    .limit(300);
+
+  if (error) return { ok: false, code: 'fetch_failed', message: error.message };
+  const rows = (data ?? []).map((r: any): FounderTrailRow => ({
+    trailId: r.id,
+    name: r.official_name ?? r.id,
+    spotId: r.spot_id,
+    spotName: r.spot?.name ?? null,
+    pioneerUserId: r.pioneer_user_id ?? null,
+    pioneerUsername: r.pioneer?.username ?? null,
+    isMine: r.pioneer_user_id === currentUserId,
+    calibrationStatus: r.calibration_status ?? null,
+    runsContributed: Number(r.runs_contributed ?? 0),
+  }));
+  return { ok: true, data: rows };
+}

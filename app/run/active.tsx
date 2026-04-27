@@ -322,13 +322,32 @@ export default function ActiveRunScreen() {
     });
   };
 
-  const handleCancel = () => {
+  const doCancelAndExit = () => {
     cancel();
     if (navigation.canGoBack()) {
       router.back();
     } else {
       router.replace('/');
     }
+  };
+
+  const handleCancel = () => {
+    // Mid-ride cancel — confirm destructively. Without this guard a
+    // misclick on the small ghost button in the corner would abort
+    // a clean run with no recovery (raw points stay on disk for
+    // forensics, but the result screen is gone).
+    if (state.phase === 'running_ranked' || state.phase === 'running_practice') {
+      Alert.alert(
+        'Przerwać zjazd?',
+        'Czas zostanie odrzucony, zjazd nie zostanie zapisany.',
+        [
+          { text: 'Jadę dalej', style: 'cancel' },
+          { text: 'Przerwij', style: 'destructive', onPress: doCancelAndExit },
+        ],
+      );
+      return;
+    }
+    doCancelAndExit();
   };
 
   const handleStartPractice = () => {
@@ -399,8 +418,13 @@ export default function ActiveRunScreen() {
   const running = state.phase === 'running_ranked' || state.phase === 'running_practice';
   const showTimer = running || state.phase === 'finishing' || state.phase === 'verifying'
     || state.phase === 'completed_verified' || state.phase === 'completed_unverified' || state.phase === 'invalidated';
+  // Cancel is also available DURING the run, gated by an Alert confirm
+  // in handleCancel. Without this, a ranked run with auto-start gate
+  // detection had no exit path — if the rider abandoned mid-trail or
+  // GPS lost the finish gate, the timer just kept ticking forever.
   const showCancel = state.phase === 'idle' || state.phase === 'readiness_check'
-    || state.phase === 'armed_ranked' || state.phase === 'armed_practice';
+    || state.phase === 'armed_ranked' || state.phase === 'armed_practice'
+    || state.phase === 'running_ranked' || state.phase === 'running_practice';
 
   // Chunk 10: Approach Navigator replaces the legacy ReadinessPanel when
   // we have a real GPS fix + a Pioneer gate config. Without either we
@@ -641,7 +665,9 @@ export default function ActiveRunScreen() {
         )}
       </Pressable>
 
-      {/* Cancel — canonical Btn ghost with arrow-left glyph */}
+      {/* Cancel — canonical Btn ghost with arrow-left glyph.
+          Label switches to "Przerwij" once the timer is running so
+          riders know it'll abort their attempt, not just navigate away. */}
       {showCancel && (
         <View style={styles.cancelWrap}>
           <Btn
@@ -651,7 +677,9 @@ export default function ActiveRunScreen() {
             icon={<IconGlyph name="arrow-left" size={14} color={colors.textTertiary} />}
             onPress={handleCancel}
           >
-            Wróć
+            {state.phase === 'running_ranked' || state.phase === 'running_practice'
+              ? 'Przerwij'
+              : 'Wróć'}
           </Btn>
         </View>
       )}

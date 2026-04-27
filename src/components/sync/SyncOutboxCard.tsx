@@ -46,13 +46,13 @@ export function SyncOutboxCard() {
   const summary = (() => {
     if (pendingParts.length > 0) {
       const tail = [rejectedPart, stalePart].filter(Boolean).join(' · ');
-      return `Czeka na wysłanie: ${pendingParts.join(' · ')}${tail ? ` · ${tail}` : ''}. Nic nie znika po wyjściu z appki.`;
+      return `Zapisane lokalnie, czekają na serwer: ${pendingParts.join(' · ')}${tail ? ` · ${tail}` : ''}.`;
     }
     if (rejectedPart && !stalePart) {
-      return `Odrzucono po synchronizacji: ${rejectedPart}. Sprawdź zgłoszenie przed ponowną próbą.`;
+      return `Odrzucone po synchronizacji: ${rejectedPart}.`;
     }
     if (stalePart) {
-      return `Lokalne zjazdy nie poszły do serwera mimo prób. Sprawdź powód i odrzuć ręcznie albo zgłoś.`;
+      return `Te zjazdy nie poszły do serwera. Sprawdź powód poniżej i wyślij ponownie albo odrzuć.`;
     }
     return 'Synchronizacja w toku.';
   })();
@@ -64,7 +64,7 @@ export function SyncOutboxCard() {
           <IconGlyph name="split" size={18} color={colors.gold} />
         </View>
         <View style={styles.copy}>
-          <Text style={styles.title}>SYNC OUTBOX</Text>
+          <Text style={styles.title}>NIEWYSŁANE ZJAZDY</Text>
           <Text style={styles.body}>{summary}</Text>
         </View>
       </View>
@@ -131,6 +131,32 @@ function FeedbackLine({ feedback }: { feedback: SyncFeedback }) {
   );
 }
 
+// Map server-side error codes / details to plain-Polish copy a
+// rider can act on. Keep the technical pair available in __DEV__
+// for debugging — users see only the friendly version.
+function friendlyReason(code: string | undefined, detail: string | undefined): string {
+  // Detail is more specific (e.g. "run_rate_limited" inside the
+  // generic "rpc_transport" wrapper), check it first.
+  if (detail === 'run_rate_limited') {
+    return 'Zbyt szybko po poprzednim zjeździe — odczekaj kilka minut.';
+  }
+  if (detail === 'duplicate_run') {
+    return 'Ten zjazd został już wcześniej zapisany.';
+  }
+  if (detail === 'invalid_geometry' || detail === 'corridor_violation') {
+    return 'GPS nie złapał trasy zgodnej z linią.';
+  }
+  if (detail === 'gate_missing' || detail === 'no_finish') {
+    return 'Brak przecięcia mety — zjazd niezaliczony.';
+  }
+  // Fall back to code.
+  if (code === 'rpc_transport') return 'Brak połączenia z serwerem.';
+  if (code === 'unauthorized' || code === 'auth_expired') return 'Sesja wygasła — zaloguj ponownie.';
+  if (code === 'rate_limited') return 'Zbyt szybko po poprzednim zjeździe.';
+  if (code === 'validation_failed') return 'Zjazd nie spełnia warunków rankingu.';
+  return 'Serwer odrzucił zjazd — spróbuj ponownie później.';
+}
+
 function StaleRunRow({
   run,
   onDiscard,
@@ -138,13 +164,14 @@ function StaleRunRow({
   run: FinalizedRun;
   onDiscard: (sessionId: string) => void;
 }) {
-  const reason = run.lastError?.code ?? 'unknown';
+  const code = run.lastError?.code;
   const detail = run.lastError?.detail;
+  const reason = friendlyReason(code, detail);
 
   function handleDiscard() {
     Alert.alert(
       'Usunąć z kolejki?',
-      `${run.trailName} — ${reason}\n\nZjazd zostanie usunięty z lokalnej kolejki. Tej operacji nie można cofnąć.`,
+      `${run.trailName}\n\n${reason}\n\nZjazd zostanie usunięty z lokalnej kolejki. Tej operacji nie można cofnąć.`,
       [
         { text: 'Anuluj', style: 'cancel' },
         { text: 'Usuń', style: 'destructive', onPress: () => onDiscard(run.sessionId) },
@@ -156,9 +183,12 @@ function StaleRunRow({
     <View style={styles.staleRow}>
       <View style={styles.staleCopy}>
         <Text style={styles.staleTrail}>{run.trailName}</Text>
-        <Text style={styles.staleReason}>
-          {reason}{detail ? ` · ${detail}` : ''}
-        </Text>
+        <Text style={styles.staleReason}>{reason}</Text>
+        {__DEV__ && (code || detail) ? (
+          <Text style={styles.staleDebug}>
+            {code ?? '?'}{detail ? ` · ${detail}` : ''}
+          </Text>
+        ) : null}
       </View>
       <Pressable onPress={handleDiscard} style={({ pressed }) => [styles.discardBtn, pressed && styles.discardBtnPressed]}>
         <Text style={styles.discardLabel}>USUŃ Z KOLEJKI</Text>
@@ -267,11 +297,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   staleReason: {
-    fontFamily: 'JetBrainsMono_700Bold',
-    fontSize: 10,
-    fontWeight: '700',
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.textSecondary,
-    letterSpacing: 0.4,
+  },
+  staleDebug: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    color: colors.textTertiary,
+    letterSpacing: 0.6,
+    marginTop: 2,
   },
   discardBtn: {
     paddingHorizontal: 10,
