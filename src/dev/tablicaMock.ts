@@ -206,3 +206,10 @@ export const MOCK_LEADERBOARD_DEFAULT = MOCK_LEADERBOARD_USER_5;
 // they're #1; Variants 2/3 make a different non-self user the pioneer.
 export const MOCK_PIONEER_USER_ID_FOR_VARIANT_1 = MOCK_LEADERBOARD_USER_1[0].userId;
 export const MOCK_PIONEER_USER_ID_FOR_OTHERS = MOCK_LEADERBOARD_USER_5[0].userId;
+
+// Breadcrumb display for RankingScreen — IDs in mock URLs (e.g.
+// `mock-tr-dzida`) don't exist in the DB, so useTrail/useSpot return
+// null. These constants give the breadcrumb proper text under dev mocks.
+export const MOCK_BREADCRUMB_SPOT_NAME = 'Słotwiny Arena';
+export const MOCK_BREADCRUMB_TRAIL_NAME = 'Dzida';
+export const MOCK_BREADCRUMB_DIFFICULTY: Trail['difficulty'] = 'hard';

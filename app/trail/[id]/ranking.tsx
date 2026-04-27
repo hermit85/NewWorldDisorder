@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { fonts } from '@/theme/typography';
-import { BottomBand, IconGlyph } from '@/components/nwd';
+import { IconGlyph } from '@/components/nwd';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useTrail, useSpot, useLeaderboard } from '@/hooks/useBackend';
@@ -37,6 +37,9 @@ import {
   MOCK_LEADERBOARD_USER_14,
   MOCK_PIONEER_USER_ID_FOR_OTHERS,
   MOCK_PIONEER_USER_ID_FOR_VARIANT_1,
+  MOCK_BREADCRUMB_SPOT_NAME,
+  MOCK_BREADCRUMB_TRAIL_NAME,
+  MOCK_BREADCRUMB_DIFFICULTY,
 } from '@/dev/tablicaMock';
 
 const SCOPE_TABS: Array<{ key: PeriodType; label: string }> = [
@@ -259,9 +262,15 @@ export default function RankingScreen() {
   const myInTop8 = top8.some((e) => e.isCurrentUser);
   const showSeparator = !!myEntry && !myInTop8;
 
-  const trailName = trail?.name ?? 'Trasa';
-  const spotName = spot?.name ?? '';
-  const difficulty = trail?.difficulty;
+  const trailName = isAnyDevMock
+    ? MOCK_BREADCRUMB_TRAIL_NAME
+    : (trail?.name ?? 'Trasa');
+  const spotName = isAnyDevMock
+    ? MOCK_BREADCRUMB_SPOT_NAME
+    : (spot?.name ?? '');
+  const difficulty: Difficulty | undefined = isAnyDevMock
+    ? MOCK_BREADCRUMB_DIFFICULTY
+    : trail?.difficulty;
   const diffColor = difficulty ? DIFFICULTY_COLOR[difficulty] : colors.textSecondary;
 
   return (
@@ -372,15 +381,6 @@ export default function RankingScreen() {
           </View>
         ) : null}
       </ScrollView>
-
-      {/* BottomBand — sticky at the bottom of the screen */}
-      <View style={styles.bottomBandWrap}>
-        <BottomBand
-          status="● SEZON 01 · LIVE"
-          context="Przytrzymaj rider, aby zgłosić"
-          variant="live"
-        />
-      </View>
     </SafeAreaView>
   );
 }
@@ -537,9 +537,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(242,244,243,0.32)',
     letterSpacing: 2.5,
-  },
-  bottomBandWrap: {
-    paddingBottom: 8,
   },
   empty: {
     paddingVertical: 48,
