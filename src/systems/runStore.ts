@@ -24,6 +24,19 @@ export interface TraceSnapshot {
   sampledPoints: { lat: number; lng: number; alt: number | null; ts: number }[];
 }
 
+/** Soft cap on automatic retries. Once a queued run hits this many
+ *  failed retries with the same error code we mark it stale: the
+ *  Sync Outbox card surfaces it separately so the rider can see WHY
+ *  it won't sync (e.g. corridor_coverage_low) and discard with one
+ *  tap, rather than letting it spin forever in a silent retry loop. */
+export const MAX_AUTOMATIC_RETRIES = 5;
+
+export interface SaveAttemptError {
+  code: string;
+  detail?: string;
+  at: number;
+}
+
 export interface FinalizedRun {
   sessionId: string;
   trailId: string;
@@ -45,6 +58,13 @@ export interface FinalizedRun {
   traceSnapshot: TraceSnapshot | null;
   /** Quality tier from gate engine */
   qualityTier: 'perfect' | 'valid' | 'rough' | null;
+  /** Number of failed save attempts so far. Defaults to 0; increments
+   *  inside retryRunSubmit on every non-success path. */
+  saveAttempts?: number;
+  /** Last failure surfaced by retryRunSubmit. Used by the Sync Outbox
+   *  card to render a visible reason ("Serwer odrzucił: corridor_…")
+   *  and by getRetryableRuns to decide when to stop auto-retrying. */
+  lastError?: SaveAttemptError | null;
   updatedAt: number;
 }
 
@@ -194,7 +214,7 @@ export function setFinalizedRun(run: FinalizedRun): void {
 /** Update specific fields on an existing finalized run */
 export function updateFinalizedRun(
   sessionId: string,
-  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult' | 'qualityTier' | 'xpAwarded'>>,
+  patch: Partial<Pick<FinalizedRun, 'saveStatus' | 'backendResult' | 'qualityTier' | 'xpAwarded' | 'saveAttempts' | 'lastError'>>,
 ): boolean {
   const existing = _runCache.get(sessionId);
   if (!existing) {
@@ -205,6 +225,39 @@ export function updateFinalizedRun(
   notifyChangeListeners();
   persistToStorage(); // async, non-blocking
   return true;
+}
+
+/** Mark a save attempt result. On success, clears lastError; on
+ *  failure, increments saveAttempts and records why. The Sync Outbox
+ *  reads `lastError` to render a visible reason; getRetryableRuns()
+ *  skips runs whose saveAttempts crossed MAX_AUTOMATIC_RETRIES. */
+export function recordSaveAttempt(
+  sessionId: string,
+  outcome: { success: true } | { success: false; error: SaveAttemptError },
+): void {
+  const existing = _runCache.get(sessionId);
+  if (!existing) return;
+  const nextAttempts = (existing.saveAttempts ?? 0) + (outcome.success ? 0 : 1);
+  _runCache.set(sessionId, {
+    ...existing,
+    saveAttempts: nextAttempts,
+    lastError: outcome.success ? null : outcome.error,
+    updatedAt: Date.now(),
+  });
+  notifyChangeListeners();
+  persistToStorage();
+}
+
+/** Drop a stale local run that the server has rejected enough times
+ *  the rider explicitly chose to discard it. The Sync Outbox confirms
+ *  before calling this — we never silently delete user history. */
+export function discardFinalizedRun(sessionId: string): boolean {
+  const removed = _runCache.delete(sessionId);
+  if (removed) {
+    notifyChangeListeners();
+    persistToStorage();
+  }
+  return removed;
 }
 
 /** Read a finalized run by session ID */
@@ -225,9 +278,21 @@ function canRetryRun(run: FinalizedRun): boolean {
     !!run.verification;
 }
 
-/** Get all runs that an automatic/manual queue flush can actually retry. */
+function isStaleRun(run: FinalizedRun): boolean {
+  return canRetryRun(run) && (run.saveAttempts ?? 0) >= MAX_AUTOMATIC_RETRIES;
+}
+
+/** Get all runs that an automatic/manual queue flush can actually retry.
+ *  Stale runs (over MAX_AUTOMATIC_RETRIES failed attempts) are excluded
+ *  so the queue can't loop forever on a permanently-rejected run. */
 export function getRetryableRuns(): FinalizedRun[] {
-  return Array.from(_runCache.values()).filter(canRetryRun);
+  return Array.from(_runCache.values()).filter((r) => canRetryRun(r) && !isStaleRun(r));
+}
+
+/** Stale runs that auto-retry stopped touching. The Sync Outbox card
+ *  surfaces these separately with a visible reason and a Discard CTA. */
+export function getStaleRuns(): FinalizedRun[] {
+  return Array.from(_runCache.values()).filter(isStaleRun);
 }
 
 /** Get all finalized runs, newest first */
@@ -235,9 +300,16 @@ export function getAllFinalizedRuns(): FinalizedRun[] {
   return Array.from(_runCache.values()).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** Get count of runs pending save (queued + failed) */
+/** Get count of runs pending save (queued + failed, NOT stale).
+ *  Stale runs are reported separately via getStaleRunCount() so the
+ *  Sync Outbox card can render two visibly distinct buckets. */
 export function getPendingSaveCount(): number {
   return getRetryableRuns().length;
+}
+
+/** Count of runs that auto-retry stopped touching. */
+export function getStaleRunCount(): number {
+  return getStaleRuns().length;
 }
 
 /**

@@ -55,16 +55,38 @@ export function initSaveQueue(): void {
   flushSaveQueue();
 }
 
+export interface FlushFailure {
+  sessionId: string;
+  trailName: string;
+  errorCode: string;
+  errorDetail?: string;
+}
+
+export interface FlushResult {
+  retried: number;
+  succeeded: number;
+  failures: FlushFailure[];
+  /** True when the flush was a no-op because cooldown / already retrying.
+   *  The Sync Outbox card uses this to render "Czekaj…" instead of
+   *  silent nothing. */
+  skipped: boolean;
+  skipReason?: 'cooldown' | 'already_retrying' | 'backend_unconfigured' | 'empty_queue';
+}
+
 /** Trigger retry of all queued/failed saves. Manual UI calls can ignore cooldown. */
 export async function flushSaveQueue(
   options: { ignoreCooldown?: boolean } = {},
-): Promise<{ retried: number; succeeded: number }> {
-  if (_retrying) return { retried: 0, succeeded: 0 };
-  if (!isBackendConfigured()) return { retried: 0, succeeded: 0 };
+): Promise<FlushResult> {
+  if (_retrying) {
+    return { retried: 0, succeeded: 0, failures: [], skipped: true, skipReason: 'already_retrying' };
+  }
+  if (!isBackendConfigured()) {
+    return { retried: 0, succeeded: 0, failures: [], skipped: true, skipReason: 'backend_unconfigured' };
+  }
 
   const now = Date.now();
   if (!options.ignoreCooldown && now - _lastRetryAt < getRetryCooldown()) {
-    return { retried: 0, succeeded: 0 };
+    return { retried: 0, succeeded: 0, failures: [], skipped: true, skipReason: 'cooldown' };
   }
 
   _retrying = true;
@@ -74,7 +96,7 @@ export async function flushSaveQueue(
 
   if (queued.length === 0) {
     _retrying = false;
-    return { retried: 0, succeeded: 0 };
+    return { retried: 0, succeeded: 0, failures: [], skipped: true, skipReason: 'empty_queue' };
   }
 
   logDebugEvent('queue', 'flush_start', 'start', {
@@ -82,11 +104,21 @@ export async function flushSaveQueue(
   });
 
   let succeeded = 0;
+  const failures: FlushFailure[] = [];
 
   for (const run of queued) {
     // Use canonical retry path — same as manual retry from result screen
-    const { success } = await retryRunSubmit(run);
-    if (success) succeeded++;
+    const res = await retryRunSubmit(run);
+    if (res.success) {
+      succeeded++;
+    } else {
+      failures.push({
+        sessionId: run.sessionId,
+        trailName: run.trailName,
+        errorCode: res.errorCode ?? 'unknown',
+        errorDetail: res.errorDetail ?? res.error,
+      });
+    }
   }
 
   // Backoff: reset on any success, increment on all-fail
@@ -97,11 +129,11 @@ export async function flushSaveQueue(
   }
 
   logDebugEvent('queue', 'flush_done', succeeded > 0 ? 'ok' : 'info', {
-    payload: { retried: queued.length, succeeded, nextCooldown: getRetryCooldown() },
+    payload: { retried: queued.length, succeeded, failures: failures.length, nextCooldown: getRetryCooldown() },
   });
 
   _retrying = false;
-  return { retried: queued.length, succeeded };
+  return { retried: queued.length, succeeded, failures, skipped: false };
 }
 
 /** Get current queue status for debug visibility */

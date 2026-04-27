@@ -12,7 +12,7 @@
 // - Status updates
 // ═══════════════════════════════════════════════════════════
 
-import { FinalizedRun, updateFinalizedRun } from './runStore';
+import { FinalizedRun, recordSaveAttempt, updateFinalizedRun } from './runStore';
 import { submitRunToBackend } from '@/hooks/useBackend';
 import { SubmitRunResult, getLastSubmitRunError } from '@/lib/api';
 import { calculateRunXp } from './xp';
@@ -55,7 +55,13 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
         hasSpotId: !!run.spotId,
       },
     });
-    return { success: false, result: null, error: 'Missing data for retry' };
+    // Pin the missing-data outcome on the run so the Sync Outbox can
+    // render it as stale instead of showing "Wysyłam…" forever.
+    recordSaveAttempt(run.sessionId, {
+      success: false,
+      error: { code: 'missing_data', detail: 'Brak danych do wysłania', at: Date.now() },
+    });
+    return { success: false, result: null, error: 'Missing data for retry', errorCode: 'missing_data' };
   }
 
   // Mark as saving
@@ -114,6 +120,7 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
         payload: { isPb: result.isPb, position: result.leaderboardResult?.position },
       });
       updateFinalizedRun(run.sessionId, { saveStatus: 'saved', backendResult: result, xpAwarded });
+      recordSaveAttempt(run.sessionId, { success: true });
       triggerRefresh();
       return { success: true, result };
     } else {
@@ -123,6 +130,14 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
         payload: { errorCode: rpcError?.code, errorDetail: rpcError?.detail },
       });
       updateFinalizedRun(run.sessionId, { saveStatus: 'queued' });
+      recordSaveAttempt(run.sessionId, {
+        success: false,
+        error: {
+          code: rpcError?.code ?? 'rpc_null',
+          detail: rpcError?.detail,
+          at: Date.now(),
+        },
+      });
       return {
         success: false,
         result: null,
@@ -136,6 +151,10 @@ export async function retryRunSubmit(run: FinalizedRun): Promise<RetryResult> {
       payload: { error: String(e) },
     });
     updateFinalizedRun(run.sessionId, { saveStatus: 'queued' });
+    recordSaveAttempt(run.sessionId, {
+      success: false,
+      error: { code: 'exception', detail: String(e), at: Date.now() },
+    });
     return {
       success: false,
       result: null,
