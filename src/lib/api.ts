@@ -2633,3 +2633,133 @@ export async function adminResolvePioneer(
   if (res?.ok === true) return { ok: true, data: undefined };
   return polishError(res?.code ?? 'rpc_failed', SEED_RUN_ERRORS);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Founder test-data tools.
+//
+// All four functions are SECURITY DEFINER on the server side
+// (migration 20260427160000_founder_test_tools). Client never
+// asserts permissions — we send the call and trust the RPC's
+// `forbidden` reply. UI only uses isFounderUser() to hide the
+// menu entry; the destructive RPC double-checks anyway.
+// ─────────────────────────────────────────────────────────────
+
+export interface TestDataPreview {
+  runs: number;
+  leaderboardEntries: number;
+  challengeProgress: number;
+  achievements: number;
+  pioneerTrails: number;
+}
+
+export interface TestDataDeleted {
+  runs: number;
+  leaderboardEntries: number;
+  challengeProgress: number;
+  achievements: number;
+}
+
+export async function isFounderUser(): Promise<boolean> {
+  try {
+    const { data, error } = await db().rpc('is_founder_user');
+    if (error) {
+      if (__DEV__) console.warn('[is_founder_user] error:', error);
+      return false;
+    }
+    return data === true;
+  } catch (e) {
+    if (__DEV__) console.warn('[is_founder_user] threw:', e);
+    return false;
+  }
+}
+
+export async function previewTestDataReset(): Promise<ApiResult<TestDataPreview>> {
+  try {
+    const { data, error } = await db().rpc('preview_test_data_reset');
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return { ok: false, code: res?.code ?? 'rpc_failed' };
+    }
+    return {
+      ok: true,
+      data: {
+        runs: Number(res.runs ?? 0),
+        leaderboardEntries: Number(res.leaderboard_entries ?? 0),
+        challengeProgress: Number(res.challenge_progress ?? 0),
+        achievements: Number(res.achievements ?? 0),
+        pioneerTrails: Number(res.pioneer_trails ?? 0),
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}
+
+export async function resetMyTestData(): Promise<ApiResult<TestDataDeleted>> {
+  try {
+    const { data, error } = await db().rpc('reset_my_test_data');
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return { ok: false, code: res?.code ?? 'rpc_failed' };
+    }
+    const d = res.deleted ?? {};
+    return {
+      ok: true,
+      data: {
+        runs: Number(d.runs ?? 0),
+        leaderboardEntries: Number(d.leaderboard_entries ?? 0),
+        challengeProgress: Number(d.challenge_progress ?? 0),
+        achievements: Number(d.achievements ?? 0),
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}
+
+export type TestSpotDeleteOutcome =
+  | { mode: 'deleted'; spotId: string; trailsDeleted: number }
+  | { mode: 'archived'; spotId: string; foreignRuns: number };
+
+export async function deleteTestSpot(
+  spotId: string,
+  options: { archiveIfBlocked?: boolean } = {},
+): Promise<ApiResult<TestSpotDeleteOutcome>> {
+  try {
+    const { data, error } = await db().rpc('delete_test_spot', {
+      p_spot_id: spotId,
+      p_archive_if_blocked: options.archiveIfBlocked ?? false,
+    });
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return {
+        ok: false,
+        code: res?.code ?? 'rpc_failed',
+        message: res?.hint ?? undefined,
+      };
+    }
+    if (res.mode === 'archived') {
+      return {
+        ok: true,
+        data: {
+          mode: 'archived',
+          spotId,
+          foreignRuns: Number(res.foreign_runs ?? 0),
+        },
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        mode: 'deleted',
+        spotId,
+        trailsDeleted: Number(res.trails_deleted ?? 0),
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}

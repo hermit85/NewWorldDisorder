@@ -56,6 +56,8 @@ import { IdentityHero } from '@/components/profile/IdentityHero';
 import { DorobekGrid } from '@/components/profile/DorobekGrid';
 import { PersonalRecordsList } from '@/components/profile/PersonalRecordsList';
 import { SettingsSheet } from '@/components/profile/SettingsSheet';
+import { FounderToolsSheet } from '@/components/profile/FounderToolsSheet';
+import { useFounderStatus } from '@/hooks/useFounderTools';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
@@ -101,6 +103,8 @@ export default function ProfileScreen() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [founderOpen, setFounderOpen] = useState(false);
+  const { isFounder } = useFounderStatus(authProfile?.id ?? null);
 
   const rank = user ? getRank(user.rankId) : getRank('rookie');
   const level = getLevel(user?.xp ?? 0);
@@ -412,7 +416,23 @@ export default function ProfileScreen() {
             destructive: true,
             onPress: closeSettingsAnd(() => router.push('/settings/delete-account')),
           },
+          // Founder tools: rendered last so it sits visually below
+          // the regular destructive actions. Server-side gated via
+          // is_founder_user(); the menu item is just hidden for
+          // everyone else.
+          ...(isFounder
+            ? [{
+                label: 'Founder tools',
+                destructive: true,
+                onPress: closeSettingsAnd(() => setFounderOpen(true)),
+              }]
+            : []),
         ]}
+      />
+
+      <FounderToolsSheet
+        visible={founderOpen}
+        onClose={() => setFounderOpen(false)}
       />
     </SafeAreaView>
   );
