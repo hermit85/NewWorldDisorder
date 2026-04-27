@@ -111,6 +111,12 @@ export function deriveHomeMission(input: DeriveMissionInput): HomeMission {
   // 3. TRAIL_CALIBRATING — trails exist but none have crossed the verified line
   const verifiedTrails = trails.filter((t) => VERIFIED_CALIBRATIONS.has(t.calibrationStatus));
   if (verifiedTrails.length === 0) {
+    // Pre-fix bug: mission omitted trailId/trailName, so resolveHomeMissionRoute's
+    // `if (!mission.trailId) return null` short-circuited the navigation and
+    // tapping "JEDŹ KALIBRACYJNIE" did nothing. Pick the first calibrating
+    // trail as the surfaced target — when there's more than one, we'll add
+    // smarter selection (most-recent run, closest to threshold) later.
+    const targetTrail = trails[0];
     return {
       kind: 'TRAIL_CALIBRATING',
       kicker: 'TRASA W KALIBRACJI',
@@ -120,6 +126,8 @@ export function deriveHomeMission(input: DeriveMissionInput): HomeMission {
       tone: 'amber',
       action: 'CALIBRATION_RUN',
       venueName,
+      trailId: targetTrail.id,
+      trailName: targetTrail.name,
     };
   }
 

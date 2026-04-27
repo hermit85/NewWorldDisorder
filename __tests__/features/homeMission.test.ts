@@ -108,6 +108,25 @@ describe('deriveHomeMission', () => {
     expect(m.tone).toBe('amber');
   });
 
+  // Regression-magnet: TRAIL_CALIBRATING used to omit trailId/trailName
+  // so resolveHomeMissionRoute returned null and tapping the home CTA
+  // was a no-op. The mission MUST carry the trail handles so /run/active
+  // gets enough params to mount.
+  test('TRAIL_CALIBRATING — carries trailId + trailName for routing', () => {
+    const m = deriveHomeMission({
+      primarySpotSummary: makeSpot(),
+      trails: [makeTrail({
+        id: 'trail-prezydencka',
+        name: 'Prezydencka',
+        calibrationStatus: 'fresh_pending_second_run',
+      })],
+      heroBeat: null,
+    });
+    expect(m.kind).toBe('TRAIL_CALIBRATING');
+    expect(m.trailId).toBe('trail-prezydencka');
+    expect(m.trailName).toBe('Prezydencka');
+  });
+
   test('VERIFIED_NO_USER_TIME — verified trail, no user PB', () => {
     const m = deriveHomeMission({
       primarySpotSummary: makeSpot({ bestDurationMs: null }),
