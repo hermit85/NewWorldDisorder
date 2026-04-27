@@ -1,751 +1,685 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Dimensions, Animated, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
-import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
-import { spacing, radii } from '@/theme/spacing';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getTrailColor } from '@/theme/map';
-import { formatTimeShort } from '@/content/copy';
-import { getRank } from '@/systems/ranks';
-import { RiderAvatar } from '@/components/RiderAvatar';
-import { PeriodType } from '@/data/types';
-import { useAuthContext } from '@/hooks/AuthContext';
-import { useActiveSpots, useLeaderboard, useTrail, useTrails } from '@/hooks/useBackend';
-import { reportRider } from '@/services/moderation';
-import { TrustBadge } from '@/components/game/TrustBadge';
-import { PioneerBadge } from '@/components/game/PioneerBadge';
-import {
-  AmbientScan,
-  HeadToHeadCard,
-  LeaderboardRow,
-  LiveTicker,
-  PodiumPortraits,
-  type PodiumEntry,
-  RaceNumber,
-  SystemText,
-  TrailThumbnailRow,
-  type TrailThumbnail,
-} from '@/components/nwd';
-import type { LeaderboardEntry } from '@/data/types';
-import { getTrustDisclosure } from '@/lib/trailTrust';
-
-const VENUE_STORAGE_KEY = '@nwd_selected_venue';
-
-const SCOPES: { key: PeriodType; label: string }[] = [
-  { key: 'day', label: 'DZIŚ' },
-  { key: 'weekend', label: 'WEEKEND' },
-  { key: 'all_time', label: 'SEZON' },
-];
-
-// Medal colors — gold, silver, bronze
-// § 13.5: no emoji in UI. The `label` field on each medal entry was
-// never actually rendered (podium just shows `{pos}` as a number),
-// but kept the emoji string in source. Removed entirely.
+// ═══════════════════════════════════════════════════════════
+// /(tabs)/leaderboard — TablicaScreen Landing (Phase 1)
 //
-// Silver/bronze hex values now point at canonical tokens — silver
-// (#C9D1D6) and bronze (#E08A5C) match design-system/tokens.ts
-// instead of the prior browser-default #C0C0C0 / #CD7F32.
-const MEDAL = {
-  1: { color: colors.gold,   bg: 'rgba(255, 210, 63, 0.08)', border: 'rgba(255, 210, 63, 0.25)' },
-  2: { color: colors.silver, bg: 'rgba(201, 209, 214, 0.06)', border: 'rgba(201, 209, 214, 0.20)' },
-  3: { color: colors.bronze, bg: 'rgba(224, 138, 92, 0.06)',  border: 'rgba(224, 138, 92, 0.20)' },
-} as Record<number, { color: string; bg: string; border: string }>;
+// Two states gated on `useUserRunCount`:
+//
+//   Stan A — STANDARD (count > 0)
+//     Per-bike-park sections sorted MAX(run.created_at) DESC.
+//     Trail rows: rank pill + PB if rider has time, else
+//     "JEDŹ →" CTA. Two dashed mityagacje at the bottom.
+//
+//   Stan B — ŚWIEŻY (count === 0) — content w commit 3
+//
+// Anti-drift (per cc_prompt_tablica_phase1_final):
+// NO Słotwiny seed · NO drama ticker · NO podium 2-1-3 swap ·
+// NO trail switcher · NO curator chip · NO pagination watermark ·
+// NO line/sparkline · NO NWDHeader · NO English placeholders.
+//
+// Tap any trail row → push /trail/[id]/ranking (RankingScreen).
+// ═══════════════════════════════════════════════════════════
 
-export default function LeaderboardScreen() {
-  const params = useLocalSearchParams<{ trailId?: string; scope?: string }>();
-  const routeTrailId = typeof params.trailId === 'string' ? params.trailId : undefined;
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>(
-    (params.scope as PeriodType) || 'all_time',
-  );
-  const [selectedVenueId, setSelectedVenueId] = useState('');
-  const { spots: allVenues, status: spotsStatus } = useActiveSpots();
-  const venue = allVenues.find((spot) => spot.id === selectedVenueId) ?? null;
-  const { trail: routeTrail } = useTrail(routeTrailId ?? null);
-  const { trails: venueTrails, status: trailsStatus, loading: trailsLoading } = useTrails(selectedVenueId || null);
-  const venueHydratedRef = useRef(false);
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { colors } from '@/theme/colors';
+import { fonts } from '@/theme/typography';
+import { LiveDot } from '@/components/nwd';
+import { useAuthContext } from '@/hooks/AuthContext';
+import { useUserRunCount } from '@/hooks/useUserRunCount';
+import {
+  useTablicaSections,
+  type TablicaTrailRow,
+} from '@/hooks/useTablicaSections';
+import { formatTimeMs } from '@/utils/time';
+import type { Difficulty } from '@/data/types';
+import { MOCK_TABLICA_SECTIONS } from '@/dev/tablicaMock';
 
-  // Load persisted venue selection. On a clean install we pick the first
-  // active spot from the DB; the old static venue registry is intentionally
-  // empty in this architecture, so it cannot be the default source.
-  useEffect(() => {
-    if (venueHydratedRef.current) return;
-    if (allVenues.length === 0 && !routeTrail?.spotId) return;
+// Bike-park standard difficulty palette (per Q3 in spec) — NOT the
+// theme.map S0-S5 set. Black uses dark fill with 1px white stroke
+// for visibility on the dark background.
+const DIFFICULTY_COLOR: Record<Difficulty, string> = {
+  easy: '#22C55E',
+  medium: '#3B82F6',
+  hard: '#FF4757',
+  expert: '#0E1517',
+  pro: '#0E1517',
+};
 
-    venueHydratedRef.current = true;
-    AsyncStorage.getItem(VENUE_STORAGE_KEY).then((stored) => {
-      const knownIds = new Set(allVenues.map((spot) => spot.id));
-      const next =
-        routeTrail?.spotId && knownIds.has(routeTrail.spotId)
-          ? routeTrail.spotId
-          : stored && knownIds.has(stored)
-            ? stored
-            : allVenues[0]?.id ?? '';
-      if (next) setSelectedVenueId(next);
-    });
-  }, [allVenues, routeTrail?.spotId]);
+const isBlackDiff = (d: Difficulty) => d === 'expert' || d === 'pro';
 
-  useEffect(() => {
-    if (!routeTrail?.spotId) return;
-    if (routeTrail.spotId === selectedVenueId) return;
-    setSelectedVenueId(routeTrail.spotId);
-    AsyncStorage.setItem(VENUE_STORAGE_KEY, routeTrail.spotId);
-  }, [routeTrail?.spotId, selectedVenueId]);
+function trailWord(n: number): string {
+  if (n === 1) return 'TRASA';
+  if (n < 5) return 'TRASY';
+  return 'TRAS';
+}
 
-  const [selectedTrailId, setSelectedTrailId] = useState(
-    routeTrailId ?? '',
-  );
+function zjazdWord(n: number): string {
+  if (n === 1) return 'ZJAZD';
+  if (n < 5) return 'ZJAZDY';
+  return 'ZJAZDÓW';
+}
 
-  // When venue changes (or trails list arrives), reset to first trail
-  // of that venue if current selection is not in the list.
-  useEffect(() => {
-    if (venueTrails.length > 0 && !venueTrails.some(t => t.id === selectedTrailId)) {
-      setSelectedTrailId(venueTrails[0].id);
-    }
-  }, [selectedVenueId, venueTrails, selectedTrailId]);
+// Top-3 medal tone for the rank pill — gold / silver / bronze.
+// 4-10 = accent. 11+ = dimmed white.
+function rankTone(position: number): {
+  bg: string;
+  border: string;
+  text: string;
+  numeric: string;
+  pbColor: string;
+  pbLabel: string;
+} {
+  if (position === 1) {
+    return {
+      bg: 'rgba(255, 210, 63, 0.12)',
+      border: 'rgba(255, 210, 63, 0.5)',
+      text: 'rgba(255, 210, 63, 0.7)',
+      numeric: colors.gold,
+      pbColor: colors.gold,
+      pbLabel: 'REKORD',
+    };
+  }
+  if (position === 2) {
+    return {
+      bg: 'rgba(201, 209, 214, 0.10)',
+      border: 'rgba(201, 209, 214, 0.4)',
+      text: 'rgba(201, 209, 214, 0.7)',
+      numeric: colors.silver,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  if (position === 3) {
+    return {
+      bg: 'rgba(224, 138, 92, 0.10)',
+      border: 'rgba(224, 138, 92, 0.4)',
+      text: 'rgba(224, 138, 92, 0.7)',
+      numeric: colors.bronze,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  if (position <= 10) {
+    return {
+      bg: 'rgba(0, 255, 135, 0.10)',
+      border: 'rgba(0, 255, 135, 0.4)',
+      text: 'rgba(0, 255, 135, 0.6)',
+      numeric: colors.accent,
+      pbColor: colors.textPrimary,
+      pbLabel: 'PB',
+    };
+  }
+  return {
+    bg: 'rgba(255, 255, 255, 0.04)',
+    border: 'rgba(255, 255, 255, 0.15)',
+    text: 'rgba(242, 244, 243, 0.4)',
+    numeric: 'rgba(242, 244, 243, 0.6)',
+    pbColor: colors.textPrimary,
+    pbLabel: 'PB',
+  };
+}
 
-  const { profile } = useAuthContext();
-
-  // Entrance animation
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (routeTrailId && venueTrails.some(t => t.id === routeTrailId)) {
-      setSelectedTrailId(routeTrailId);
-    }
-    if (params.scope && ['day', 'weekend', 'all_time'].includes(params.scope)) {
-      setSelectedPeriod(params.scope as PeriodType);
-    }
-  }, [routeTrailId, params.scope, venueTrails]);
-
-  const { entries, loading, error: lbError, refresh } = useLeaderboard(
-    selectedTrailId,
-    selectedPeriod,
-    profile?.id,
-  );
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedRival, setSelectedRival] = useState<LeaderboardEntry | null>(null);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    refresh();
-    // Clear refreshing after a short delay (refresh is sync trigger, data updates via hook)
-    setTimeout(() => setRefreshing(false), 800);
-  }, [refresh]);
-
-  // Animate board in when data loads
-  useEffect(() => {
-    if (!loading && entries.length > 0) {
-      fadeAnim.setValue(0);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [loading, entries.length, selectedTrailId, selectedPeriod]);
-
-  const trailScrollRef = useRef<ScrollView>(null);
-  const chipLayoutsRef = useRef<Map<string, { x: number; width: number }>>(new Map());
-
-  const handleTrailSelect = useCallback((trailId: string) => {
-    setSelectedTrailId(trailId);
-    const layout = chipLayoutsRef.current.get(trailId);
-    if (layout && trailScrollRef.current) {
-      const screenW = Dimensions.get('window').width;
-      const scrollTo = Math.max(0, layout.x - (screenW / 2) + (layout.width / 2));
-      trailScrollRef.current.scrollTo({ x: scrollTo, animated: true });
-    }
-  }, []);
-
-  const selectedTrail = venueTrails.find((t) => t.id === selectedTrailId);
-  const diffColor = selectedTrail ? getTrailColor(undefined, selectedTrail.difficulty) : colors.accent;
-
-  const myEntry = entries.find((e) => e.isCurrentUser);
-  const myPos = myEntry?.currentPosition ?? 0;
-  const totalEntries = entries.length;
-
-  const rivalAbove = myEntry
-    ? entries.find((e) => e.currentPosition === myPos - 1)
-    : null;
-  const rivalBelow = myEntry
-    ? entries.find((e) => e.currentPosition === myPos + 1)
-    : null;
-
-  const tierLabel = myPos === 0 ? null
-    : myPos <= 3 ? 'PODIUM'
-    : myPos <= 10 ? 'TOP 10'
-    : 'CHASING';
-  const placesToNextTier = myPos === 0 ? 0
-    : myPos <= 3 ? 0
-    : myPos <= 10 ? myPos - 3
-    : myPos - 10;
-
-  const podium = entries.filter((e) => e.currentPosition <= 3);
-  const rest = entries.filter((e) => e.currentPosition > 3);
+function TrailRow({
+  row,
+  onPress,
+}: {
+  row: TablicaTrailRow;
+  onPress: () => void;
+}) {
+  const { trail, userPbMs, userPosition, userRunCount } = row;
+  const hasTime = userPbMs != null && userPosition != null;
+  const diffColor = DIFFICULTY_COLOR[trail.difficulty];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Sprint 1 atmosphere — slow horizontal sweep, sits behind
-          all content, pointer-events disabled. */}
-      <AmbientScan />
-      {/* Pattern 4 chrome — game-HUD feel without restructuring layout.
-          RaceNumber watermarks the season; SystemText pins beta-state
-          tag bottom-right. Both are absolute + pointer-events-none, so
-          touches on TabBar / podium continue to work. */}
-      <RaceNumber n="01" position="top-right" size={180} opacity={0.035} />
-      <SystemText slot="br" inset={88}>SEZON 01 · BETA</SystemText>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <View
+        style={[
+          styles.diffDot,
+          { backgroundColor: diffColor },
+          isBlackDiff(trail.difficulty) && styles.diffDotBlack,
+        ]}
+      />
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
-        }
+      <View style={styles.rowMain}>
+        <Text
+          style={[styles.trailName, !hasTime && styles.trailNameDim]}
+          numberOfLines={1}
+        >
+          {trail.name}
+        </Text>
+        <Text style={styles.runCount} numberOfLines={1}>
+          {userRunCount} {zjazdWord(userRunCount)}
+        </Text>
+      </View>
+
+      {hasTime ? (
+        <RankPillWithPb position={userPosition!} pbMs={userPbMs!} />
+      ) : (
+        <View style={styles.jedzCta}>
+          <Text style={styles.jedzText}>JEDŹ →</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function RankPillWithPb({ position, pbMs }: { position: number; pbMs: number }) {
+  const tone = rankTone(position);
+  return (
+    <View style={styles.rankWrap}>
+      <View
+        style={[
+          styles.rankPill,
+          { backgroundColor: tone.bg, borderColor: tone.border },
+        ]}
       >
-        {/* Header */}
-        <View style={styles.titleRow}>
-          <View style={styles.titleMain}>
-            <Text style={styles.title}>RANKING</Text>
-            <View style={styles.trustDot} />
+        <Text style={[styles.rankTy, { color: tone.text }]}>TY</Text>
+        <Text style={[styles.rankNum, { color: tone.numeric }]}>
+          #{position}
+        </Text>
+      </View>
+      <View style={styles.pbBlock}>
+        <Text style={[styles.pbLabel, position === 1 && { color: 'rgba(255, 210, 63, 0.6)' }]}>
+          {tone.pbLabel}
+        </Text>
+        <Text style={[styles.pbTime, { color: tone.pbColor }]}>
+          {formatTimeMs(pbMs)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+export default function TablicaScreen() {
+  const router = useRouter();
+  const { profile } = useAuthContext();
+  const params = useLocalSearchParams<{ dev?: string }>();
+  const { count, isFresh, status: countStatus } = useUserRunCount(profile?.id);
+  const { sections: realSections, status: sectionsStatus } = useTablicaSections(profile?.id);
+
+  // __DEV__ walk-test overrides — only reachable via ?dev=mockA / mockB
+  // URL params on dev builds. Production strips this branch via the
+  // __DEV__ guard.
+  const isDevMockA = __DEV__ && params.dev === 'mockA';
+  const isDevMockB = __DEV__ && params.dev === 'mockB';
+
+  const sections = isDevMockA ? MOCK_TABLICA_SECTIONS : isDevMockB ? [] : realSections;
+  const totalTrails = sections.reduce((sum, s) => sum + s.trails.length, 0);
+  const totalParks = sections.length;
+
+  const isLoading = !isDevMockA && !isDevMockB && (countStatus === 'loading' || sectionsStatus === 'loading');
+  const stanBHint = isDevMockB || (!isDevMockA && (isFresh || (count != null && count > 0 && totalParks === 0)));
+
+  return (
+    <SafeAreaView style={styles.root}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header — same shape both states */}
+        <View style={styles.header}>
+          <View style={styles.miniLabelRow}>
+            <LiveDot size={6} color={colors.accent} mode="pulse" />
+            <Text style={styles.miniLabel}>TABLICA</Text>
           </View>
-          <Text style={styles.subtitle}>
-            Tylko zweryfikowane zjazdy
-            {totalEntries > 0 ? ` · ${totalEntries} ${totalEntries === 1 ? 'rider' : 'riderów'}` : ''}
+          <Text style={styles.headline}>TABLICA</Text>
+          <Text style={styles.sub}>
+            {isLoading
+              ? 'Ładowanie…'
+              : stanBHint
+                ? 'Pusta. Zacznij sezon.'
+                : `Twoje ${totalTrails} ${trailWord(totalTrails).toLowerCase()} · ${totalParks} bike park${totalParks === 1 ? '' : 'i'}`}
           </Text>
         </View>
 
-        {/* Today's Drama — auto-rotating event feed (Sprint 1 ships
-            with mock data; Sprint 3 wires real backend events). Sits
-            above the venue/scope tabs so the rider sees what's
-            happening before picking trail. */}
-        <View style={styles.dramaWrap}>
-          <LiveTicker />
-        </View>
-
-        {/* Venue tabs */}
-        {allVenues.length > 1 && (
-          <View style={styles.venueTabRow}>
-            {allVenues.map((v) => {
-              const isActive = v.id === selectedVenueId;
-              return (
-                <Pressable
-                  key={v.id}
-                  style={[styles.venueTab, isActive && styles.venueTabActive]}
-                  onPress={() => {
-                    setSelectedVenueId(v.id);
-                    AsyncStorage.setItem(VENUE_STORAGE_KEY, v.id);
-                  }}
-                >
-                  <Text style={[styles.venueTabText, isActive && styles.venueTabTextActive]} numberOfLines={1}>
-                    {v.name.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Scope tabs */}
-        <View style={styles.scopeRow}>
-          {SCOPES.map(s => (
-            <Pressable
-              key={s.key}
-              style={[styles.scopeTab, selectedPeriod === s.key && styles.scopeTabActive]}
-              onPress={() => setSelectedPeriod(s.key)}
-            >
-              <Text style={[styles.scopeTabText, selectedPeriod === s.key && styles.scopeTabTextActive]}>
-                {s.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Trail picker — TrailThumbnailRow replaces the previous flat
-            chip row. Each tile shows a deterministic elevation
-            silhouette + name + KOM time, active tile gets accent
-            border + accent KOM tint. */}
-        <View style={styles.trailRowWrap}>
-          <TrailThumbnailRow
-            trails={venueTrails.map<TrailThumbnail>((trail) => ({
-              id: trail.id,
-              name: trail.name,
-              komTime: null, // KOM time per trail not in venueTrails — backend extension later
-            }))}
-            activeTrailId={selectedTrailId || null}
-            onSelect={handleTrailSelect}
-          />
-        </View>
-
-        {/* Loading */}
-        {(spotsStatus === 'loading' || trailsLoading || loading) && (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.accent} size="small" />
-          </View>
-        )}
-
-        {/* Error state */}
-        {spotsStatus !== 'loading' && !trailsLoading && !loading && (spotsStatus === 'error' || trailsStatus === 'error' || lbError) && (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>NIE UDAŁO SIĘ ZAŁADOWAĆ</Text>
-            <Text style={styles.emptyDesc}>Ranking jest teraz niedostępny.</Text>
-            <Pressable style={styles.retryBtn} onPress={refresh}>
-              <Text style={styles.retryText}>PONÓW</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Missing trail context */}
-        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && spotsStatus !== 'error' && trailsStatus !== 'error' && !selectedTrailId && (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>BRAK TRAS</Text>
-            <Text style={styles.emptyDesc}>
-              Wybierz bike park z trasami albo dodaj pierwszą trasę w tym miejscu.
-            </Text>
-          </View>
-        )}
-
-        {/* Signed-out state */}
-        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && !profile && entries.length === 0 && !!selectedTrailId && (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>JESZCZE PUSTO</Text>
-            <Text style={styles.emptyDesc}>Możesz przeglądać bez konta. Zaloguj się dopiero, gdy chcesz zapisać swój czas w lidze.</Text>
-          </View>
-        )}
-
-        {/* Empty state (logged in but no entries) */}
-        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && !!profile && entries.length === 0 && !!selectedTrailId && (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyLine}>—</Text>
-            <Text style={styles.emptyTitle}>BRAK WYNIKÓW</Text>
-            <Text style={styles.emptyDesc}>
-              {`Nikt jeszcze nie zjechał ${selectedTrail?.name ?? 'tej trasy'} w tym zakresie. Bądź pierwszy.`}
-            </Text>
-          </View>
-        )}
-
-        {/* ═══ BOARD CONTENT — animated in ═══ */}
-        {spotsStatus !== 'loading' && !trailsLoading && !loading && !lbError && entries.length > 0 && (
-          <Animated.View style={{ opacity: fadeAnim }}>
-
-            {/* ═══ TRUST DISCLOSURE (GPT Rule 2: mandatory) ═══ */}
-            {selectedTrail?.seedSource && selectedTrail?.trustTier && (
-              <View style={styles.disclosureBanner}>
-                <TrustBadge
-                  seedSource={selectedTrail.seedSource}
-                  trustTier={selectedTrail.trustTier}
-                  confirmersCount={selectedTrail.uniqueConfirmingRidersCount}
-                  size="sm"
-                />
-                <Text style={styles.disclosureText}>
-                  {getTrustDisclosure(
-                    selectedTrail.seedSource,
-                    selectedTrail.trustTier,
-                    selectedTrail.uniqueConfirmingRidersCount,
-                  )}
+        {/* Stan A — content present */}
+        {!isLoading && sections.length > 0 ? (
+          <View style={styles.body}>
+            {sections.map((section) => (
+              <View key={section.spot.id} style={styles.section}>
+                <Text style={styles.sectionHeader}>
+                  {section.spot.name.toUpperCase()} · {section.trails.length}{' '}
+                  {trailWord(section.trails.length)}
                 </Text>
-              </View>
-            )}
-
-            {/* ═══ PODIUM — top 3 horizontal portraits ═══ */}
-            {podium.length > 0 && (
-              <View style={styles.podiumSectionWrap}>
-                <PodiumPortraits
-                  entries={podium.map<PodiumEntry>((entry) => ({
-                    userId: entry.userId,
-                    position: entry.currentPosition as 1 | 2 | 3,
-                    username: entry.username,
-                    bestTimeMs: entry.bestDurationMs,
-                    deltaMs:
-                      entry.currentPosition === 1
-                        ? undefined
-                        : entry.bestDurationMs -
-                          (podium.find((e) => e.currentPosition === 1)?.bestDurationMs ?? entry.bestDurationMs),
-                    isCurrentUser: entry.isCurrentUser,
-                  }))}
-                  renderAvatar={(entry, size) => {
-                    const fullEntry = podium.find((e) => e.userId === entry.userId);
-                    return (
-                      <RiderAvatar
-                        avatarUrl={fullEntry?.avatarUrl}
-                        username={entry.username}
-                        size={size}
-                      />
-                    );
-                  }}
-                  onPressEntry={(entry) => {
-                    if (entry.isCurrentUser) return;
-                    const fullEntry = podium.find((e) => e.userId === entry.userId);
-                    if (fullEntry) setSelectedRival(fullEntry);
-                  }}
-                />
-              </View>
-            )}
-
-            {/* ═══ PODIUM / REST SEPARATOR ═══ */}
-            {podium.length > 0 && rest.length > 0 && (
-              <View style={styles.podiumSeparator}>
-                <View style={styles.podiumSepLine} />
-                <Text style={styles.podiumSepText}>RANKING</Text>
-                <View style={styles.podiumSepLine} />
-              </View>
-            )}
-
-            {/* ═══ RIDER STATUS CARD — your position (if not on podium) ═══ */}
-            {myEntry && myPos > 3 && (
-              <View style={styles.riderStatusCard}>
-                <View style={styles.riderStatusMain}>
-                  <Text style={styles.riderStatusPos}>#{myPos}</Text>
-                  <View style={styles.riderStatusRight}>
-                    {tierLabel && (
-                      <Text style={[
-                        styles.riderStatusTier,
-                        tierLabel === 'TOP 10' && { color: colors.accent },
-                      ]}>
-                        {tierLabel}
-                      </Text>
-                    )}
-                    {myEntry.delta > 0 && (
-                      <Text style={styles.riderStatusDelta}>↑{myEntry.delta} {myEntry.delta === 1 ? 'POZYCJA' : myEntry.delta < 5 ? 'POZYCJE' : 'POZYCJI'}</Text>
-                    )}
-                    {myEntry.delta < 0 && (
-                      <Text style={[styles.riderStatusDelta, { color: colors.red }]}>
-                        ↓{Math.abs(myEntry.delta)} {Math.abs(myEntry.delta) === 1 ? 'POZYCJA' : Math.abs(myEntry.delta) < 5 ? 'POZYCJE' : 'POZYCJI'}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                {rivalAbove && (
-                  <View style={styles.riderGapRow}>
-                    <Text style={styles.riderGapLabel}>
-                      #{rivalAbove.currentPosition} {rivalAbove.username}
-                    </Text>
-                    <Text style={styles.riderGapValue}>
-                      {((myEntry.bestDurationMs - rivalAbove.bestDurationMs) / 1000).toFixed(1)}s przed Tobą
-                    </Text>
-                  </View>
-                )}
-
-                {placesToNextTier > 0 && placesToNextTier <= 5 && (
-                  <Text style={styles.riderAmbition}>
-                    {placesToNextTier === 1 ? '1 pozycja' : `${placesToNextTier} pozycji`} do {myPos > 10 ? 'TOP 10' : 'podium'}
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* ═══ REST OF BOARD — positions 4+ ═══ */}
-            {rest.length > 0 && (
-              <View style={styles.boardSection}>
-                {rest.map((entry) => {
-                  const rank = getRank(entry.rankId);
-                  const isUser = entry.isCurrentUser;
-                  const isRivalAbove = rivalAbove?.userId === entry.userId;
-                  const isRivalBelow = rivalBelow?.userId === entry.userId;
-
-                  const riderContent = (
-                    <View style={styles.riderInline}>
-                      <Text style={[styles.rankIconInline, { color: rank.color }]}>{rank.icon}</Text>
-                      <Text
-                        style={[
-                          styles.riderNameInline,
-                          isUser && { color: colors.accent },
-                          isRivalAbove && { color: colors.orange },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {entry.username}
-                      </Text>
-                      {isUser && <Text style={styles.youTag}>TY</Text>}
-                      {isRivalAbove && <Text style={styles.rivalTag}>CEL</Text>}
-                      {isRivalBelow && <Text style={styles.chaserTag}>GONI</Text>}
-                      {entry.userId === selectedTrail?.pioneerUserId && (
-                        <PioneerBadge size="sm" />
-                      )}
-                    </View>
-                  );
-
-                  const posChange =
-                    entry.delta > 0 ? `↑${entry.delta}` :
-                    entry.delta < 0 ? `↓${Math.abs(entry.delta)}` :
-                    null;
-
-                  return (
-                    <LeaderboardRow
-                      key={entry.userId}
-                      position={entry.currentPosition}
-                      leading={
-                        <RiderAvatar
-                          avatarUrl={entry.avatarUrl}
-                          username={entry.username}
-                          size={28}
-                          borderColor={isUser ? colors.accent : undefined}
-                        />
+                <View style={styles.sectionRows}>
+                  {section.trails.map((row) => (
+                    <TrailRow
+                      key={row.trail.id}
+                      row={row}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/trail/[id]/ranking',
+                          params: { id: row.trail.id },
+                        })
                       }
-                      rider={riderContent}
-                      sub={entry.gapToLeader > 0 ? `+${(entry.gapToLeader / 1000).toFixed(1)}s do lidera` : null}
-                      time={formatTimeShort(entry.bestDurationMs)}
-                      delta={posChange}
-                      self={isUser}
-                      onPress={
-                        // Sprint 2 — tap a non-self row → head-to-head modal.
-                        // Self row stays inert (no point fighting yourself).
-                        entry.isCurrentUser
-                          ? undefined
-                          : () => setSelectedRival(entry)
-                      }
-                      onLongPress={
-                        entry.isCurrentUser
-                          ? undefined
-                          : () => {
-                              reportRider({
-                                userId: entry.userId,
-                                username: entry.username,
-                                surface: `Ranking · ${selectedTrail?.name ?? ''} · ${selectedPeriod}`,
-                              });
-                            }
-                      }
-                      delayLongPress={450}
-                      style={isRivalAbove || isRivalBelow ? styles.rowRival : undefined}
                     />
-                  );
-                })}
+                  ))}
+                </View>
               </View>
-            )}
+            ))}
 
-            {/* Board footer */}
-            <View style={styles.boardFooter}>
-              <Text style={styles.boardFooterText}>
-                {totalEntries} {totalEntries === 1 ? 'RIDER' : 'RIDERÓW'} · {selectedTrail?.name?.toUpperCase() ?? 'TRASA'} · {SCOPES.find(s => s.key === selectedPeriod)?.label ?? 'SEZON'}
-              </Text>
-              <Text style={styles.boardFooterHint}>
-                PRZYTRZYMAJ RIDERA, ABY ZGŁOSIĆ
-              </Text>
+            {/* 2 dashed mityagacje — subtle versions on Stan A */}
+            <View style={styles.mitigationsWrap}>
+              <Pressable
+                style={[styles.mitigation, styles.mitigationAccent]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <Text style={styles.mitigationCopy}>Brak twojego bike parku?</Text>
+                <Text style={styles.mitigationCtaAccent}>+ DODAJ W SPOTACH →</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.mitigation, styles.mitigationWarn]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <Text style={styles.mitigationCopy}>Brak twojej trasy w bike parku?</Text>
+                <Text style={styles.mitigationCtaWarn}>+ ZOSTAŃ PIONIEREM →</Text>
+              </Pressable>
             </View>
-          </Animated.View>
-        )}
-      </ScrollView>
+          </View>
+        ) : null}
 
-      {/* Head-to-head modal — Sprint 2. Renders self vs tapped rival
-          with the time gap and a WYZWIJ placeholder. Real challenge
-          plumbing lands when the friends graph + push system are
-          wired (likely Sprint 3 backend dep). */}
-      {selectedRival ? (
-        <HeadToHeadCard
-          visible={true}
-          onClose={() => setSelectedRival(null)}
-          selfAvatar={
-            <RiderAvatar
-              avatarUrl={profile?.avatar_url ?? null}
-              username={profile?.display_name ?? 'TY'}
-              size={56}
-              borderColor={colors.accent}
-            />
-          }
-          selfTag={profile?.display_name ?? 'rider'}
-          selfTimeMs={
-            entries.find((e) => e.isCurrentUser)?.bestDurationMs ?? null
-          }
-          rivalAvatar={
-            <RiderAvatar
-              avatarUrl={selectedRival.avatarUrl}
-              username={selectedRival.username}
-              size={56}
-            />
-          }
-          rivalTag={selectedRival.username}
-          rivalTimeMs={selectedRival.bestDurationMs}
-          rivalPosition={selectedRival.currentPosition}
-          trailName={selectedTrail?.name}
-        />
-      ) : null}
+        {/* Stan B — fresh rider (count === 0 OR no aggregated sections) */}
+        {!isLoading && sections.length === 0 ? (
+          <View style={styles.freshBody}>
+            {/* Hint card — "Jak to działa" tutorial without
+                pretending the rider has data they don't */}
+            <View style={styles.hintCard}>
+              <Text style={styles.hintKicker}>JAK TO DZIAŁA</Text>
+              <Text style={styles.hintLine}>Tablica zapełni się sama.</Text>
+              <Text style={styles.hintLine}>Pierwszy zjazd = pierwsza pozycja.</Text>
+            </View>
+
+            {/* 2 LARGER mityagacje — primary surfaces in fresh state */}
+            <View style={styles.freshMitigations}>
+              <Pressable
+                style={[styles.bigMitigation, styles.bigMitigationAccent]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <View style={styles.bigMitigationBody}>
+                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(0, 255, 135, 0.7)' }]}>
+                    MASZ SWÓJ BIKE PARK?
+                  </Text>
+                  <Text style={styles.bigMitigationLine}>Dodaj go w Spotach.</Text>
+                  <Text style={styles.bigMitigationSub}>Pioneer slot lifetime.</Text>
+                </View>
+                <Text style={[styles.bigMitigationArrow, { color: colors.accent }]}>→</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.bigMitigation, styles.bigMitigationWarn]}
+                onPress={() => router.push('/(tabs)/spots')}
+              >
+                <View style={styles.bigMitigationBody}>
+                  <Text style={[styles.bigMitigationKicker, { color: 'rgba(255, 176, 32, 0.8)' }]}>
+                    PARK JEST, BRAK TWOJEJ TRASY?
+                  </Text>
+                  <Text style={styles.bigMitigationLine}>Zostań pionierem.</Text>
+                  <Text style={styles.bigMitigationSub}>
+                    Pierwszy czas zabezpiecza twoje miejsce.
+                  </Text>
+                </View>
+                <Text style={[styles.bigMitigationArrow, { color: colors.warn }]}>→</Text>
+              </Pressable>
+            </View>
+
+            {/* Separator + alt path */}
+            <View style={styles.lubBlock}>
+              <Text style={styles.lubSeparator}>— LUB —</Text>
+              <Text style={styles.lubLine}>Zjedź dowolną trasę z apki.</Text>
+              <Text style={styles.lubLine}>Tablica zapełni się automatycznie.</Text>
+            </View>
+
+            {/* Outline fallback CTA */}
+            <Pressable
+              style={styles.outlineCta}
+              onPress={() => router.push('/(tabs)/spots')}
+            >
+              <Text style={styles.outlineCtaText}>PRZEJDŹ DO SPOTÓW →</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.lg, paddingBottom: spacing.huge },
-  dramaWrap: { marginBottom: spacing.lg },
-  trailRowWrap: { marginBottom: spacing.lg },
-  podiumSectionWrap: { marginBottom: spacing.md },
-
-  // Sprint 4 — trust disclosure banner above podium
-  disclosureBanner: {
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scroll: {
+    paddingBottom: 80,
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    gap: 8,
+  },
+  miniLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: 12,
+    marginBottom: 24,
   },
-  disclosureText: {
-    ...typography.labelSmall,
-    color: colors.textSecondary,
-    flex: 1,
-    flexShrink: 1,
-    letterSpacing: 0,
+  miniLabel: {
+    fontFamily: fonts.mono,
     fontSize: 11,
-    lineHeight: 15,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+  },
+  headline: {
+    fontFamily: fonts.racing,
+    fontSize: 40,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+    lineHeight: 42,
+  },
+  sub: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  body: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 18,
+  },
+  section: {
+    gap: 8,
+  },
+  sectionHeader: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(242, 244, 243, 0.5)',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    marginTop: 18,
+    marginBottom: 4,
+  },
+  sectionRows: {
+    gap: 6,
   },
 
-  // Header
-  titleRow: { marginBottom: spacing.lg, gap: 12 },
-  titleMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 36,
-    lineHeight: 42,
-    color: colors.textPrimary,
-    letterSpacing: 7.2,
-    fontWeight: '800',
+  // Trail row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    paddingHorizontal: 14,
+    backgroundColor: '#13181A',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2, // sharp HUD
+    gap: 14,
   },
-  trustDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent },
-  subtitle: {
-    fontFamily: 'Inter_700Bold',
-    color: colors.textSecondary,
-    letterSpacing: 3.6,
+  rowPressed: {
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderColor: colors.borderHot,
+  },
+  diffDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  diffDotBlack: {
+    borderWidth: 1,
+    borderColor: '#F2F4F3',
+  },
+  rowMain: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  trailName: {
+    fontFamily: fonts.racing,
     fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '800',
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  trailNameDim: {
+    color: 'rgba(242, 244, 243, 0.7)',
+  },
+  runCount: {
+    fontFamily: fonts.mono,
+    fontSize: 8,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.4)',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
 
-  // Venue tabs
-  venueTabRow: { flexDirection: 'row' as const, gap: spacing.md, marginBottom: spacing.md },
-  venueTab: { paddingVertical: spacing.xs },
-  venueTabActive: {},
-  venueTabText: { fontFamily: 'Rajdhani_700Bold', fontSize: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: 2 },
-  venueTabTextActive: { color: colors.textPrimary },
-
-  // Scope tabs
-  scopeRow: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.lg },
-  scopeTab: {
-    minWidth: 98,
-    height: 52,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: 'transparent',
+  // Right slot — rank pill + PB OR JEDŹ CTA
+  rankWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rankPill: {
+    width: 50,
+    height: 28,
+    borderRadius: 2,
     borderWidth: 1,
-    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    paddingVertical: 1,
+  },
+  rankTy: {
+    fontFamily: fonts.mono,
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  rankNum: {
+    fontFamily: fonts.racing,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  pbBlock: {
+    alignItems: 'flex-end',
+    width: 56,
+  },
+  pbLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 7,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.4)',
+    letterSpacing: 1.2,
+  },
+  pbTime: {
+    fontFamily: fonts.racing,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  jedzCta: {
+    width: 118,
+    height: 28,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 255, 135, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scopeTabActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  scopeTabText: {
-    fontFamily: 'Inter_700Bold',
-    color: colors.textTertiary,
-    letterSpacing: 3.2,
-    fontSize: 13,
-    lineHeight: 15,
+  jedzText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
     fontWeight: '800',
-  },
-  scopeTabTextActive: { color: colors.accentInk },
-
-  // Trail selector
-  trailSelector: { marginBottom: spacing.xl, marginHorizontal: -spacing.lg },
-  trailSelectorContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingRight: spacing.xxxl },
-  trailChip: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radii.full,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-  },
-  trailChipDot: { width: 6, height: 6, borderRadius: 3 },
-  trailChipText: { ...typography.bodySmall, color: colors.textTertiary, fontFamily: 'Inter_600SemiBold', fontSize: 13, maxWidth: 160 },
-
-  // Loading / Empty
-  loadingWrap: { paddingVertical: spacing.xxl, alignItems: 'center' },
-  emptyWrap: { alignItems: 'center', paddingVertical: spacing.huge, gap: spacing.sm },
-  emptyLine: { fontFamily: 'Rajdhani_700Bold', fontSize: 24, color: colors.textTertiary, letterSpacing: 8, marginBottom: spacing.xs },
-  emptyTitle: { ...typography.label, color: colors.textTertiary, letterSpacing: 4, fontSize: 12 },
-  emptyDesc: { ...typography.bodySmall, color: colors.textTertiary, textAlign: 'center' },
-  retryBtn: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
-  retryText: { ...typography.labelSmall, color: colors.textSecondary, letterSpacing: 2 },
-
-  // ═══ PODIUM ═══
-  podiumSection: { gap: spacing.sm, marginBottom: spacing.md },
-  podiumCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.bgCard, borderRadius: radii.lg,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  podiumUser: { borderColor: colors.accent, backgroundColor: colors.accentDim },
-  podiumPosRow: { width: 44, alignItems: 'center' },
-  podiumPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 24, color: colors.textSecondary },
-  podiumInfo: { flex: 1, marginLeft: spacing.md },
-  podiumNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  podiumRankIcon: { fontSize: 12 },
-  podiumName: { ...typography.body, color: colors.textPrimary, fontFamily: 'Inter_700Bold', fontSize: 15 },
-  podiumTime: { fontFamily: 'Rajdhani_700Bold', fontSize: 17, color: colors.textSecondary, marginTop: spacing.xxs, letterSpacing: 1 },
-  podiumDelta: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  podiumDeltaText: { ...typography.labelSmall, color: colors.accent },
-
-  // Podium / rest separator
-  podiumSeparator: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginVertical: spacing.md },
-  podiumSepLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  podiumSepText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 4, fontSize: 8 },
-
-  // ═══ RIDER STATUS CARD ═══
-  riderStatusCard: {
-    backgroundColor: colors.bgCard, borderRadius: radii.lg,
-    padding: spacing.lg, marginBottom: spacing.lg,
-    borderWidth: 1, borderColor: colors.accent,
-  },
-  riderStatusMain: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  riderStatusPos: { fontFamily: 'Rajdhani_700Bold', fontSize: 32, color: colors.accent },
-  riderStatusRight: { alignItems: 'flex-end', gap: spacing.xxs },
-  riderStatusTier: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3 },
-  riderStatusDelta: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1 },
-  riderGapRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border,
-  },
-  riderGapLabel: { ...typography.bodySmall, color: colors.orange, fontFamily: 'Inter_600SemiBold' },
-  riderGapValue: { ...typography.labelSmall, color: colors.orange, letterSpacing: 1 },
-  riderAmbition: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 1, marginTop: spacing.sm, textAlign: 'center' },
-
-  // ═══ BOARD (pos 4+) ═══
-  boardSection: {},
-  rowRival: { borderColor: colors.orange, backgroundColor: 'rgba(255, 149, 0, 0.06)' },
-  riderInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  rankIconInline: { fontSize: 12 },
-  riderNameInline: {
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 16,
-    lineHeight: 18,
-    color: colors.textPrimary,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  youTag: {
-    ...typography.labelSmall, color: colors.accent,
-    fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
-    backgroundColor: colors.accentDim, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3,
-  },
-  rivalTag: {
-    ...typography.labelSmall, color: colors.orange,
-    fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
-  },
-  chaserTag: {
-    ...typography.labelSmall, color: colors.red,
-    fontSize: 7, letterSpacing: 2, marginLeft: spacing.xs,
-    opacity: 0.7,
+    color: colors.accent,
+    letterSpacing: 1.5,
   },
 
-  // Board footer
-  boardFooter: { alignItems: 'center', paddingVertical: spacing.xl },
-  boardFooterText: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 3, fontSize: 8 },
-  boardFooterHint: { ...typography.labelSmall, color: colors.textTertiary, letterSpacing: 2, fontSize: 8, marginTop: spacing.xs, opacity: 0.6 },
+  // Mityagacje — subtle dashed cards
+  mitigationsWrap: {
+    gap: 10,
+    marginTop: 18,
+  },
+  mitigation: {
+    height: 46,
+    paddingHorizontal: 16,
+    borderRadius: 2,
+    borderWidth: 0.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  mitigationAccent: {
+    backgroundColor: 'rgba(0, 255, 135, 0.04)',
+    borderColor: 'rgba(0, 255, 135, 0.25)',
+  },
+  mitigationWarn: {
+    backgroundColor: 'rgba(255, 176, 32, 0.04)',
+    borderColor: 'rgba(255, 176, 32, 0.25)',
+  },
+  mitigationCopy: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.7)',
+    textAlign: 'center',
+  },
+  mitigationCtaAccent: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.accent,
+    textAlign: 'center',
+  },
+  mitigationCtaWarn: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.warn,
+    textAlign: 'center',
+  },
+
+  // Stan B — fresh rider styles
+  freshBody: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    gap: 18,
+  },
+  hintCard: {
+    height: 80,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#13181A',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2,
+    gap: 4,
+    justifyContent: 'center',
+  },
+  hintKicker: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(242, 244, 243, 0.5)',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  hintLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.85)',
+  },
+  freshMitigations: {
+    gap: 12,
+  },
+  bigMitigation: {
+    height: 68,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bigMitigationAccent: {
+    backgroundColor: 'rgba(0, 255, 135, 0.06)',
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+  },
+  bigMitigationWarn: {
+    backgroundColor: 'rgba(255, 176, 32, 0.06)',
+    borderColor: 'rgba(255, 176, 32, 0.4)',
+  },
+  bigMitigationBody: {
+    flex: 1,
+    gap: 2,
+  },
+  bigMitigationKicker: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  bigMitigationLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.85)',
+  },
+  bigMitigationSub: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.5)',
+  },
+  bigMitigationArrow: {
+    fontFamily: fonts.body,
+    fontSize: 18,
+    fontWeight: '800',
+    marginLeft: 12,
+  },
+  lubBlock: {
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 6,
+  },
+  lubSeparator: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(242, 244, 243, 0.32)',
+    letterSpacing: 2,
+  },
+  lubLine: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(242, 244, 243, 0.55)',
+    textAlign: 'center',
+  },
+  outlineCta: {
+    height: 40,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 135, 0.4)',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  outlineCtaText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+  },
 });
