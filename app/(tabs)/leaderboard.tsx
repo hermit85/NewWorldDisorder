@@ -49,6 +49,7 @@ import {
 } from '@/components/leaderboard/ScopeToggle';
 import { PodiumBlock } from '@/components/leaderboard/PodiumBlock';
 import { LeagueProofCard } from '@/components/leaderboard/LeagueProofCard';
+import { InviteRivalButton } from '@/components/share/InviteRivalButton';
 import {
   buildWalkInput,
   isWalkState,
@@ -154,6 +155,21 @@ export default function TablicaScreen() {
   // QA matches the rendered state. Otherwise pull from real data.
   const headerSpot = walkInput?.primarySpotSummary ?? primarySpotSummary;
   const headerFocusTrail = walkInput?.focusTrail ?? focusTrail;
+
+  // Invite Rival surfaces only when the rider has a time on this
+  // exact trail. We prefer the all-time row (history) so the time
+  // shared is the rider's PB, not whatever the current scope shows.
+  const userPbOnFocus = useMemo(() => {
+    if (!profile?.id || !focusTrail) return null;
+    const historyRow = historyRows.find((r) => r.userId === profile.id);
+    if (historyRow) return historyRow.bestDurationMs;
+    const scopedRow = leaderboardRows.find((r) => r.userId === profile.id);
+    return scopedRow?.bestDurationMs ?? null;
+  }, [profile?.id, focusTrail, historyRows, leaderboardRows]);
+  const userIsLeaderOnFocus = useMemo(() => {
+    if (!profile?.id) return false;
+    return historyRows[0]?.userId === profile.id;
+  }, [profile?.id, historyRows]);
   const headerSubtitle = (() => {
     if (!headerSpot) return 'Wybierz pierwszy bike park';
     const spotName = headerSpot.spot.name;
@@ -282,6 +298,25 @@ export default function TablicaScreen() {
               />
             ) : null}
 
+            {/* Invite Rival — surfaces whenever the rider has a time
+                on the focus trail. Copy switches to "WYŚLIJ KONTRĘ"
+                when chasing, otherwise the default ZAPROŚ RYWALA. */}
+            {focusTrail && userPbOnFocus && primarySpotSummary?.spot.id ? (
+              <View style={styles.inviteWrap}>
+                <InviteRivalButton
+                  context={{
+                    trailName: focusTrail.name,
+                    timeMs: userPbOnFocus,
+                    spotId: primarySpotSummary.spot.id,
+                    trailId: focusTrail.id,
+                    isLeader: userIsLeaderOnFocus,
+                    riderTag: profile?.username ?? undefined,
+                  }}
+                  label={state.kind === 'USER_CHASING' ? 'WYŚLIJ KONTRĘ' : 'ZAPROŚ RYWALA'}
+                />
+              </View>
+            ) : null}
+
             {state.topRows.length > 0 ? (
               <View style={styles.podiumWrap}>
                 <Text style={styles.sectionLabel}>PODIUM</Text>
@@ -397,6 +432,9 @@ const styles = StyleSheet.create({
   loaderWrap: {
     paddingVertical: 60,
     alignItems: 'center',
+  },
+  inviteWrap: {
+    paddingTop: 4,
   },
   podiumWrap: {
     gap: 10,

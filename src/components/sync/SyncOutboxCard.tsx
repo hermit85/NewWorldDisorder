@@ -143,11 +143,11 @@ function StaleRunRow({
 
   function handleDiscard() {
     Alert.alert(
-      'Odrzucić zjazd?',
+      'Usunąć z kolejki?',
       `${run.trailName} — ${reason}\n\nZjazd zostanie usunięty z lokalnej kolejki. Tej operacji nie można cofnąć.`,
       [
         { text: 'Anuluj', style: 'cancel' },
-        { text: 'Odrzuć', style: 'destructive', onPress: () => onDiscard(run.sessionId) },
+        { text: 'Usuń', style: 'destructive', onPress: () => onDiscard(run.sessionId) },
       ],
     );
   }
@@ -161,7 +161,7 @@ function StaleRunRow({
         </Text>
       </View>
       <Pressable onPress={handleDiscard} style={({ pressed }) => [styles.discardBtn, pressed && styles.discardBtnPressed]}>
-        <Text style={styles.discardLabel}>ODRZUĆ</Text>
+        <Text style={styles.discardLabel}>USUŃ Z KOLEJKI</Text>
       </Pressable>
     </View>
   );

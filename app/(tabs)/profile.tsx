@@ -58,6 +58,7 @@ import { PersonalRecordsList } from '@/components/profile/PersonalRecordsList';
 import { SettingsSheet } from '@/components/profile/SettingsSheet';
 import { FounderToolsSheet } from '@/components/profile/FounderToolsSheet';
 import { useFounderStatus } from '@/hooks/useFounderTools';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { pickAvatarImage, uploadAvatar, removeAvatar } from '@/services/avatar';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { tapLight, tapMedium, notifySuccess, notifyWarning } from '@/systems/haptics';
@@ -104,6 +105,7 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [founderOpen, setFounderOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { isFounder } = useFounderStatus(authProfile?.id ?? null);
 
   const rank = user ? getRank(user.rankId) : getRank('rookie');
@@ -399,6 +401,10 @@ export default function ProfileScreen() {
             onPress: closeSettingsAnd(() => Linking.openURL(LEGAL.termsUrl)),
           },
           {
+            label: 'Wyślij feedback',
+            onPress: closeSettingsAnd(() => setFeedbackOpen(true)),
+          },
+          {
             label: 'Wsparcie',
             onPress: closeSettingsAnd(() => Linking.openURL(`mailto:${LEGAL.supportEmail}`)),
           },
@@ -434,6 +440,17 @@ export default function ProfileScreen() {
         visible={founderOpen}
         onClose={() => setFounderOpen(false)}
       />
+
+      {authProfile?.id ? (
+        <FeedbackSheet
+          visible={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
+          context={{
+            userId: authProfile.id,
+            screen: 'ja',
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

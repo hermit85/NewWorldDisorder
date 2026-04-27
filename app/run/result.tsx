@@ -28,6 +28,8 @@ import { useAuthContext } from '@/hooks/AuthContext';
 import { useResultImpact, ScopeImpact, useProfile } from '@/hooks/useBackend';
 import { logDebugEvent } from '@/systems/debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
+import { InviteRivalButton } from '@/components/share/InviteRivalButton';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 
 // ═══════════════════════════════════════════════════════════
 // PRODUCT COPY — human, premium, gravity racing tone
@@ -219,6 +221,7 @@ function StandardResultScreen() {
   const [promotingBaseline, setPromotingBaseline] = useState(false);
   const [baselineError, setBaselineError] = useState<string | null>(null);
   const [storeHydrated, setStoreHydrated] = useState(isRunStoreHydrated());
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const run = runSessionId ? getFinalizedRun(runSessionId) : undefined;
 
@@ -904,8 +907,56 @@ function StandardResultScreen() {
                 <Text style={styles.secondaryBtnText}>TRASA</Text>
               </Pressable>
             </View>
+
+            {/* Invite + Feedback — tester MVP loops. Invite uses Share
+                API to challenge a rival on this exact trail/time;
+                Feedback opens FeedbackSheet with run context already
+                filled in (saveStatus, rejection reason, trail/run id). */}
+            {run.trailName && run.durationMs > 0 ? (
+              <View style={styles.inviteRow}>
+                <InviteRivalButton
+                  context={{
+                    trailName: run.trailName,
+                    timeMs: run.durationMs,
+                    spotId: run.spotId,
+                    trailId: run.trailId,
+                    isLeader: rankPosition === 1,
+                    riderTag: authProfile?.username ?? undefined,
+                  }}
+                  style={styles.inviteCta}
+                />
+                <Pressable
+                  onPress={() => {
+                    tapLight();
+                    setFeedbackOpen(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.feedbackLink,
+                    pressed && styles.feedbackLinkPressed,
+                  ]}
+                >
+                  <Text style={styles.feedbackLabel}>ZGŁOŚ PROBLEM</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </>
         )}
+
+        {authProfile?.id ? (
+          <FeedbackSheet
+            visible={feedbackOpen}
+            onClose={() => setFeedbackOpen(false)}
+            context={{
+              userId: authProfile.id,
+              screen: 'result',
+              trailId: run.trailId,
+              trailName: run.trailName,
+              runId: run.backendResult?.run?.id ?? null,
+              saveStatus: run.saveStatus,
+              rejectionReason: retryError?.code ?? null,
+            }}
+          />
+        ) : null}
         {/* Field test debug — dev builds only */}
         {__DEV__ && (
           <View style={styles.debugCard}>
@@ -1452,6 +1503,29 @@ const styles = StyleSheet.create({
   secondaryCtaRow: { flexDirection: 'row', gap: spacing.sm },
   secondaryBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
   secondaryBtnText: { ...typography.label, color: colors.textSecondary, letterSpacing: 3 },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  inviteCta: {
+    flex: 1,
+  },
+  feedbackLink: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  feedbackLinkPressed: {
+    opacity: 0.6,
+  },
+  feedbackLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    letterSpacing: 2,
+  },
 
   orphanCard: {
     backgroundColor: 'rgba(255,149,0,0.06)',

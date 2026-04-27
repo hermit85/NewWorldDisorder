@@ -2719,6 +2719,59 @@ export async function resetMyTestData(): Promise<ApiResult<TestDataDeleted>> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Feedback reports — TestFlight bug/idea/praise inbox.
+// RLS lets any authenticated rider insert their own row; reads
+// are restricted to founder/curator/moderator (see migration
+// 20260427180000_feedback_reports).
+// ─────────────────────────────────────────────────────────────
+
+export type FeedbackType = 'bug' | 'unclear' | 'idea' | 'praise';
+
+export interface FeedbackPayload {
+  type: FeedbackType;
+  message: string;
+  screen?: string;
+  trailId?: string | null;
+  runId?: string | null;
+  appVersion?: string;
+  deviceInfo?: Record<string, unknown>;
+  debugPayload?: Record<string, unknown>;
+}
+
+export async function submitFeedback(
+  userId: string,
+  input: FeedbackPayload,
+): Promise<ApiResult<{ id: string }>> {
+  const trimmed = input.message.trim();
+  if (trimmed.length === 0) {
+    return { ok: false, code: 'empty_message', message: 'Wpisz coś przed wysłaniem.' };
+  }
+  try {
+    const { data, error } = await db()
+      .from('feedback_reports')
+      .insert({
+        user_id: userId,
+        screen: input.screen ?? null,
+        trail_id: input.trailId ?? null,
+        run_id: input.runId ?? null,
+        type: input.type,
+        message: trimmed.slice(0, 4000),
+        app_version: input.appVersion ?? null,
+        device_info: input.deviceInfo ?? null,
+        debug_payload: input.debugPayload ?? null,
+      })
+      .select('id')
+      .single();
+    if (error) {
+      return { ok: false, code: 'insert_failed', message: error.message };
+    }
+    return { ok: true, data: { id: (data as { id: string }).id } };
+  } catch (e: any) {
+    return { ok: false, code: 'exception', message: e?.message ?? String(e) };
+  }
+}
+
 export type TestSpotDeleteOutcome =
   | { mode: 'deleted'; spotId: string; trailsDeleted: number }
   | { mode: 'archived'; spotId: string; foreignRuns: number };
