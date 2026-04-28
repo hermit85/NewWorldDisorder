@@ -138,6 +138,7 @@ describe('finalize_pioneer_run RPC contract', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data).toEqual({
+        kind: 'pioneer',
         runId: 'run-uuid-happy',
         isPioneer: true,
         trailStatus: 'fresh_pending_second_run',
@@ -298,8 +299,10 @@ describe('finalize_pioneer_run RPC contract', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
+    if (result.ok && result.data.kind === 'pioneer') {
       expect(result.data.spotAutoActivated).toBe(true);
+    } else {
+      throw new Error('expected pioneer-kind result');
     }
   });
 
@@ -335,8 +338,10 @@ describe('finalize_pioneer_run RPC contract', () => {
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
+    if (result.ok && result.data.kind === 'pioneer') {
       expect(result.data.spotAutoActivated).toBe(false);
+    } else {
+      throw new Error('expected pioneer-kind result');
     }
   });
 

@@ -276,6 +276,21 @@ export default function ReviewScreen() {
     if (result.ok) {
       notifySuccess();
       await recordingStore.clearBuffer();
+      // Auto-merge: the geometry overlapped an existing trail enough
+      // that the server rebased the run there and archived the draft
+      // trail row. Don't show a pioneer celebration — the rider didn't
+      // pioneer anything. Send them to the result screen as a regular
+      // counted ride, with the merged trail id so any "trail" link in
+      // the result UI points at the canonical row, not the deleted
+      // draft. Codex pass 5 loop-blocker — pre-build-49 every success
+      // routed to "isPioneer=true" and the rider landed on a result
+      // celebrating a trail that no longer existed.
+      if (result.data.kind === 'auto_merged') {
+        router.replace(
+          `/run/result?runId=${result.data.runId}&isPioneer=false&trailId=${result.data.intoTrailId}&autoMerged=true`,
+        );
+        return;
+      }
       router.replace(`/run/result?runId=${result.data.runId}&isPioneer=true`);
       return;
     }

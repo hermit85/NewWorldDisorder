@@ -580,8 +580,19 @@ export async function submitRun(params: SubmitRunParams): Promise<SubmitRunResul
   // Profile stats + favorite trail stay client-driven for now — these
   // are derived aggregates, not trust-critical. Leaderboard integrity
   // (the only thing a cheater would target) now lives server-side.
+  //
+  // Codex pass 5 silent-corruption: pre-build-49 the client awarded
+  // XP on every `result.ok === true` regardless of whether the run
+  // was eligible (i.e. counted_in_leaderboard). A rejected ranked
+  // run with invalidation reasons would still bump profile.xp by
+  // the client-decided xpAwarded, so a rider who couldn't actually
+  // place on the leaderboard still saw their XP go up. Gate XP
+  // updates on `result.eligible === true`. Run-count + favorite
+  // trail update stay unconditional — those are tallies of "the
+  // rider rode something", not rewards for legitimacy.
+  const isServerEligible = result.eligible === true;
   const runCounts = await incrementProfileRuns(userId, isPb);
-  if (xpAwarded > 0) {
+  if (xpAwarded > 0 && isServerEligible) {
     await updateProfileXp(userId, xpAwarded);
   }
   if (leaderboardResult && leaderboardResult.position > 0) {
@@ -1987,12 +1998,28 @@ export interface FinalizePioneerRunParams {
   geometry: PioneerGeometry;
 }
 
-export interface PioneerRunResult {
+/** Variant: rider IS the pioneer of a brand-new trail. */
+export interface PioneerRunResultPioneer {
+  kind: 'pioneer';
   runId: string;
   isPioneer: true;
   trailStatus: 'fresh_pending_second_run';
   leaderboardPosition: number | null;
 }
+
+/** Variant: rider's draft trail was auto-merged into an existing
+ *  trail because geometry overlapped enough. The run counts on the
+ *  target trail's leaderboard, not as a new pioneer ride. UI must
+ *  navigate to `intoTrailId`, not show a pioneer celebration. */
+export interface PioneerRunResultAutoMerged {
+  kind: 'auto_merged';
+  runId: string;
+  isPioneer: false;
+  intoTrailId: string;
+  overlapPct: number;
+}
+
+export type PioneerRunResult = PioneerRunResultPioneer | PioneerRunResultAutoMerged;
 
 // ── Polish error-code → copy maps ──
 //
@@ -2474,11 +2501,17 @@ export interface SeedRunParams {
   finishedAt: Date;
 }
 
-export interface SeedRunResult {
+/** Variant returned when finalize_seed_run's "distinct" branch fired
+ *  — the rider is the actual pioneer of a fresh trail. This is the
+ *  common case. */
+export interface SeedRunResultPioneer {
+  kind: 'pioneer';
   runId: string;
   seedSource: SeedSource;
   trustTier: TrustTier;
   versionId: string;
+  /** Always true for this variant; preserved for legacy callers
+   *  that branch on this. New code should switch on `kind` instead. */
   isPioneer: true;
   trailStatus: 'fresh_pending_second_run';
   leaderboardPosition: number | null;
@@ -2489,6 +2522,32 @@ export interface SeedRunResult {
    *  were already active before the run. */
   spotAutoActivated?: boolean;
 }
+
+/** Variant returned when finalize_seed_run's "auto_merge" branch
+ *  fired — the geometry overlapped enough with an existing trail
+ *  that the run was rebased onto that trail and the rider's draft
+ *  trail row was archived. The rider is NOT the pioneer; the run
+ *  counts on someone else's leaderboard. UI must navigate the
+ *  rider to the canonical trail rather than to a "your new trail"
+ *  pioneer celebration screen. Codex pass 5 loop-blocker — pre-
+ *  build-49 client mapped every success as `isPioneer: true` and
+ *  the auto-merge case ended up showing a never-existed trail. */
+export interface SeedRunResultAutoMerged {
+  kind: 'auto_merged';
+  runId: string;
+  isPioneer: false;
+  /** The trail the run was rebased onto. Navigate here, not to
+   *  the original draft trail id. */
+  intoTrailId: string;
+  /** Geo overlap percentage that triggered the auto-merge —
+   *  0..1 numeric range. */
+  overlapPct: number;
+  /** The draft trail id the rider thought they were pioneering;
+   *  this row was deleted server-side. */
+  archivedDraftTrailId: string;
+}
+
+export type SeedRunResult = SeedRunResultPioneer | SeedRunResultAutoMerged;
 
 /** Polish copy for every error code emitted by the Sprint-4 RPCs.
  *  Single source of truth so UI alerts stay consistent.
@@ -2569,9 +2628,30 @@ export async function finalizeSeedRun(
   if (__DEV__) console.log('[finalizeSeedRun] ← server:', data);
   const res = data as any;
   if (res?.ok === true) {
+    // Auto-merge branch — geometry overlapped enough with an
+    // existing trail that the server rebased the run onto that
+    // trail and archived the rider's draft. Pre-build-49 the
+    // client mapped every ok response as `isPioneer: true`, so
+    // the rider was navigated to a celebration of a trail that
+    // no longer existed. Codex pass 5 loop-blocker — handle as
+    // its own kind.
+    if (res.auto_merged === true) {
+      return {
+        ok: true,
+        data: {
+          kind:                 'auto_merged',
+          runId:                res.run_id as string,
+          isPioneer:            false,
+          intoTrailId:          res.into_trail_id as string,
+          overlapPct:           Number(res.overlap_pct ?? 0),
+          archivedDraftTrailId: res.archived_draft_trail_id as string,
+        },
+      };
+    }
     return {
       ok: true,
       data: {
+        kind:                'pioneer',
         runId:               res.run_id as string,
         seedSource:          res.seed_source as SeedSource,
         trustTier:           res.trust_tier as TrustTier,
@@ -2609,9 +2689,26 @@ export async function finalizePioneerRun(
     finishedAt:         new Date(params.runPayload.finished_at),
   });
   if (!result.ok) return result;
+  // Pass the auto_merge discriminant through to UI callers so the
+  // review screen can navigate to the canonical trail rather than
+  // showing a pioneer celebration for a draft trail that's been
+  // archived server-side.
+  if (result.data.kind === 'auto_merged') {
+    return {
+      ok: true,
+      data: {
+        kind:        'auto_merged',
+        runId:       result.data.runId,
+        isPioneer:   false,
+        intoTrailId: result.data.intoTrailId,
+        overlapPct:  result.data.overlapPct,
+      },
+    };
+  }
   return {
     ok: true,
     data: {
+      kind:                'pioneer',
       runId:               result.data.runId,
       isPioneer:           true,
       trailStatus:         'fresh_pending_second_run',
