@@ -32,6 +32,7 @@ import * as recordingStore from '@/features/recording/recordingStore';
 import * as api from '@/lib/api';
 import type { PioneerGeometry, PioneerRunPayload } from '@/lib/api';
 import { useTrail } from '@/hooks/useBackend';
+import { triggerRefresh } from '@/hooks/useRefresh';
 import { useAuthContext } from '@/hooks/AuthContext';
 import {
   tapMedium, tapLight, notifySuccess, notifyWarning,
@@ -275,6 +276,7 @@ export default function ReviewScreen() {
 
     if (result.ok) {
       notifySuccess();
+      triggerRefresh();
       await recordingStore.clearBuffer();
       // Auto-merge: the geometry overlapped an existing trail enough
       // that the server rebased the run there and archived the draft
