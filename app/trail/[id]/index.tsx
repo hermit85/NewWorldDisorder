@@ -16,7 +16,7 @@
 // Draft state (no geometry yet) has its own simpler render path —
 // large "Rozpocznij nagrywanie" CTA, no leaderboard.
 // ─────────────────────────────────────────────────────────────
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 import {
   Btn,
   Card,
@@ -112,6 +113,40 @@ export default function TrailDetailScreen() {
     refresh: lbRefresh,
   } = useLeaderboard(id ?? '', boardScope, profile?.id);
   const { stats: trailStats } = useUserTrailStats(profile?.id);
+
+  useEffect(() => {
+    if (!id || !trail) return;
+    const display = getTrailDisplayState(trail);
+    Sentry.addBreadcrumb({
+      category: 'navigation',
+      type: 'navigation',
+      message: 'trail_opened',
+      level: 'info',
+      data: {
+        trailId: id,
+        trailName: trail.name,
+        spotId: trail.spotId,
+        calibrationStatus: trail.calibrationStatus,
+        confidenceLabel: trail.confidenceLabel,
+        trustTier: trail.trustTier,
+        geometryMissing: trail.geometryMissing,
+        currentVersionId: trail.currentVersionId,
+        displayKind: display.kind,
+        isTrainingOnly,
+      },
+    });
+  }, [
+    id,
+    trail?.id,
+    trail?.name,
+    trail?.spotId,
+    trail?.calibrationStatus,
+    trail?.confidenceLabel,
+    trail?.trustTier,
+    trail?.geometryMissing,
+    trail?.currentVersionId,
+    isTrainingOnly,
+  ]);
 
   const goBack = () => {
     if (navigation.canGoBack()) router.back();

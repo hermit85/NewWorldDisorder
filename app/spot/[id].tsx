@@ -16,7 +16,7 @@
 // PARK" mode unlocked by GPS proximity. Default browse view is
 // list-first per canonical screens-spot-trail.jsx.
 // ─────────────────────────────────────────────────────────────
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 import {
   Btn,
   IconGlyph,
@@ -92,6 +93,24 @@ export default function SpotScreen() {
       void refreshTrails();
     }, [refreshSpot, refreshTrails]),
   );
+
+  useEffect(() => {
+    if (!id || !spot) return;
+    Sentry.addBreadcrumb({
+      category: 'navigation',
+      type: 'navigation',
+      message: 'spot_opened',
+      level: 'info',
+      data: {
+        spotId: id,
+        spotName: spot.name,
+        spotStatus,
+        trailCount: trails.length,
+        trailIds: trails.map((t) => t.trail.id),
+        calibrationStatuses: trails.map((t) => t.calibrationStatus ?? null),
+      },
+    });
+  }, [id, spot?.id, spot?.name, spotStatus, trails]);
 
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
   const spotDisplayState = computeSpotState(trails);

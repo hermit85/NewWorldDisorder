@@ -163,6 +163,100 @@ export default function ActiveRunScreen() {
     cancel,
   } = useRealRun(trailId, trailName, spotId, resolvedIntent, geo, gateConfig, profile?.id);
 
+  useEffect(() => {
+    if (!trailId) return;
+    Sentry.addBreadcrumb({
+      category: 'run',
+      type: 'user',
+      message: 'run_intent_selected',
+      level: intent === null ? 'warning' : 'info',
+      data: {
+        trailId,
+        trailName,
+        intent: intent ?? 'invalid',
+        hookIntent: resolvedIntent,
+        spotId,
+        gateSource: venue.gateSource,
+        venueSource: venue.source,
+        calibrationStatus: dbTrail?.calibrationStatus ?? null,
+        isTrainingOnly,
+      },
+    });
+  }, [
+    trailId,
+    trailName,
+    intent,
+    resolvedIntent,
+    spotId,
+    venue.gateSource,
+    venue.source,
+    dbTrail?.calibrationStatus,
+    isTrainingOnly,
+  ]);
+
+  useEffect(() => {
+    if (!trailId) return;
+    if (state.phase === 'armed_ranked' || state.phase === 'armed_practice') {
+      Sentry.addBreadcrumb({
+        category: 'run',
+        type: 'info',
+        message: 'run_armed',
+        level: 'info',
+        data: {
+          trailId,
+          mode: state.phase === 'armed_ranked' ? 'ranked' : 'practice',
+          intent: intent ?? 'invalid',
+          gateSource: venue.gateSource,
+          gpsReadiness: state.gps.readiness,
+        },
+      });
+    }
+    if (state.phase === 'running_ranked' || state.phase === 'running_practice') {
+      Sentry.addBreadcrumb({
+        category: 'run',
+        type: 'info',
+        message: 'run_started',
+        level: 'info',
+        data: {
+          trailId,
+          mode: state.phase === 'running_ranked' ? 'ranked' : 'practice',
+          gateSource: venue.gateSource,
+          gpsReadiness: state.gps.readiness,
+        },
+      });
+    }
+    if (
+      state.phase === 'completed_verified' ||
+      state.phase === 'completed_unverified' ||
+      state.phase === 'invalidated'
+    ) {
+      Sentry.addBreadcrumb({
+        category: 'run',
+        type: 'info',
+        message: 'run_finished',
+        level: state.phase === 'invalidated' ? 'warning' : 'info',
+        data: {
+          trailId,
+          phase: state.phase,
+          backendStatus: state.backendStatus,
+          verificationStatus: state.verification?.status ?? null,
+          leaderboardEligible: state.verification?.isLeaderboardEligible ?? null,
+          backendRunId: state.backendResult?.run?.id ?? null,
+        },
+      });
+    }
+  }, [
+    trailId,
+    state.phase,
+    state.backendStatus,
+    state.gps.readiness,
+    state.verification?.status,
+    state.verification?.isLeaderboardEligible,
+    state.backendResult?.run?.id,
+    intent,
+    venue.gateSource,
+  ]);
+
   // Ranked background-permission preflight (F1#6). iOS silently kills
   // foreground-only GPS when the phone screen locks or the app is
   // pocketed — a ranked timer started without "Always" location will

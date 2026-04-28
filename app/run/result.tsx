@@ -13,6 +13,7 @@ import { View, Text, StyleSheet, Pressable, Animated, ActivityIndicator, Easing 
 import Svg, { Path } from 'react-native-svg';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -30,6 +31,10 @@ import { logDebugEvent } from '@/systems/debugEvents';
 import { triggerRefresh } from '@/hooks/useRefresh';
 import { InviteRivalButton } from '@/components/share/InviteRivalButton';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
+import {
+  getRunResultDisplayState,
+  type RunResultDisplayState,
+} from '@/features/run/runResultDisplay';
 
 // ═══════════════════════════════════════════════════════════
 // PRODUCT COPY — human, premium, gravity racing tone
@@ -126,6 +131,47 @@ const SCOPE_LABELS: Record<string, string> = {
   today: 'DZIŚ',
   weekend: 'WEEKEND',
   all_time: 'SEZON',
+};
+
+const RESULT_TONE: Record<RunResultDisplayState['tone'], {
+  color: string;
+  bg: string;
+  border: string;
+  icon: IconName;
+}> = {
+  success: {
+    color: colors.accent,
+    bg: colors.accentDim,
+    border: colors.accent + '60',
+    icon: 'verified',
+  },
+  muted: {
+    color: colors.textSecondary,
+    bg: 'rgba(242,244,243,0.06)',
+    border: colors.border,
+    icon: 'timer',
+  },
+  warning: {
+    color: colors.gold,
+    bg: 'rgba(255,204,0,0.08)',
+    border: 'rgba(255,204,0,0.20)',
+    icon: 'timer',
+  },
+  danger: {
+    color: colors.red,
+    bg: 'rgba(255,59,48,0.08)',
+    border: 'rgba(255,59,48,0.24)',
+    icon: 'x',
+  },
+};
+
+const RESULT_EYEBROW: Record<RunResultDisplayState['kind'], string> = {
+  leaderboard: 'LIGA',
+  practice: 'TRENING',
+  ranked_not_counted: 'NIEZALICZONY',
+  local: 'LOKALNIE',
+  saving: 'ZAPIS',
+  pioneer_line: 'LINIA',
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -314,6 +360,44 @@ function StandardResultScreen() {
     }
   }, [run?.backendResult?.trailOpened]);
 
+  useEffect(() => {
+    if (!run) return;
+    const status = run.verification?.status ?? 'pending';
+    const position = run.backendResult?.leaderboardResult?.position ?? 0;
+    const display = getRunResultDisplayState({
+      mode: run.mode,
+      saveStatus: run.saveStatus,
+      verificationStatus: status,
+      leaderboardEligible: run.verification?.isLeaderboardEligible ?? null,
+      countedInLeaderboard: run.backendResult?.run?.counted_in_leaderboard ?? null,
+      rankPosition: position,
+    });
+    Sentry.addBreadcrumb({
+      category: 'result',
+      type: 'info',
+      message: 'run_result_classified',
+      level: display.tone === 'danger' ? 'warning' : 'info',
+      data: {
+        trailId: run.trailId,
+        runSessionId: run.sessionId,
+        mode: run.mode,
+        saveStatus: run.saveStatus,
+        verificationStatus: status,
+        displayKind: display.kind,
+        reasonCode: display.reasonCode,
+        countedInLeaderboard: run.backendResult?.run?.counted_in_leaderboard ?? null,
+        rankPosition: position || null,
+      },
+    });
+  }, [
+    run?.sessionId,
+    run?.saveStatus,
+    run?.verification?.status,
+    run?.verification?.isLeaderboardEligible,
+    run?.backendResult?.run?.counted_in_leaderboard,
+    run?.backendResult?.leaderboardResult?.position,
+  ]);
+
   // ── Retry save — uses canonical path (same as saveQueue) ──
   const handleRetrySave = async () => {
     // B23.2: flip the counter FIRST, before any guard. This is the only
@@ -419,6 +503,15 @@ function StandardResultScreen() {
   const isSaved = run.saveStatus === 'saved';
   const isFailed = run.saveStatus === 'failed';
   const isQueued = run.saveStatus === 'queued';
+  const resultDisplay = getRunResultDisplayState({
+    mode: run.mode,
+    saveStatus: run.saveStatus,
+    verificationStatus: vStatus,
+    leaderboardEligible: v?.isLeaderboardEligible ?? null,
+    countedInLeaderboard: run.backendResult?.run?.counted_in_leaderboard ?? null,
+    rankPosition,
+  });
+  const resultTone = RESULT_TONE[resultDisplay.tone];
   const trailOpened = run.backendResult?.trailOpened === true;
   const trailOpenFailed = run.backendResult?.trailOpenFailed === true;
   const canPromoteBaseline = run.backendResult?.canPromoteBaseline === true;
@@ -436,8 +529,6 @@ function StandardResultScreen() {
 
   // Quality-based status for saved ranked runs
   const isOfficialRankedResult = showRank && isSaved;
-  const isSavedButNotRanked = isSaved && !showRank && isRanked;
-
   // Tier context
   const tierLabel = rankPosition <= 3 && rankPosition > 0 ? 'PODIUM'
     : rankPosition <= 10 && rankPosition > 0 ? 'TOP 10'
@@ -513,9 +604,11 @@ function StandardResultScreen() {
             <IconGlyph name="arrow-left" size={24} color={colors.textPrimary} />
           </Pressable>
           <Text style={styles.trailLabel}>{trailName.toUpperCase()}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: sd.bg }]}>
-            <IconGlyph name={sd.icon} size={14} color={sd.color} />
-            <Text style={[styles.statusText, { color: sd.color }]}>{sd.eyebrow}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: resultTone.bg }]}>
+            <IconGlyph name={resultTone.icon} size={14} color={resultTone.color} />
+            <Text style={[styles.statusText, { color: resultTone.color }]}>
+              {RESULT_EYEBROW[resultDisplay.kind]}
+            </Text>
           </View>
         </View>
 
@@ -556,19 +649,15 @@ function StandardResultScreen() {
           {/* Mutually exclusive save states — only ONE badge renders */}
           {isSaving ? (
             <View style={styles.savingBadge}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.savingText}>ZAPISUJĘ DO LIGI…</Text>
+              <ActivityIndicator size="small" color={resultTone.color} />
+              <Text style={[styles.savingText, { color: resultTone.color }]}>
+                {resultDisplay.title.toUpperCase()}
+              </Text>
             </View>
-          ) : (isFailed || run.saveStatus === 'offline') && !isPractice ? (
+          ) : isFailed || run.saveStatus === 'offline' ? (
             <View style={styles.saveFailCard}>
-              <Text style={styles.saveFailTitle}>
-                {run.saveStatus === 'offline' ? 'ZAPISANO LOKALNIE' : 'ZAPIS NIE POWIÓDŁ SIĘ'}
-              </Text>
-              <Text style={styles.saveFailBody}>
-                {run.saveStatus === 'offline'
-                  ? 'Brak internetu. Wyślę automatycznie gdy wrócisz online.'
-                  : 'Zjazd zapisany lokalnie. Możesz spróbować ponownie.'}
-              </Text>
+              <Text style={styles.saveFailTitle}>{resultDisplay.title.toUpperCase()}</Text>
+              <Text style={styles.saveFailBody}>{resultDisplay.body}</Text>
               {isFailed && !!run.userId && (
                 <Pressable
                   style={[styles.retryInlineBtn, retrying && { opacity: 0.5 }]}
@@ -595,10 +684,8 @@ function StandardResultScreen() {
             </View>
           ) : isQueued ? (
             <View style={styles.saveQueuedCard}>
-              <Text style={styles.saveQueuedTitle}>CZEKA NA WYSŁANIE</Text>
-              <Text style={styles.saveQueuedBody}>
-                Zjazd w kolejce. Wyślę automatycznie.
-              </Text>
+              <Text style={styles.saveQueuedTitle}>{resultDisplay.title.toUpperCase()}</Text>
+              <Text style={styles.saveQueuedBody}>{resultDisplay.body}</Text>
               {!!run.userId && (
                 <Pressable
                   style={[styles.retryInlineBtn, retrying && { opacity: 0.5 }]}
@@ -623,19 +710,20 @@ function StandardResultScreen() {
                 </Text>
               )}
             </View>
-          ) : isPractice ? (
-            <View style={styles.savePracticeBadge}>
-              <Text style={styles.savePracticeText}>TRENING ZAPISANY</Text>
+          ) : (
+            <View style={[
+              styles.resultVerdictCard,
+              { backgroundColor: resultTone.bg, borderColor: resultTone.border },
+            ]}>
+              <View style={styles.resultVerdictHead}>
+                <IconGlyph name={resultTone.icon} size={16} color={resultTone.color} />
+                <Text style={[styles.resultVerdictTitle, { color: resultTone.color }]}>
+                  {resultDisplay.title.toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.resultVerdictBody}>{resultDisplay.body}</Text>
             </View>
-          ) : isOfficialRankedResult ? (
-            <View style={styles.saveOfficialBadge}>
-              <Text style={styles.saveOfficialText}>WYNIK W LIDZE</Text>
-            </View>
-          ) : isSaved && !isVerified && isRanked ? (
-            <View style={styles.saveSavedBadge}>
-              <Text style={styles.saveSavedText}>ZAPISANY · POZA RANKINGIEM</Text>
-            </View>
-          ) : null}
+          )}
         </View>
 
         {/* ═══ PB CELEBRATION ═══ */}
@@ -1357,6 +1445,31 @@ const styles = StyleSheet.create({
   saveRow: { alignItems: 'center', marginBottom: spacing.lg },
   savingBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   savingText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 1 },
+  resultVerdictCard: {
+    width: '100%',
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  resultVerdictHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  resultVerdictTitle: {
+    ...typography.labelSmall,
+    letterSpacing: 2,
+    fontSize: 10,
+  },
+  resultVerdictBody: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   saveOfficialBadge: { backgroundColor: colors.accentDim, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   saveOfficialText: { ...typography.labelSmall, color: colors.accent, letterSpacing: 2, fontSize: 10 },
   saveSavedBadge: { backgroundColor: colors.bgCard, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
