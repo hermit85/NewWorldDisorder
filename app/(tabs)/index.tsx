@@ -232,6 +232,15 @@ export default function HomeScreen() {
     }
   }
 
+  // Must sit above every conditional early-return below — moving it
+  // under `if (isColdLoading) return ...` makes the hook count drop
+  // on first render and grow on the next, which is a rules-of-hooks
+  // violation that React surfaces as a sync render throw.
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/auth');
+  }, [isAuthenticated, router]);
+  if (!isAuthenticated) return null;
+
   if (isColdLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -257,14 +266,6 @@ export default function HomeScreen() {
       </SafeAreaView>
     );
   }
-
-  // ── Auth wall guard — defensive only ─────────────────────────
-  // Tabs reachable only via bootstrap → onboarding → /auth → /(tabs).
-  // The redirect-effect is the seat-belt if that wall ever leaks.
-  useEffect(() => {
-    if (!isAuthenticated) router.replace('/auth');
-  }, [isAuthenticated, router]);
-  if (!isAuthenticated) return null;
 
   // ── Authed flow — Race Day Command Center.
   // One screen, one question: "co teraz robię?". The context header

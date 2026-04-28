@@ -94,13 +94,18 @@ class AppErrorBoundary extends React.Component<
       // could itself be the source of the error. Hand-styled is the
       // safe fallback. Font family pulled from typography tokens so
       // the one variable that can drift gets the canonical token.
+      const err = this.state.error;
+      const stackHead = err?.stack?.split('\n').slice(0, 6).join('\n') ?? '';
       return (
-        <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Text style={{ fontFamily: fonts.racing, fontSize: 14, color: colors.danger, letterSpacing: 3, marginBottom: 12 }}>
             CRASH
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
-            Coś poszło nie tak. Spróbuj ponownie.
+          <Text style={{ color: colors.textPrimary, fontSize: 13, textAlign: 'center', marginBottom: 8, fontWeight: '600' }}>
+            {err?.name ?? 'Error'}: {err?.message ?? 'unknown'}
+          </Text>
+          <Text selectable style={{ color: colors.textSecondary, fontSize: 10, fontFamily: 'Courier', textAlign: 'left', marginBottom: 24 }}>
+            {stackHead}
           </Text>
           <Pressable
             onPress={() => this.setState({ hasError: false, error: null })}
