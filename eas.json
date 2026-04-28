@@ -15,6 +15,9 @@
     "preview": {
       "distribution": "internal",
       "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://d5161af565e87e194cae92d219ae0386@o4511067380711424.ingest.de.sentry.io/4511265269547088"
+      },
       "ios": {
         "buildConfiguration": "Release"
       }
@@ -24,7 +27,8 @@
       "autoIncrement": true,
       "distribution": "store",
       "env": {
-        "EXPO_USE_PRECOMPILED_MODULES": "0"
+        "EXPO_USE_PRECOMPILED_MODULES": "0",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://d5161af565e87e194cae92d219ae0386@o4511067380711424.ingest.de.sentry.io/4511265269547088"
       },
       "ios": {
         "buildConfiguration": "Release",
