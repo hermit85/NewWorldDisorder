@@ -158,6 +158,15 @@ export function detectGateCrossing(
     durationSec?: number;
     /** Min duration before finish */
     minDurationSec?: number;
+    /** Finish-only: allow proximity fallback when no real line crossing was
+     *  detected. Practice uses this anti-frustration path; ranked should
+     *  pass false so the finish is the actual configured line. */
+    allowFinishFallback?: boolean;
+    /** Start-only: allow soft start when the first post-arm sample is already
+     *  just past the line. The live gate engine pairs this with a separate
+     *  post-arm directional-progress check; direct callers keep the stricter
+     *  default so wrong-side / lateral unit tests stay honest. */
+    allowPostLineSoftStart?: boolean;
   } = {}
 ): GateCrossingResult {
   const {
@@ -270,25 +279,31 @@ export function detectGateCrossing(
   }
 
   // ── Phase 2 (finish only): Soft proximity fallback ──
-  if (isFinish) {
+  if (isFinish && options.allowFinishFallback !== false) {
     return detectFinishFallback(points, gate, options);
   }
 
   // ── Phase 3 (start only): Zone proximity fallback ──
-  // Less forgiving than finish but still allows imprecise crossing
+  // Less forgiving than finish but still allows imprecise crossing.
+  //
+  // Field test: riders often tap UZBRÓJ while already standing visually
+  // on the start pin. The live gate engine opts into a small post-line
+  // window here and then applies a separate directional-progress guard.
+  // Plain callers keep the historical before-line-only behavior.
+  const minSoftSignedDist = options.allowPostLineSoftStart ? -gate.zoneDepthM : 0;
   for (let i = start; i <= end; i++) {
     const p = points[i];
     const dist = distanceMeters(p, gate.center);
     const signedDist = signedDistanceFromGateLine(p, gate);
     const lateralDist = lateralDistanceFromGateLine(p, gate);
     if (
-      signedDist >= 0 &&
+      signedDist >= minSoftSignedDist &&
       signedDist <= gate.zoneDepthM &&
       lateralDist <= (gate.lineWidthM / 2) + 2
     ) {
       const heading = i > 0 ? computeHeading(points[i - 1], p) : null;
       const headingOk = heading !== null
-        ? headingDifference(heading, gate.trailBearing) < 70
+        ? headingDifference(heading, gate.trailBearing) <= gate.headingToleranceDeg
         : true; // no heading info = benefit of doubt
 
       if (headingOk) {
@@ -368,8 +383,10 @@ function detectFinishFallback(
     }
   }
 
-  // Fallback radius: slightly generous but not excessive (1.2x normal)
-  const fallbackRadius = gate.entryRadiusM * 1.2;
+  // Fallback radius: keep this at the configured entry radius. The prior
+  // 1.2x multiplier accepted a real field run at 14.27m from the finish
+  // center, which felt like the app "crossed out" before the physical meta.
+  const fallbackRadius = gate.entryRadiusM;
 
   if (closestDist <= fallbackRadius && closestIdx >= 0) {
     const p = points[closestIdx];

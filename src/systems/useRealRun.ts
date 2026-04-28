@@ -367,13 +367,17 @@ export function useRealRun(
         livePhase === 'running_ranked' || livePhase === 'running_practice';
       const isArmed =
         livePhase === 'armed_ranked' || livePhase === 'armed_practice';
+      const runMode =
+        livePhase === 'running_ranked' ? 'ranked' :
+          livePhase === 'running_practice' ? 'practice' :
+            null;
       const firstCheckpoint = currentState.checkpoints[0] ?? null;
       const hasPassedFirstCheckpoint = !!firstCheckpoint && (
         firstCheckpoint.passed ||
         distanceMeters(point, firstCheckpoint.coordinate) <= firstCheckpoint.radiusM
       );
 
-      gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint);
+      gateEngine.processPoint(point, isRunning, isArmed, hasPassedFirstCheckpoint, runMode);
       gpsHealthRef.current.onSample(point);
 
       const sampleDiagnostics = gateEngine.getDiagnostics();
@@ -681,43 +685,33 @@ export function useRealRun(
   }, [startRunInternal, intent]);
 
   /**
-   * D3 manual-start fallback. Fires when auto-detection gets stuck in
-   * on_line_ready and the rider hits the "START RĘCZNY" button. Works in
-   * EITHER armed phase — unlike startRun() which is practice-only.
-   *
-   * Since this skips the gate crossing, state.gateAutoStarted stays false
-   * and assessRunQuality downgrades the run on the "missing start crossing"
-   * branch — which is exactly the semantics we want (timer honoured, no
-   * leaderboard entry).
+   * D3 manual-start fallback. Practice-only. Ranked is gate-only: if a
+   * rider chose ranking, a manual fallback creates the exact confusing
+   * "ranking turned into training/manual timer" experience reported in
+   * ParkowaDH field testing.
    */
   const manualStart = useCallback(() => {
     const s = stateRef.current;
-    if (s.phase !== 'armed_ranked' && s.phase !== 'armed_practice') return;
+    if (intent !== 'practice' || s.phase !== 'armed_practice') return;
     if (finalizingRef.current) return;
     logDebugEvent('run', 'manual_start_fallback', 'info', {
       trailId,
-      payload: { mode: s.mode, phaseBefore: s.phase },
+      payload: { mode: s.mode, intent, phaseBefore: s.phase },
     });
     announceManualStart();
     // Seed the gate engine's autoStartTimestamp so the finish lockout
     // has a reference time (getFinishGateLockoutReason computes
-    // durationSec = now - autoStartTimestamp). Without this the ranked
-    // manual-start path produced a run that could never unlock meta
-    // — durationSec stayed 0, finishLockoutReason was always 'time'
-    // (Codex review P0.2).
+    // durationSec = now - autoStartTimestamp).
     gateEngine.markManualStart(Date.now());
     startRunInternal(false);
-  }, [startRunInternal, trailId, gateEngine]);
+  }, [startRunInternal, trailId, gateEngine, intent]);
 
   const finishRun = useCallback(() => {
     const s = stateRef.current;
-    // Manual finish is allowed for practice as before, and for ranked
-    // runs that started via manualStart() (gateAutoStarted=false).
-    // An auto-started ranked run still has to cross the finish gate —
-    // no manual bailout there, that's how ranked stays honest.
+    // Manual finish is practice-only. Ranked runs must cross the finish
+    // gate; otherwise "ranking" becomes a training/manual timer.
     const canFinishManually =
-      s.phase === 'running_practice' ||
-      (s.phase === 'running_ranked' && s.gateAutoStarted === false);
+      s.phase === 'running_practice';
     if (!canFinishManually) return;
     if (finalizingRef.current) return;
     finalizingRef.current = true;

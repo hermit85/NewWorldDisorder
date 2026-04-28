@@ -2947,6 +2947,122 @@ export async function deleteTestSpot(
   }
 }
 
+export type FounderContentAction = 'archive' | 'delete';
+
+export type FounderSpotManageOutcome =
+  | {
+      mode: 'archived';
+      spotId: string;
+      trailsArchived: number;
+      foreignRuns: number;
+    }
+  | {
+      mode: 'deleted';
+      spotId: string;
+      trailsDeleted: number;
+      runsDeleted: number;
+      leaderboardEntriesDeleted: number;
+      foreignRuns: number;
+    };
+
+export type FounderTrailManageOutcome =
+  | {
+      mode: 'archived';
+      trailId: string;
+      foreignRuns: number;
+    }
+  | {
+      mode: 'deleted';
+      trailId: string;
+      runsDeleted: number;
+      leaderboardEntriesDeleted: number;
+      foreignRuns: number;
+    };
+
+export async function founderManageSpot(
+  spotId: string,
+  action: FounderContentAction,
+  reason: string = 'founder cleanup',
+): Promise<ApiResult<FounderSpotManageOutcome>> {
+  try {
+    const { data, error } = await db().rpc('founder_manage_spot', {
+      p_spot_id: spotId,
+      p_action: action,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return { ok: false, code: res?.code ?? 'rpc_failed', message: res?.hint ?? undefined };
+    }
+    if (res.mode === 'archived') {
+      return {
+        ok: true,
+        data: {
+          mode: 'archived',
+          spotId,
+          trailsArchived: Number(res.trails_archived ?? 0),
+          foreignRuns: Number(res.foreign_runs ?? 0),
+        },
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        mode: 'deleted',
+        spotId,
+        trailsDeleted: Number(res.trails_deleted ?? 0),
+        runsDeleted: Number(res.runs_deleted ?? 0),
+        leaderboardEntriesDeleted: Number(res.leaderboard_entries_deleted ?? 0),
+        foreignRuns: Number(res.foreign_runs ?? 0),
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}
+
+export async function founderManageTrail(
+  trailId: string,
+  action: FounderContentAction,
+  reason: string = 'founder cleanup',
+): Promise<ApiResult<FounderTrailManageOutcome>> {
+  try {
+    const { data, error } = await db().rpc('founder_manage_trail', {
+      p_trail_id: trailId,
+      p_action: action,
+      p_reason: reason,
+    });
+    if (error) return { ok: false, code: 'rpc_failed', message: error.message };
+    const res = data as any;
+    if (res?.ok !== true) {
+      return { ok: false, code: res?.code ?? 'rpc_failed', message: res?.hint ?? undefined };
+    }
+    if (res.mode === 'archived') {
+      return {
+        ok: true,
+        data: {
+          mode: 'archived',
+          trailId,
+          foreignRuns: Number(res.foreign_runs ?? 0),
+        },
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        mode: 'deleted',
+        trailId,
+        runsDeleted: Number(res.runs_deleted ?? 0),
+        leaderboardEntriesDeleted: Number(res.leaderboard_entries_deleted ?? 0),
+        foreignRuns: Number(res.foreign_runs ?? 0),
+      },
+    };
+  } catch (e: any) {
+    return { ok: false, code: 'rpc_exception', message: e?.message ?? String(e) };
+  }
+}
+
 // ─── Founder god-mode listings ──────────────────────────────
 // Surface ALL spots / pioneer trails so the founder can hunt
 // down test-garbage left by anyone, not just their own. RLS lets

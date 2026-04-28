@@ -101,6 +101,35 @@ describe('dry walk — gate crossing on synthetic GPS', () => {
     expect((finish.crossingIndex ?? 0)).toBeGreaterThan((start.crossingIndex ?? 0));
   });
 
+  test('ranked finish · proximity fallback disabled before the finish line', () => {
+    const nearButBeforeFinish: GpsPoint[] = [
+      metersOffset(-84, 0, 20_000),
+      metersOffset(-86, 0, 21_000),
+      metersOffset(-88, 0, 22_000),
+    ];
+
+    const practiceFinish = detectGateCrossing(nearButBeforeFinish, finishGate, {
+      isFinish: true,
+      durationSec: 30,
+      totalDistanceM: 90,
+      expectedLengthM: 100,
+      minDurationSec: 5,
+      allowFinishFallback: true,
+    });
+    expect(practiceFinish.crossed).toBe(true);
+    expect(practiceFinish.flags).toContain('fallback_proximity');
+
+    const rankedFinish = detectGateCrossing(nearButBeforeFinish, finishGate, {
+      isFinish: true,
+      durationSec: 30,
+      totalDistanceM: 90,
+      expectedLengthM: 100,
+      minDurationSec: 5,
+      allowFinishFallback: false,
+    });
+    expect(rankedFinish.crossed).toBe(false);
+  });
+
   test('standstill · phone 5 m from gate · pure-geometry says soft crossing', () => {
     // 15 ticks parked at +5 m north of the start gate with realistic
     // GPS jitter (±1.5 m). At pure-geometry level the rider is INSIDE

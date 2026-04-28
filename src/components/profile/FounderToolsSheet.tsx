@@ -138,36 +138,24 @@ export function FounderToolsSheet({ visible, onClose, currentUserId }: FounderTo
     }
   }
 
-  async function performSpotDelete(spot: api.FounderSpotRow, archive: boolean) {
+  async function performSpotAction(spot: api.FounderSpotRow, action: api.FounderContentAction) {
     setBusyId(spot.spotId);
     try {
-      const res = await api.deleteTestSpot(spot.spotId, { archiveIfBlocked: archive });
+      const res = await api.founderManageSpot(spot.spotId, action, 'founder god-mode cleanup');
       if (res.ok) {
         tapMedium();
         notifySuccess();
-        const verb = res.data.mode === 'archived' ? 'Zarchiwizowano' : 'Usunięto';
-        setDoneCopy(`${verb} bike park "${spot.name}".`);
+        const copy =
+          res.data.mode === 'archived'
+            ? `Zarchiwizowano bike park "${spot.name}" i ${res.data.trailsArchived} tras.`
+            : `Usunięto bike park "${spot.name}" (${res.data.trailsDeleted} tras, ${res.data.runsDeleted} runów).`;
+        setDoneCopy(copy);
         triggerRefresh();
         setGodKey((k) => k + 1);
         setPreviewKey((k) => k + 1);
       } else {
         notifyWarning();
-        if (res.code === 'has_foreign_runs') {
-          Alert.alert(
-            'Park ma cudze runy',
-            `${res.message ?? 'Inni riderzy mają tu zjazdy.'}\n\nMogę zamiast usuwać — zarchiwizować (status → rejected, znika z list).`,
-            [
-              { text: 'Anuluj', style: 'cancel' },
-              {
-                text: 'ARCHIWIZUJ',
-                style: 'destructive',
-                onPress: () => performSpotDelete(spot, true),
-              },
-            ],
-          );
-          return;
-        }
-        setDoneCopy(`Błąd usuwania: ${res.code}${res.message ? ` — ${res.message}` : ''}`);
+        setDoneCopy(`Błąd operacji: ${res.code}${res.message ? ` — ${res.message}` : ''}`);
       }
     } catch (e: any) {
       notifyWarning();
@@ -180,27 +168,36 @@ export function FounderToolsSheet({ visible, onClose, currentUserId }: FounderTo
   function confirmSpotDelete(spot: api.FounderSpotRow) {
     if (busyId) return;
     Alert.alert(
-      'Usunąć bike park?',
-      `"${spot.name}" (${spot.status}, ${spot.trailCount} tras${spot.isMine ? ', twój' : `, autor: ${spot.submitterUsername ?? '?'}`}).\n\nKasuje też wszystkie trasy i runy w tym parku. Bezpowrotnie.`,
+      'Founder cleanup parku',
+      `"${spot.name}" (${spot.status}, ${spot.trailCount} tras${spot.isMine ? ', twój' : `, autor: ${spot.submitterUsername ?? '?'}`}).\n\nARCHIWIZUJ ukrywa park i trasy bez kasowania runów. USUŃ NA TWARDO kasuje park, trasy, runy i leaderboard bezpowrotnie.`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {
-          text: 'USUŃ',
+          text: 'ARCHIWIZUJ',
           style: 'destructive',
-          onPress: () => performSpotDelete(spot, false),
+          onPress: () => performSpotAction(spot, 'archive'),
+        },
+        {
+          text: 'USUŃ NA TWARDO',
+          style: 'destructive',
+          onPress: () => performSpotAction(spot, 'delete'),
         },
       ],
     );
   }
 
-  async function performTrailDelete(trail: api.FounderTrailRow) {
+  async function performTrailAction(trail: api.FounderTrailRow, action: api.FounderContentAction) {
     setBusyId(trail.trailId);
     try {
-      const res = await api.deleteTrail(trail.trailId);
+      const res = await api.founderManageTrail(trail.trailId, action, 'founder god-mode cleanup');
       if (res.ok) {
         tapMedium();
         notifySuccess();
-        setDoneCopy(`Usunięto trasę "${trail.name}".`);
+        const copy =
+          res.data.mode === 'archived'
+            ? `Zarchiwizowano trasę "${trail.name}".`
+            : `Usunięto trasę "${trail.name}" (${res.data.runsDeleted} runów).`;
+        setDoneCopy(copy);
         triggerRefresh();
         setGodKey((k) => k + 1);
         setPreviewKey((k) => k + 1);
@@ -270,14 +267,19 @@ export function FounderToolsSheet({ visible, onClose, currentUserId }: FounderTo
     if (busyId) return;
     const ownerLabel = trail.isMine ? 'twoja' : `autor: ${trail.pioneerUsername ?? '?'}`;
     Alert.alert(
-      'Usunąć trasę?',
-      `"${trail.name}" w "${trail.spotName ?? trail.spotId}" (${ownerLabel}, ${trail.runsContributed} runów).\n\nKasuje też wszystkie runy + leaderboard. Bezpowrotnie.`,
+      'Founder cleanup trasy',
+      `"${trail.name}" w "${trail.spotName ?? trail.spotId}" (${ownerLabel}, ${trail.runsContributed} runów).\n\nARCHIWIZUJ ukrywa trasę bez kasowania historii. USUŃ NA TWARDO kasuje runy i leaderboard bezpowrotnie.`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {
-          text: 'USUŃ',
+          text: 'ARCHIWIZUJ',
           style: 'destructive',
-          onPress: () => performTrailDelete(trail),
+          onPress: () => performTrailAction(trail, 'archive'),
+        },
+        {
+          text: 'USUŃ NA TWARDO',
+          style: 'destructive',
+          onPress: () => performTrailAction(trail, 'delete'),
         },
       ],
     );
@@ -405,8 +407,8 @@ export function FounderToolsSheet({ visible, onClose, currentUserId }: FounderTo
                 <View style={styles.divider} />
                 <Text style={styles.title}>God mode — bike parki</Text>
                 <Text style={styles.warning}>
-                  Wszystkie spoty w bazie. Skasowanie usuwa też trasy i runy
-                  w parku. Jeśli ktoś inny ma tam runy — proponuję archiwizację.
+                  Wszystkie spoty w bazie. Founder może archiwizować śmieci
+                  albo twardo kasować park razem z trasami i runami.
                 </Text>
 
                 {spotsLoading && spots.length === 0 ? (
@@ -432,8 +434,8 @@ export function FounderToolsSheet({ visible, onClose, currentUserId }: FounderTo
                 <View style={styles.divider} />
                 <Text style={styles.title}>God mode — trasy</Text>
                 <Text style={styles.warning}>
-                  Wszystkie trasy w bazie. Founder kasuje również cudze trasy
-                  (z runami innych) — używaj rozsądnie.
+                  Wszystkie trasy w bazie. Archiwizacja ukrywa trasę bez
+                  kasowania historii; hard delete usuwa też runy i leaderboard.
                 </Text>
 
                 {trailsLoading && trails.length === 0 ? (
@@ -555,7 +557,7 @@ function SpotRow({
         {busy ? (
           <ActivityIndicator color={colors.danger} size="small" />
         ) : (
-          <Text style={styles.rowActionLabel}>USUŃ</Text>
+          <Text style={styles.rowActionLabel}>AKCJA</Text>
         )}
       </Pressable>
     </View>
@@ -642,7 +644,7 @@ function TrailRow({
         {busy ? (
           <ActivityIndicator color={colors.danger} size="small" />
         ) : (
-          <Text style={styles.rowActionLabel}>USUŃ</Text>
+          <Text style={styles.rowActionLabel}>AKCJA</Text>
         )}
       </Pressable>
     </View>

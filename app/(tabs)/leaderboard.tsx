@@ -67,6 +67,13 @@ const VERIFIED_CALIBRATIONS: ReadonlySet<CalibrationStatus> = new Set([
   'locked',
 ]);
 
+function isScopeKey(value: unknown): value is ScopeKey {
+  return value === 'today' ||
+    value === 'weekend' ||
+    value === 'season' ||
+    value === 'all_time';
+}
+
 // SEZON isn't yet a distinct period in the API. Until the backend
 // exposes a season-scoped query we route SEZON to the all-time
 // leaderboard so the chip is interactive but truthful (it shows
@@ -88,7 +95,7 @@ export default function TablicaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, isAuthenticated } = useAuthContext();
-  const params = useLocalSearchParams<{ walk?: string }>();
+  const params = useLocalSearchParams<{ walk?: string; trailId?: string; scope?: string }>();
   const walkState: WalkState | null =
     __DEV__ && isWalkState(params.walk) ? params.walk : null;
   const walkInput = walkState ? buildWalkInput(walkState) : null;
@@ -103,10 +110,12 @@ export default function TablicaScreen() {
     () => trails.filter((t) => VERIFIED_CALIBRATIONS.has(t.calibrationStatus)),
     [trails],
   );
-  const [manualTrailId, setManualTrailId] = useState<string | null>(null);
+  const routeTrailId = typeof params.trailId === 'string' ? params.trailId : null;
+  const [manualTrailId, setManualTrailId] = useState<string | null>(routeTrailId);
   const focusTrail: Trail | null = useMemo(() => {
     if (manualTrailId) {
-      return verifiedTrails.find((t) => t.id === manualTrailId) ?? null;
+      const manual = verifiedTrails.find((t) => t.id === manualTrailId);
+      if (manual) return manual;
     }
     if (heroBeat) {
       const fromBeat = verifiedTrails.find((t) => t.id === heroBeat.trailId);
@@ -115,7 +124,13 @@ export default function TablicaScreen() {
     return verifiedTrails[0] ?? null;
   }, [verifiedTrails, manualTrailId, heroBeat]);
 
-  const [scope, setScope] = useState<ScopeKey>('today');
+  useEffect(() => {
+    if (routeTrailId) setManualTrailId(routeTrailId);
+  }, [routeTrailId]);
+
+  const [scope, setScope] = useState<ScopeKey>(
+    isScopeKey(params.scope) ? params.scope : 'today',
+  );
   const period = scopeToPeriod(scope);
   const { entries: leaderboardRows, status: leaderboardStatus } = useLeaderboard(
     focusTrail?.id ?? '',

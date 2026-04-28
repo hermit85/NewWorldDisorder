@@ -171,7 +171,11 @@ export function LiveTicker({
     );
   }
 
-  const event = visibleEvents[index];
+  const safeIndex = Math.min(index, visibleEvents.length - 1);
+  const event = visibleEvents[safeIndex];
+  if (!event) {
+    return null;
+  }
   const isRelated = !!currentTrailName
     && !!event.trailName
     && event.trailName.toLowerCase() === currentTrailName.toLowerCase();

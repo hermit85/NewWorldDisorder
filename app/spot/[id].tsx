@@ -16,7 +16,7 @@
 // PARK" mode unlocked by GPS proximity. Default browse view is
 // list-first per canonical screens-spot-trail.jsx.
 // ─────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,7 +27,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Btn,
@@ -49,6 +49,14 @@ import { typography } from '@/theme/typography';
 import { spacing } from '@/theme/spacing';
 
 type SpotDisplayState = 'no_trails' | 'all_calibrating' | 'mixed' | 'all_verified';
+
+const RANKING_CALIBRATIONS = new Set([
+  'verified',
+  'locked',
+  'live_fresh',
+  'live_confirmed',
+  'stable',
+]);
 
 function computeSpotState(
   trails: { calibrationStatus?: string }[],
@@ -86,6 +94,13 @@ export default function SpotScreen() {
   const { trails, refresh: refreshTrails } = useBikeParkTrails(id ?? null, profile?.id);
   const { submit: deleteSpot } = useDeleteSpot();
 
+  useFocusEffect(
+    useCallback(() => {
+      void refreshSpot();
+      void refreshTrails();
+    }, [refreshSpot, refreshTrails]),
+  );
+
   const isCurator = profile?.role === 'curator' || profile?.role === 'moderator';
   const spotDisplayState = computeSpotState(trails);
 
@@ -119,11 +134,15 @@ export default function SpotScreen() {
 
   function handleOpenLeaderboard() {
     if (!spot || trails.length === 0) return;
-    // Open ranking on the first trail (canonical UX — board scoped to
-    // a trail). User can switch trails inside leaderboard tab.
+    // Open ranking on a trail that actually has a leaderboard. In a mixed
+    // spot (one validating trail + one live trail), using trails[0] can point
+    // at the validating route and make Tablica look like stale cache.
+    const rankingTrail =
+      trails.find((t) => RANKING_CALIBRATIONS.has(t.calibrationStatus ?? '')) ??
+      trails[0];
     router.replace({
       pathname: '/(tabs)/leaderboard',
-      params: { trailId: trails[0].trail.id, scope: 'all_time' },
+      params: { trailId: rankingTrail.trail.id, scope: 'all_time' },
     });
   }
 
@@ -256,7 +275,7 @@ export default function SpotScreen() {
           <View style={styles.banner}>
             <IconGlyph name="timer" size={14} color={colors.warn} />
             <Text style={styles.bannerText}>
-              Trasy w walidacji — drugi spójny zjazd Pioniera otworzy ranking.
+              Trasy w walidacji — drugi spójny zjazd otworzy ranking.
             </Text>
           </View>
         ) : null}

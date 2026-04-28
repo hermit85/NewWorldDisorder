@@ -328,16 +328,9 @@ export default function ActiveRunScreen() {
         startRun();
         break;
       case 'running_ranked':
-        // Auto-started ranked runs must cross the real finish gate —
-        // no manual bailout, keeps the leaderboard honest. Manual-
-        // started ranked runs (no gateAutoStarted flag) are already
-        // flagged non-leaderboard by assessQuality, so letting the
-        // rider tap to stop the timer is the same semantic as the
-        // running_practice path below.
-        if (!state.gateAutoStarted) {
-          tapHeavy();
-          finishRun();
-        }
+        // Ranked runs are gate-only. No tap-to-finish and no manual
+        // bailout: if the rider chose ranking, the timer belongs to the
+        // start/finish gates, not a training fallback.
         break;
       case 'running_practice':
         tapHeavy();
@@ -588,7 +581,7 @@ export default function ActiveRunScreen() {
               userHeading={state.gateHeadingDeg}
               startPoint={gateConfig?.startGate.center ?? null}
               userPosition={userPosition}
-              onManualStart={manualStart}
+              onManualStart={intent === 'practice' ? manualStart : undefined}
               onArm={() => {
                 // B29: intent is the immutable oracle — readiness only
                 // gates whether we can arm *now*. Practice intent arms

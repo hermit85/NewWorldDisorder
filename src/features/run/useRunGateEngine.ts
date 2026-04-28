@@ -185,6 +185,7 @@ export interface GateEngine {
     isRunning: boolean,
     isArmed: boolean,
     hasPassedFirstCheckpoint: boolean,
+    runMode?: 'ranked' | 'practice' | null,
   ) => void;
   /** Get current engine state (for debug overlay) */
   getState: () => GateEngineState;
@@ -298,6 +299,7 @@ export function useRunGateEngine(
     isRunning: boolean,
     isArmed: boolean,
     hasPassedFirstCheckpoint: boolean,
+    runMode: 'ranked' | 'practice' | null = null,
   ) => {
     if (!config) return;
 
@@ -355,6 +357,7 @@ export function useRunGateEngine(
         const crossing = detectGateCrossing(recentPoints, config.startGate, {
           isFinish: false,
           currentHeading: state.currentHeading,
+          allowPostLineSoftStart: true,
         });
 
         // Chunk 10: reject the crossing when perpendicular velocity across
@@ -461,6 +464,7 @@ export function useRunGateEngine(
               expectedLengthM: config.expectedLengthM,
               durationSec,
               minDurationSec: config.finishUnlockMinTimeSec,
+              allowFinishFallback: runMode !== 'ranked',
             });
             const headingDeltaDeg = crossing.riderHeadingDeg != null
               ? headingDifference(crossing.riderHeadingDeg, config.finishGate.trailBearing)

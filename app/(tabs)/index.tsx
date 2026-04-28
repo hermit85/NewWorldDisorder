@@ -20,7 +20,7 @@
 // Profile stats, XP and the bike-park card live on the JA tab.
 // Anonymous flow is unchanged.
 // ─────────────────────────────────────────────────────────────
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -29,7 +29,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StreakIndicator } from '@/components/ui/StreakIndicator';
 import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
@@ -130,6 +130,13 @@ export default function HomeScreen() {
   const { data: primarySpotSummary, refresh: refreshPrimarySpot } =
     usePrimarySpot(authProfile?.id ?? null);
   const { trails, refresh: refreshTrails } = useTrails(primarySpotSummary?.spot.id ?? null);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPrimarySpot();
+      void refreshTrails();
+    }, [refreshPrimarySpot, refreshTrails]),
+  );
 
   const isColdLoading =
     isAuthenticated &&
