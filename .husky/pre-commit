@@ -1,0 +1,18 @@
+# Solo-dev safety net — runs locally on every commit. Catches the
+# 80% of regressions that the full CI would catch a few minutes
+# later. Tuned to be fast (≤5s on common edits) so it's never
+# tempting to bypass with --no-verify.
+#
+# 1. lint-staged: only operates on staged files (jest --findRelatedTests
+#    runs only the tests touching what you changed).
+# 2. tsc --noEmit: catches type breakage from cross-file changes that
+#    --findRelatedTests can't see (e.g. you renamed an interface).
+
+npx lint-staged
+
+# Skip tsc if there were no .ts/.tsx in the staged set — saves time
+# on doc-only / config-only commits.
+if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.(ts|tsx)$'; then
+  echo "pre-commit · tsc --noEmit"
+  npx tsc --noEmit
+fi

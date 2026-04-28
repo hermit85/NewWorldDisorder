@@ -10,7 +10,8 @@
     "test": "jest --runInBand",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:codegen": "playwright codegen http://localhost:8089"
+    "test:e2e:codegen": "playwright codegen http://localhost:8089",
+    "prepare": "husky"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -55,10 +56,18 @@
     "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
     "@types/react-test-renderer": "^19.1.0",
+    "fast-check": "^4.7.0",
+    "husky": "^9.1.7",
     "jest": "^30.3.0",
+    "lint-staged": "^16.4.0",
     "react-test-renderer": "^19.2.0",
     "ts-jest": "^29.4.9",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "jest --runInBand --findRelatedTests --bail --passWithNoTests"
+    ]
+  }
 }

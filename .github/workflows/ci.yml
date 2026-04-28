@@ -1,0 +1,99 @@
+name: CI
+
+# Runs on every push to main + every PR. Catches regressions before
+# they reach EAS / TestFlight. Solo-dev safety net — red X in GitHub
+# beats finding the same bug after burning a paid build slot.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs on the same ref when a new push comes in,
+# so a fast-follow commit doesn't leave stale runs eating CI time.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: jest + tsc + expo-doctor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      # expo-doctor sometimes flags non-blocking patch-level mismatches.
+      # Run it but don't fail CI on its exit code — surface the output
+      # in the run log so we notice drift, but don't block merges.
+      - name: expo-doctor (advisory)
+        run: npx expo-doctor || true
+        continue-on-error: true
+
+  e2e:
+    name: playwright (web preview)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # E2E is heavier — let it run in parallel to the unit job rather
+    # than block on it. Failure here doesn't fail the whole CI yet
+    # because Playwright snapshots can be flaky on different OS/font
+    # rendering — promote to required once the suite is stable.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Expo web preview
+        run: |
+          npm run web -- --port 8089 &
+          # Give Metro time to bundle. Playwright config defaults to
+          # http://localhost:8089 so we just need the server up.
+          for i in {1..60}; do
+            if curl -sf http://localhost:8089 > /dev/null; then
+              echo "Expo web ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Expo web did not come up in 120s"
+          exit 1
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/
+            playwright-report/
+            audit-screenshots/
+            walktest-screenshots/
+          retention-days: 7

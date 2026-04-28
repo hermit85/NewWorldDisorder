@@ -1,0 +1,43 @@
+# Dependabot — weekly security + version PRs. Solo-dev surface area
+# control: zero work to keep deps current, security advisories land
+# as PRs we can merge or dismiss with explicit reasoning.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    # Group expo + react-native bumps together — they're co-versioned
+    # by Expo SDK, splitting them produces broken PRs that need manual
+    # rebase. Group fires one PR per ecosystem per week.
+    groups:
+      expo:
+        patterns:
+          - "expo"
+          - "expo-*"
+          - "@expo/*"
+          - "react-native"
+          - "react-native-*"
+          - "@react-native-*/*"
+      sentry:
+        patterns:
+          - "@sentry/*"
+      testing:
+        patterns:
+          - "jest"
+          - "@types/jest"
+          - "ts-jest"
+          - "@playwright/*"
+          - "react-test-renderer"
+          - "@types/react-test-renderer"
+          - "fast-check"
+          - "husky"
+          - "lint-staged"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
