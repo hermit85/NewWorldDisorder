@@ -44,8 +44,11 @@ export type VenueSource = 'static' | 'db' | 'none';
  *  derivation. 'server' = trail_versions.start_gate / finish_gate
  *  were present and parsed; 'local_fallback' = client polyline
  *  derivation took over (legacy row, RLS hide, malformed server
- *  jsonb); 'none' = no gate at all (geometry too short / missing). */
-export type GateSource = 'server' | 'local_fallback' | 'none';
+ *  jsonb); 'static' = bundled venueConfig fixture (also
+ *  deterministic-by-construction, but distinguishable from a
+ *  server-fetched gate in dashboards); 'none' = no gate at all
+ *  (geometry too short / missing). */
+export type GateSource = 'server' | 'local_fallback' | 'static' | 'none';
 
 export interface ResolvedVenue {
   /** 'static' = venueConfig registry (Słotwiny legacy).
@@ -124,10 +127,11 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
       rankingEnabled: staticMatch.venue.rankingEnabled,
       trailGeo: geo,
       gateConfig,
-      // Static registry is treated as deterministic-by-construction;
-      // labelled 'server' for the same "everyone sees the same gate"
-      // semantic even though the source is the seeded fixture.
-      gateSource: gateConfig ? 'server' : 'none',
+      // Static registry is deterministic-by-construction (everyone's
+      // bundled fixture is identical), but kept as its own telemetry
+      // value so dashboards can distinguish a server-fetched canonical
+      // gate from a bundled-fixture gate.
+      gateSource: gateConfig ? 'static' : 'none',
     };
   }
 

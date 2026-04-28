@@ -84,12 +84,17 @@ begin
   v_idx := least(5, v_count - 1);
   v_after := v_pts->v_idx;
 
-  -- Numeric guard: any non-numeric coord aborts gate derivation
-  -- rather than the cast.
-  if jsonb_typeof(v_first->'lat') <> 'number'
-     or jsonb_typeof(v_first->'lng') <> 'number'
-     or jsonb_typeof(v_after->'lat') <> 'number'
-     or jsonb_typeof(v_after->'lng') <> 'number' then
+  -- Numeric guard: any non-numeric or missing coord aborts gate
+  -- derivation rather than the cast. IS DISTINCT FROM (not <>) is
+  -- critical: jsonb_typeof on a missing key returns NULL, and
+  -- `NULL <> 'number'` evaluates to NULL (not true), so a plain
+  -- `<>` test would silently fall through and write {lat: null,
+  -- lng: null} to the gate. IS DISTINCT FROM treats NULL as a
+  -- distinguishable value and short-circuits cleanly.
+  if jsonb_typeof(v_first->'lat') is distinct from 'number'
+     or jsonb_typeof(v_first->'lng') is distinct from 'number'
+     or jsonb_typeof(v_after->'lat') is distinct from 'number'
+     or jsonb_typeof(v_after->'lng') is distinct from 'number' then
     return null;
   end if;
 
@@ -140,10 +145,12 @@ begin
   v_idx := greatest(0, v_count - 6);
   v_before := v_pts->v_idx;
 
-  if jsonb_typeof(v_last->'lat') <> 'number'
-     or jsonb_typeof(v_last->'lng') <> 'number'
-     or jsonb_typeof(v_before->'lat') <> 'number'
-     or jsonb_typeof(v_before->'lng') <> 'number' then
+  -- Same NULL-vs-`<>` trap as in fn_derive_start_gate; see comment
+  -- there. IS DISTINCT FROM correctly rejects missing keys.
+  if jsonb_typeof(v_last->'lat') is distinct from 'number'
+     or jsonb_typeof(v_last->'lng') is distinct from 'number'
+     or jsonb_typeof(v_before->'lat') is distinct from 'number'
+     or jsonb_typeof(v_before->'lng') is distinct from 'number' then
     return null;
   end if;
 

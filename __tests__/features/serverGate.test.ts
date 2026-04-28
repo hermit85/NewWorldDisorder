@@ -31,16 +31,22 @@ function validGeometry(pointCount: number) {
   };
 }
 
+// Server gate coords deliberately offset from the geometry's first /
+// last polyline points (52.2 / 52.2 + 14 * 0.0001 = 52.2014). If the
+// resolver accidentally fell back to local derivation, the test would
+// see the polyline endpoints instead of these values — Codex pass 4
+// flagged that the original fixture used coincidental coords and
+// couldn't distinguish "server wins" from "local wins by accident".
 const validServerStart = {
-  lat: 52.2,
-  lng: 21.0,
+  lat: 52.5, // ~33 km north of polyline start — unmistakably different
+  lng: 21.5,
   radius_m: 25,
   direction_deg: 45,
 };
 
 const validServerFinish = {
-  lat: 52.21,
-  lng: 21.01,
+  lat: 52.6,
+  lng: 21.6,
   radius_m: 25,
   direction_deg: 45,
 };
@@ -55,8 +61,11 @@ describe('buildTrailGateConfigFromServer', () => {
       validGeometry(15),
     );
     expect(cfg).not.toBeNull();
-    expect(cfg!.startGate.center).toEqual({ latitude: 52.2, longitude: 21.0 });
-    expect(cfg!.finishGate.center).toEqual({ latitude: 52.21, longitude: 21.01 });
+    // Coords match server values (52.5 / 21.5), NOT the geometry
+    // first point (52.2 / 21.0). If the resolver accidentally fell
+    // back to local derivation, these assertions would fail.
+    expect(cfg!.startGate.center).toEqual({ latitude: 52.5, longitude: 21.5 });
+    expect(cfg!.finishGate.center).toEqual({ latitude: 52.6, longitude: 21.6 });
   });
 
   test('uses server direction_deg for trailBearing', () => {
@@ -147,8 +156,11 @@ describe('resolveVenue gate precedence', () => {
     expect(v.source).toBe('db');
     expect(v.gateSource).toBe('server');
     expect(v.gateConfig).not.toBeNull();
-    // Center should match server, not first polyline point.
-    expect(v.gateConfig!.startGate.center).toEqual({ latitude: 52.2, longitude: 21.0 });
+    // Coords prove server precedence: 52.5 is the server value;
+    // the polyline first point is 52.2. Local-fallback would pick
+    // the latter — this assertion makes "server wins" the only
+    // explanation that fits.
+    expect(v.gateConfig!.startGate.center).toEqual({ latitude: 52.5, longitude: 21.5 });
   });
 
   test("falls back to local derivation when server gates missing — gateSource: 'local_fallback'", () => {
