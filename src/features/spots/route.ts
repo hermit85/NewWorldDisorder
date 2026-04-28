@@ -18,14 +18,9 @@ export function resolveSpotArenaRoute(
     case 'PIONEER_TRAIL':
       return { pathname: '/trail/new', params: { spotId } };
     case 'OPEN_TRAIL':
-      if (arena.promotedTrailId) {
-        return {
-          pathname: '/trail/[id]',
-          params: { id: arena.promotedTrailId },
-        };
-      }
-      // Fallback to spot detail when promoted id is missing — we
-      // never silently fall through to /trail/new from here.
+      // Bike-park cards must open the bike park hub, even when the
+      // card meta promotes one trail/PB. The rider picks the exact
+      // trail and ranked/training intent one level deeper.
       return { pathname: '/spot/[id]', params: { id: spotId } };
     case 'CALIBRATION_RUN':
     case 'OPEN_SPOT':

@@ -141,7 +141,9 @@ describe('dev rider truth (pre-TestFlight)', () => {
     expect(a.meta).toContain(PB_FORMATTED);
 
     const route = resolveSpotArenaRoute(a, DEV_SPOT.id);
-    expect(route.pathname).toBe('/trail/[id]');
+    expect(route.pathname).toBe('/spot/[id]');
+    expect(route.params?.id).toBe(DEV_SPOT.id);
+    expect(route.pathname).not.toBe('/trail/[id]');
     expect(route.pathname).not.toBe('/trail/new');
   });
 

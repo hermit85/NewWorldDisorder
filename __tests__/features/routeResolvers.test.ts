@@ -112,10 +112,11 @@ describe('resolveHomeMissionRoute', () => {
 });
 
 describe('resolveSpotArenaRoute', () => {
-  test('USER_HAS_PB / ATAK NA CZAS → /trail/[id], NEVER /trail/new', () => {
+  test('USER_HAS_PB / ATAK NA CZAS → /spot/[id], NEVER a single trail', () => {
     const target = resolveSpotArenaRoute(arenaState({}), 'spot-1');
-    expect(target.pathname).toBe('/trail/[id]');
-    expect(target.params?.id).toBe('trail-1');
+    expect(target.pathname).toBe('/spot/[id]');
+    expect(target.params?.id).toBe('spot-1');
+    expect(target.pathname).not.toBe('/trail/[id]');
     expect(target.pathname).not.toBe('/trail/new');
   });
 
@@ -132,12 +133,14 @@ describe('resolveSpotArenaRoute', () => {
     expect(target.params?.spotId).toBe('spot-1');
   });
 
-  test('OPEN_TRAIL with missing promotedTrailId falls back to /spot/[id], not /trail/new', () => {
+  test('OPEN_TRAIL ignores promotedTrailId and opens the bike park hub', () => {
     const target = resolveSpotArenaRoute(
-      arenaState({ promotedTrailId: undefined }),
+      arenaState({ promotedTrailId: 'trail-1' }),
       'spot-1',
     );
     expect(target.pathname).toBe('/spot/[id]');
+    expect(target.params?.id).toBe('spot-1');
+    expect(target.pathname).not.toBe('/trail/[id]');
     expect(target.pathname).not.toBe('/trail/new');
   });
 
