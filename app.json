@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nwdisorder.app",
-      "buildNumber": "40",
+      "buildNumber": "42",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -67,6 +67,12 @@
           "ios": {
             "deploymentTarget": "15.1"
           }
+        }
+      ],
+      [
+        "./plugins/withPodDeploymentTarget",
+        {
+          "deploymentTarget": "15.1"
         }
       ]
     ],
