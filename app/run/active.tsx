@@ -39,16 +39,22 @@ export default function ActiveRunScreen() {
   const [debugTaps, setDebugTaps] = useState(0);
   const debugTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { profile } = useAuthContext();
+  const { profile, isLoading: authLoading } = useAuthContext();
 
   // Direct deep-link guard — /run/active is outside the tabs auth wall,
   // so a stale link, push notification, or cross-app intent can land
   // here without a session. profile?.id flows into useRealRun; running
   // ranked or practice with no user id yields broken result and
-  // submission paths downstream.
+  // submission paths downstream. Gate on isLoading too — on a cold
+  // launch the AuthProvider hydrates from storage asynchronously, so
+  // profile is null for the first render even when there is a valid
+  // persisted session. Without the isLoading short-circuit a deep
+  // link would race-redirect to /auth before the rider's session
+  // resolved.
   useEffect(() => {
+    if (authLoading) return;
     if (!profile?.id) router.replace('/auth');
-  }, [profile?.id, router]);
+  }, [authLoading, profile?.id, router]);
 
   // Trail context fetch. Geometry is only fetched for DB-sourced
   // trails; the static registry carries its own geo inline so we skip

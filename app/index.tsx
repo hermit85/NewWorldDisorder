@@ -51,7 +51,7 @@ export default function BootstrapScreen() {
       }, 50);
       return () => clearInterval(interval);
     }
-  }, [betaLoading, authLoading, needsOnboarding, isAuthenticated]);
+  }, [betaLoading, authLoading, needsOnboarding, isAuthenticated, router, rootNav]);
 
   // Production misconfig: blocking error surface
   if (isProductionMisconfigured) {

@@ -163,6 +163,13 @@ export default function TrailDetailScreen() {
   // ── Draft trail — Pioneer hasn't carved geometry yet ───────
   if (trail.calibrationStatus === 'draft' && trail.geometryMissing) {
     const startRecording = () => {
+      // Same upstream-auth-wall caveat as the ranked/practice handlers
+      // above — /run/recording is outside the tabs stack, so deep links
+      // and stale nav stacks can reach this CTA without a session.
+      if (!profile?.id) {
+        router.push('/auth');
+        return;
+      }
       tapMedium();
       router.push(`/run/recording?trailId=${trail.id}&spotId=${trail.spotId}`);
     };

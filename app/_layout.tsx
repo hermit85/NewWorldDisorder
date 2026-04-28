@@ -134,11 +134,21 @@ function RootLayout() {
   });
 
   // ── Hydrate run store + init save queue on mount ──
+  // Wrap the chain so any failure surfaces to Sentry and the console
+  // instead of becoming a silently-rejected promise. hydrateRunStore
+  // catches internally today, but the queue inits start async drains
+  // whose rejections would otherwise vanish.
   useEffect(() => {
-    hydrateRunStore().then(() => {
-      initSaveQueue();
-      initSubmissionQueue();
-    });
+    void (async () => {
+      try {
+        await hydrateRunStore();
+        initSaveQueue();
+        initSubmissionQueue();
+      } catch (e) {
+        console.error('[NWD] App init chain failed:', e);
+        Sentry.captureException(e, { tags: { phase: 'app-init' } });
+      }
+    })();
   }, []);
 
   useEffect(() => {

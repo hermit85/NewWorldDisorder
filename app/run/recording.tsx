@@ -22,6 +22,7 @@ import { useGPSRecorder } from '@/features/recording/useGPSRecorder';
 import { useGpsWarmup } from '@/features/recording/useGpsWarmup';
 import { READINESS_GATE } from '@/features/recording/validators';
 import { useLocationPermission } from '@/features/permissions/useLocationPermission';
+import { useAuthContext } from '@/hooks/AuthContext';
 import * as recordingStore from '@/features/recording/recordingStore';
 import { MotivationStack } from '@/components/run/MotivationStack';
 
@@ -133,6 +134,20 @@ export default function RecordingScreen() {
   const trailId = rawTrailId ?? '';
   const spotId = rawSpotId ?? '';
   const router = useRouter();
+
+  // Direct deep-link guard — /run/recording is outside the tabs auth
+  // wall and reachable from the trail draft CTA, so a deep link or
+  // stale nav stack can land an unauthenticated rider into the
+  // pioneer recording flow. Without this guard the rider records a
+  // run only to fail later at review/finalize when profile?.id is
+  // null. Gate on isLoading so a cold launch with valid persisted
+  // session doesn't race-redirect to /auth before AuthProvider
+  // hydrates.
+  const { profile, isLoading: authLoading } = useAuthContext();
+  useEffect(() => {
+    if (authLoading) return;
+    if (!profile?.id) router.replace('/auth');
+  }, [authLoading, profile?.id, router]);
 
   // Keep the screen on for the lifetime of this mount. Native-only —
   // the web Wake Lock API needs a user gesture and rejects on first
