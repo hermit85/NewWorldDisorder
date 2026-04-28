@@ -172,6 +172,12 @@ begin
       )
     );
 
+  -- Insert the run row with xp_awarded = 0 unconditionally. The
+  -- client-provided p_xp_awarded is only honoured below if the
+  -- server confirms eligibility AND consistency.ok. Pre-build-49
+  -- the row stored p_xp_awarded even on rejected runs, leaving
+  -- the DB inconsistent with the (correctly-gated) client profile
+  -- XP update — a Codex pass 6 silent-corruption finding.
   insert into public.runs (
     user_id, spot_id, trail_id, trail_version_id, mode,
     started_at, finished_at, duration_ms,
@@ -181,7 +187,7 @@ begin
     v_user_id, v_trail.spot_id, p_trail_id, v_trail.current_version_id, p_mode,
     p_started_at, p_finished_at, p_duration_ms,
     p_verification_status, v_summary_out, p_gps_trace,
-    false, coalesce(p_xp_awarded, 0), false
+    false, 0, false
   )
   returning * into v_run_row;
 
@@ -191,7 +197,8 @@ begin
       v_eligible := true;
       update public.runs
          set counted_in_leaderboard = true,
-             is_pb = v_is_pb
+             is_pb = v_is_pb,
+             xp_awarded = coalesce(p_xp_awarded, 0)
        where id = v_run_row.id
        returning * into v_run_row;
 

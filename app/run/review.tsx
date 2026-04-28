@@ -279,16 +279,18 @@ export default function ReviewScreen() {
       // Auto-merge: the geometry overlapped an existing trail enough
       // that the server rebased the run there and archived the draft
       // trail row. Don't show a pioneer celebration — the rider didn't
-      // pioneer anything. Send them to the result screen as a regular
-      // counted ride, with the merged trail id so any "trail" link in
-      // the result UI points at the canonical row, not the deleted
-      // draft. Codex pass 5 loop-blocker — pre-build-49 every success
-      // routed to "isPioneer=true" and the rider landed on a result
-      // celebrating a trail that no longer existed.
+      // pioneer anything — and don't try to use /run/result either:
+      // that route's PioneerResultScreen is themed for celebration
+      // and StandardResultScreen reads a runSessionId we don't have
+      // for an RPC-finalised run. Cleanest route is the merged
+      // trail's detail screen, where the rider's just-counted run
+      // shows up on the leaderboard naturally. (Codex pass 6 caught
+      // an earlier attempt that routed to /run/result with runId
+      // and isPioneer=false — that combination falls through to
+      // StandardResultScreen with no runSessionId and shows
+      // "Brak danych zjazdu".)
       if (result.data.kind === 'auto_merged') {
-        router.replace(
-          `/run/result?runId=${result.data.runId}&isPioneer=false&trailId=${result.data.intoTrailId}&autoMerged=true`,
-        );
+        router.replace(`/trail/${result.data.intoTrailId}`);
         return;
       }
       router.replace(`/run/result?runId=${result.data.runId}&isPioneer=true`);
