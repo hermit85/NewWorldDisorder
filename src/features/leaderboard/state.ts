@@ -60,6 +60,16 @@ export interface LeaderboardHeroCopy {
 export interface LeaderboardCta {
   label: string;
   action: LeaderboardCtaAction;
+  /** Trail id passed through to /run/active when the CTA navigates to a
+   *  ranked or calibration run. Required for CALIBRATION_RUN because the
+   *  Tablica state's `focusTrail` is null when no verified trail exists yet
+   *  — the route resolver would otherwise short-circuit and the button
+   *  becomes a no-op. RANKED_RUN states have focusTrail upstream so they
+   *  can leave this off, but populating it everywhere keeps the route
+   *  resolver branch single-source. */
+  trailId?: string;
+  /** Display name in original casing for /run/active params. */
+  trailName?: string;
 }
 
 export interface LeagueProofCard {
@@ -222,6 +232,12 @@ export function deriveLeaderboardState(
   // 3. NO_VERIFIED_TRAILS
   const verified = trails.filter((t) => VERIFIED_CALIBRATIONS.has(t.calibrationStatus));
   if (verified.length === 0 || !focusTrail) {
+    // Pick the first calibrating trail as the surfaced target so the
+    // CTA has somewhere to route. Pre-fix, focusTrail was null here
+    // (filtered to verified only) and resolveLeaderboardCtaRoute
+    // short-circuited on missing trailId — the JEDŹ KALIBRACYJNIE
+    // button was visually present but did nothing.
+    const calibrationTarget = trails[0];
     return {
       kind: 'NO_VERIFIED_TRAILS',
       hero: {
@@ -233,7 +249,12 @@ export function deriveLeaderboardState(
       topRows: [],
       stickyUserRow: null,
       tailRows: [],
-      cta: { label: 'JEDŹ KALIBRACYJNIE', action: 'CALIBRATION_RUN' },
+      cta: {
+        label: 'JEDŹ KALIBRACYJNIE',
+        action: 'CALIBRATION_RUN',
+        trailId: calibrationTarget?.id,
+        trailName: calibrationTarget?.name,
+      },
       proofCard: null,
     };
   }

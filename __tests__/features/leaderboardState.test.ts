@@ -123,6 +123,27 @@ describe('deriveLeaderboardState', () => {
     expect(s.cta?.action).toBe('CALIBRATION_RUN');
   });
 
+  // Regression-magnet: NO_VERIFIED_TRAILS used to omit trailId/trailName
+  // on the cta, so resolveLeaderboardCtaRoute returned null (focusTrail
+  // is null in this state) and tapping JEDŹ KALIBRACYJNIE was a no-op.
+  // The cta MUST carry the calibrating-trail handles itself.
+  test('NO_VERIFIED_TRAILS — cta carries trailId/trailName for routing', () => {
+    const s = deriveLeaderboardState({
+      ...DEFAULTS,
+      primarySpotSummary: makeSpot(),
+      trails: [makeTrail({
+        id: 'trail-prezydencka',
+        name: 'Prezydencka',
+        calibrationStatus: 'fresh_pending_second_run',
+      })],
+      focusTrail: null,
+      leaderboardRows: [],
+      currentUserId: 'user-me',
+    });
+    expect(s.cta?.trailId).toBe('trail-prezydencka');
+    expect(s.cta?.trailName).toBe('Prezydencka');
+  });
+
   test('TRAIL_LEAGUE_EMPTY — trail has no scoped rows AND no history', () => {
     const s = deriveLeaderboardState({
       ...DEFAULTS,

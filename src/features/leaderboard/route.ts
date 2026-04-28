@@ -28,15 +28,24 @@ export function resolveLeaderboardCtaRoute(
       if (!ctx.primarySpotId) return null;
       return { pathname: '/trail/new', params: { spotId: ctx.primarySpotId } };
     case 'CALIBRATION_RUN':
-    case 'RANKED_RUN':
-      if (!ctx.focusTrail) return null;
+    case 'RANKED_RUN': {
+      // Prefer the trail handle baked into the CTA (states like
+      // NO_VERIFIED_TRAILS know which calibrating trail to route to
+      // even when the focusTrail prop is null — focusTrail filters to
+      // verified-only). Fall back to ctx.focusTrail for RANKED_RUN
+      // states that haven't yet been migrated to carry the handle in
+      // state.cta itself.
+      const trailId = state.cta.trailId ?? ctx.focusTrail?.id;
+      const trailName = state.cta.trailName ?? ctx.focusTrail?.name;
+      if (!trailId) return null;
       return {
         pathname: '/run/active',
         params: {
-          trailId: ctx.focusTrail.id,
-          trailName: ctx.focusTrail.name,
+          trailId,
+          trailName: trailName ?? '',
           intent: 'ranked',
         },
       };
+    }
   }
 }
