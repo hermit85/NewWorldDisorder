@@ -38,10 +38,10 @@ import {
   StatBox,
   TopBar,
   TrailCard,
-  type TrailStatus,
 } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
+import { getTrailDisplayState } from '@/features/trails/trailLifecycle';
 import { formatTimeShort } from '@/content/copy';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -70,13 +70,6 @@ function computeSpotState(
   if (calibrating === trails.length) return 'all_calibrating';
   if (verified === trails.length) return 'all_verified';
   return 'mixed';
-}
-
-function resolveTrailStatus(calibrationStatus?: string | null): TrailStatus {
-  const c = (calibrationStatus ?? '').toLowerCase();
-  if (c === 'calibrating' || c === 'fresh_pending_second_run') return 'validating';
-  if (c === 'locked') return 'closed';
-  return 'open';
 }
 
 const BOTTOM_CTA_CLEARANCE = 24;
@@ -274,7 +267,7 @@ export default function SpotScreen() {
           <View style={styles.banner}>
             <IconGlyph name="timer" size={14} color={colors.warn} />
             <Text style={styles.bannerText}>
-              Trasy w walidacji — drugi spójny zjazd otworzy ranking.
+              Nowe trasy są gotowe do jazdy. Pierwsze przejazdy rankingowe pomagają potwierdzić linię.
             </Text>
           </View>
         ) : null}
@@ -292,10 +285,14 @@ export default function SpotScreen() {
                 const lengthKm = t.trail.distanceM > 0
                   ? `${(t.trail.distanceM / 1000).toFixed(1)} km`
                   : null;
-                const trailStatus = resolveTrailStatus(t.calibrationStatus);
-                const pioneerLabel = t.pioneerStatusLabel
-                  ? <Pill state={t.pioneerStatusLabel === 'PIONIER' ? 'accent' : 'pending'} size="xs">{t.pioneerStatusLabel}</Pill>
-                  : undefined;
+                const display = getTrailDisplayState({
+                  calibrationStatus: t.calibrationStatus,
+                });
+                const lifecycleLabel = (
+                  <Pill state={display.pillState} size="xs" dot={display.kind === 'new'}>
+                    {display.label}
+                  </Pill>
+                );
 
                 return (
                   <TrailCard
@@ -303,11 +300,12 @@ export default function SpotScreen() {
                     name={t.trail.name}
                     difficulty={t.trail.difficulty}
                     trailType={t.trail.type}
-                    status={trailStatus}
+                    status={display.cardStatus}
                     length={lengthKm}
                     pbTime={t.userData.pbMs ? formatTimeShort(t.userData.pbMs) : null}
                     rank={t.userData.position ?? null}
-                    pioneerLabel={pioneerLabel}
+                    ctaLabel="Szczegóły"
+                    pioneerLabel={lifecycleLabel}
                     highlight={t.state === 'beaten' || !!t.userData.lastRanAt}
                     onPress={() => router.push(`/trail/${t.trail.id}`)}
                   />
@@ -329,20 +327,20 @@ export default function SpotScreen() {
           <View style={styles.empty}>
             <Pill state="accent">Pioneer slot wolny</Pill>
             <Text style={styles.emptyTitle}>
-              Pionieruj.{'\n'}Zdefiniuj linię.{'\n'}Wyzwij innych.
+              Nazwij trasę.{'\n'}Nagraj linię.{'\n'}Otwórz ligę.
             </Text>
             <View style={styles.howItWorks}>
               <View style={styles.howCell}>
                 <Text style={styles.howIndex}>01</Text>
-                <Text style={styles.howItem}>TELEFON DO KIESZENI</Text>
+                <Text style={styles.howItem}>NAZWIJ TRASĘ</Text>
               </View>
               <View style={styles.howCell}>
                 <Text style={styles.howIndex}>02</Text>
-                <Text style={styles.howItem}>ZJEDŹ RAZ</Text>
+                <Text style={styles.howItem}>NAGRAJ PIERWSZY ZJAZD</Text>
               </View>
               <View style={styles.howCell}>
                 <Text style={styles.howIndex}>03</Text>
-                <Text style={styles.howItem}>RANKING GOTOWY</Text>
+                <Text style={styles.howItem}>PIERWSZE CZASY W LIDZE</Text>
               </View>
             </View>
             <Btn

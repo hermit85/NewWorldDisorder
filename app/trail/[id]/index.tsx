@@ -51,6 +51,10 @@ import {
   useTrail,
   useUserTrailStats,
 } from '@/hooks/useBackend';
+import {
+  getAvailableTrailActions,
+  getTrailDisplayState,
+} from '@/features/trails/trailLifecycle';
 import { getVenueForTrail } from '@/data/venues';
 import { getTrustDisclosure } from '@/lib/trailTrust';
 import { formatTime, formatTimeShort } from '@/content/copy';
@@ -160,6 +164,9 @@ export default function TrailDetailScreen() {
     );
   }
 
+  const trailDisplay = getTrailDisplayState(trail);
+  const trailActions = getAvailableTrailActions(trail, { isTrainingOnly });
+
   // ── Draft trail — Pioneer hasn't carved geometry yet ───────
   if (trail.calibrationStatus === 'draft' && trail.geometryMissing) {
     const startRecording = () => {
@@ -191,19 +198,19 @@ export default function TrailDetailScreen() {
               <Pill state="accent">Trasa</Pill>
             </View>
             <PageTitle title={trail.name} hero />
-            <Pill state="pending" dot>Draft · czeka na pioniera</Pill>
+            <Pill state={trailDisplay.pillState} dot>{trailDisplay.label}</Pill>
           </View>
 
           <Card hi glow padding={20} style={{ gap: 14 }}>
             <View style={styles.draftCtaIcon}>
               <IconGlyph name="rec" size={32} variant="accent" />
             </View>
-            <Text style={styles.draftCtaTitle}>ROZPOCZNIJ NAGRYWANIE</Text>
+            <Text style={styles.draftCtaTitle}>{trailDisplay.title.toUpperCase()}</Text>
             <Text style={styles.draftCtaBody}>
-              Twój pierwszy zjazd wyznaczy linię dla wszystkich.
+              {trailDisplay.body} Pierwszy zjazd wyznaczy start, metę i linię dla wszystkich.
             </Text>
             <Btn variant="primary" size="lg" onPress={startRecording}>
-              Rozpocznij nagrywanie
+              {trailActions.primary.label}
             </Btn>
           </Card>
 
@@ -282,7 +289,9 @@ export default function TrailDetailScreen() {
         {/* ═════ HERO ═════ */}
         <View style={styles.hero}>
           <View style={styles.heroPillRow}>
-            <Pill state="accent">Trasa</Pill>
+            <Pill state={trailDisplay.pillState} dot={trailDisplay.kind === 'new'}>
+              {trailDisplay.label}
+            </Pill>
           </View>
           <PageTitle title={trail.name} hero />
 
@@ -309,9 +318,10 @@ export default function TrailDetailScreen() {
             </View>
           ) : null}
 
-          {isTrainingOnly ? (
-            <Pill state="pending" size="sm">Walidacja treningowa</Pill>
-          ) : null}
+          <View style={styles.lifecycleCard}>
+            <Text style={styles.lifecycleTitle}>{trailDisplay.title.toUpperCase()}</Text>
+            <Text style={styles.lifecycleBody}>{trailDisplay.body}</Text>
+          </View>
         </View>
 
         {/* ═════ STATS GRID ═════ */}
@@ -397,7 +407,7 @@ export default function TrailDetailScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noResultTitle}>BEZ WYNIKU NA TEJ TRASIE</Text>
                   <Text style={styles.noResultHint}>
-                    Ukończ zjazd aby pojawić się na tablicy.
+                    Jedź rankingowo, żeby czas mógł wejść na tablicę.
                   </Text>
                 </View>
               </View>
@@ -462,7 +472,7 @@ export default function TrailDetailScreen() {
           {!lbLoading && lbStatus !== 'error' && top5.length === 0 ? (
             <View style={styles.boardEmpty}>
               <Text style={styles.emptyText}>RANKING PUSTY</Text>
-              <Text style={styles.emptyHint}>Postaw pierwszy czas.</Text>
+              <Text style={styles.emptyHint}>Pierwszy zaliczony przejazd rankingowy otworzy tabelę.</Text>
             </View>
           ) : null}
 
@@ -517,26 +527,33 @@ export default function TrailDetailScreen() {
         the trail (ranking is gated until the venue gets a canonical
         version). For ranked-capable trails, one obvious primary CTA. */}
       <View style={styles.actionBar}>
-        {isTrainingOnly ? (
+        <View style={styles.actionBlock}>
           <Btn
             variant="primary"
             size="lg"
-            onPress={handleStartPractice}
+            onPress={trailActions.primary.id === 'practice' ? handleStartPractice : handleStartRanked}
+            icon={trailActions.primary.id === 'ranked'
+              ? <IconGlyph name="lock" size={16} color={colors.accentInk} />
+              : undefined}
             style={{ flex: 1 }}
           >
-            Trening
+            {trailActions.primary.label}
           </Btn>
-        ) : (
-          <Btn
-            variant="primary"
-            size="lg"
-            onPress={handleStartRanked}
-            icon={<IconGlyph name="lock" size={16} color={colors.accentInk} />}
-            style={{ flex: 1 }}
-          >
-            Jedź ranking
-          </Btn>
-        )}
+          <Text style={styles.actionCaption}>{trailActions.primary.caption}</Text>
+        </View>
+        {trailActions.secondary ? (
+          <View style={styles.actionBlock}>
+            <Btn
+              variant="ghost"
+              size="md"
+              onPress={handleStartPractice}
+              style={{ flex: 1 }}
+            >
+              {trailActions.secondary.label}
+            </Btn>
+            <Text style={styles.actionCaption}>{trailActions.secondary.caption}</Text>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -684,6 +701,28 @@ const styles = StyleSheet.create({
   trustText: {
     ...typography.body,
     flex: 1,
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  lifecycleCard: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 12,
+    gap: 6,
+  },
+  lifecycleTitle: {
+    ...typography.micro,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    color: colors.accent,
+    letterSpacing: 2.0,
+    fontWeight: '800',
+  },
+  lifecycleBody: {
+    ...typography.body,
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 18,
@@ -854,7 +893,7 @@ const styles = StyleSheet.create({
 
   // Action bar
   actionBar: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 10,
     paddingHorizontal: spacing.pad,
     paddingTop: 12,
@@ -862,6 +901,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  actionBlock: {
+    gap: 5,
+  },
+  actionCaption: {
+    ...typography.body,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textTertiary,
+    textAlign: 'center',
   },
 
   // Draft state
