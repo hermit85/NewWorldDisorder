@@ -230,6 +230,13 @@ export default function TrailDetailScreen() {
 
   const handleStartRanked = () => {
     if (isTrainingOnly) return;
+    // /trail/[id] is outside the tabs stack, so deep links and stale
+    // nav stacks can land an unauthenticated rider here. The tab auth
+    // wall doesn't cover this route — guard explicitly before /run/active.
+    if (!profile?.id) {
+      router.push('/auth');
+      return;
+    }
     tapMedium();
     router.push({
       pathname: '/run/active',
@@ -238,6 +245,10 @@ export default function TrailDetailScreen() {
   };
 
   const handleStartPractice = () => {
+    if (!profile?.id) {
+      router.push('/auth');
+      return;
+    }
     tapLight();
     router.push({
       pathname: '/run/active',

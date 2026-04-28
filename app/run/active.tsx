@@ -41,6 +41,15 @@ export default function ActiveRunScreen() {
 
   const { profile } = useAuthContext();
 
+  // Direct deep-link guard — /run/active is outside the tabs auth wall,
+  // so a stale link, push notification, or cross-app intent can land
+  // here without a session. profile?.id flows into useRealRun; running
+  // ranked or practice with no user id yields broken result and
+  // submission paths downstream.
+  useEffect(() => {
+    if (!profile?.id) router.replace('/auth');
+  }, [profile?.id, router]);
+
   // Trail context fetch. Geometry is only fetched for DB-sourced
   // trails; the static registry carries its own geo inline so we skip
   // the network trip when resolveVenue will pick the static branch.

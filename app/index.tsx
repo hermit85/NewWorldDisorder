@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter, useNavigationContainerRef } from 'expo-router';
 import { useBetaFlow } from '@/hooks/useBetaFlow';
+import { useAuthContext } from '@/hooks/AuthContext';
 import { isProductionMisconfigured } from '@/hooks/useBackend';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -15,17 +16,26 @@ import { spacing } from '@/theme/spacing';
 export default function BootstrapScreen() {
   const router = useRouter();
   const rootNav = useNavigationContainerRef();
-  const { needsOnboarding, loading } = useBetaFlow();
+  const { needsOnboarding, loading: betaLoading } = useBetaFlow();
+  const { isAuthenticated, isLoading: authLoading } = useAuthContext();
 
   useEffect(() => {
     // Production without env vars = hard stop, don't enter app
     if (isProductionMisconfigured) return;
-    if (loading) return;
+    // Wait for both gates: onboarding-version check AND Supabase
+    // session resolution. Routing on partial state would land an
+    // onboarded-but-signed-out rider in /(tabs) for one render and
+    // rely on per-screen redirects to kick them out — that's the
+    // failure mode that produced the build-47 boot crash chain.
+    if (betaLoading || authLoading) return;
 
     const navigate = () => {
-      const target = needsOnboarding ? '/onboarding' : '/(tabs)';
+      let target: string;
+      if (needsOnboarding) target = '/onboarding';
+      else if (!isAuthenticated) target = '/auth';
+      else target = '/(tabs)';
       if (__DEV__) {
-        console.log('[NWD:bootstrap]', { needsOnboarding, target });
+        console.log('[NWD:bootstrap]', { needsOnboarding, isAuthenticated, target });
       }
       router.replace(target);
     };
@@ -41,7 +51,7 @@ export default function BootstrapScreen() {
       }, 50);
       return () => clearInterval(interval);
     }
-  }, [loading, needsOnboarding]);
+  }, [betaLoading, authLoading, needsOnboarding, isAuthenticated]);
 
   // Production misconfig: blocking error surface
   if (isProductionMisconfigured) {
