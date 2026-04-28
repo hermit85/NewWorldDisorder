@@ -1,5 +1,12 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- finalize_seed_run: persist canonical start_gate / finish_gate
+-- + harden fn_derive_*_gate helpers against non-numeric lat/lng
+--
+-- Wrapped in BEGIN/COMMIT so the function replacement, helper
+-- hardening, and backfill UPDATE all land atomically — the pre-fix
+-- helpers can abort the backfill on malformed data, so the order
+-- inside the transaction matters: helpers first, function next,
+-- backfill last.
 --
 -- Build 48 (TestFlight) shipped a feature gap discovered in field
 -- testing on 2026-04-28 — when a second rider opens a freshly
@@ -35,6 +42,126 @@
 -- companion change this migration is observable but not yet
 -- effective on the device.
 -- ═══════════════════════════════════════════════════════════════════
+
+BEGIN;
+
+-- ── fn_derive_start_gate / fn_derive_finish_gate hardening ───────
+-- The live helpers cast `(point->>'lat')::double precision`
+-- unconditionally, which aborts on any non-numeric jsonb value.
+-- We add explicit `jsonb_typeof(...) = 'number'` guards so
+-- malformed rows return NULL cleanly. This also matters for the
+-- backfill below — without these guards, a single corrupt row
+-- could roll back the whole UPDATE.
+
+CREATE OR REPLACE FUNCTION public.fn_derive_start_gate(
+  p_geometry jsonb,
+  p_radius_m integer DEFAULT 25
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+IMMUTABLE PARALLEL SAFE
+AS $function$
+declare
+  v_pts jsonb;
+  v_count integer;
+  v_first jsonb;
+  v_after jsonb;
+  v_idx integer;
+  v_first_lat double precision;
+  v_first_lng double precision;
+  v_after_lat double precision;
+  v_after_lng double precision;
+begin
+  v_pts := p_geometry->'points';
+  if v_pts is null or jsonb_typeof(v_pts) <> 'array' then
+    return null;
+  end if;
+  v_count := jsonb_array_length(v_pts);
+  if v_count < 2 then
+    return null;
+  end if;
+  v_first := v_pts->0;
+  v_idx := least(5, v_count - 1);
+  v_after := v_pts->v_idx;
+
+  -- Numeric guard: any non-numeric coord aborts gate derivation
+  -- rather than the cast.
+  if jsonb_typeof(v_first->'lat') <> 'number'
+     or jsonb_typeof(v_first->'lng') <> 'number'
+     or jsonb_typeof(v_after->'lat') <> 'number'
+     or jsonb_typeof(v_after->'lng') <> 'number' then
+    return null;
+  end if;
+
+  v_first_lat := (v_first->>'lat')::double precision;
+  v_first_lng := (v_first->>'lng')::double precision;
+  v_after_lat := (v_after->>'lat')::double precision;
+  v_after_lng := (v_after->>'lng')::double precision;
+
+  return jsonb_build_object(
+    'lat', v_first_lat,
+    'lng', v_first_lng,
+    'radius_m', p_radius_m,
+    'direction_deg', public.fn_bearing_deg(
+      v_first_lat, v_first_lng, v_after_lat, v_after_lng
+    )
+  );
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fn_derive_finish_gate(
+  p_geometry jsonb,
+  p_radius_m integer DEFAULT 25
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+IMMUTABLE PARALLEL SAFE
+AS $function$
+declare
+  v_pts jsonb;
+  v_count integer;
+  v_last jsonb;
+  v_before jsonb;
+  v_idx integer;
+  v_last_lat double precision;
+  v_last_lng double precision;
+  v_before_lat double precision;
+  v_before_lng double precision;
+begin
+  v_pts := p_geometry->'points';
+  if v_pts is null or jsonb_typeof(v_pts) <> 'array' then
+    return null;
+  end if;
+  v_count := jsonb_array_length(v_pts);
+  if v_count < 2 then
+    return null;
+  end if;
+  v_last := v_pts->(v_count - 1);
+  v_idx := greatest(0, v_count - 6);
+  v_before := v_pts->v_idx;
+
+  if jsonb_typeof(v_last->'lat') <> 'number'
+     or jsonb_typeof(v_last->'lng') <> 'number'
+     or jsonb_typeof(v_before->'lat') <> 'number'
+     or jsonb_typeof(v_before->'lng') <> 'number' then
+    return null;
+  end if;
+
+  v_last_lat := (v_last->>'lat')::double precision;
+  v_last_lng := (v_last->>'lng')::double precision;
+  v_before_lat := (v_before->>'lat')::double precision;
+  v_before_lng := (v_before->>'lng')::double precision;
+
+  return jsonb_build_object(
+    'lat', v_last_lat,
+    'lng', v_last_lng,
+    'radius_m', p_radius_m,
+    'direction_deg', public.fn_bearing_deg(
+      v_before_lat, v_before_lng, v_last_lat, v_last_lng
+    )
+  );
+end;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.finalize_seed_run(
   p_trail_id text,
@@ -368,3 +495,5 @@ SET
 WHERE geometry IS NOT NULL
   AND geometry ? 'points'
   AND (start_gate IS NULL OR finish_gate IS NULL);
+
+COMMIT;

@@ -38,6 +38,14 @@ import {
 import type { TrailGateConfig } from './types';
 
 export type VenueSource = 'static' | 'db' | 'none';
+/** Provenance of the gate config — surfaced to telemetry so we can
+ *  see in Sentry whether a Phone B failure was riding on a server
+ *  gate (deterministic across devices) or fell back to per-device
+ *  derivation. 'server' = trail_versions.start_gate / finish_gate
+ *  were present and parsed; 'local_fallback' = client polyline
+ *  derivation took over (legacy row, RLS hide, malformed server
+ *  jsonb); 'none' = no gate at all (geometry too short / missing). */
+export type GateSource = 'server' | 'local_fallback' | 'none';
 
 export interface ResolvedVenue {
   /** 'static' = venueConfig registry (Słotwiny legacy).
@@ -57,6 +65,8 @@ export interface ResolvedVenue {
   /** Derived line-crossing gate config. Null when geometry isn't
    *  ready, which the gate engine treats as unverified-only. */
   gateConfig: TrailGateConfig | null;
+  /** Where gateConfig came from, for telemetry / debugging. */
+  gateSource: GateSource;
 }
 
 export interface ResolveVenueInput {
@@ -94,6 +104,7 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
       rankingEnabled: false,
       trailGeo: null,
       gateConfig: null,
+      gateSource: 'none',
     };
   }
 
@@ -113,6 +124,10 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
       rankingEnabled: staticMatch.venue.rankingEnabled,
       trailGeo: geo,
       gateConfig,
+      // Static registry is treated as deterministic-by-construction;
+      // labelled 'server' for the same "everyone sees the same gate"
+      // semantic even though the source is the seeded fixture.
+      gateSource: gateConfig ? 'server' : 'none',
     };
   }
 
@@ -131,12 +146,18 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
     const gateConfig =
       serverGate ??
       buildTrailGateConfigFromPioneer(trailId, trailName, pioneerGeometryRaw);
+    const gateSource: GateSource = serverGate
+      ? 'server'
+      : gateConfig
+      ? 'local_fallback'
+      : 'none';
     return {
       source: 'db',
       spotId: dbTrail.spotId,
       rankingEnabled: true,
       trailGeo: buildTrailGeoFromPioneer(trailId, pioneerGeometryRaw),
       gateConfig,
+      gateSource,
     };
   }
 
@@ -146,5 +167,6 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
     rankingEnabled: false,
     trailGeo: null,
     gateConfig: null,
+    gateSource: 'none',
   };
 }

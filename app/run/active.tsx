@@ -39,6 +39,11 @@ export default function ActiveRunScreen() {
   const [showDebug, setShowDebug] = useState(false);
   const [debugTaps, setDebugTaps] = useState(0);
   const debugTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Rate-limit Sentry captureMessage on repeated UZBRÓJ taps so a
+  // rider mashing the button on cold GPS doesn't spam a single issue
+  // with hundreds of identical events. Reset whenever the phase
+  // re-enters readiness_check (i.e. between distinct arming attempts).
+  const armRejectCapturedRef = useRef(false);
 
   const { profile, isLoading: authLoading } = useAuthContext();
 
@@ -93,6 +98,14 @@ export default function ActiveRunScreen() {
   // src/features/run/runIntent.ts so the rules are unit-testable.
   const intent = parseRunIntent(params.intent);
   const intentInvalidRef = useRef(false);
+
+  // Re-arm the captureMessage rate limit on each fresh entry into
+  // the readiness_check phase. Reasoning: an ARM rejection in one
+  // attempt and a later rejection after the rider walked closer
+  // are two different events worth capturing, but ten consecutive
+  // taps on the button during the same attempt are not.
+  // (declared here so the dependency on state is in scope; ref
+  // mutation in the effect doesn't cause re-render churn.)
   useEffect(() => {
     if (intentInvalidRef.current) return;
     if (!trailId) return; // handled by the deep-link guard below
@@ -173,6 +186,14 @@ export default function ActiveRunScreen() {
     });
     return () => sub.remove();
   }, [refreshPermission]);
+
+  // Reset the arm-rejection capture flag every time the phase
+  // changes — entering readiness_check from idle is a fresh attempt
+  // worth capturing once; staying in readiness_check across many
+  // taps is not. Rate-limits Sentry noise without losing real signal.
+  useEffect(() => {
+    armRejectCapturedRef.current = false;
+  }, [state.phase]);
 
   const armRankedWithPreflight = useCallback(async () => {
     if (permission.backgroundStatus === 'granted') {
@@ -626,6 +647,11 @@ export default function ActiveRunScreen() {
                   data: {
                     trailId,
                     gateConfigPresent: !!gateConfig,
+                    // Provenance of the gate the engine is checking
+                    // against — 'server' = canonical (deterministic
+                    // across devices), 'local_fallback' = per-device
+                    // polyline derivation, 'none' = no gate at all.
+                    gateSource: venue.gateSource,
                     rankedEligible: state.readiness.rankedEligible,
                     inStartGate: state.readiness.inStartGate,
                     distanceToStartM: state.readiness.distanceToStartM,
@@ -637,7 +663,14 @@ export default function ActiveRunScreen() {
                     intent,
                   },
                 });
-                Sentry.captureMessage('Ranked arm rejected — not on line', 'warning');
+                // Rate-limited captureMessage — at most one issue per
+                // entry into readiness_check phase. Breadcrumb above
+                // captures every tap (cheap), but only the first
+                // creates a Sentry issue worth investigating.
+                if (!armRejectCapturedRef.current) {
+                  armRejectCapturedRef.current = true;
+                  Sentry.captureMessage('Ranked arm rejected — not on line', 'warning');
+                }
                 Alert.alert(
                   'Jeszcze nie teraz',
                   'Podejdź bliżej linii startu i odczekaj, aż GPS wyostrzy pozycję. Ranking wymaga dokładności na linii.',
