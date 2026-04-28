@@ -39,7 +39,7 @@ export default function ActiveRunScreen() {
   const [debugTaps, setDebugTaps] = useState(0);
   const debugTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { profile, isAuthenticated } = useAuthContext();
+  const { profile } = useAuthContext();
 
   // Trail context fetch. Geometry is only fetched for DB-sourced
   // trails; the static registry carries its own geo inline so we skip
@@ -262,12 +262,9 @@ export default function ActiveRunScreen() {
           }
           break;
         }
-        // intent === 'ranked' from here
-        if (!isAuthenticated) {
-          tapLight();
-          router.push('/auth');
-          break;
-        }
+        // intent === 'ranked' from here. Auth wall is upstream
+        // (bootstrap → /auth → /(tabs) → /run/active is unreachable
+        // without a session), so no inline auth check needed.
         if (state.readiness.rankedEligible) {
           tapMedium();
           void armRankedWithPreflight();
@@ -558,10 +555,7 @@ export default function ActiveRunScreen() {
                   armRun();
                   return;
                 }
-                if (!isAuthenticated) {
-                  router.push('/auth');
-                  return;
-                }
+                // intent === 'ranked'. Auth wall upstream — no inline check.
                 if (state.readiness.rankedEligible) {
                   void armRankedWithPreflight();
                   return;

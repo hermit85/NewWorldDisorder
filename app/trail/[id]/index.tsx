@@ -81,7 +81,7 @@ export default function TrailDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
-  const { profile, isAuthenticated } = useAuthContext();
+  const { profile } = useAuthContext();
   const { trail } = useTrail(id ?? null);
   const { spot } = useSpot(trail?.spotId ?? null);
   const venueMatch = id ? getVenueForTrail(id) : undefined;
@@ -163,11 +163,6 @@ export default function TrailDetailScreen() {
   // ── Draft trail — Pioneer hasn't carved geometry yet ───────
   if (trail.calibrationStatus === 'draft' && trail.geometryMissing) {
     const startRecording = () => {
-      if (!isAuthenticated) {
-        tapLight();
-        router.push('/auth');
-        return;
-      }
       tapMedium();
       router.push(`/run/recording?trailId=${trail.id}&spotId=${trail.spotId}`);
     };
@@ -235,11 +230,6 @@ export default function TrailDetailScreen() {
 
   const handleStartRanked = () => {
     if (isTrainingOnly) return;
-    if (!isAuthenticated) {
-      tapLight();
-      router.push('/auth');
-      return;
-    }
     tapMedium();
     router.push({
       pathname: '/run/active',
@@ -332,9 +322,11 @@ export default function TrailDetailScreen() {
           </View>
         ) : null}
 
-        {/* ═════ STATUS CARD ═════ */}
-        {isAuthenticated ? (
-          myEntry ? (
+        {/* ═════ STATUS CARD ═════
+            Tabs are auth-walled so isAuthenticated is always true here.
+            Authenticated user with no PB on this trail falls through to
+            the "BEZ WYNIKU NA TEJ TRASIE" card below. */}
+        {myEntry ? (
             <HudPanel
               title="Twoja pozycja"
               status={
@@ -392,12 +384,7 @@ export default function TrailDetailScreen() {
                 </View>
               </View>
             </Card>
-          )
-        ) : (
-          <Card glow onPress={() => router.push('/auth')}>
-            <Text style={styles.signInText}>ZALOGUJ SIĘ ABY JECHAĆ RANKINGOWO</Text>
-          </Card>
-        )}
+          )}
 
         {/* ═════ BOARD SECTION ═════ */}
         <View style={styles.section}>
@@ -529,7 +516,7 @@ export default function TrailDetailScreen() {
             icon={<IconGlyph name="lock" size={16} color={colors.accentInk} />}
             style={{ flex: 1 }}
           >
-            {isAuthenticated ? 'Jedź ranking' : 'Zaloguj — jedź ranking'}
+            Jedź ranking
           </Btn>
         )}
       </View>
@@ -762,16 +749,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Sign-in / no-result cards
-  signInText: {
-    ...typography.label,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 2.64,
-    color: colors.accent,
-    textAlign: 'center',
-    fontWeight: '800',
-  },
+  // No-result card
   noResultRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

@@ -16,7 +16,7 @@
 // the gear icon to keep the passport free of admin chrome.
 // ─────────────────────────────────────────────────────────────
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -41,8 +41,6 @@ import { useTablicaSections } from '@/hooks/useTablicaSections';
 import { RiderAvatar } from '@/components/RiderAvatar';
 import { SyncOutboxCard } from '@/components/sync/SyncOutboxCard';
 import {
-  Btn,
-  Card,
   IconGlyph,
   type IconName,
   SectionHead,
@@ -125,30 +123,15 @@ export default function ProfileScreen() {
   }, [userId]);
 
 
-  // ─── Anonymous flow — keep parity with old screen ────────────
-  if (!isAuthenticated) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Card hi glow padding={24} style={styles.signInCard}>
-            <Text style={styles.anonTitle}>Zaloguj się</Text>
-            <Text style={styles.anonBody}>
-              Stwórz rider tag, zapisuj zjazdy i dołącz do ligi.
-            </Text>
-            <Btn
-              variant="primary"
-              size="lg"
-              fullWidth={false}
-              style={styles.signInCta}
-              onPress={() => router.push('/auth')}
-            >
-              Dołącz do ligi
-            </Btn>
-          </Card>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
+  // ─── Auth wall guard — defensive only ────────────────────────
+  // Tabs are unreachable without auth (bootstrap → onboarding →
+  // /auth → /(tabs)). This effect is the seat-belt: if that wall
+  // ever leaks (e.g. a bug in useBetaFlow), redirect rather than
+  // letting the screen crash on null user.id derefs.
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/auth');
+  }, [isAuthenticated, router]);
+  if (!isAuthenticated) return null;
 
   const seasonLine = `SEZON 01 · ${user?.totalRuns ?? 0} ZJAZDÓW`;
   const rankProgressDisplay = rankProgress.nextRank
@@ -382,30 +365,5 @@ const styles = StyleSheet.create({
     color: colors.accent,
     letterSpacing: 1.2,
     marginTop: 2,
-  },
-
-  // Anonymous flow.
-  signInCard: {
-    gap: 12,
-    marginTop: spacing.sm,
-  },
-  signInCta: {
-    marginTop: 8,
-  },
-  anonTitle: {
-    ...typography.title,
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 28,
-    lineHeight: 28,
-    color: colors.textPrimary,
-    fontWeight: '800',
-    letterSpacing: -0.28,
-    textTransform: 'uppercase',
-  },
-  anonBody: {
-    ...typography.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
   },
 });

@@ -20,7 +20,7 @@
 // Profile stats, XP and the bike-park card live on the JA tab.
 // Anonymous flow is unchanged.
 // ─────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -38,9 +38,7 @@ import { formatTimeShort } from '@/content/copy';
 import {
   AmbientScan,
   Btn,
-  Card,
   LiveTicker,
-  Pill,
   SectionHead,
 } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
@@ -260,41 +258,13 @@ export default function HomeScreen() {
     );
   }
 
-  // ── Anonymous flow — canonical Card + Pill + Btn ─────────────
-  if (!isAuthenticated) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
-          ]}
-        >
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.brand}>NWD</Text>
-              <Text style={styles.brandSub}>LIGA GRAVITY</Text>
-            </View>
-          </View>
-
-          <Card hi glow padding={20} style={styles.anonCard}>
-            <Pill state="accent">Sezon 01</Pill>
-            <Text style={styles.anonTitle}>Dołącz do ligi</Text>
-            <Text style={styles.anonBody}>
-              Stwórz rider tag, zapisuj zjazdy, walcz o miejsce na tablicy.
-            </Text>
-            <Btn
-              variant="primary"
-              size="lg"
-              onPress={() => router.push('/auth')}
-            >
-              Zaloguj się
-            </Btn>
-          </Card>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
+  // ── Auth wall guard — defensive only ─────────────────────────
+  // Tabs reachable only via bootstrap → onboarding → /auth → /(tabs).
+  // The redirect-effect is the seat-belt if that wall ever leaks.
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/auth');
+  }, [isAuthenticated, router]);
+  if (!isAuthenticated) return null;
 
   // ── Authed flow — Race Day Command Center.
   // One screen, one question: "co teraz robię?". The context header
@@ -413,31 +383,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.pad,
     gap: spacing.lg,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingTop: spacing.xs,
-  },
-  brand: {
-    ...typography.title,
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 28,
-    lineHeight: 28,
-    color: colors.textPrimary,
-    fontWeight: '800',
-    letterSpacing: 1.68, // 0.06em @ 28
-  },
-  brandSub: {
-    ...typography.micro,
-    color: colors.textSecondary,
-    marginTop: 4,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
-    letterSpacing: 2.2, // 0.22em @ 10
-    fontWeight: '700',
-  },
   tickerWrap: {
     marginBottom: 4,
   },
@@ -544,29 +489,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     maxWidth: 280,
-  },
-  // Canonical anon hero card. Card component supplies the surface
-  // (panel/borderHot/glow); these styles handle interior typography
-  // only — replaces the prior bespoke `anonCard` with accent border
-  // (decoration §01 violation) and chunk9 tokens.
-  anonCard: {
-    gap: 12,
-    marginTop: spacing.sm,
-  },
-  anonTitle: {
-    ...typography.title,
-    fontFamily: 'Rajdhani_700Bold',
-    fontSize: 28,
-    lineHeight: 28,
-    color: colors.textPrimary,
-    fontWeight: '800',
-    letterSpacing: -0.28, // -0.01em @ 28
-    textTransform: 'uppercase',
-  },
-  anonBody: {
-    ...typography.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
   },
 });

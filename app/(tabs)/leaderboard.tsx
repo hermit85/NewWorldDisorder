@@ -19,7 +19,7 @@
 // chip in the picker, that selection sticks for the session.
 // ─────────────────────────────────────────────────────────────
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -189,26 +189,12 @@ export default function TablicaScreen() {
     router.push(target as any);
   }
 
-  // Anonymous flow — keep parity with Home: prompt to sign in.
-  if (!isAuthenticated) {
-    return (
-      <SafeAreaView style={styles.root} edges={['top']}>
-        <View style={styles.centered}>
-          <Text style={styles.signinTitle}>TABLICA</Text>
-          <Text style={styles.signinBody}>
-            Zaloguj się, żeby zobaczyć swoją pozycję w lidze.
-          </Text>
-          <Pressable
-            onPress={() => router.push('/auth')}
-            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-          >
-            <Text style={styles.ctaLabel}>ZALOGUJ SIĘ</Text>
-            <Text style={styles.ctaArrow}>→</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Auth wall guard — defensive only. Tabs reachable only after
+  // /auth, this catches any future bootstrap leak.
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/auth');
+  }, [isAuthenticated, router]);
+  if (!isAuthenticated) return null;
 
   const isLoadingFocusedBoard =
     !!focusTrail && leaderboardStatus === 'loading' && leaderboardRows.length === 0;
@@ -456,59 +442,5 @@ const styles = StyleSheet.create({
   },
   tailWrap: {
     gap: 10,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
-  },
-  signinTitle: {
-    fontFamily: fonts.racing,
-    fontSize: 36,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
-  },
-  signinBody: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  cta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    height: 48,
-    paddingHorizontal: 32,
-    borderRadius: 24,
-    backgroundColor: colors.accent,
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    marginTop: 8,
-  },
-  ctaPressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  ctaLabel: {
-    fontFamily: fonts.racing,
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.accentInk,
-    letterSpacing: 2.88,
-    textTransform: 'uppercase',
-  },
-  ctaArrow: {
-    fontFamily: fonts.body,
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.accentInk,
   },
 });
