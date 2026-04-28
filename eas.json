@@ -24,7 +24,8 @@
       "autoIncrement": true,
       "distribution": "store",
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "image": "latest"
       }
     }
   },
