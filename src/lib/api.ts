@@ -2239,15 +2239,48 @@ export async function listSpotTrails(
 // per trail; callers that only need metadata (list screens, headers)
 // read it via `geometry === null` on the mapped Trail.
 
-export async function fetchTrailGeometry(trailId: string): Promise<ApiResult<unknown>> {
+export interface TrailGeometryBundle {
+  geometry: unknown;
+  /** From trail_versions.start_gate (jsonb). Shape:
+   *  `{lat, lng, radius_m, direction_deg}`. NULL for pre-build-49
+   *  rows (pioneered before the gate-persisting migration) or
+   *  trails without a current_version_id. */
+  startGate: unknown | null;
+  /** From trail_versions.finish_gate (jsonb). Same shape. */
+  finishGate: unknown | null;
+}
+
+export async function fetchTrailGeometry(trailId: string): Promise<ApiResult<TrailGeometryBundle>> {
   const { data, error } = await db()
     .from('trails')
-    .select('geometry')
+    .select('geometry, current_version_id')
     .eq('id', trailId)
     .single();
   if (error) return { ok: false, code: 'fetch_failed', message: error.message };
   if (!data) return { ok: false, code: 'not_found' };
-  return { ok: true, data: (data as { geometry: unknown }).geometry };
+  const trail = data as { geometry: unknown; current_version_id: string | null };
+
+  // Best-effort fetch of canonical gate. If it fails (RLS, race
+  // during version promotion, no version yet) we return null and
+  // the client falls back to per-device derivation from geometry.
+  let startGate: unknown = null;
+  let finishGate: unknown = null;
+  if (trail.current_version_id) {
+    const { data: ver } = await db()
+      .from('trail_versions')
+      .select('start_gate, finish_gate')
+      .eq('id', trail.current_version_id)
+      .maybeSingle();
+    if (ver) {
+      const v = ver as { start_gate: unknown; finish_gate: unknown };
+      startGate = v.start_gate ?? null;
+      finishGate = v.finish_gate ?? null;
+    }
+  }
+  return {
+    ok: true,
+    data: { geometry: trail.geometry, startGate, finishGate },
+  };
 }
 
 // ── fetchRun — single run by id (used by Pioneer result flow) ──

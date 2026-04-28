@@ -32,6 +32,7 @@ import { getVenueForTrail, type TrailGeoSeed } from '@/data/venueConfig';
 import {
   buildTrailGateConfigFromGeo,
   buildTrailGateConfigFromPioneer,
+  buildTrailGateConfigFromServer,
   buildTrailGeoFromPioneer,
 } from './gates';
 import type { TrailGateConfig } from './types';
@@ -67,10 +68,25 @@ export interface ResolveVenueInput {
   /** From useTrailGeometry(trailId). Raw JSON payload that
    *  buildTrailGeoFromPioneer knows how to parse. */
   pioneerGeometryRaw: unknown;
+  /** Canonical start gate from trail_versions (server-side). When
+   *  present, the gate config is built from server center + bearing
+   *  so every device sees the same line; when null, falls back to
+   *  per-device polyline derivation (legacy path for pre-build-49
+   *  pioneer rows). */
+  serverStartGateRaw?: unknown;
+  /** Canonical finish gate, same contract as serverStartGateRaw. */
+  serverFinishGateRaw?: unknown;
 }
 
 export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
-  const { trailId, trailName, dbTrail, pioneerGeometryRaw } = input;
+  const {
+    trailId,
+    trailName,
+    dbTrail,
+    pioneerGeometryRaw,
+    serverStartGateRaw,
+    serverFinishGateRaw,
+  } = input;
   if (!trailId) {
     return {
       source: 'none',
@@ -101,17 +117,26 @@ export function resolveVenue(input: ResolveVenueInput): ResolvedVenue {
   }
 
   // ── DB path (current production default) ──
+  // Gate precedence: server-canonical first (every device sees the
+  // same line), client-derived second (legacy fallback for trails
+  // pioneered before the gate-persisting migration).
   if (dbTrail) {
+    const serverGate = buildTrailGateConfigFromServer(
+      trailId,
+      trailName,
+      serverStartGateRaw ?? null,
+      serverFinishGateRaw ?? null,
+      pioneerGeometryRaw,
+    );
+    const gateConfig =
+      serverGate ??
+      buildTrailGateConfigFromPioneer(trailId, trailName, pioneerGeometryRaw);
     return {
       source: 'db',
       spotId: dbTrail.spotId,
       rankingEnabled: true,
       trailGeo: buildTrailGeoFromPioneer(trailId, pioneerGeometryRaw),
-      gateConfig: buildTrailGateConfigFromPioneer(
-        trailId,
-        trailName,
-        pioneerGeometryRaw,
-      ),
+      gateConfig,
     };
   }
 

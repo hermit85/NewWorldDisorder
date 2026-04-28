@@ -974,6 +974,8 @@ export function useSpotTrails(spotId: string | null) {
  */
 export function useTrailGeometry(trailId: string | null) {
   const [geometry, setGeometry] = useState<unknown>(null);
+  const [serverStartGate, setServerStartGate] = useState<unknown>(null);
+  const [serverFinishGate, setServerFinishGate] = useState<unknown>(null);
   const [status, setStatus] = useState<FetchStatus>('loading');
   const refreshSignal = useRefreshSignal();
 
@@ -981,6 +983,8 @@ export function useTrailGeometry(trailId: string | null) {
     let cancelled = false;
     if (!trailId) {
       setGeometry(null);
+      setServerStartGate(null);
+      setServerFinishGate(null);
       setStatus('empty');
       return;
     }
@@ -989,17 +993,21 @@ export function useTrailGeometry(trailId: string | null) {
       const result = await api.fetchTrailGeometry(trailId);
       if (cancelled) return;
       if (result.ok) {
-        setGeometry(result.data);
-        setStatus(result.data ? 'ok' : 'empty');
+        setGeometry(result.data.geometry);
+        setServerStartGate(result.data.startGate);
+        setServerFinishGate(result.data.finishGate);
+        setStatus(result.data.geometry ? 'ok' : 'empty');
       } else {
         setGeometry(null);
+        setServerStartGate(null);
+        setServerFinishGate(null);
         setStatus('error');
       }
     })();
     return () => { cancelled = true; };
   }, [trailId, refreshSignal]);
 
-  return { geometry, status, loading: status === 'loading' };
+  return { geometry, serverStartGate, serverFinishGate, status, loading: status === 'loading' };
 }
 
 /**

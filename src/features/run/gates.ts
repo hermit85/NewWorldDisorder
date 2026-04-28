@@ -185,6 +185,93 @@ export function buildTrailGateConfigFromPioneer(
   });
 }
 
+interface ServerGateRaw {
+  lat: number;
+  lng: number;
+  radius_m?: number;
+  direction_deg?: number;
+}
+
+function parseServerGate(raw: unknown): ServerGateRaw | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return null;
+  return {
+    lat: r.lat,
+    lng: r.lng,
+    radius_m: typeof r.radius_m === 'number' ? r.radius_m : undefined,
+    direction_deg: typeof r.direction_deg === 'number' ? r.direction_deg : undefined,
+  };
+}
+
+/**
+ * Build a TrailGateConfig using server-canonical center + bearing.
+ * Falls back to client-side polyline-derived bearing if the server
+ * direction is missing. Returns null when either gate is missing or
+ * malformed so callers can fall back to buildTrailGateConfigFromPioneer.
+ *
+ * Deliberately keeps client-side defaults for lineWidthM / zoneDepthM /
+ * entryRadiusM / heading and speed thresholds — only `center` and
+ * `trailBearing` come from the server. The server radius_m (25) is
+ * intentionally NOT fed into the gate engine; the engine measures
+ * crossing against a 4–6 m line, not a 25 m fuzz zone, and shipping
+ * 25 m here would silently widen ranked acceptance for every existing
+ * device.
+ */
+export function buildTrailGateConfigFromServer(
+  trailId: string | null,
+  trailName: string,
+  serverStartGateRaw: unknown,
+  serverFinishGateRaw: unknown,
+  geometryRaw: unknown,
+): TrailGateConfig | null {
+  if (!trailId) return null;
+  const start = parseServerGate(serverStartGateRaw);
+  const finish = parseServerGate(serverFinishGateRaw);
+  if (!start || !finish) return null;
+
+  const geometry = asPioneerGeometry(geometryRaw);
+  const polyline = geometry ? toPolyline(geometry) : [];
+
+  // Trail bearing — prefer server, fall back to polyline-derived if
+  // server didn't include direction_deg (older rows / corrupt data).
+  const startBearing =
+    start.direction_deg ??
+    (polyline.length >= 2 ? computeStartBearing(polyline) : 180);
+  const finishBearing =
+    finish.direction_deg ??
+    (polyline.length >= 2 ? computeFinishBearing(polyline) : 180);
+
+  const meta = trailMeta.find((m) => m.trailId === trailId);
+  const expectedLengthM = Math.max(
+    meta?.expectedLengthM ?? 0,
+    Math.round(totalPolylineDistanceM(polyline)),
+  );
+  const minDurationSec = meta?.minDurationSec ?? estimateMinDurationSec(expectedLengthM);
+  const minDistanceFraction = meta?.minDistanceFraction ?? 0.75;
+  const finishUnlockMinDistanceM = Math.max(80, expectedLengthM * 0.25);
+
+  return {
+    trailId,
+    trailName: meta?.trailName ?? trailName,
+    expectedLengthM,
+    finishUnlockMinTimeSec: FINISH_UNLOCK_MIN_TIME_SEC,
+    finishUnlockMinDistanceM,
+    minDurationSec,
+    minDistanceFraction,
+    startGate: {
+      center: { latitude: start.lat, longitude: start.lng },
+      trailBearing: startBearing,
+      ...DEFAULT_START_GATE,
+    },
+    finishGate: {
+      center: { latitude: finish.lat, longitude: finish.lng },
+      trailBearing: finishBearing,
+      ...DEFAULT_FINISH_GATE,
+    },
+  };
+}
+
 // ── Default gate parameters ──
 
 // Gate widths pull from GATE_LINE_LENGTH_M so the spec constant and

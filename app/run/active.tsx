@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, Linking, AppState } from 'react-native';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { spacing, radii } from '@/theme/spacing';
@@ -59,13 +60,23 @@ export default function ActiveRunScreen() {
   // Trail context fetch. Geometry is only fetched for DB-sourced
   // trails; the static registry carries its own geo inline so we skip
   // the network trip when resolveVenue will pick the static branch.
+  // Server gates from trail_versions (current_version_id) feed
+  // resolveVenue so every device measures crossing against the same
+  // canonical line; client-side polyline derivation is the fallback
+  // for legacy rows pioneered before the gate-persisting migration.
   const { trail: dbTrail, status: trailStatus } = useTrail(trailId || null);
-  const { geometry: pioneerGeometryRaw } = useTrailGeometry(trailId || null);
+  const {
+    geometry: pioneerGeometryRaw,
+    serverStartGate: serverStartGateRaw,
+    serverFinishGate: serverFinishGateRaw,
+  } = useTrailGeometry(trailId || null);
   const venue = resolveVenue({
     trailId: trailId || null,
     trailName,
     dbTrail: dbTrail ? { spotId: dbTrail.spotId } : null,
     pioneerGeometryRaw,
+    serverStartGateRaw,
+    serverFinishGateRaw,
   });
   const spotId = venue.spotId;
   const isTrainingOnly = venue.source === 'static' && !venue.rankingEnabled;
@@ -571,12 +582,62 @@ export default function ActiveRunScreen() {
                   return;
                 }
                 // intent === 'ranked'. Auth wall upstream — no inline check.
-                if (state.readiness.rankedEligible) {
+                //
+                // canArmRanked separates "can arm the detector" from
+                // "already crossed the perfect line". Build 48 conflated
+                // them: state.readiness.rankedEligible uses signed
+                // distance + lateral offset against the strict 4–6 m
+                // line, which rejected riders who were visibly on the
+                // start pin. UZBRÓJ should be lenient — the timer
+                // doesn't start here, it starts when the gate engine
+                // detects a real crossing. So we accept either:
+                //   - rankedEligible (precise: rider is on the line), OR
+                //   - approachKind 'on_line_ready' (within 15 m of
+                //     centre with usable heading) AND GPS not 'unavailable'.
+                // The actual crossing detection — what records the
+                // ranked time — is unchanged in the gate engine. Only
+                // the arm threshold relaxes.
+                const gpsUsable =
+                  state.gps.readiness === 'good' ||
+                  state.gps.readiness === 'excellent' ||
+                  state.gps.readiness === 'weak';
+                const canArmRanked =
+                  state.readiness.rankedEligible ||
+                  (approachState?.kind === 'on_line_ready' && gpsUsable);
+                if (canArmRanked) {
                   void armRankedWithPreflight();
                   return;
                 }
-                // Ranked intent but gate / GPS says not yet. Be honest
-                // about why — no silent practice armament.
+                // Neither the precise nor the lenient gate accepts —
+                // really not on the line, or GPS is too cold. Honest
+                // alert + diagnostic capture so we can see in Sentry
+                // which of the rejection reasons actually fires in the
+                // wild after the relaxation. Also capture
+                // diagnostic context: build 48 field test surfaced cases
+                // where the rider was visibly on the start pin but
+                // rankedEligible stayed false; we need numbers to know
+                // whether GPS, lateral offset, heading, or null gate
+                // was the reject reason.
+                Sentry.addBreadcrumb({
+                  category: 'arm',
+                  type: 'info',
+                  message: 'ranked_arm_rejected',
+                  level: 'warning',
+                  data: {
+                    trailId,
+                    gateConfigPresent: !!gateConfig,
+                    rankedEligible: state.readiness.rankedEligible,
+                    inStartGate: state.readiness.inStartGate,
+                    distanceToStartM: state.readiness.distanceToStartM,
+                    gateDistToStartM: state.gateDistToStartM,
+                    gateHeadingDeltaDeg: state.gateHeadingDeltaDeg,
+                    gpsAccuracy: state.lastPoint?.accuracy ?? null,
+                    gpsReadiness: state.gps.readiness,
+                    approachKind: approachState?.kind ?? 'no_approach_state',
+                    intent,
+                  },
+                });
+                Sentry.captureMessage('Ranked arm rejected — not on line', 'warning');
                 Alert.alert(
                   'Jeszcze nie teraz',
                   'Podejdź bliżej linii startu i odczekaj, aż GPS wyostrzy pozycję. Ranking wymaga dokładności na linii.',
