@@ -20,6 +20,9 @@ const TTS_OPTIONS: Speech.SpeechOptions = {
   language: 'pl-PL',
   rate: 1.05,
   pitch: 1.0,
+  // iOS: let the system mix/duck this short cue with Spotify instead
+  // of taking over the app audio session and stopping the rider's music.
+  useApplicationAudioSession: false,
 };
 
 /** Internal: fire a sequence of heavy haptic impacts with a small delay
