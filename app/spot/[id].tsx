@@ -42,7 +42,6 @@ import {
 } from '@/components/nwd';
 import { useAuthContext } from '@/hooks/AuthContext';
 import { useBikeParkTrails, useDeleteSpot, useSpot } from '@/hooks/useBackend';
-import { pickRunDestination } from '@/features/run/pickRunDestination';
 import { formatTimeShort } from '@/content/copy';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -310,21 +309,7 @@ export default function SpotScreen() {
                     rank={t.userData.position ?? null}
                     pioneerLabel={pioneerLabel}
                     highlight={t.state === 'beaten' || !!t.userData.lastRanAt}
-                    onPress={() =>
-                      router.push(
-                        pickRunDestination({
-                          trailId: t.trail.id,
-                          spotId: spot.id,
-                          trailName: t.trail.name,
-                          calibrationStatus: t.calibrationStatus,
-                          intent:
-                            t.state === 'pioneer'
-                            && t.calibrationStatus === 'fresh_pending_second_run'
-                              ? 'ranked'
-                              : undefined,
-                        }),
-                      )
-                    }
+                    onPress={() => router.push(`/trail/${t.trail.id}`)}
                   />
                 );
               })}
