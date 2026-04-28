@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -134,81 +135,90 @@ export function FeedbackSheet({ visible, onClose, context }: FeedbackSheetProps)
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <Pressable style={styles.scrim} onPress={handleClose}>
-        <Pressable onPress={() => {}} style={styles.sheetWrap}>
-          <SafeAreaView edges={['bottom']} style={styles.sheet}>
-            <View style={styles.handle} />
-            <Text style={styles.label}>FEEDBACK</Text>
-            <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-              <View style={styles.chipRow}>
-                {TYPE_CHIPS.map((chip) => {
-                  const active = type === chip.id;
-                  return (
-                    <Pressable
-                      key={chip.id}
-                      onPress={() => setType(chip.id)}
-                      style={[styles.chip, active && styles.chipActive]}
-                    >
-                      <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
-                        {chip.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <Text style={styles.fieldLabel}>Co się stało?</Text>
-              <TextInput
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Opisz krótko — kontekst trasy / zjazdu doklejamy automatycznie."
-                placeholderTextColor={colors.textTertiary}
-                multiline
-                numberOfLines={5}
-                editable={!submitting}
-                style={styles.textarea}
-              />
-
-              {context.trailName || context.runId ? (
-                <Text style={styles.contextLine}>
-                  Kontekst: {context.trailName ?? '—'}
-                  {context.runId ? ` · run ${context.runId.slice(0, 8)}` : ''}
-                  {context.saveStatus ? ` · ${context.saveStatus}` : ''}
-                </Text>
-              ) : null}
-
-              <Pressable
-                onPress={handleSubmit}
-                disabled={submitting || message.trim().length === 0}
-                style={({ pressed }) => [
-                  styles.cta,
-                  message.trim().length === 0 && styles.ctaDisabled,
-                  pressed && message.trim().length > 0 && styles.ctaPressed,
-                ]}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoider}
+      >
+        <Pressable style={styles.scrim} onPress={handleClose}>
+          <Pressable onPress={() => {}} style={styles.sheetWrap}>
+            <SafeAreaView edges={['bottom']} style={styles.sheet}>
+              <View style={styles.handle} />
+              <Text style={styles.label}>FEEDBACK</Text>
+              <ScrollView
+                contentContainerStyle={styles.body}
+                keyboardDismissMode="interactive"
+                keyboardShouldPersistTaps="handled"
               >
-                {submitting ? (
-                  <ActivityIndicator color={colors.accentInk} />
-                ) : (
-                  <Text style={styles.ctaLabel}>WYŚLIJ FEEDBACK</Text>
-                )}
-              </Pressable>
-
-              {done ? (
-                <View style={styles.doneWrap}>
-                  <Text style={[styles.doneCopy, !done.ok && styles.doneCopyError]}>
-                    {done.copy}
-                  </Text>
-                  {!done.ok ? (
-                    <Pressable onPress={handleMailtoFallback} style={styles.mailLink}>
-                      <Text style={styles.mailLabel}>WYŚLIJ E-MAILEM →</Text>
-                    </Pressable>
-                  ) : null}
+                <View style={styles.chipRow}>
+                  {TYPE_CHIPS.map((chip) => {
+                    const active = type === chip.id;
+                    return (
+                      <Pressable
+                        key={chip.id}
+                        onPress={() => setType(chip.id)}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+                          {chip.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-              ) : null}
-            </ScrollView>
-          </SafeAreaView>
+
+                <Text style={styles.fieldLabel}>Co się stało?</Text>
+                <TextInput
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder="Opisz krótko — kontekst trasy / zjazdu doklejamy automatycznie."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={5}
+                  editable={!submitting}
+                  style={styles.textarea}
+                />
+
+                {context.trailName || context.runId ? (
+                  <Text style={styles.contextLine}>
+                    Kontekst: {context.trailName ?? '—'}
+                    {context.runId ? ` · run ${context.runId.slice(0, 8)}` : ''}
+                    {context.saveStatus ? ` · ${context.saveStatus}` : ''}
+                  </Text>
+                ) : null}
+
+                <Pressable
+                  onPress={handleSubmit}
+                  disabled={submitting || message.trim().length === 0}
+                  style={({ pressed }) => [
+                    styles.cta,
+                    message.trim().length === 0 && styles.ctaDisabled,
+                    pressed && message.trim().length > 0 && styles.ctaPressed,
+                  ]}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color={colors.accentInk} />
+                  ) : (
+                    <Text style={styles.ctaLabel}>WYŚLIJ FEEDBACK</Text>
+                  )}
+                </Pressable>
+
+                {done ? (
+                  <View style={styles.doneWrap}>
+                    <Text style={[styles.doneCopy, !done.ok && styles.doneCopyError]}>
+                      {done.copy}
+                    </Text>
+                    {!done.ok ? (
+                      <Pressable onPress={handleMailtoFallback} style={styles.mailLink}>
+                        <Text style={styles.mailLabel}>WYŚLIJ E-MAILEM →</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </ScrollView>
+            </SafeAreaView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -241,6 +251,9 @@ function collectDebugPayload(ctx: FeedbackContext): Record<string, unknown> {
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoider: {
+    flex: 1,
+  },
   scrim: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
