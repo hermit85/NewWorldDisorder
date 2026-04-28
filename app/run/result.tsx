@@ -1137,23 +1137,21 @@ function PioneerResultScreen({ runId }: { runId: string }) {
           </Svg>
         </Animated.View>
 
-        {/* Sprint 4 / ADR-012: copy adapts to seed_source.
-            Curator seeds get softer "welcome to the league" framing;
-            rider seeds get the community-confirmation prompt.
-            Both preserve permanent Pioneer messaging. */}
+        {/* Pioneer result: celebrate the created line, not an internal
+            calibration chore. The trail can be ridden now; early
+            ranked runs will help confirm it. */}
         {trail?.seedSource === 'curator' ? (
           <>
-            <Text style={pioneerStyles.heroTitle}>TRASA{'\n'}ZAPISANA</Text>
+            <Text style={pioneerStyles.heroTitle}>LINIA{'\n'}ZAPISANA</Text>
             <Text style={pioneerStyles.heroSubtitle}>
-              Geometria bazowa jest gotowa. Zjedź jeszcze raz, żeby otworzyć leaderboard.
+              Start, meta i linia są gotowe. Pierwsze przejazdy pomogą potwierdzić trasę.
             </Text>
           </>
         ) : (
           <>
-            <Text style={pioneerStyles.heroTitle}>PIERWSZY PIONIER</Text>
+            <Text style={pioneerStyles.heroTitle}>LINIA{'\n'}ZAPISANA</Text>
             <Text style={pioneerStyles.heroSubtitle}>
-              Trasa zapisana. Drugi spójny zjazd otworzy leaderboard.
-              Twoje imię zostanie zapisane jako Pioneer.
+              Wyznaczyłeś start, metę i linię dla tej trasy. Twoje imię zostaje przy niej jako Pioneer.
             </Text>
           </>
         )}
@@ -1164,7 +1162,7 @@ function PioneerResultScreen({ runId }: { runId: string }) {
             CZAS PO BRAMCE · TIMER {formatTime(run.duration_ms ?? 0)}
           </Text>
         ) : null}
-        <Text style={pioneerStyles.rankLabel}>POTRZEBNY DRUGI ZJAZD</Text>
+        <Text style={pioneerStyles.rankLabel}>NOWA TRASA</Text>
       </View>
 
       <View style={pioneerStyles.statsBlock}>

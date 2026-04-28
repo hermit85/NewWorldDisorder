@@ -231,10 +231,18 @@ export default function NewTrailScreen() {
             trailing={step > 0 ? <StepDots step={step} /> : null}
           />
           <PageTitle
-            title={step === 0 ? 'Trasy w tym parku' : 'Dodaj trasę'}
+            title={
+              step === 0
+                ? 'Trasy w tym parku'
+                : step === 1
+                  ? 'Nazwij trasę'
+                  : 'Nagraj pierwszy zjazd'
+            }
             subtitle={
               step === 0
                 ? 'Wybierz istniejącą trasę albo dodaj nową, jeśli jej nie ma na liście.'
+                : step === 1
+                  ? 'Sama nazwa nie tworzy jeszcze linii. Linię wyznaczy pierwszy zjazd.'
                 : null
             }
           />
@@ -313,7 +321,7 @@ export default function NewTrailScreen() {
             ) : step === 2 ? (
               <Btn variant="primary" onPress={() => setStep(3)}>Dalej</Btn>
             ) : (
-              <Btn variant="primary" onPress={handleStart}>Zacznij zjazd</Btn>
+              <Btn variant="primary" onPress={handleStart}>Nagraj pierwszy zjazd</Btn>
             )}
             {step > 0 ? (
               <Pressable
@@ -424,17 +432,17 @@ function Step1({
 function Step2Educator({ name }: { name: string }) {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Pionierujesz.</Text>
+      <Text style={styles.cardTitle}>Nagraj pierwszy zjazd</Text>
       <Text style={styles.educatorBody}>
-        Twój pierwszy zjazd zdefiniuje geometrię trasy{name ? ` «${name}»` : ''}.
+        Przejedź trasę{name ? ` «${name}»` : ''} od startu do mety.
       </Text>
       <Text style={styles.educatorBody}>
-        Kolejni riderzy będą ścigać się po twojej linii.
+        Ten zjazd wyznaczy linię, start i metę dla wszystkich riderów.
       </Text>
       <View style={styles.educatorList}>
         <EducatorStep n={1} label="Telefon do kieszeni" />
         <EducatorStep n={2} label="Zjedź raz" />
-        <EducatorStep n={3} label="Ranking gotowy" />
+        <EducatorStep n={3} label="Linia zapisana" />
       </View>
     </View>
   );
@@ -468,8 +476,8 @@ function Step3Summary({
       <Text style={styles.value}>{difficultyLabel} · {typeLabel}</Text>
       <Text style={[styles.label, { marginTop: 20 }]}>CO SIĘ TERAZ STANIE</Text>
       <Text style={styles.cardBody}>
-        Aktywuję GPS i ekran zjazdu. Po przejechaniu trasa zostanie zapisana
-        jako «W walidacji». Drugi rider ją potwierdzi.
+        Aktywuję GPS i ekran zjazdu. Po przejechaniu linia trasy zostanie zapisana.
+        Pierwsze kolejne przejazdy pomogą ją potwierdzić.
       </Text>
     </View>
   );
